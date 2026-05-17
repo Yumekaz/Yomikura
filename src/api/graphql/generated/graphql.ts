@@ -3916,7 +3916,19 @@ export type UpdateChapterProgressMutation = { updateChapter: { chapter: { id: nu
 export type GetSourcesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetSourcesQuery = { sources: { edges: Array<{ node: { id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean } }> } };
+export type GetSourcesQuery = { sources: { edges: Array<{ node: { id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean, extension: { pkgName: string, isInstalled: boolean } } }> } };
+
+export type GetSourcesByConditionQueryVariables = Exact<{
+  lang: string;
+}>;
+
+
+export type GetSourcesByConditionQuery = { sources: { edges: Array<{ node: { id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean } }> } };
+
+export type GetInstalledExtensionLangsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetInstalledExtensionLangsQuery = { extensions: { edges: Array<{ node: { pkgName: string, lang: string } }> } };
 
 export type ConnectionTestQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -4041,6 +4053,39 @@ export const GetSourcesDocument = gql`
         lang
         iconUrl
         supportsLatest
+        isNsfw
+        extension {
+          pkgName
+          isInstalled
+        }
+      }
+    }
+  }
+}
+    `;
+export const GetSourcesByConditionDocument = gql`
+    query GetSourcesByCondition($lang: String!) {
+  sources(condition: {lang: $lang}) {
+    edges {
+      node {
+        id
+        name
+        lang
+        iconUrl
+        supportsLatest
+        isNsfw
+      }
+    }
+  }
+}
+    `;
+export const GetInstalledExtensionLangsDocument = gql`
+    query GetInstalledExtensionLangs {
+  extensions(condition: {isInstalled: true}) {
+    edges {
+      node {
+        pkgName
+        lang
       }
     }
   }
@@ -4201,6 +4246,12 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetSources(variables?: GetSourcesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetSourcesQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetSourcesQuery>({ document: GetSourcesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetSources', 'query', variables);
+    },
+    GetSourcesByCondition(variables: GetSourcesByConditionQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetSourcesByConditionQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetSourcesByConditionQuery>({ document: GetSourcesByConditionDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetSourcesByCondition', 'query', variables);
+    },
+    GetInstalledExtensionLangs(variables?: GetInstalledExtensionLangsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetInstalledExtensionLangsQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetInstalledExtensionLangsQuery>({ document: GetInstalledExtensionLangsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetInstalledExtensionLangs', 'query', variables);
     },
     ConnectionTest(variables?: ConnectionTestQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ConnectionTestQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<ConnectionTestQuery>({ document: ConnectionTestDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ConnectionTest', 'query', variables);

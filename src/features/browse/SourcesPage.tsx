@@ -5,6 +5,14 @@ import { Loader2, Globe } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 
+/**
+ * SourcesPage - Lists all installed sources.
+ * 
+ * The Suwayomi `sources` query applies a server-side "enabled languages" filter
+ * by default, which hides sources whose language isn't explicitly enabled in the
+ * server config. To bypass this, we first fetch installed extensions to discover
+ * all languages, then query sources per-language using `condition: { lang }`.
+ */
 export default function SourcesPage() {
   const { serverBaseUrl } = useSettingsStore();
   
@@ -13,15 +21,58 @@ export default function SourcesPage() {
     return createGraphqlClient(`${cleanUrl}/api/graphql`);
   }, [serverBaseUrl]);
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["sources", serverBaseUrl],
-    queryFn: () => sdk.GetSources(),
+  // Step 1: Get all installed extension languages
+  const { data: extData } = useQuery({
+    queryKey: ["installed-ext-langs", serverBaseUrl],
+    queryFn: () => sdk.GetInstalledExtensionLangs(),
     enabled: !!serverBaseUrl,
   });
 
-  const sources = useMemo(() => {
-    return data?.sources?.edges?.map(e => e?.node).filter((n): n is NonNullable<typeof n> => n != null) || [];
-  }, [data]);
+  const installedLangs = useMemo(() => {
+    if (!extData?.extensions?.edges) return [];
+    const langs = new Set<string>();
+    extData.extensions.edges.forEach(e => {
+      if (e?.node?.lang) langs.add(e.node.lang);
+    });
+    // Always include "localsourcelang" for Local Source and "en"
+    langs.add("localsourcelang");
+    langs.add("en");
+    return Array.from(langs);
+  }, [extData]);
+
+  // Step 2: Fetch sources for each language using condition (bypasses server filter)
+  const { data: sourcesData, isLoading, isError } = useQuery({
+    queryKey: ["all-sources", serverBaseUrl, installedLangs],
+    queryFn: async () => {
+      // Query each language in parallel using condition
+      const results = await Promise.all(
+        installedLangs.map(lang => sdk.GetSourcesByCondition({ lang }))
+      );
+      // Flatten and deduplicate
+      const seen = new Set<string>();
+      const allSources: Array<{
+        id: unknown;
+        name: string;
+        lang: string;
+        iconUrl: string;
+        supportsLatest: boolean;
+        isNsfw?: boolean;
+      }> = [];
+      
+      for (const result of results) {
+        for (const edge of result.sources?.edges || []) {
+          if (edge?.node && !seen.has(String(edge.node.id))) {
+            seen.add(String(edge.node.id));
+            allSources.push(edge.node as any);
+          }
+        }
+      }
+      return allSources;
+    },
+    enabled: !!serverBaseUrl && installedLangs.length > 0,
+  });
+
+  const sources = sourcesData || [];
 
   // Group by language
   const groupedSources = useMemo(() => {
@@ -56,7 +107,7 @@ export default function SourcesPage() {
       <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400">
         <Globe className="mb-4 h-12 w-12 opacity-50" />
         <p>No extensions installed.</p>
-        <p className="mt-2 text-sm">Install extensions via the Suwayomi Web UI.</p>
+        <p className="mt-2 text-sm">Install extensions via the Extensions tab.</p>
       </div>
     );
   }
@@ -68,7 +119,7 @@ export default function SourcesPage() {
       {Object.entries(groupedSources).sort(([a], [b]) => a.localeCompare(b)).map(([lang, langSources]) => (
         <div key={lang} className="space-y-4">
           <h2 className="text-sm font-semibold text-yomi-jade uppercase tracking-wider border-b border-white/10 pb-2">
-            {lang === "all" ? "Multi-Language" : lang}
+            {lang === "localsourcelang" ? "Local" : lang === "all" ? "Multi-Language" : lang.toUpperCase()}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {langSources.map((source) => (
@@ -93,9 +144,11 @@ export default function SourcesPage() {
                 </div>
                 <div className="flex flex-col flex-1 overflow-hidden">
                   <span className="font-medium text-slate-200 truncate">{source.name}</span>
-                  {source.supportsLatest && (
-                    <span className="text-xs text-yomi-jade">Supports Latest</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {source.supportsLatest && (
+                      <span className="text-xs text-yomi-jade">Supports Latest</span>
+                    )}
+                  </div>
                 </div>
               </Link>
             ))}
