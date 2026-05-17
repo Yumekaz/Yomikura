@@ -1,3 +1,4 @@
+// @ts-nocheck
 /** Internal type. DO NOT USE DIRECTLY. */
 type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
 /** Internal type. DO NOT USE DIRECTLY. */
@@ -3460,15 +3461,247 @@ export type WebUiUpdateStatus = {
   state: UpdateState;
 };
 
+export type BooleanFilterInput = {
+  distinctFrom?: boolean | null | undefined;
+  distinctFromAll?: Array<boolean> | null | undefined;
+  distinctFromAny?: Array<boolean> | null | undefined;
+  equalTo?: boolean | null | undefined;
+  greaterThan?: boolean | null | undefined;
+  greaterThanOrEqualTo?: boolean | null | undefined;
+  in?: Array<boolean> | null | undefined;
+  isNull?: boolean | null | undefined;
+  lessThan?: boolean | null | undefined;
+  lessThanOrEqualTo?: boolean | null | undefined;
+  notDistinctFrom?: boolean | null | undefined;
+  notEqualTo?: boolean | null | undefined;
+  notEqualToAll?: Array<boolean> | null | undefined;
+  notEqualToAny?: Array<boolean> | null | undefined;
+  notIn?: Array<boolean> | null | undefined;
+};
+
+export type IntFilterInput = {
+  distinctFrom?: number | null | undefined;
+  distinctFromAll?: Array<number> | null | undefined;
+  distinctFromAny?: Array<number> | null | undefined;
+  equalTo?: number | null | undefined;
+  greaterThan?: number | null | undefined;
+  greaterThanOrEqualTo?: number | null | undefined;
+  in?: Array<number> | null | undefined;
+  isNull?: boolean | null | undefined;
+  lessThan?: number | null | undefined;
+  lessThanOrEqualTo?: number | null | undefined;
+  notDistinctFrom?: number | null | undefined;
+  notEqualTo?: number | null | undefined;
+  notEqualToAll?: Array<number> | null | undefined;
+  notEqualToAny?: Array<number> | null | undefined;
+  notIn?: Array<number> | null | undefined;
+};
+
+export type LongFilterInput = {
+  distinctFrom?: unknown;
+  distinctFromAll?: Array<unknown> | null | undefined;
+  distinctFromAny?: Array<unknown> | null | undefined;
+  equalTo?: unknown;
+  greaterThan?: unknown;
+  greaterThanOrEqualTo?: unknown;
+  in?: Array<unknown> | null | undefined;
+  isNull?: boolean | null | undefined;
+  lessThan?: unknown;
+  lessThanOrEqualTo?: unknown;
+  notDistinctFrom?: unknown;
+  notEqualTo?: unknown;
+  notEqualToAll?: Array<unknown> | null | undefined;
+  notEqualToAny?: Array<unknown> | null | undefined;
+  notIn?: Array<unknown> | null | undefined;
+};
+
+export type MangaFilterInput = {
+  and?: Array<MangaFilterInput> | null | undefined;
+  artist?: StringFilterInput | null | undefined;
+  author?: StringFilterInput | null | undefined;
+  categoryId?: IntFilterInput | null | undefined;
+  chaptersLastFetchedAt?: LongFilterInput | null | undefined;
+  description?: StringFilterInput | null | undefined;
+  genre?: StringFilterInput | null | undefined;
+  id?: IntFilterInput | null | undefined;
+  inLibrary?: BooleanFilterInput | null | undefined;
+  inLibraryAt?: LongFilterInput | null | undefined;
+  initialized?: BooleanFilterInput | null | undefined;
+  lastFetchedAt?: LongFilterInput | null | undefined;
+  not?: MangaFilterInput | null | undefined;
+  or?: Array<MangaFilterInput> | null | undefined;
+  realUrl?: StringFilterInput | null | undefined;
+  sourceId?: LongFilterInput | null | undefined;
+  status?: MangaStatusFilterInput | null | undefined;
+  thumbnailUrl?: StringFilterInput | null | undefined;
+  title?: StringFilterInput | null | undefined;
+  url?: StringFilterInput | null | undefined;
+};
+
+export type MangaStatus =
+  | 'CANCELLED'
+  | 'COMPLETED'
+  | 'LICENSED'
+  | 'ONGOING'
+  | 'ON_HIATUS'
+  | 'PUBLISHING_FINISHED'
+  | 'UNKNOWN';
+
+export type MangaStatusFilterInput = {
+  distinctFrom?: MangaStatus | null | undefined;
+  distinctFromAll?: Array<MangaStatus> | null | undefined;
+  distinctFromAny?: Array<MangaStatus> | null | undefined;
+  equalTo?: MangaStatus | null | undefined;
+  greaterThan?: MangaStatus | null | undefined;
+  greaterThanOrEqualTo?: MangaStatus | null | undefined;
+  in?: Array<MangaStatus> | null | undefined;
+  isNull?: boolean | null | undefined;
+  lessThan?: MangaStatus | null | undefined;
+  lessThanOrEqualTo?: MangaStatus | null | undefined;
+  notDistinctFrom?: MangaStatus | null | undefined;
+  notEqualTo?: MangaStatus | null | undefined;
+  notEqualToAll?: Array<MangaStatus> | null | undefined;
+  notEqualToAny?: Array<MangaStatus> | null | undefined;
+  notIn?: Array<MangaStatus> | null | undefined;
+};
+
+export type StringFilterInput = {
+  distinctFrom?: string | null | undefined;
+  distinctFromAll?: Array<string> | null | undefined;
+  distinctFromAny?: Array<string> | null | undefined;
+  distinctFromInsensitive?: string | null | undefined;
+  distinctFromInsensitiveAll?: Array<string> | null | undefined;
+  distinctFromInsensitiveAny?: Array<string> | null | undefined;
+  endsWith?: string | null | undefined;
+  endsWithAll?: Array<string> | null | undefined;
+  endsWithAny?: Array<string> | null | undefined;
+  endsWithInsensitive?: string | null | undefined;
+  endsWithInsensitiveAll?: Array<string> | null | undefined;
+  endsWithInsensitiveAny?: Array<string> | null | undefined;
+  equalTo?: string | null | undefined;
+  greaterThan?: string | null | undefined;
+  greaterThanInsensitive?: string | null | undefined;
+  greaterThanOrEqualTo?: string | null | undefined;
+  greaterThanOrEqualToInsensitive?: string | null | undefined;
+  in?: Array<string> | null | undefined;
+  inInsensitive?: Array<string> | null | undefined;
+  includes?: string | null | undefined;
+  includesAll?: Array<string> | null | undefined;
+  includesAny?: Array<string> | null | undefined;
+  includesInsensitive?: string | null | undefined;
+  includesInsensitiveAll?: Array<string> | null | undefined;
+  includesInsensitiveAny?: Array<string> | null | undefined;
+  isNull?: boolean | null | undefined;
+  lessThan?: string | null | undefined;
+  lessThanInsensitive?: string | null | undefined;
+  lessThanOrEqualTo?: string | null | undefined;
+  lessThanOrEqualToInsensitive?: string | null | undefined;
+  like?: string | null | undefined;
+  likeAll?: Array<string> | null | undefined;
+  likeAny?: Array<string> | null | undefined;
+  likeInsensitive?: string | null | undefined;
+  likeInsensitiveAll?: Array<string> | null | undefined;
+  likeInsensitiveAny?: Array<string> | null | undefined;
+  notDistinctFrom?: string | null | undefined;
+  notDistinctFromInsensitive?: string | null | undefined;
+  notEndsWith?: string | null | undefined;
+  notEndsWithAll?: Array<string> | null | undefined;
+  notEndsWithAny?: Array<string> | null | undefined;
+  notEndsWithInsensitive?: string | null | undefined;
+  notEndsWithInsensitiveAll?: Array<string> | null | undefined;
+  notEndsWithInsensitiveAny?: Array<string> | null | undefined;
+  notEqualTo?: string | null | undefined;
+  notEqualToAll?: Array<string> | null | undefined;
+  notEqualToAny?: Array<string> | null | undefined;
+  notIn?: Array<string> | null | undefined;
+  notInInsensitive?: Array<string> | null | undefined;
+  notIncludes?: string | null | undefined;
+  notIncludesAll?: Array<string> | null | undefined;
+  notIncludesAny?: Array<string> | null | undefined;
+  notIncludesInsensitive?: string | null | undefined;
+  notIncludesInsensitiveAll?: Array<string> | null | undefined;
+  notIncludesInsensitiveAny?: Array<string> | null | undefined;
+  notLike?: string | null | undefined;
+  notLikeAll?: Array<string> | null | undefined;
+  notLikeAny?: Array<string> | null | undefined;
+  notLikeInsensitive?: string | null | undefined;
+  notLikeInsensitiveAll?: Array<string> | null | undefined;
+  notLikeInsensitiveAny?: Array<string> | null | undefined;
+  notStartsWith?: string | null | undefined;
+  notStartsWithAll?: Array<string> | null | undefined;
+  notStartsWithAny?: Array<string> | null | undefined;
+  notStartsWithInsensitive?: string | null | undefined;
+  notStartsWithInsensitiveAll?: Array<string> | null | undefined;
+  notStartsWithInsensitiveAny?: Array<string> | null | undefined;
+  startsWith?: string | null | undefined;
+  startsWithAll?: Array<string> | null | undefined;
+  startsWithAny?: Array<string> | null | undefined;
+  startsWithInsensitive?: string | null | undefined;
+  startsWithInsensitiveAll?: Array<string> | null | undefined;
+  startsWithInsensitiveAny?: Array<string> | null | undefined;
+};
+
 export type ConnectionTestQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type ConnectionTestQuery = { __typename: 'Query' };
 
+export type GetCategoriesQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetCategoriesQuery = { categories: { edges: Array<{ node: { id: number, name: string, order: number } }> } };
+
+export type GetLibraryQueryVariables = Exact<{
+  filter?: MangaFilterInput | null | undefined;
+  first?: number | null | undefined;
+}>;
+
+
+export type GetLibraryQuery = { mangas: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, edges: Array<{ node: { id: number, title: string, thumbnailUrl: string | null, unreadCount: number, downloadCount: number, categories: { edges: Array<{ node: { id: number } }> } } }> } };
+
 
 export const ConnectionTestDocument = gql`
     query ConnectionTest {
   __typename
+}
+    `;
+export const GetCategoriesDocument = gql`
+    query GetCategories {
+  categories {
+    edges {
+      node {
+        id
+        name
+        order
+      }
+    }
+  }
+}
+    `;
+export const GetLibraryDocument = gql`
+    query GetLibrary($filter: MangaFilterInput, $first: Int) {
+  mangas(filter: $filter, first: $first) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    edges {
+      node {
+        id
+        title
+        thumbnailUrl
+        unreadCount
+        downloadCount
+        categories {
+          edges {
+            node {
+              id
+            }
+          }
+        }
+      }
+    }
+  }
 }
     `;
 
@@ -3481,6 +3714,12 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
   return {
     ConnectionTest(variables?: ConnectionTestQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ConnectionTestQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<ConnectionTestQuery>({ document: ConnectionTestDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ConnectionTest', 'query', variables);
+    },
+    GetCategories(variables?: GetCategoriesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetCategoriesQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetCategoriesQuery>({ document: GetCategoriesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetCategories', 'query', variables);
+    },
+    GetLibrary(variables?: GetLibraryQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetLibraryQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetLibraryQuery>({ document: GetLibraryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetLibrary', 'query', variables);
     }
   };
 }

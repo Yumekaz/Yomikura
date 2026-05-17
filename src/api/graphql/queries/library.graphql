@@ -1,0 +1,39 @@
+query GetCategories {
+  categories {
+    edges {
+      node {
+        id
+        name
+        order
+      }
+    }
+  }
+}
+
+query GetLibrary(
+  $filter: MangaFilterInput
+  $first: Int
+) {
+  mangas(filter: $filter, first: $first) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    edges {
+      node {
+        id
+        title
+        thumbnailUrl
+        unreadCount
+        downloadCount
+        categories {
+          edges {
+            node {
+              id
+            }
+          }
+        }
+      }
+    }
+  }
+}

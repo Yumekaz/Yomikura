@@ -30,3 +30,13 @@ As we move into **Phase 4 (Library Flow)** and beyond, this document will be exp
 - Reader Chapter Page fetching
 
 *Note: The frontend does NOT perform any content scraping or execution of Android extensions. All data fetching logic passes cleanly through the Suwayomi backend GraphQL API.*
+
+## Library Queries
+### \mangas\ query
+- Used to fetch the user's library by filtering \inLibrary: { equalTo: true }\.
+- Supports fetching by \categoryId\ via the same \ilter\ block.
+- Thumbnail URLs can be absolute or relative. If relative, they must be prefixed with the Suwayomi server base URL.
+
+### \categories\ query
+- Fetches all user-created library categories.
+- Useful for building filter tabs on the library page.
