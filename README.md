@@ -23,9 +23,9 @@ It is designed for people who run their own Suwayomi Server. The app will focus 
 
 ## Current Status
 
-Phase 1 is active: the React/Vite app shell, route shells, and connect-first first page are being built.
+Phase 9 is active: the app shell, Suwayomi connection, library, details, reader, browse, and extension metadata surfaces exist.
 
-Backend integration has not started yet. That is intentional. The blueprint requires server settings and schema discovery before real Suwayomi data flows are implemented.
+Some reader/source failures can still come from upstream source websites, DNS, Cloudflare protection, or Suwayomi extension behavior rather than Yomikura UI code.
 
 ## Target MVP
 
@@ -75,16 +75,15 @@ Extension repository indexes such as Keiyoushi's `index.min.json` are metadata c
 
 Yomikura must not attempt to install, run, translate, or execute Android APK extensions inside the browser. Extension install and execution belongs to the backend.
 
-## First Page Direction
+## App Entry
 
-The first product screen will be connect-first:
+Yomikura opens directly into the app shell and uses a local Suwayomi default during development:
 
 ```text
-Yomikura
-Connect your Suwayomi library.
+http://127.0.0.1:4567
 ```
 
-It should show a server URL input, a clear Connect action, and setup guidance. It should not pretend a library exists before a server is configured, and it should not use real manga titles or copyrighted-looking content in previews.
+Connection setup lives in Settings and appears as a fallback only when the server is missing or unreachable. The product surface should not use fake manga titles, fake library data, or copyrighted-looking previews.
 
 ## Documentation
 

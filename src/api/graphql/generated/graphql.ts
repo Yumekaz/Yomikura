@@ -3970,7 +3970,7 @@ export type GetChapterQueryVariables = Exact<{
 }>;
 
 
-export type GetChapterQuery = { chapter: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, pageCount: number, mangaId: number, manga: { title: string, chapters: { edges: Array<{ node: { id: number, chapterNumber: number } }> } } } };
+export type GetChapterQuery = { chapter: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, pageCount: number, sourceOrder: number, mangaId: number, manga: { title: string, chapters: { edges: Array<{ node: { id: number, chapterNumber: number } }> } } } };
 
 
 export const FetchSourceMangaDocument = gql`
@@ -4200,6 +4200,7 @@ export const GetChapterDocument = gql`
     isRead
     lastPageRead
     pageCount
+    sourceOrder
     mangaId
     manga {
       title

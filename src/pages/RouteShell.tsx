@@ -24,7 +24,7 @@ function RouteShell({
           <h1 className="mt-2 text-3xl font-semibold text-white">{title}</h1>
         </div>
         <span className="hidden rounded-md border border-white/10 px-3 py-2 text-sm text-slate-400 sm:inline-flex">
-          Phase 1 shell
+          Coming later
         </span>
       </header>
       <div
@@ -34,7 +34,7 @@ function RouteShell({
       >
         <p className="max-w-2xl text-base leading-8 text-slate-300">{detail}</p>
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <Metric label="Backend calls" value="0" />
+          <Metric label="Backend" value="Suwayomi" />
           <Metric label="Content hosted" value="No" />
           <Metric label="APK execution" value="No" />
         </div>

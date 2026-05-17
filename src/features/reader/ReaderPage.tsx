@@ -1,9 +1,12 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
+import { classifySourceProblem } from "../../api/suwayomi/errors";
+import { buildSuwayomiPageUrl, resolveBackendUrl } from "../../api/suwayomi/pageUrls";
+import { SourceRecoveryPanel } from "../../components/source/SourceRecoveryPanel";
 import { ReaderImage } from "./ReaderImage";
 import { ReaderOverlay } from "./ReaderOverlay";
 
@@ -14,6 +17,7 @@ export default function ReaderPage() {
   const { serverBaseUrl, readerMode, setReaderMode } = useSettingsStore();
   const [showOverlay, setShowOverlay] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
+  const lastSavedPageRef = useRef<number | null>(null);
 
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
@@ -21,14 +25,14 @@ export default function ReaderPage() {
   }, [serverBaseUrl]);
 
   // Fetch chapter details
-  const { data: chapterData, isLoading: chapterLoading } = useQuery({
+  const { data: chapterData, isLoading: chapterLoading, isError: chapterError, error: chapterErrorObject, refetch: refetchChapter } = useQuery({
     queryKey: ["chapter", chapterId, serverBaseUrl],
     queryFn: () => sdk.GetChapter({ id: parseInt(chapterId!) }),
     enabled: !!serverBaseUrl && !!chapterId,
   });
 
   // Fetch pages mutation
-  const { mutate: fetchPages, data: pagesData, isPending: pagesLoading, isError: pagesError } = useMutation({
+  const { mutate: fetchPages, data: pagesData, isPending: pagesLoading, isError: pagesError, error: pagesErrorObject } = useMutation({
     mutationFn: () => sdk.FetchChapterPages({ input: { chapterId: parseInt(chapterId!) } }),
   });
 
@@ -53,12 +57,26 @@ export default function ReaderPage() {
   useEffect(() => {
     if (chapterId && serverBaseUrl) {
       setCurrentPage(0);
+      lastSavedPageRef.current = null;
       fetchPages();
     }
   }, [chapterId, serverBaseUrl, fetchPages]);
 
   const chapter = chapterData?.chapter;
   const pages = pagesData?.fetchChapterPages?.pages || [];
+  const pageProblem = chapterError || pagesError ? classifySourceProblem(chapterErrorObject ?? pagesErrorObject) : null;
+
+  const retryReaderLoad = useCallback(() => {
+    void refetchChapter();
+    fetchPages();
+  }, [fetchPages, refetchChapter]);
+
+  useEffect(() => {
+    if (!chapter || pages.length === 0) return;
+    const savedPage = Math.min(Math.max(chapter.lastPageRead || 0, 0), pages.length - 1);
+    setCurrentPage(savedPage);
+    lastSavedPageRef.current = savedPage;
+  }, [chapter?.id, chapter?.lastPageRead, pages.length]);
 
   // Compute Next/Prev chapters
   const siblingChapters = useMemo(() => {
@@ -78,12 +96,31 @@ export default function ReaderPage() {
     };
   }, [chapter, siblingChapters]);
 
-  const handleIntersect = (pageIndex: number) => {
-    setCurrentPage(pageIndex);
+  const saveProgress = useCallback((pageIndex: number) => {
+    if (lastSavedPageRef.current === pageIndex) return;
+    lastSavedPageRef.current = pageIndex;
     updateProgress(pageIndex);
-  };
+  }, [updateProgress]);
 
-  const handlePageClick = (e: React.MouseEvent) => {
+  const handleIntersect = useCallback((pageIndex: number) => {
+    setCurrentPage(pageIndex);
+    saveProgress(pageIndex);
+  }, [saveProgress]);
+
+  const navigatePage = useCallback((dir: number) => {
+    const next = currentPage + dir;
+    if (next >= 0 && next < pages.length) {
+      setCurrentPage(next);
+      saveProgress(next);
+      window.scrollTo(0, 0); // Reset scroll for single page mode
+    } else if (next >= pages.length && nextChapterId) {
+      navigate(`/reader/${nextChapterId}`);
+    } else if (next < 0 && prevChapterId) {
+      navigate(`/reader/${prevChapterId}`);
+    }
+  }, [currentPage, navigate, nextChapterId, pages.length, prevChapterId, saveProgress]);
+
+  const handlePageClick = useCallback((e: React.MouseEvent) => {
     const width = window.innerWidth;
     const x = e.clientX;
     const threshold = width * 0.3; // 30% edge tap zones
@@ -104,20 +141,26 @@ export default function ReaderPage() {
     } else {
       setShowOverlay(!showOverlay);
     }
-  };
+  }, [navigatePage, readerMode, showOverlay]);
 
-  const navigatePage = (dir: number) => {
-    const next = currentPage + dir;
-    if (next >= 0 && next < pages.length) {
-      setCurrentPage(next);
-      updateProgress(next);
-      window.scrollTo(0, 0); // Reset scroll for single page mode
-    } else if (next >= pages.length && nextChapterId) {
-      navigate(`/reader/${nextChapterId}`);
-    } else if (next < 0 && prevChapterId) {
-      navigate(`/reader/${prevChapterId}`);
-    }
-  };
+  if (!serverBaseUrl) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-black px-6 text-center text-slate-300">
+        <p className="text-lg font-semibold">No Suwayomi server configured.</p>
+        <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500">
+          Connect Yomikura to your Suwayomi server before opening reader routes.
+        </p>
+        <div className="mt-5 flex gap-3">
+          <button onClick={() => navigate("/")} className="rounded-md bg-yomi-jade px-4 py-2 text-sm font-semibold text-ink-950">
+            Connect server
+          </button>
+          <button onClick={() => navigate("/settings")} className="rounded-md border border-white/10 px-4 py-2 text-sm text-yomi-jade">
+            Settings
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (chapterLoading || pagesLoading) {
     return (
@@ -128,13 +171,32 @@ export default function ReaderPage() {
     );
   }
 
-  if (pagesError || !chapter) {
+  if (chapterError || pagesError || !chapter) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-black text-slate-300">
-        <p>Failed to load pages.</p>
-        <button onClick={() => navigate(-1)} className="mt-4 text-yomi-jade hover:underline">
-          Go Back
-        </button>
+      <div className="flex min-h-screen items-center justify-center bg-black px-6 py-10 text-slate-300">
+        <SourceRecoveryPanel
+          problem={pageProblem}
+          title={pageProblem?.title || "Failed to load pages."}
+          detail={pageProblem?.detail || "The chapter metadata or page list could not be loaded."}
+          onRetry={retryReaderLoad}
+          retryLabel="Retry reader"
+          className="bg-ink-950/90"
+        />
+      </div>
+    );
+  }
+
+  if (pages.length === 0) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black px-6 py-10 text-slate-300">
+        <SourceRecoveryPanel
+          title="No pages returned."
+          detail="Suwayomi returned the chapter, but the source did not provide any page URLs. Try another source for this title."
+          searchedTitle={chapter.manga?.title || null}
+          onRetry={() => fetchPages()}
+          retryLabel="Retry pages"
+          className="bg-ink-950/90"
+        />
       </div>
     );
   }
@@ -164,21 +226,30 @@ export default function ReaderPage() {
           pages.map((url, i) => (
             <ReaderImage
               key={i}
-              url={url}
+              url={buildSuwayomiPageUrl({
+                serverBaseUrl,
+                mangaId: chapter.mangaId,
+                chapterSourceOrder: chapter.sourceOrder,
+                pageIndex: i,
+              })}
+              fallbackUrl={resolveBackendUrl(serverBaseUrl, url)}
               pageNumber={i}
-              serverBaseUrl={serverBaseUrl}
               onIntersect={handleIntersect}
             />
           ))
         ) : (
           // Single page mode: show only current page
-          pages.length > 0 && (
-            <img 
-              src={pages[currentPage].startsWith("http") ? pages[currentPage] : `${serverBaseUrl.replace(/\/$/, "")}${pages[currentPage].startsWith("/") ? "" : "/"}${pages[currentPage]}`} 
-              className="max-h-full max-w-full object-contain" 
-              alt={`Page ${currentPage + 1}`} 
+          <ReaderImage
+              url={buildSuwayomiPageUrl({
+                serverBaseUrl,
+                mangaId: chapter.mangaId,
+                chapterSourceOrder: chapter.sourceOrder,
+                pageIndex: currentPage,
+              })}
+              fallbackUrl={resolveBackendUrl(serverBaseUrl, pages[currentPage])}
+              pageNumber={currentPage}
+              mode="single"
             />
-          )
         )}
       </div>
     </div>

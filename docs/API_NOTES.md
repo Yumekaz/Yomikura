@@ -48,8 +48,9 @@ As we move into **Phase 4 (Library Flow)** and beyond, this document will be exp
 - \uploadDate\ is returned as a \LongString\ scalar which we explicitly cast to string on the frontend.
 
 ## Reader Queries & Mutations
-### \etchChapterPages(input: FetchChapterPagesInput!)\ mutation
+### \fetchChapterPages(input: FetchChapterPagesInput!)\ mutation
 - Fetches the array of image URLs for a chapter. Executed on mount as a mutation since it may trigger a source scraping event.
+- Reader image rendering should prefer Suwayomi's backend page endpoint and keep returned page URLs as fallback, because some source image hosts block direct browser hotlinking.
 
 ### \chapter(id: Int!)\ query
 - Used in the reader to fetch the chapter name, current progress (\lastPageRead\), and the sibling chapters (nested under \manga\) to calculate the Next and Previous chapter routing.

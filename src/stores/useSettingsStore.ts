@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { testServerConnection } from "../api/suwayomi/connection";
+import { DEFAULT_SERVER_BASE_URL } from "../config/server";
 
 export type ConnectionStatus = "disconnected" | "connected" | "error" | "testing";
 export type ReaderMode = "WEBTOON" | "LTR" | "RTL";
@@ -23,7 +24,7 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
-      serverBaseUrl: "",
+      serverBaseUrl: DEFAULT_SERVER_BASE_URL,
       connectionStatus: "disconnected",
       errorMessage: "",
       readerMode: "WEBTOON",
@@ -73,6 +74,20 @@ export const useSettingsStore = create<SettingsState>()(
         errorMessage: state.errorMessage,
         readerMode: state.readerMode,
       }),
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<SettingsState> | undefined;
+
+        return {
+          ...currentState,
+          ...persisted,
+          serverBaseUrl: persisted?.serverBaseUrl?.trim() || currentState.serverBaseUrl,
+          connectionStatus:
+            persisted?.connectionStatus === "testing"
+              ? "disconnected"
+              : persisted?.connectionStatus || currentState.connectionStatus,
+          errorMessage: persisted?.errorMessage || "",
+        };
+      },
     }
   )
 );

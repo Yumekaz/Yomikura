@@ -1,19 +1,59 @@
 import { useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { GraphQLClient, gql } from "graphql-request";
 import { ArrowLeft, Loader2, Play } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
+import { SourceRecoveryPanel } from "../../components/source/SourceRecoveryPanel";
 import { ChapterList, Chapter } from "./ChapterList";
+
+const FETCH_CHAPTERS_DOCUMENT = gql`
+  mutation FetchChapters($input: FetchChaptersInput!) {
+    fetchChapters(input: $input) {
+      chapters {
+        id
+        name
+        chapterNumber
+        isRead
+        isBookmarked
+        isDownloaded
+        uploadDate
+        scanlator
+      }
+    }
+  }
+`;
+
+type ChapterNode = {
+  id: number;
+  name: string;
+  chapterNumber: number;
+  isRead: boolean;
+  isBookmarked: boolean;
+  isDownloaded: boolean;
+  uploadDate: string | number;
+  scanlator?: string | null;
+};
+
+type FetchChaptersResponse = {
+  fetchChapters?: {
+    chapters: ChapterNode[];
+  } | null;
+};
 
 export default function MangaDetailPage() {
   const { mangaId } = useParams<{ mangaId: string }>();
   const { serverBaseUrl } = useSettingsStore();
 
-  const sdk = useMemo(() => {
+  const graphqlEndpoint = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-    return createGraphqlClient(`${cleanUrl}/api/graphql`);
+    return cleanUrl ? `${cleanUrl}/api/graphql` : "";
   }, [serverBaseUrl]);
+
+  const sdk = useMemo(() => {
+    return createGraphqlClient(graphqlEndpoint);
+  }, [graphqlEndpoint]);
 
   const queryClient = useQueryClient();
 
@@ -24,6 +64,18 @@ export default function MangaDetailPage() {
   });
 
   const manga = data?.manga;
+
+  const { data: fetchedChaptersData, isLoading: chaptersLoading } = useQuery({
+    queryKey: ["manga-chapters", mangaId, serverBaseUrl],
+    queryFn: async () => {
+      const client = new GraphQLClient(graphqlEndpoint);
+      return client.request<FetchChaptersResponse>(FETCH_CHAPTERS_DOCUMENT, {
+        input: { mangaId: parseInt(mangaId!) },
+      });
+    },
+    enabled: !!graphqlEndpoint && !!mangaId && !!manga,
+    staleTime: 60_000,
+  });
 
   const { mutate: toggleLibrary, isPending: togglingLibrary } = useMutation({
     mutationFn: () => sdk.ToggleMangaLibrary({
@@ -41,10 +93,14 @@ export default function MangaDetailPage() {
   });
 
   const chapters: Chapter[] = useMemo(() => {
-    if (!manga?.chapters?.edges) return [];
-    return manga.chapters.edges
-      .map((edge) => edge?.node)
-      .filter((node): node is NonNullable<typeof node> => node != null)
+    const fetchedChapters = fetchedChaptersData?.fetchChapters?.chapters ?? [];
+    const cachedChapters = manga?.chapters?.edges
+      ?.map((edge) => edge?.node)
+      .filter((node): node is NonNullable<typeof node> => node != null) ?? [];
+
+    const sourceChapters = fetchedChapters.length > 0 ? fetchedChapters : cachedChapters;
+
+    return sourceChapters
       .map((c) => ({
         id: c.id,
         name: c.name,
@@ -55,7 +111,7 @@ export default function MangaDetailPage() {
         uploadDate: String(c.uploadDate),
         scanlator: c.scanlator,
       }));
-  }, [manga]);
+  }, [fetchedChaptersData, manga]);
 
   // Find the first unread chapter to resume reading
   const firstUnreadChapter = useMemo(() => {
@@ -138,7 +194,15 @@ export default function MangaDetailPage() {
 
               {/* Action Buttons */}
               <div className="mt-6 flex flex-wrap gap-3">
-                {firstUnreadChapter ? (
+                {chaptersLoading ? (
+                  <button
+                    disabled
+                    className="flex flex-1 items-center justify-center gap-2 rounded-md bg-white/10 px-6 py-3 font-semibold text-slate-400 sm:flex-none"
+                  >
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading chapters
+                  </button>
+                ) : firstUnreadChapter ? (
                   <Link
                     to={`/reader/${firstUnreadChapter.id}`}
                     className="flex flex-1 items-center justify-center gap-2 rounded-md bg-yomi-jade px-6 py-3 font-semibold text-ink-950 transition hover:bg-yomi-jade/90 sm:flex-none"
@@ -195,7 +259,24 @@ export default function MangaDetailPage() {
       {/* Chapters Section */}
       <div className="mx-auto max-w-5xl pb-12">
         <div className="rounded-t-2xl bg-ink-900 shadow-panel lg:rounded-2xl lg:border lg:border-white/5">
-          <ChapterList chapters={chapters} />
+          {chaptersLoading ? (
+            <div className="flex min-h-48 items-center justify-center text-slate-400">
+              <Loader2 className="mr-3 h-5 w-5 animate-spin text-yomi-jade" />
+              Loading chapters...
+            </div>
+          ) : chapters.length === 0 ? (
+            <div className="p-5">
+              <SourceRecoveryPanel
+                title="No chapters from this source."
+                detail="The title loaded, but this source did not return a readable chapter list. Try the same title from another installed source."
+                sourceName={manga.source?.name}
+                searchedTitle={manga.title}
+                className="border-white/5 bg-ink-950/40 shadow-none"
+              />
+            </div>
+          ) : (
+            <ChapterList chapters={chapters} />
+          )}
         </div>
       </div>
     </div>

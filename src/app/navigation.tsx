@@ -34,19 +34,19 @@ export const browseNav: NavItem[] = [
 export const routeCopy: Record<string, { title: string; detail: string }> = {
   "/library": {
     title: "Library",
-    detail: "Real library loading starts in Phase 4 after the Suwayomi API layer is verified.",
+    detail: "Your saved manga appears here from the connected Suwayomi server.",
   },
   "/updates": {
     title: "Updates",
-    detail: "Chapter update history arrives after real backend queries exist.",
+    detail: "Recent chapter updates will appear here once update sync is wired into the app.",
   },
   "/history": {
     title: "History",
-    detail: "Reading history will stay backend-owned and will not be faked in Phase 1.",
+    detail: "Reading history stays backend-owned and will be shown here when the history flow is wired.",
   },
   "/browse": {
     title: "Browse",
-    detail: "Source discovery begins after installed source APIs are inspected.",
+    detail: "Browse installed sources from your Suwayomi server.",
   },
   "/extensions": {
     title: "Extensions",
@@ -54,18 +54,18 @@ export const routeCopy: Record<string, { title: string; detail: string }> = {
   },
   "/browse/sources": {
     title: "Sources",
-    detail: "Installed source browsing will be wired through Suwayomi, not frontend scraping.",
+    detail: "Installed source browsing runs through Suwayomi, not frontend scraping.",
   },
   "/browse/extensions": {
     title: "Extensions",
-    detail: "Extension install and execution belongs to the backend. This shell makes no APK claims.",
+    detail: "Extension install and execution belongs to the backend. Yomikura never runs APKs in the browser.",
   },
   "/browse/extension-repos": {
     title: "Extension Repos",
-    detail: "Repository metadata management starts in Phase 8 with safe URL validation.",
+    detail: "Manage extension repository metadata used by your Suwayomi server.",
   },
   "/settings": {
     title: "Settings",
-    detail: "Server URL persistence and connection testing begin in Phase 2.",
+    detail: "Manage the Suwayomi server URL and reader preferences.",
   },
 };

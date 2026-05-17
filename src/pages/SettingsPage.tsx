@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { CheckCircle2, Loader2, ServerCrash, Save, Activity } from "lucide-react";
 import { useSettingsStore } from "../stores/useSettingsStore";
+import { DEFAULT_SERVER_BASE_URL } from "../config/server";
 
 function SettingsPage() {
   const { serverBaseUrl, setServerBaseUrl, testConnection, connectionStatus, errorMessage } = useSettingsStore();
@@ -44,7 +45,7 @@ function SettingsPage() {
                 <input
                   id="settings-server-url"
                   className="min-h-12 flex-1 rounded-md border border-white/10 bg-ink-950 px-4 text-sm text-slate-300 outline-none placeholder:text-slate-600 focus:border-yomi-jade/50 focus:ring-1 focus:ring-yomi-jade/50 transition-colors"
-                  placeholder="http://localhost:4567"
+                  placeholder={DEFAULT_SERVER_BASE_URL}
                   value={localUrl}
                   onChange={(e) => setLocalUrl(e.target.value)}
                   disabled={connectionStatus === "testing"}
@@ -115,6 +116,10 @@ function SettingsPage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-400">Persisted</span>
                 <span className="text-sm text-white">Yes (Local Storage)</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-slate-400">Default</span>
+                <span className="truncate text-right text-sm text-white">{DEFAULT_SERVER_BASE_URL}</span>
               </div>
             </div>
           </div>

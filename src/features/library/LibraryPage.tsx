@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, ServerCrash } from "lucide-react";
+import { Loader2, RotateCcw, ServerCrash, Settings } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { LibraryFilters } from "./LibraryFilters";
@@ -31,6 +32,7 @@ export default function LibraryPage() {
     data: libData,
     isLoading: libLoading,
     isError: libError,
+    refetch: refetchLibrary,
   } = useQuery({
     queryKey: ["library", serverBaseUrl, activeCategoryId],
     queryFn: () => {
@@ -89,10 +91,17 @@ export default function LibraryPage() {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center bg-ink-950 p-6 text-center text-slate-300">
         <ServerCrash className="mb-4 h-12 w-12 text-slate-600" />
-        <p className="text-lg font-medium">Not Connected</p>
+        <p className="text-lg font-medium">Suwayomi server not configured</p>
         <p className="mt-2 max-w-md text-sm text-slate-500">
-          Please configure your Suwayomi server in Settings.
+          Yomikura expects a Suwayomi-compatible server. Set the server URL in Settings.
         </p>
+        <Link
+          to="/settings"
+          className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-yomi-jade px-4 text-sm font-semibold text-ink-950 transition hover:bg-yomi-jade/90"
+        >
+          <Settings className="h-4 w-4" />
+          Open settings
+        </Link>
       </div>
     );
   }
@@ -102,10 +111,26 @@ export default function LibraryPage() {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center bg-ink-950 p-6 text-center text-red-400">
         <ServerCrash className="mb-4 h-12 w-12 opacity-80" />
-        <p className="text-lg font-medium">Failed to load library</p>
-        <p className="mt-2 max-w-md text-sm text-red-400/70">
-          Ensure your Suwayomi server is online and accessible.
+        <p className="text-lg font-medium">Suwayomi is not reachable</p>
+        <p className="mt-2 max-w-md text-sm leading-6 text-red-400/70">
+          Yomikura tried {serverBaseUrl}. Start Suwayomi, then retry, or change the URL in Settings.
         </p>
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+          <button
+            onClick={() => refetchLibrary()}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-yomi-jade px-4 text-sm font-semibold text-ink-950 transition hover:bg-yomi-jade/90"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Retry
+          </button>
+          <Link
+            to="/settings"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-white/10 px-4 text-sm font-semibold text-red-200 transition hover:bg-white/5"
+          >
+            <Settings className="h-4 w-4" />
+            Server settings
+          </Link>
+        </div>
       </div>
     );
   }

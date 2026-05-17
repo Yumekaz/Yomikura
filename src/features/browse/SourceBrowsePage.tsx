@@ -5,6 +5,8 @@ import { Search, Loader2, ArrowLeft } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { FetchSourceMangaType } from "../../api/graphql/generated/graphql";
+import { classifySourceProblem } from "../../api/suwayomi/errors";
+import { SourceRecoveryPanel } from "../../components/source/SourceRecoveryPanel";
 
 function MangaCard({ manga, serverBaseUrl }: { manga: any; serverBaseUrl: string }) {
   const thumbnailUrl = manga.thumbnailUrl
@@ -71,7 +73,7 @@ export default function SourceBrowsePage() {
     return "Browse Source";
   }, [sourcesData, sourceId]);
 
-  const { mutate: fetchManga, data: mangaData, isPending, isError } = useMutation({
+  const { mutate: fetchManga, data: mangaData, isPending, isError, error: fetchError } = useMutation({
     mutationFn: (pageNum: number) => {
       const type = currentQuery.trim() ? FetchSourceMangaType.Search : FetchSourceMangaType.Popular;
       return sdk.FetchSourceManga({
@@ -107,6 +109,7 @@ export default function SourceBrowsePage() {
   const payload = mangaData?.fetchSourceManga;
   const mangas = payload?.mangas || [];
   const hasNextPage = payload?.hasNextPage || false;
+  const sourceProblem = isError ? classifySourceProblem(fetchError) : null;
 
   return (
     <div className="min-h-screen bg-ink-950 pb-24">
@@ -140,15 +143,23 @@ export default function SourceBrowsePage() {
             <Loader2 className="h-8 w-8 animate-spin text-yomi-jade" />
           </div>
         ) : isError ? (
-          <div className="flex min-h-[40vh] flex-col items-center justify-center text-slate-400">
-            <p>Failed to load manga from this source.</p>
-            <button onClick={() => fetchManga(page)} className="mt-2 text-sm text-yomi-jade hover:underline">
-              Retry
-            </button>
+          <div className="flex min-h-[40vh] items-center justify-center px-2 py-8">
+            <SourceRecoveryPanel
+              problem={sourceProblem}
+              sourceName={sourceName}
+              searchedTitle={currentQuery || null}
+              onRetry={() => fetchManga(page)}
+            />
           </div>
         ) : mangas.length === 0 ? (
-          <div className="flex min-h-[40vh] flex-col items-center justify-center text-slate-400">
-            <p>No results found.</p>
+          <div className="flex min-h-[40vh] items-center justify-center px-2 py-8">
+            <SourceRecoveryPanel
+              title="No results from this source."
+              detail="The source responded, but it did not return matching titles. Try another installed source before assuming the manga is unavailable."
+              sourceName={sourceName}
+              searchedTitle={currentQuery || null}
+              onRetry={() => fetchManga(page)}
+            />
           </div>
         ) : (
           <div className="space-y-8">

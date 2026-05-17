@@ -34,18 +34,15 @@ Anything that does not touch a real backend must be clearly labeled as a shell, 
 
 ## First Page Product Direction
 
-The first page should be connect-first.
+The first page should open directly into the app when a known Suwayomi server is available.
 
-When no server is configured, the app opens to a focused setup screen:
+During local development, Yomikura may default to:
 
-- app name: `Yomikura`
-- headline: `Connect your Suwayomi library.`
-- primary control: server URL input
-- primary action: `Connect`
-- secondary action: setup guide
-- visual support: abstract reader/library preview with synthetic covers only
+```text
+http://127.0.0.1:4567
+```
 
-When a server URL is saved, the app should route to `/library`. When a connection fails, the app should stay on the connect screen and show a precise retryable error.
+Connection setup should live in Settings or a compact fallback state. The app should route to `/library` by default, show precise retryable errors when Suwayomi is unreachable, and guide users to Settings only when the server URL actually needs attention.
 
 The design should feel dark, quiet, reader-first, and premium. It should avoid fake metrics, huge gradients, bento-card filler, copyrighted-looking manga art, "free manga" copy, and decorative noise.
 
