@@ -1,4 +1,5 @@
 // @ts-nocheck
+/* eslint-disable */
 /** Internal type. DO NOT USE DIRECTLY. */
 type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
 /** Internal type. DO NOT USE DIRECTLY. */
@@ -3659,6 +3660,13 @@ export type GetLibraryQueryVariables = Exact<{
 
 export type GetLibraryQuery = { mangas: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, edges: Array<{ node: { id: number, title: string, thumbnailUrl: string | null, unreadCount: number, downloadCount: number, categories: { edges: Array<{ node: { id: number } }> } } }> } };
 
+export type GetMangaDetailsQueryVariables = Exact<{
+  id: number;
+}>;
+
+
+export type GetMangaDetailsQuery = { manga: { id: number, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, source: { name: string } | null, chapters: { edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, uploadDate: unknown, scanlator: string | null } }> } } };
+
 
 export const ConnectionTestDocument = gql`
     query ConnectionTest {
@@ -3704,6 +3712,38 @@ export const GetLibraryDocument = gql`
   }
 }
     `;
+export const GetMangaDetailsDocument = gql`
+    query GetMangaDetails($id: Int!) {
+  manga(id: $id) {
+    id
+    title
+    author
+    artist
+    description
+    thumbnailUrl
+    status
+    genre
+    inLibrary
+    source {
+      name
+    }
+    chapters {
+      edges {
+        node {
+          id
+          name
+          chapterNumber
+          isRead
+          isBookmarked
+          isDownloaded
+          uploadDate
+          scanlator
+        }
+      }
+    }
+  }
+}
+    `;
 
 export type SdkFunctionWrapper = <T>(action: (requestHeaders?:Record<string, string>) => Promise<T>, operationName: string, operationType?: string, variables?: any) => Promise<T>;
 
@@ -3720,6 +3760,9 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetLibrary(variables?: GetLibraryQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetLibraryQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetLibraryQuery>({ document: GetLibraryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetLibrary', 'query', variables);
+    },
+    GetMangaDetails(variables: GetMangaDetailsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetMangaDetailsQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetMangaDetailsQuery>({ document: GetMangaDetailsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetMangaDetails', 'query', variables);
     }
   };
 }

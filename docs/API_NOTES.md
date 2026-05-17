@@ -40,3 +40,9 @@ As we move into **Phase 4 (Library Flow)** and beyond, this document will be exp
 ### \categories\ query
 - Fetches all user-created library categories.
 - Useful for building filter tabs on the library page.
+
+## Manga Details Queries
+### \manga(id: Int!)\ query
+- Used to fetch detailed metadata for a single manga, including its source, status, and description.
+- Fetches all associated chapters in a \ChapterNodeList\.
+- \uploadDate\ is returned as a \LongString\ scalar which we explicitly cast to string on the frontend.

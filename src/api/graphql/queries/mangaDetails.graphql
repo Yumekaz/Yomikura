@@ -1,0 +1,30 @@
+query GetMangaDetails($id: Int!) {
+  manga(id: $id) {
+    id
+    title
+    author
+    artist
+    description
+    thumbnailUrl
+    status
+    genre
+    inLibrary
+    source {
+      name
+    }
+    chapters {
+      edges {
+        node {
+          id
+          name
+          chapterNumber
+          isRead
+          isBookmarked
+          isDownloaded
+          uploadDate
+          scanlator
+        }
+      }
+    }
+  }
+}

@@ -7,6 +7,11 @@ const config: CodegenConfig = {
   generates: {
     "src/api/graphql/generated/graphql.ts": {
       plugins: [
+        {
+          add: {
+            content: "// @ts-nocheck\n/* eslint-disable */"
+          }
+        },
         "typescript",
         "typescript-operations",
         "typescript-graphql-request"

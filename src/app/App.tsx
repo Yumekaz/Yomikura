@@ -5,6 +5,7 @@ import ConnectPage from "../pages/ConnectPage";
 import SettingsPage from "../pages/SettingsPage";
 import RouteShell from "../pages/RouteShell";
 import LibraryPage from "../features/library/LibraryPage";
+import MangaDetailPage from "../features/manga/MangaDetailPage";
 import { routeCopy } from "./navigation";
 
 const queryClient = new QueryClient();
@@ -32,12 +33,7 @@ function App() {
           })}
           <Route
             path="/manga/:mangaId"
-            element={
-              <RouteShell
-                title="Manga Details"
-                detail="Manga metadata and chapter lists start in Phase 5 after real library entries exist."
-              />
-            }
+            element={<MangaDetailPage />}
           />
           <Route
             path="/reader/:chapterId"
