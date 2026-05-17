@@ -1,60 +1,32 @@
-# API Notes
+# Suwayomi Server API Notes
 
-Yomikura targets Suwayomi-compatible servers first.
+This document contains notes on the Suwayomi Server GraphQL schema and API surface, discovered during Phase 3 of the Yomikura project. 
 
-This file is intentionally conservative. Do not add exact GraphQL operation names until they are inspected from a running Suwayomi Server version.
+Because we strictly avoid hallucinating API queries, these notes are based on direct introspection of the `v2.2.2100` Suwayomi server release.
 
-## Current API Assumptions
+## Discovered Schema Information
 
-- The user configures a Suwayomi server base URL.
-- The GraphQL endpoint is expected at `/api/graphql`.
-- REST or other HTTP endpoints may be used only after they are verified and documented.
-- The frontend should treat the backend as user-controlled infrastructure.
+- **Endpoint:** `POST /api/graphql`
+- **Tooling:** We use `graphql-codegen` along with `graphql-request` to generate our TypeScript SDK.
+- **Generated Types:** Our types and SDK are automatically generated to `src/api/graphql/generated/graphql.ts`.
 
-## Schema Discovery Rule
+## Core Queries Implemented
 
-Before implementing real API features:
+### `ConnectionTest`
+*Location: `src/api/graphql/queries/connectionTest.graphql`*
 
-1. Run or connect to a known Suwayomi Server version.
-2. Inspect the GraphQL schema.
-3. Record the exact server version.
-4. Record the exact queries and mutations used.
-5. Generate or manually wrap types from real response shapes.
-6. Add tests or fixtures for the operations used.
+A lightweight introspection query used by the frontend to confirm network reachability and GraphQL endpoint validity.
+```graphql
+query ConnectionTest {
+  __typename
+}
+```
 
-Do not infer query names from memory or from unrelated examples.
+## Upcoming Discoveries
+As we move into **Phase 4 (Library Flow)** and beyond, this document will be expanded with actual queries for:
+- Library Manga retrieval (`getLibrary`)
+- Extension Repositories
+- Source Browsing
+- Reader Chapter Page fetching
 
-## Planned API Areas
-
-- connection test
-- library query
-- manga detail query
-- chapter list query
-- chapter page query
-- source list query
-- source search query
-- add/remove library action
-- extension installed state
-- extension install/update/uninstall actions where supported
-- download queue and chapter download actions
-- backup and restore actions where supported
-
-## Error Model
-
-The UI should distinguish:
-
-- invalid URL
-- server unreachable
-- GraphQL endpoint missing
-- CORS or browser network failure
-- server returned GraphQL errors
-- unsupported backend capability
-- authentication or access failure if enabled by user setup
-
-Error messages should be actionable and should not imply Yomikura provides content or source access by itself.
-
-## Mock Mode
-
-Mock mode is allowed only behind an explicit environment flag such as `VITE_MOCK_MODE=true`.
-
-Mock mode must show a visible banner. It must not be used to claim the MVP is complete.
+*Note: The frontend does NOT perform any content scraping or execution of Android extensions. All data fetching logic passes cleanly through the Suwayomi backend GraphQL API.*

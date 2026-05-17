@@ -4,3 +4,4 @@ dist/
 .vite/
 *.local
 *.log
+suwayomi-server/

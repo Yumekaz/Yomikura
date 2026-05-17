@@ -1,0 +1,3 @@
+query ConnectionTest {
+  __typename
+}

@@ -1,8 +1,24 @@
-import { BookOpen, SlidersHorizontal } from "lucide-react";
+import { BookOpen, SlidersHorizontal, Loader2, ServerCrash, CheckCircle2 } from "lucide-react";
 import { BrandLockup } from "../components/layout/AppShell";
 import { Metric } from "./RouteShell";
+import { useSettingsStore } from "../stores/useSettingsStore";
+import { useNavigate } from "react-router-dom";
+import { FormEvent, useState } from "react";
 
 function ConnectPage() {
+  const { serverBaseUrl, setServerBaseUrl, testConnection, connectionStatus, errorMessage } = useSettingsStore();
+  const [localUrl, setLocalUrl] = useState(serverBaseUrl);
+  const navigate = useNavigate();
+
+  const handleConnect = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!localUrl) return;
+    setServerBaseUrl(localUrl);
+    const success = await testConnection();
+    if (success) {
+      navigate("/library");
+    }
+  };
   return (
     <main className="min-h-screen overflow-hidden bg-ink-950 text-slate-100">
       <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[minmax(0,0.92fr)_minmax(420px,1.08fr)]">
@@ -16,25 +32,46 @@ function ConnectPage() {
               Yomikura is a browser-first reader interface for your own server. Phase 1
               sets up the shell only, so connection testing begins in Phase 2.
             </p>
-            <form className="mt-9 max-w-xl rounded-md border border-white/10 bg-white/[0.04] p-3 shadow-panel">
+            <form onSubmit={handleConnect} className="mt-9 max-w-xl rounded-md border border-white/10 bg-white/[0.04] p-3 shadow-panel">
               <label className="block px-1 pb-2 text-sm font-medium text-slate-300" htmlFor="server-url">
                 Suwayomi server URL
               </label>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <input
                   id="server-url"
-                  className="min-h-12 flex-1 rounded-md border border-white/10 bg-ink-900 px-4 text-sm text-slate-300 outline-none placeholder:text-slate-600"
+                  className="min-h-12 flex-1 rounded-md border border-white/10 bg-ink-900 px-4 text-sm text-slate-300 outline-none placeholder:text-slate-600 focus:border-yomi-jade/50 focus:ring-1 focus:ring-yomi-jade/50 transition-colors"
                   placeholder="http://localhost:4567"
-                  disabled
+                  value={localUrl}
+                  onChange={(e) => setLocalUrl(e.target.value)}
+                  disabled={connectionStatus === "testing"}
+                  required
                 />
                 <button
-                  className="min-h-12 rounded-md bg-yomi-jade px-5 text-sm font-semibold text-ink-950 opacity-70"
-                  type="button"
-                  disabled
+                  className="flex min-h-12 items-center justify-center gap-2 rounded-md bg-yomi-jade px-5 text-sm font-semibold text-ink-950 transition-colors hover:bg-yomi-jade/90 disabled:opacity-70"
+                  type="submit"
+                  disabled={!localUrl || connectionStatus === "testing"}
                 >
-                  Connect in Phase 2
+                  {connectionStatus === "testing" ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Connecting...</span>
+                    </>
+                  ) : connectionStatus === "connected" ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span>Connected</span>
+                    </>
+                  ) : (
+                    "Connect"
+                  )}
                 </button>
               </div>
+              {connectionStatus === "error" && errorMessage && (
+                <div className="mt-3 flex items-start gap-2 rounded-md bg-red-500/10 p-3 text-sm text-red-400">
+                  <ServerCrash className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>{errorMessage}</p>
+                </div>
+              )}
             </form>
             <div className="mt-5 flex flex-wrap gap-3 text-sm text-slate-400">
               <a
