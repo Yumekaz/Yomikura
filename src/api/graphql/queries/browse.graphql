@@ -1,0 +1,13 @@
+query GetSources {
+  sources {
+    edges {
+      node {
+        id
+        name
+        lang
+        iconUrl
+        supportsLatest
+      }
+    }
+  }
+}

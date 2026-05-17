@@ -1,0 +1,20 @@
+mutation FetchSourceManga($input: FetchSourceMangaInput!) {
+  fetchSourceManga(input: $input) {
+    hasNextPage
+    mangas {
+      id
+      title
+      thumbnailUrl
+      inLibrary
+      status
+    }
+  }
+}
+mutation ToggleMangaLibrary($input: UpdateMangaInput!) {
+  updateManga(input: $input) {
+    manga {
+      id
+      inLibrary
+    }
+  }
+}

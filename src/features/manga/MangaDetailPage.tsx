@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Play } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
@@ -15,6 +15,8 @@ export default function MangaDetailPage() {
     return createGraphqlClient(`${cleanUrl}/api/graphql`);
   }, [serverBaseUrl]);
 
+  const queryClient = useQueryClient();
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ["manga", mangaId, serverBaseUrl],
     queryFn: () => sdk.GetMangaDetails({ id: parseInt(mangaId!) }),
@@ -22,6 +24,21 @@ export default function MangaDetailPage() {
   });
 
   const manga = data?.manga;
+
+  const { mutate: toggleLibrary, isPending: togglingLibrary } = useMutation({
+    mutationFn: () => sdk.ToggleMangaLibrary({
+      input: {
+        patch: {
+          inLibrary: !manga?.inLibrary
+        },
+        id: parseInt(mangaId!)
+      }
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["manga"] });
+      queryClient.invalidateQueries({ queryKey: ["library"] });
+    }
+  });
 
   const chapters: Chapter[] = useMemo(() => {
     if (!manga?.chapters?.edges) return [];
@@ -137,8 +154,16 @@ export default function MangaDetailPage() {
                     No Chapters
                   </button>
                 )}
-                <button className="flex flex-1 items-center justify-center rounded-md border border-white/10 bg-ink-900/50 px-6 py-3 font-semibold text-slate-200 transition hover:bg-white/5 sm:flex-none">
-                  {manga.inLibrary ? "In Library" : "Add to Library"}
+                <button 
+                  onClick={() => toggleLibrary()}
+                  disabled={togglingLibrary}
+                  className={`flex flex-1 items-center justify-center rounded-md border px-6 py-3 font-semibold transition sm:flex-none ${
+                    manga.inLibrary 
+                      ? "border-white/10 bg-ink-900/50 text-slate-200 hover:bg-white/5" 
+                      : "border-yomi-jade/30 bg-ink-900 text-yomi-jade hover:bg-ink-800"
+                  }`}
+                >
+                  {togglingLibrary ? <Loader2 className="h-5 w-5 animate-spin" /> : manga.inLibrary ? "In Library" : "Add to Library"}
                 </button>
               </div>
 

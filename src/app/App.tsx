@@ -7,6 +7,8 @@ import RouteShell from "../pages/RouteShell";
 import LibraryPage from "../features/library/LibraryPage";
 import MangaDetailPage from "../features/manga/MangaDetailPage";
 import ReaderPage from "../features/reader/ReaderPage";
+import SourcesPage from "../features/browse/SourcesPage";
+import SourceBrowsePage from "../features/browse/SourceBrowsePage";
 import { routeCopy } from "./navigation";
 
 const queryClient = new QueryClient();
@@ -24,6 +26,9 @@ function App() {
             if (path === "/library") {
               return <Route key={path} path={path} element={<LibraryPage />} />;
             }
+            if (path === "/browse") {
+              return <Route key={path} path={path} element={<SourcesPage />} />;
+            }
             return (
               <Route
                 key={path}
@@ -36,6 +41,7 @@ function App() {
             path="/manga/:mangaId"
             element={<MangaDetailPage />}
           />
+          <Route path="/browse/:sourceId" element={<SourceBrowsePage />} />
           <Route
             path="/reader/:chapterId"
             element={<ReaderPage />}

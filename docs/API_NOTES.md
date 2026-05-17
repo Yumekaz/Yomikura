@@ -56,3 +56,14 @@ As we move into **Phase 4 (Library Flow)** and beyond, this document will be exp
 
 ### \updateChapter(input: UpdateChapterInput!)\ mutation
 - Patches the \isRead\ and \lastPageRead\ properties in the Suwayomi backend to persist user reading progress across sessions.
+
+## Browse Queries & Mutations
+### \sources\ query
+- Fetches all installed extensions/sources available on the backend. Returns \SourceType\ including \id\ (LongString), \
+ame\, \iconUrl\, and \lang\.
+
+### \etchSourceManga(input: FetchSourceMangaInput!)\ mutation
+- Fetches manga directly from a source catalog. Requires \source\ ID, \page\ number, and a \	ype\ enum (POPULAR, LATEST, SEARCH). If SEARCH is used, a \query\ string is required. Returns \FetchSourceMangaPayload\ which includes \mangas\ and \hasNextPage\.
+
+### \updateManga(input: UpdateMangaInput!)\ mutation (Toggle Library)
+- Used to toggle the \inLibrary\ status of a manga. Used when viewing a newly discovered manga in MangaDetailPage.

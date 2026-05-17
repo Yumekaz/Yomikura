@@ -3486,6 +3486,30 @@ export type FetchChapterPagesInput = {
   format?: string | null | undefined;
 };
 
+export type FetchSourceMangaInput = {
+  clientMutationId?: string | null | undefined;
+  filters?: Array<FilterChangeInput> | null | undefined;
+  page: number;
+  query?: string | null | undefined;
+  source: unknown;
+  type: FetchSourceMangaType;
+};
+
+export type FetchSourceMangaType =
+  | 'LATEST'
+  | 'POPULAR'
+  | 'SEARCH';
+
+export type FilterChangeInput = {
+  checkBoxState?: boolean | null | undefined;
+  groupChange?: FilterChangeInput | null | undefined;
+  position: number;
+  selectState?: number | null | undefined;
+  sortState?: SortSelectionInput | null | undefined;
+  textState?: string | null | undefined;
+  triState?: TriState | null | undefined;
+};
+
 export type IntFilterInput = {
   distinctFrom?: number | null | undefined;
   distinctFromAll?: Array<number> | null | undefined;
@@ -3572,6 +3596,11 @@ export type MangaStatusFilterInput = {
   notIn?: Array<MangaStatus> | null | undefined;
 };
 
+export type SortSelectionInput = {
+  ascending: boolean;
+  index: number;
+};
+
 export type StringFilterInput = {
   distinctFrom?: string | null | undefined;
   distinctFromAll?: Array<string> | null | undefined;
@@ -3648,6 +3677,11 @@ export type StringFilterInput = {
   startsWithInsensitiveAny?: Array<string> | null | undefined;
 };
 
+export type TriState =
+  | 'EXCLUDE'
+  | 'IGNORE'
+  | 'INCLUDE';
+
 export type UpdateChapterInput = {
   clientMutationId?: string | null | undefined;
   id: number;
@@ -3659,6 +3693,30 @@ export type UpdateChapterPatchInput = {
   isRead?: boolean | null | undefined;
   lastPageRead?: number | null | undefined;
 };
+
+export type UpdateMangaInput = {
+  clientMutationId?: string | null | undefined;
+  id: number;
+  patch: UpdateMangaPatchInput;
+};
+
+export type UpdateMangaPatchInput = {
+  inLibrary?: boolean | null | undefined;
+};
+
+export type FetchSourceMangaMutationVariables = Exact<{
+  input: FetchSourceMangaInput;
+}>;
+
+
+export type FetchSourceMangaMutation = { fetchSourceManga: { hasNextPage: boolean, mangas: Array<{ id: number, title: string, thumbnailUrl: string | null, inLibrary: boolean, status: MangaStatus }> } | null };
+
+export type ToggleMangaLibraryMutationVariables = Exact<{
+  input: UpdateMangaInput;
+}>;
+
+
+export type ToggleMangaLibraryMutation = { updateManga: { manga: { id: number, inLibrary: boolean } } | null };
 
 export type FetchChapterPagesMutationVariables = Exact<{
   input: FetchChapterPagesInput;
@@ -3673,6 +3731,11 @@ export type UpdateChapterProgressMutationVariables = Exact<{
 
 
 export type UpdateChapterProgressMutation = { updateChapter: { chapter: { id: number, isRead: boolean, lastPageRead: number } } | null };
+
+export type GetSourcesQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetSourcesQuery = { sources: { edges: Array<{ node: { id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean } }> } };
 
 export type ConnectionTestQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -3707,6 +3770,30 @@ export type GetChapterQueryVariables = Exact<{
 export type GetChapterQuery = { chapter: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, pageCount: number, mangaId: number, manga: { title: string, chapters: { edges: Array<{ node: { id: number, chapterNumber: number } }> } } } };
 
 
+export const FetchSourceMangaDocument = gql`
+    mutation FetchSourceManga($input: FetchSourceMangaInput!) {
+  fetchSourceManga(input: $input) {
+    hasNextPage
+    mangas {
+      id
+      title
+      thumbnailUrl
+      inLibrary
+      status
+    }
+  }
+}
+    `;
+export const ToggleMangaLibraryDocument = gql`
+    mutation ToggleMangaLibrary($input: UpdateMangaInput!) {
+  updateManga(input: $input) {
+    manga {
+      id
+      inLibrary
+    }
+  }
+}
+    `;
 export const FetchChapterPagesDocument = gql`
     mutation FetchChapterPages($input: FetchChapterPagesInput!) {
   fetchChapterPages(input: $input) {
@@ -3721,6 +3808,21 @@ export const UpdateChapterProgressDocument = gql`
       id
       isRead
       lastPageRead
+    }
+  }
+}
+    `;
+export const GetSourcesDocument = gql`
+    query GetSources {
+  sources {
+    edges {
+      node {
+        id
+        name
+        lang
+        iconUrl
+        supportsLatest
+      }
     }
   }
 }
@@ -3833,11 +3935,20 @@ const defaultWrapper: SdkFunctionWrapper = (action, _operationName, _operationTy
 
 export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = defaultWrapper) {
   return {
+    FetchSourceManga(variables: FetchSourceMangaMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<FetchSourceMangaMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<FetchSourceMangaMutation>({ document: FetchSourceMangaDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'FetchSourceManga', 'mutation', variables);
+    },
+    ToggleMangaLibrary(variables: ToggleMangaLibraryMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ToggleMangaLibraryMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<ToggleMangaLibraryMutation>({ document: ToggleMangaLibraryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ToggleMangaLibrary', 'mutation', variables);
+    },
     FetchChapterPages(variables: FetchChapterPagesMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<FetchChapterPagesMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<FetchChapterPagesMutation>({ document: FetchChapterPagesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'FetchChapterPages', 'mutation', variables);
     },
     UpdateChapterProgress(variables: UpdateChapterProgressMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateChapterProgressMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<UpdateChapterProgressMutation>({ document: UpdateChapterProgressDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateChapterProgress', 'mutation', variables);
+    },
+    GetSources(variables?: GetSourcesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetSourcesQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetSourcesQuery>({ document: GetSourcesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetSources', 'query', variables);
     },
     ConnectionTest(variables?: ConnectionTestQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ConnectionTestQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<ConnectionTestQuery>({ document: ConnectionTestDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ConnectionTest', 'query', variables);
