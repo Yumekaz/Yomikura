@@ -46,3 +46,13 @@ As we move into **Phase 4 (Library Flow)** and beyond, this document will be exp
 - Used to fetch detailed metadata for a single manga, including its source, status, and description.
 - Fetches all associated chapters in a \ChapterNodeList\.
 - \uploadDate\ is returned as a \LongString\ scalar which we explicitly cast to string on the frontend.
+
+## Reader Queries & Mutations
+### \etchChapterPages(input: FetchChapterPagesInput!)\ mutation
+- Fetches the array of image URLs for a chapter. Executed on mount as a mutation since it may trigger a source scraping event.
+
+### \chapter(id: Int!)\ query
+- Used in the reader to fetch the chapter name, current progress (\lastPageRead\), and the sibling chapters (nested under \manga\) to calculate the Next and Previous chapter routing.
+
+### \updateChapter(input: UpdateChapterInput!)\ mutation
+- Patches the \isRead\ and \lastPageRead\ properties in the Suwayomi backend to persist user reading progress across sessions.

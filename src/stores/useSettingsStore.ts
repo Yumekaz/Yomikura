@@ -3,15 +3,18 @@ import { persist } from "zustand/middleware";
 import { testServerConnection } from "../api/suwayomi/connection";
 
 export type ConnectionStatus = "disconnected" | "connected" | "error" | "testing";
+export type ReaderMode = "WEBTOON" | "LTR" | "RTL";
 
 interface SettingsState {
   serverBaseUrl: string;
   connectionStatus: ConnectionStatus;
   errorMessage: string;
+  readerMode: ReaderMode;
   
   // Actions
   setServerBaseUrl: (url: string) => void;
   testConnection: () => Promise<boolean>;
+  setReaderMode: (mode: ReaderMode) => void;
   
   // Derived
   getGraphqlEndpoint: () => string;
@@ -23,6 +26,7 @@ export const useSettingsStore = create<SettingsState>()(
       serverBaseUrl: "",
       connectionStatus: "disconnected",
       errorMessage: "",
+      readerMode: "WEBTOON",
 
       setServerBaseUrl: (url: string) => {
         set({
@@ -54,6 +58,8 @@ export const useSettingsStore = create<SettingsState>()(
         }
       },
 
+      setReaderMode: (mode: ReaderMode) => set({ readerMode: mode }),
+
       getGraphqlEndpoint: () => {
         const url = get().serverBaseUrl.replace(/\/$/, "");
         return url ? `${url}/api/graphql` : "";
@@ -64,7 +70,8 @@ export const useSettingsStore = create<SettingsState>()(
       partialize: (state) => ({ 
         serverBaseUrl: state.serverBaseUrl,
         connectionStatus: state.connectionStatus === "testing" ? "disconnected" : state.connectionStatus,
-        errorMessage: state.errorMessage
+        errorMessage: state.errorMessage,
+        readerMode: state.readerMode,
       }),
     }
   )

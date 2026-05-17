@@ -3480,6 +3480,12 @@ export type BooleanFilterInput = {
   notIn?: Array<boolean> | null | undefined;
 };
 
+export type FetchChapterPagesInput = {
+  chapterId: number;
+  clientMutationId?: string | null | undefined;
+  format?: string | null | undefined;
+};
+
 export type IntFilterInput = {
   distinctFrom?: number | null | undefined;
   distinctFromAll?: Array<number> | null | undefined;
@@ -3642,6 +3648,32 @@ export type StringFilterInput = {
   startsWithInsensitiveAny?: Array<string> | null | undefined;
 };
 
+export type UpdateChapterInput = {
+  clientMutationId?: string | null | undefined;
+  id: number;
+  patch: UpdateChapterPatchInput;
+};
+
+export type UpdateChapterPatchInput = {
+  isBookmarked?: boolean | null | undefined;
+  isRead?: boolean | null | undefined;
+  lastPageRead?: number | null | undefined;
+};
+
+export type FetchChapterPagesMutationVariables = Exact<{
+  input: FetchChapterPagesInput;
+}>;
+
+
+export type FetchChapterPagesMutation = { fetchChapterPages: { pages: Array<string> } | null };
+
+export type UpdateChapterProgressMutationVariables = Exact<{
+  input: UpdateChapterInput;
+}>;
+
+
+export type UpdateChapterProgressMutation = { updateChapter: { chapter: { id: number, isRead: boolean, lastPageRead: number } } | null };
+
 export type ConnectionTestQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -3667,7 +3699,32 @@ export type GetMangaDetailsQueryVariables = Exact<{
 
 export type GetMangaDetailsQuery = { manga: { id: number, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, source: { name: string } | null, chapters: { edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, uploadDate: unknown, scanlator: string | null } }> } } };
 
+export type GetChapterQueryVariables = Exact<{
+  id: number;
+}>;
 
+
+export type GetChapterQuery = { chapter: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, pageCount: number, mangaId: number, manga: { title: string, chapters: { edges: Array<{ node: { id: number, chapterNumber: number } }> } } } };
+
+
+export const FetchChapterPagesDocument = gql`
+    mutation FetchChapterPages($input: FetchChapterPagesInput!) {
+  fetchChapterPages(input: $input) {
+    pages
+  }
+}
+    `;
+export const UpdateChapterProgressDocument = gql`
+    mutation UpdateChapterProgress($input: UpdateChapterInput!) {
+  updateChapter(input: $input) {
+    chapter {
+      id
+      isRead
+      lastPageRead
+    }
+  }
+}
+    `;
 export const ConnectionTestDocument = gql`
     query ConnectionTest {
   __typename
@@ -3744,6 +3801,30 @@ export const GetMangaDetailsDocument = gql`
   }
 }
     `;
+export const GetChapterDocument = gql`
+    query GetChapter($id: Int!) {
+  chapter(id: $id) {
+    id
+    name
+    chapterNumber
+    isRead
+    lastPageRead
+    pageCount
+    mangaId
+    manga {
+      title
+      chapters {
+        edges {
+          node {
+            id
+            chapterNumber
+          }
+        }
+      }
+    }
+  }
+}
+    `;
 
 export type SdkFunctionWrapper = <T>(action: (requestHeaders?:Record<string, string>) => Promise<T>, operationName: string, operationType?: string, variables?: any) => Promise<T>;
 
@@ -3752,6 +3833,12 @@ const defaultWrapper: SdkFunctionWrapper = (action, _operationName, _operationTy
 
 export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = defaultWrapper) {
   return {
+    FetchChapterPages(variables: FetchChapterPagesMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<FetchChapterPagesMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<FetchChapterPagesMutation>({ document: FetchChapterPagesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'FetchChapterPages', 'mutation', variables);
+    },
+    UpdateChapterProgress(variables: UpdateChapterProgressMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateChapterProgressMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<UpdateChapterProgressMutation>({ document: UpdateChapterProgressDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateChapterProgress', 'mutation', variables);
+    },
     ConnectionTest(variables?: ConnectionTestQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ConnectionTestQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<ConnectionTestQuery>({ document: ConnectionTestDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ConnectionTest', 'query', variables);
     },
@@ -3763,6 +3850,9 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetMangaDetails(variables: GetMangaDetailsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetMangaDetailsQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetMangaDetailsQuery>({ document: GetMangaDetailsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetMangaDetails', 'query', variables);
+    },
+    GetChapter(variables: GetChapterQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetChapterQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetChapterQuery>({ document: GetChapterDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetChapter', 'query', variables);
     }
   };
 }

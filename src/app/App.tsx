@@ -6,6 +6,7 @@ import SettingsPage from "../pages/SettingsPage";
 import RouteShell from "../pages/RouteShell";
 import LibraryPage from "../features/library/LibraryPage";
 import MangaDetailPage from "../features/manga/MangaDetailPage";
+import ReaderPage from "../features/reader/ReaderPage";
 import { routeCopy } from "./navigation";
 
 const queryClient = new QueryClient();
@@ -37,13 +38,7 @@ function App() {
           />
           <Route
             path="/reader/:chapterId"
-            element={
-              <RouteShell
-                title="Reader"
-                detail="The reader is intentionally empty until Phase 6 can fetch real chapter pages."
-                immersive
-              />
-            }
+            element={<ReaderPage />}
           />
         </Route>
       </Routes>

@@ -1,0 +1,15 @@
+mutation FetchChapterPages($input: FetchChapterPagesInput!) {
+  fetchChapterPages(input: $input) {
+    pages
+  }
+}
+
+mutation UpdateChapterProgress($input: UpdateChapterInput!) {
+  updateChapter(input: $input) {
+    chapter {
+      id
+      isRead
+      lastPageRead
+    }
+  }
+}

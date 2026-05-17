@@ -1,0 +1,22 @@
+query GetChapter($id: Int!) {
+  chapter(id: $id) {
+    id
+    name
+    chapterNumber
+    isRead
+    lastPageRead
+    pageCount
+    mangaId
+    manga {
+      title
+      chapters {
+        edges {
+          node {
+            id
+            chapterNumber
+          }
+        }
+      }
+    }
+  }
+}
