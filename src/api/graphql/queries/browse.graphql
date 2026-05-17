@@ -1,44 +1,41 @@
 query GetSources {
-  sources {
-    edges {
-      node {
-        id
-        name
-        lang
-        iconUrl
-        supportsLatest
-        isNsfw
-        extension {
-          pkgName
-          isInstalled
-        }
+  sources(first: 2000) {
+    totalCount
+    nodes {
+      id
+      name
+      lang
+      iconUrl
+      supportsLatest
+      isNsfw
+      extension {
+        pkgName
+        isInstalled
       }
     }
   }
 }
 
 query GetSourcesByCondition($lang: String!) {
-  sources(condition: { lang: $lang }) {
-    edges {
-      node {
-        id
-        name
-        lang
-        iconUrl
-        supportsLatest
-        isNsfw
-      }
+  sources(condition: { lang: $lang }, first: 2000) {
+    totalCount
+    nodes {
+      id
+      name
+      lang
+      iconUrl
+      supportsLatest
+      isNsfw
     }
   }
 }
 
 query GetInstalledExtensionLangs {
-  extensions(condition: { isInstalled: true }) {
-    edges {
-      node {
-        pkgName
-        lang
-      }
+  extensions(condition: { isInstalled: true }, first: 2000) {
+    totalCount
+    nodes {
+      pkgName
+      lang
     }
   }
 }

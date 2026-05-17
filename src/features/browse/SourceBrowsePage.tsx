@@ -66,9 +66,9 @@ export default function SourceBrowsePage() {
 
   const sourceName = useMemo(() => {
     if (!sourcesData || !sourceId) return "Browse Source";
-    const edges = sourcesData.sources?.edges || [];
-    for (const e of edges) {
-      if (e?.node?.id === sourceId) return e.node.name;
+    const sources = sourcesData.sources?.nodes || [];
+    for (const source of sources) {
+      if (String(source?.id) === sourceId) return source.name;
     }
     return "Browse Source";
   }, [sourcesData, sourceId]);

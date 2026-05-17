@@ -38,7 +38,7 @@ export default function ExtensionsPage() {
   });
 
   const extensions = useMemo(() => {
-    return data?.extensions?.edges?.map(e => e?.node).filter((n): n is NonNullable<typeof n> => n != null) || [];
+    return data?.extensions?.nodes?.filter((n): n is NonNullable<typeof n> => n != null) || [];
   }, [data]);
 
   const languages = useMemo(() => {

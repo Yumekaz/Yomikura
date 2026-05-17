@@ -29,10 +29,10 @@ export default function SourcesPage() {
   });
 
   const installedLangs = useMemo(() => {
-    if (!extData?.extensions?.edges) return [];
+    if (!extData?.extensions?.nodes) return [];
     const langs = new Set<string>();
-    extData.extensions.edges.forEach(e => {
-      if (e?.node?.lang) langs.add(e.node.lang);
+    extData.extensions.nodes.forEach((extension) => {
+      if (extension?.lang) langs.add(extension.lang);
     });
     // Always include "localsourcelang" for Local Source and "en"
     langs.add("localsourcelang");
@@ -60,10 +60,10 @@ export default function SourcesPage() {
       }> = [];
       
       for (const result of results) {
-        for (const edge of result.sources?.edges || []) {
-          if (edge?.node && !seen.has(String(edge.node.id))) {
-            seen.add(String(edge.node.id));
-            allSources.push(edge.node as any);
+        for (const source of result.sources?.nodes || []) {
+          if (source && !seen.has(String(source.id))) {
+            seen.add(String(source.id));
+            allSources.push(source as any);
           }
         }
       }

@@ -5,17 +5,16 @@ query GetExtensionRepos {
 }
 
 query GetExtensions {
-  extensions {
-    edges {
-      node {
-        pkgName
-        name
-        lang
-        isNsfw
-        isInstalled
-        iconUrl
-        versionName
-      }
+  extensions(first: 2000) {
+    totalCount
+    nodes {
+      pkgName
+      name
+      lang
+      isNsfw
+      isInstalled
+      iconUrl
+      versionName
     }
   }
 }

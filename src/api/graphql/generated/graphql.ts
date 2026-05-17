@@ -3916,19 +3916,19 @@ export type UpdateChapterProgressMutation = { updateChapter: { chapter: { id: nu
 export type GetSourcesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetSourcesQuery = { sources: { edges: Array<{ node: { id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean, extension: { pkgName: string, isInstalled: boolean } } }> } };
+export type GetSourcesQuery = { sources: { totalCount: number, nodes: Array<{ id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean, extension: { pkgName: string, isInstalled: boolean } }> } };
 
 export type GetSourcesByConditionQueryVariables = Exact<{
   lang: string;
 }>;
 
 
-export type GetSourcesByConditionQuery = { sources: { edges: Array<{ node: { id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean } }> } };
+export type GetSourcesByConditionQuery = { sources: { totalCount: number, nodes: Array<{ id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean }> } };
 
 export type GetInstalledExtensionLangsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetInstalledExtensionLangsQuery = { extensions: { edges: Array<{ node: { pkgName: string, lang: string } }> } };
+export type GetInstalledExtensionLangsQuery = { extensions: { totalCount: number, nodes: Array<{ pkgName: string, lang: string }> } };
 
 export type ConnectionTestQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -3943,7 +3943,7 @@ export type GetExtensionReposQuery = { settings: { extensionRepos: Array<string>
 export type GetExtensionsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetExtensionsQuery = { extensions: { edges: Array<{ node: { pkgName: string, name: string, lang: string, isNsfw: boolean, isInstalled: boolean, iconUrl: string, versionName: string } }> } };
+export type GetExtensionsQuery = { extensions: { totalCount: number, nodes: Array<{ pkgName: string, name: string, lang: string, isNsfw: boolean, isInstalled: boolean, iconUrl: string, versionName: string }> } };
 
 export type GetCategoriesQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -4045,19 +4045,18 @@ export const UpdateChapterProgressDocument = gql`
     `;
 export const GetSourcesDocument = gql`
     query GetSources {
-  sources {
-    edges {
-      node {
-        id
-        name
-        lang
-        iconUrl
-        supportsLatest
-        isNsfw
-        extension {
-          pkgName
-          isInstalled
-        }
+  sources(first: 2000) {
+    totalCount
+    nodes {
+      id
+      name
+      lang
+      iconUrl
+      supportsLatest
+      isNsfw
+      extension {
+        pkgName
+        isInstalled
       }
     }
   }
@@ -4065,28 +4064,26 @@ export const GetSourcesDocument = gql`
     `;
 export const GetSourcesByConditionDocument = gql`
     query GetSourcesByCondition($lang: String!) {
-  sources(condition: {lang: $lang}) {
-    edges {
-      node {
-        id
-        name
-        lang
-        iconUrl
-        supportsLatest
-        isNsfw
-      }
+  sources(condition: {lang: $lang}, first: 2000) {
+    totalCount
+    nodes {
+      id
+      name
+      lang
+      iconUrl
+      supportsLatest
+      isNsfw
     }
   }
 }
     `;
 export const GetInstalledExtensionLangsDocument = gql`
     query GetInstalledExtensionLangs {
-  extensions(condition: {isInstalled: true}) {
-    edges {
-      node {
-        pkgName
-        lang
-      }
+  extensions(condition: {isInstalled: true}, first: 2000) {
+    totalCount
+    nodes {
+      pkgName
+      lang
     }
   }
 }
@@ -4105,17 +4102,16 @@ export const GetExtensionReposDocument = gql`
     `;
 export const GetExtensionsDocument = gql`
     query GetExtensions {
-  extensions {
-    edges {
-      node {
-        pkgName
-        name
-        lang
-        isNsfw
-        isInstalled
-        iconUrl
-        versionName
-      }
+  extensions(first: 2000) {
+    totalCount
+    nodes {
+      pkgName
+      name
+      lang
+      isNsfw
+      isInstalled
+      iconUrl
+      versionName
     }
   }
 }
