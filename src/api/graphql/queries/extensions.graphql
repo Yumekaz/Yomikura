@@ -1,0 +1,21 @@
+query GetExtensionRepos {
+  settings {
+    extensionRepos
+  }
+}
+
+query GetExtensions {
+  extensions {
+    edges {
+      node {
+        pkgName
+        name
+        lang
+        isNsfw
+        isInstalled
+        iconUrl
+        versionName
+      }
+    }
+  }
+}

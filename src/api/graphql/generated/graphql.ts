@@ -3462,6 +3462,12 @@ export type WebUiUpdateStatus = {
   state: UpdateState;
 };
 
+export type AuthMode =
+  | 'BASIC_AUTH'
+  | 'NONE'
+  | 'SIMPLE_LOGIN'
+  | 'UI_LOGIN';
+
 export type BooleanFilterInput = {
   distinctFrom?: boolean | null | undefined;
   distinctFromAll?: Array<boolean> | null | undefined;
@@ -3480,10 +3486,23 @@ export type BooleanFilterInput = {
   notIn?: Array<boolean> | null | undefined;
 };
 
+export type CbzMediaType =
+  | 'COMPATIBLE'
+  | 'LEGACY'
+  | 'MODERN';
+
+export type DatabaseType =
+  | 'H2'
+  | 'POSTGRESQL';
+
 export type FetchChapterPagesInput = {
   chapterId: number;
   clientMutationId?: string | null | undefined;
   format?: string | null | undefined;
+};
+
+export type FetchExtensionsInput = {
+  clientMutationId?: string | null | undefined;
 };
 
 export type FetchSourceMangaInput = {
@@ -3527,6 +3546,16 @@ export type IntFilterInput = {
   notEqualToAny?: Array<number> | null | undefined;
   notIn?: Array<number> | null | undefined;
 };
+
+export type KoreaderSyncChecksumMethod =
+  | 'BINARY'
+  | 'FILENAME';
+
+export type KoreaderSyncConflictStrategy =
+  | 'DISABLED'
+  | 'KEEP_LOCAL'
+  | 'KEEP_REMOTE'
+  | 'PROMPT';
 
 export type LongFilterInput = {
   distinctFrom?: unknown;
@@ -3595,6 +3624,111 @@ export type MangaStatusFilterInput = {
   notEqualToAny?: Array<MangaStatus> | null | undefined;
   notIn?: Array<MangaStatus> | null | undefined;
 };
+
+export type PartialSettingsTypeInput = {
+  authMode?: AuthMode | null | undefined;
+  authPassword?: string | null | undefined;
+  authUsername?: string | null | undefined;
+  autoBackupIncludeCategories?: boolean | null | undefined;
+  autoBackupIncludeChapters?: boolean | null | undefined;
+  autoBackupIncludeClientData?: boolean | null | undefined;
+  autoBackupIncludeHistory?: boolean | null | undefined;
+  autoBackupIncludeManga?: boolean | null | undefined;
+  autoBackupIncludeServerSettings?: boolean | null | undefined;
+  autoBackupIncludeTracking?: boolean | null | undefined;
+  autoDownloadIgnoreReUploads?: boolean | null | undefined;
+  autoDownloadNewChapters?: boolean | null | undefined;
+  autoDownloadNewChaptersLimit?: number | null | undefined;
+  backupInterval?: number | null | undefined;
+  backupPath?: string | null | undefined;
+  backupTTL?: number | null | undefined;
+  backupTime?: string | null | undefined;
+  databasePassword?: string | null | undefined;
+  databaseType?: DatabaseType | null | undefined;
+  databaseUrl?: string | null | undefined;
+  databaseUsername?: string | null | undefined;
+  debugLogsEnabled?: boolean | null | undefined;
+  downloadAsCbz?: boolean | null | undefined;
+  downloadConversions?: Array<SettingsDownloadConversionTypeInput> | null | undefined;
+  downloadsPath?: string | null | undefined;
+  electronPath?: string | null | undefined;
+  excludeCompleted?: boolean | null | undefined;
+  excludeEntryWithUnreadChapters?: boolean | null | undefined;
+  excludeNotStarted?: boolean | null | undefined;
+  excludeUnreadChapters?: boolean | null | undefined;
+  extensionRepos?: Array<string> | null | undefined;
+  flareSolverrAsResponseFallback?: boolean | null | undefined;
+  flareSolverrEnabled?: boolean | null | undefined;
+  flareSolverrSessionName?: string | null | undefined;
+  flareSolverrSessionTtl?: number | null | undefined;
+  flareSolverrTimeout?: number | null | undefined;
+  flareSolverrUrl?: string | null | undefined;
+  globalUpdateInterval?: number | null | undefined;
+  initialOpenInBrowserEnabled?: boolean | null | undefined;
+  ip?: string | null | undefined;
+  jwtAudience?: string | null | undefined;
+  jwtRefreshExpiry?: unknown;
+  jwtTokenExpiry?: unknown;
+  koreaderSyncChecksumMethod?: KoreaderSyncChecksumMethod | null | undefined;
+  koreaderSyncPercentageTolerance?: number | null | undefined;
+  koreaderSyncStrategyBackward?: KoreaderSyncConflictStrategy | null | undefined;
+  koreaderSyncStrategyForward?: KoreaderSyncConflictStrategy | null | undefined;
+  localSourcePath?: string | null | undefined;
+  maxLogFileSize?: string | null | undefined;
+  maxLogFiles?: number | null | undefined;
+  maxLogFolderSize?: string | null | undefined;
+  maxSourcesInParallel?: number | null | undefined;
+  opdsCbzMimetype?: CbzMediaType | null | undefined;
+  opdsChapterSortOrder?: SortOrder | null | undefined;
+  opdsEnablePageReadProgress?: boolean | null | undefined;
+  opdsItemsPerPage?: number | null | undefined;
+  opdsMarkAsReadOnDownload?: boolean | null | undefined;
+  opdsShowOnlyDownloadedChapters?: boolean | null | undefined;
+  opdsShowOnlyUnreadChapters?: boolean | null | undefined;
+  opdsUseBinaryFileSizes?: boolean | null | undefined;
+  port?: number | null | undefined;
+  serveConversions?: Array<SettingsDownloadConversionTypeInput> | null | undefined;
+  socksProxyEnabled?: boolean | null | undefined;
+  socksProxyHost?: string | null | undefined;
+  socksProxyPassword?: string | null | undefined;
+  socksProxyPort?: string | null | undefined;
+  socksProxyUsername?: string | null | undefined;
+  socksProxyVersion?: number | null | undefined;
+  systemTrayEnabled?: boolean | null | undefined;
+  updateMangas?: boolean | null | undefined;
+  useHikariConnectionPool?: boolean | null | undefined;
+  webUIChannel?: WebUiChannel | null | undefined;
+  webUIFlavor?: WebUiFlavor | null | undefined;
+  webUIInterface?: WebUiInterface | null | undefined;
+  webUIUpdateCheckInterval?: number | null | undefined;
+};
+
+export type SetSettingsInput = {
+  clientMutationId?: string | null | undefined;
+  settings: PartialSettingsTypeInput;
+};
+
+export type SettingsDownloadConversionHeaderTypeInput = {
+  name: string;
+  value: string;
+};
+
+export type SettingsDownloadConversionTypeInput = {
+  callTimeout?: unknown;
+  compressionLevel?: number | null | undefined;
+  connectTimeout?: unknown;
+  headers?: Array<SettingsDownloadConversionHeaderTypeInput> | null | undefined;
+  mimeType: string;
+  target: string;
+};
+
+export type SortOrder =
+  | 'ASC'
+  | 'ASC_NULLS_FIRST'
+  | 'ASC_NULLS_LAST'
+  | 'DESC'
+  | 'DESC_NULLS_FIRST'
+  | 'DESC_NULLS_LAST';
 
 export type SortSelectionInput = {
   ascending: boolean;
@@ -3694,6 +3828,18 @@ export type UpdateChapterPatchInput = {
   lastPageRead?: number | null | undefined;
 };
 
+export type UpdateExtensionInput = {
+  clientMutationId?: string | null | undefined;
+  id: string;
+  patch: UpdateExtensionPatchInput;
+};
+
+export type UpdateExtensionPatchInput = {
+  install?: boolean | null | undefined;
+  uninstall?: boolean | null | undefined;
+  update?: boolean | null | undefined;
+};
+
 export type UpdateMangaInput = {
   clientMutationId?: string | null | undefined;
   id: number;
@@ -3703,6 +3849,20 @@ export type UpdateMangaInput = {
 export type UpdateMangaPatchInput = {
   inLibrary?: boolean | null | undefined;
 };
+
+export type WebUiChannel =
+  | 'BUNDLED'
+  | 'PREVIEW'
+  | 'STABLE';
+
+export type WebUiFlavor =
+  | 'CUSTOM'
+  | 'VUI'
+  | 'WEBUI';
+
+export type WebUiInterface =
+  | 'BROWSER'
+  | 'ELECTRON';
 
 export type FetchSourceMangaMutationVariables = Exact<{
   input: FetchSourceMangaInput;
@@ -3717,6 +3877,27 @@ export type ToggleMangaLibraryMutationVariables = Exact<{
 
 
 export type ToggleMangaLibraryMutation = { updateManga: { manga: { id: number, inLibrary: boolean } } | null };
+
+export type SetExtensionReposMutationVariables = Exact<{
+  input: SetSettingsInput;
+}>;
+
+
+export type SetExtensionReposMutation = { setSettings: { settings: { extensionRepos: Array<string> } } };
+
+export type FetchExtensionCatalogMutationVariables = Exact<{
+  input: FetchExtensionsInput;
+}>;
+
+
+export type FetchExtensionCatalogMutation = { fetchExtensions: { extensions: Array<{ pkgName: string }> } | null };
+
+export type ToggleExtensionInstallMutationVariables = Exact<{
+  input: UpdateExtensionInput;
+}>;
+
+
+export type ToggleExtensionInstallMutation = { updateExtension: { extension: { pkgName: string, isInstalled: boolean } | null } | null };
 
 export type FetchChapterPagesMutationVariables = Exact<{
   input: FetchChapterPagesInput;
@@ -3741,6 +3922,16 @@ export type ConnectionTestQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type ConnectionTestQuery = { __typename: 'Query' };
+
+export type GetExtensionReposQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetExtensionReposQuery = { settings: { extensionRepos: Array<string> } };
+
+export type GetExtensionsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetExtensionsQuery = { extensions: { edges: Array<{ node: { pkgName: string, name: string, lang: string, isNsfw: boolean, isInstalled: boolean, iconUrl: string, versionName: string } }> } };
 
 export type GetCategoriesQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -3794,6 +3985,34 @@ export const ToggleMangaLibraryDocument = gql`
   }
 }
     `;
+export const SetExtensionReposDocument = gql`
+    mutation SetExtensionRepos($input: SetSettingsInput!) {
+  setSettings(input: $input) {
+    settings {
+      extensionRepos
+    }
+  }
+}
+    `;
+export const FetchExtensionCatalogDocument = gql`
+    mutation FetchExtensionCatalog($input: FetchExtensionsInput!) {
+  fetchExtensions(input: $input) {
+    extensions {
+      pkgName
+    }
+  }
+}
+    `;
+export const ToggleExtensionInstallDocument = gql`
+    mutation ToggleExtensionInstall($input: UpdateExtensionInput!) {
+  updateExtension(input: $input) {
+    extension {
+      pkgName
+      isInstalled
+    }
+  }
+}
+    `;
 export const FetchChapterPagesDocument = gql`
     mutation FetchChapterPages($input: FetchChapterPagesInput!) {
   fetchChapterPages(input: $input) {
@@ -3830,6 +4049,30 @@ export const GetSourcesDocument = gql`
 export const ConnectionTestDocument = gql`
     query ConnectionTest {
   __typename
+}
+    `;
+export const GetExtensionReposDocument = gql`
+    query GetExtensionRepos {
+  settings {
+    extensionRepos
+  }
+}
+    `;
+export const GetExtensionsDocument = gql`
+    query GetExtensions {
+  extensions {
+    edges {
+      node {
+        pkgName
+        name
+        lang
+        isNsfw
+        isInstalled
+        iconUrl
+        versionName
+      }
+    }
+  }
 }
     `;
 export const GetCategoriesDocument = gql`
@@ -3941,6 +4184,15 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     ToggleMangaLibrary(variables: ToggleMangaLibraryMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ToggleMangaLibraryMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<ToggleMangaLibraryMutation>({ document: ToggleMangaLibraryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ToggleMangaLibrary', 'mutation', variables);
     },
+    SetExtensionRepos(variables: SetExtensionReposMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<SetExtensionReposMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<SetExtensionReposMutation>({ document: SetExtensionReposDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'SetExtensionRepos', 'mutation', variables);
+    },
+    FetchExtensionCatalog(variables: FetchExtensionCatalogMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<FetchExtensionCatalogMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<FetchExtensionCatalogMutation>({ document: FetchExtensionCatalogDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'FetchExtensionCatalog', 'mutation', variables);
+    },
+    ToggleExtensionInstall(variables: ToggleExtensionInstallMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ToggleExtensionInstallMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<ToggleExtensionInstallMutation>({ document: ToggleExtensionInstallDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ToggleExtensionInstall', 'mutation', variables);
+    },
     FetchChapterPages(variables: FetchChapterPagesMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<FetchChapterPagesMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<FetchChapterPagesMutation>({ document: FetchChapterPagesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'FetchChapterPages', 'mutation', variables);
     },
@@ -3952,6 +4204,12 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     ConnectionTest(variables?: ConnectionTestQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ConnectionTestQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<ConnectionTestQuery>({ document: ConnectionTestDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ConnectionTest', 'query', variables);
+    },
+    GetExtensionRepos(variables?: GetExtensionReposQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetExtensionReposQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetExtensionReposQuery>({ document: GetExtensionReposDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetExtensionRepos', 'query', variables);
+    },
+    GetExtensions(variables?: GetExtensionsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetExtensionsQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetExtensionsQuery>({ document: GetExtensionsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetExtensions', 'query', variables);
     },
     GetCategories(variables?: GetCategoriesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetCategoriesQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetCategoriesQuery>({ document: GetCategoriesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetCategories', 'query', variables);

@@ -9,6 +9,8 @@ import MangaDetailPage from "../features/manga/MangaDetailPage";
 import ReaderPage from "../features/reader/ReaderPage";
 import SourcesPage from "../features/browse/SourcesPage";
 import SourceBrowsePage from "../features/browse/SourceBrowsePage";
+import ExtensionsPage from "../features/extensions/ExtensionsPage";
+import ReposPage from "../features/extensions/ReposPage";
 import { routeCopy } from "./navigation";
 
 const queryClient = new QueryClient();
@@ -29,6 +31,9 @@ function App() {
             if (path === "/browse") {
               return <Route key={path} path={path} element={<SourcesPage />} />;
             }
+            if (path === "/extensions") {
+              return <Route key={path} path={path} element={<ExtensionsPage />} />;
+            }
             return (
               <Route
                 key={path}
@@ -42,6 +47,7 @@ function App() {
             element={<MangaDetailPage />}
           />
           <Route path="/browse/:sourceId" element={<SourceBrowsePage />} />
+          <Route path="/extensions/repos" element={<ReposPage />} />
           <Route
             path="/reader/:chapterId"
             element={<ReaderPage />}

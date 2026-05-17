@@ -67,3 +67,20 @@ ame\, \iconUrl\, and \lang\.
 
 ### \updateManga(input: UpdateMangaInput!)\ mutation (Toggle Library)
 - Used to toggle the \inLibrary\ status of a manga. Used when viewing a newly discovered manga in MangaDetailPage.
+
+## Extensions Queries & Mutations
+### \settings { extensionRepos }\ query
+- Fetches the array of repository URLs currently added to the server.
+
+### \setSettings(input: SetSettingsInput!)\ mutation
+- Used to overwrite \extensionRepos\ when adding or deleting a repository URL.
+
+### \etchExtensions(input: FetchExtensionsInput!)\ mutation
+- Triggers the backend to pull and parse the \index.min.json\ from all added repositories.
+
+### \extensions\ query
+- Fetches the compiled catalog of all available extensions. Returns \ExtensionType\ including \pkgName\, \
+ame\, \lang\, \isNsfw\, \isInstalled\, \iconUrl\, and \ersionName\.
+
+### \updateExtension(input: UpdateExtensionInput!)\ mutation
+- Used to install or uninstall an extension by its \pkgName\ (passed as \id\).

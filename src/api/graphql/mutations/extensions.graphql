@@ -1,0 +1,24 @@
+mutation SetExtensionRepos($input: SetSettingsInput!) {
+  setSettings(input: $input) {
+    settings {
+      extensionRepos
+    }
+  }
+}
+
+mutation FetchExtensionCatalog($input: FetchExtensionsInput!) {
+  fetchExtensions(input: $input) {
+    extensions {
+      pkgName
+    }
+  }
+}
+
+mutation ToggleExtensionInstall($input: UpdateExtensionInput!) {
+  updateExtension(input: $input) {
+    extension {
+      pkgName
+      isInstalled
+    }
+  }
+}

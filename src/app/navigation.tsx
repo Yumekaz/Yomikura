@@ -21,6 +21,7 @@ export const primaryNav: NavItem[] = [
   { label: "Updates", path: "/updates", icon: Clock3 },
   { label: "History", path: "/history", icon: History },
   { label: "Browse", path: "/browse", icon: Compass },
+  { label: "Extensions", path: "/extensions", icon: Puzzle },
   { label: "Settings", path: "/settings", icon: Settings },
 ];
 
@@ -46,6 +47,10 @@ export const routeCopy: Record<string, { title: string; detail: string }> = {
   "/browse": {
     title: "Browse",
     detail: "Source discovery begins after installed source APIs are inspected.",
+  },
+  "/extensions": {
+    title: "Extensions",
+    detail: "Browse and install source extensions.",
   },
   "/browse/sources": {
     title: "Sources",
