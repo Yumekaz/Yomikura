@@ -1,9 +1,33 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Search, Settings, Box, Download, Trash2, EyeOff } from "lucide-react";
+import {
+  AlertCircle,
+  Box,
+  CheckCircle2,
+  Download,
+  EyeOff,
+  Loader2,
+  RefreshCw,
+  Search,
+  Settings,
+  Trash2,
+} from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
+import { getErrorMessage } from "../../api/suwayomi/errors";
+
+type ExtensionAction = {
+  pkgName: string;
+  name: string;
+  install: boolean;
+};
+
+type StatusMessage = {
+  kind: "success" | "error";
+  title: string;
+  detail?: string;
+};
 
 export default function ExtensionsPage() {
   const { serverBaseUrl } = useSettingsStore();
@@ -11,6 +35,8 @@ export default function ExtensionsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [showNsfw, setShowNsfw] = useState(false);
   const [langFilter, setLangFilter] = useState("all");
+  const [activeExtensionPkgs, setActiveExtensionPkgs] = useState<Set<string>>(() => new Set());
+  const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null);
 
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
@@ -23,23 +49,99 @@ export default function ExtensionsPage() {
     enabled: !!serverBaseUrl,
   });
 
-  const { mutate: toggleInstall, isPending: toggling } = useMutation({
-    mutationFn: ({ pkgName, install }: { pkgName: string, install: boolean }) => 
+  const markExtensionBusy = (pkgName: string, busy: boolean) => {
+    setActiveExtensionPkgs((current) => {
+      const next = new Set(current);
+      if (busy) {
+        next.add(pkgName);
+      } else {
+        next.delete(pkgName);
+      }
+      return next;
+    });
+  };
+
+  const invalidateExtensionData = () => {
+    queryClient.invalidateQueries({ queryKey: ["extensions"] });
+    queryClient.invalidateQueries({ queryKey: ["sources"] });
+    queryClient.invalidateQueries({ queryKey: ["all-sources"] });
+    queryClient.invalidateQueries({ queryKey: ["installed-ext-langs"] });
+  };
+
+  const { mutate: refreshCatalog, isPending: refreshingCatalog } = useMutation({
+    mutationFn: () => sdk.FetchExtensionCatalog({ input: {} }),
+    onMutate: () => {
+      setStatusMessage(null);
+    },
+    onSuccess: (result) => {
+      const syncedCount = result.fetchExtensions?.extensions?.length ?? 0;
+      setStatusMessage({
+        kind: "success",
+        title: "Catalog refreshed",
+        detail: syncedCount
+          ? `${syncedCount.toLocaleString()} extensions were synced from Suwayomi.`
+          : "Suwayomi accepted the refresh request. Recheck the list after the server finishes syncing.",
+      });
+      invalidateExtensionData();
+    },
+    onError: (error) => {
+      setStatusMessage({
+        kind: "error",
+        title: "Catalog refresh failed",
+        detail: getErrorMessage(error),
+      });
+    },
+  });
+
+  const { mutate: toggleInstall } = useMutation({
+    mutationFn: ({ pkgName, install }: ExtensionAction) =>
       sdk.ToggleExtensionInstall({
         input: {
           id: pkgName,
           patch: install ? { install: true } : { uninstall: true }
         }
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["extensions"] });
-      queryClient.invalidateQueries({ queryKey: ["sources"] });
-    }
+    onMutate: ({ pkgName }) => {
+      markExtensionBusy(pkgName, true);
+      setStatusMessage(null);
+    },
+    onSuccess: (result, variables) => {
+      const isInstalled = result.updateExtension?.extension?.isInstalled ?? variables.install;
+      setStatusMessage({
+        kind: "success",
+        title: isInstalled ? "Extension installed" : "Extension uninstalled",
+        detail: `${variables.name} ${isInstalled ? "is available in Browse." : "was removed from this Suwayomi server."}`,
+      });
+      invalidateExtensionData();
+    },
+    onError: (error, variables) => {
+      setStatusMessage({
+        kind: "error",
+        title: variables.install ? "Install failed" : "Uninstall failed",
+        detail: `${variables.name}: ${getErrorMessage(error)}`,
+      });
+    },
+    onSettled: (_result, _error, variables) => {
+      markExtensionBusy(variables.pkgName, false);
+    },
   });
 
   const extensions = useMemo(() => {
     return data?.extensions?.nodes?.filter((n): n is NonNullable<typeof n> => n != null) || [];
   }, [data]);
+
+  const extensionCounts = useMemo(() => {
+    const hiddenByNsfw = extensions.filter((ext) => ext.isNsfw).length;
+    const installed = extensions.filter((ext) => ext.isInstalled).length;
+    const knownTotal = data?.extensions?.totalCount ?? extensions.length;
+
+    return {
+      visible: showNsfw ? extensions.length : extensions.length - hiddenByNsfw,
+      hiddenByNsfw: showNsfw ? 0 : hiddenByNsfw,
+      total: knownTotal,
+      installed,
+    };
+  }, [data, extensions, showNsfw]);
 
   const languages = useMemo(() => {
     const langs = new Set<string>();
@@ -74,13 +176,31 @@ export default function ExtensionsPage() {
               <Box className="h-6 w-6 text-yomi-jade" />
               Extensions
             </h1>
-            <Link 
-              to="/extensions/repos"
-              className="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-white/10"
-            >
-              <Settings className="h-4 w-4" />
-              <span className="hidden sm:inline">Repositories</span>
-            </Link>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => refreshCatalog()}
+                disabled={refreshingCatalog || !serverBaseUrl}
+                aria-label="Refresh catalog"
+                className="flex items-center gap-2 rounded-lg bg-yomi-jade px-3 py-1.5 text-sm font-semibold text-ink-950 hover:bg-yomi-jade/90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {refreshingCatalog ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                <span className="hidden sm:inline">Refresh catalog</span>
+                <span className="sm:hidden">Refresh</span>
+              </button>
+              <Link
+                to="/extensions/repos"
+                aria-label="Open extension repositories"
+                className="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-white/10"
+              >
+                <Settings className="h-4 w-4" />
+                <span className="hidden sm:inline">Repositories</span>
+              </Link>
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
@@ -106,6 +226,7 @@ export default function ExtensionsPage() {
               </select>
               <button
                 onClick={() => setShowNsfw(!showNsfw)}
+                aria-label={showNsfw ? "Hide 18+ extensions" : "Show 18+ extensions"}
                 className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${
                   showNsfw 
                     ? "bg-red-500/10 text-red-400 border-red-500/20" 
@@ -117,11 +238,53 @@ export default function ExtensionsPage() {
               </button>
             </div>
           </div>
+
+          {!isLoading && !isError && extensions.length > 0 && (
+            <div className="flex flex-wrap gap-2 text-xs font-medium text-slate-400">
+              <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
+                {extensionCounts.visible.toLocaleString()} visible
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
+                {showNsfw
+                  ? "18+ shown"
+                  : `${extensionCounts.hiddenByNsfw.toLocaleString()} hidden by 18+ filter`}
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
+                {extensionCounts.total.toLocaleString()} total
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
+                {extensionCounts.installed.toLocaleString()} installed
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Content */}
       <div className="max-w-5xl mx-auto p-4 sm:p-6">
+        {statusMessage && (
+          <div
+            role={statusMessage.kind === "error" ? "alert" : "status"}
+            className={`mb-4 flex gap-3 rounded-xl border p-4 ${
+              statusMessage.kind === "error"
+                ? "border-red-500/25 bg-red-500/10 text-red-100"
+                : "border-yomi-jade/25 bg-yomi-jade/10 text-yomi-jade"
+            }`}
+          >
+            {statusMessage.kind === "error" ? (
+              <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+            ) : (
+              <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0" />
+            )}
+            <div className="min-w-0">
+              <p className="font-semibold">{statusMessage.title}</p>
+              {statusMessage.detail && (
+                <p className="mt-1 break-words text-sm text-slate-300">{statusMessage.detail}</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex min-h-[40vh] items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-yomi-jade" />
@@ -145,52 +308,62 @@ export default function ExtensionsPage() {
             </Link>
           </div>
         ) : filteredExtensions.length === 0 ? (
-          <div className="flex min-h-[40vh] items-center justify-center text-slate-400">
-            No extensions match your filters.
+          <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-center text-slate-400">
+            <p>No extensions match your filters.</p>
+            {!showNsfw && extensionCounts.hiddenByNsfw > 0 && (
+              <p className="text-sm">
+                {extensionCounts.hiddenByNsfw.toLocaleString()} extensions are hidden by the 18+ filter.
+              </p>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filteredExtensions.map(ext => (
-              <div key={ext.pkgName} className="flex items-center gap-4 rounded-xl border border-white/5 bg-ink-900 p-4">
-                <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-md bg-ink-950 flex items-center justify-center">
-                  {ext.iconUrl ? (
-                    <img 
-                      src={ext.iconUrl.startsWith("http") ? ext.iconUrl : `${serverBaseUrl.replace(/\/$/, "")}${ext.iconUrl}`} 
-                      alt={ext.name}
-                      className="h-full w-full object-cover"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                    />
-                  ) : (
-                    <Box className="h-6 w-6 text-slate-500" />
-                  )}
-                </div>
-                <div className="flex flex-col flex-1 overflow-hidden">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-200 truncate">{ext.name}</span>
-                    {ext.isNsfw && (
-                      <span className="rounded bg-red-500/20 px-1 py-0.5 text-[10px] font-bold text-red-400">18+</span>
+            {filteredExtensions.map(ext => {
+              const isCardBusy = activeExtensionPkgs.has(ext.pkgName);
+
+              return (
+                <div key={ext.pkgName} className="flex items-center gap-4 rounded-xl border border-white/5 bg-ink-900 p-4">
+                  <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-md bg-ink-950 flex items-center justify-center">
+                    {ext.iconUrl ? (
+                      <img
+                        src={ext.iconUrl.startsWith("http") ? ext.iconUrl : `${serverBaseUrl.replace(/\/$/, "")}${ext.iconUrl}`}
+                        alt={ext.name}
+                        className="h-full w-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
+                    ) : (
+                      <Box className="h-6 w-6 text-slate-500" />
                     )}
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-400">
-                    <span className="uppercase">{ext.lang}</span>
-                    <span>•</span>
-                    <span>v{ext.versionName}</span>
+                  <div className="flex flex-col flex-1 overflow-hidden">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-slate-200 truncate">{ext.name}</span>
+                      {ext.isNsfw && (
+                        <span className="rounded bg-red-500/20 px-1 py-0.5 text-[10px] font-bold text-red-400">18+</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <span className="uppercase">{ext.lang}</span>
+                      <span>•</span>
+                      <span>v{ext.versionName}</span>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => toggleInstall({ pkgName: ext.pkgName, name: ext.name, install: !ext.isInstalled })}
+                    disabled={isCardBusy}
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg transition flex-shrink-0 ${
+                      ext.isInstalled
+                        ? "text-red-400 hover:bg-red-400/10"
+                        : "bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white"
+                    } disabled:cursor-not-allowed disabled:opacity-60`}
+                    title={ext.isInstalled ? "Uninstall" : "Install"}
+                    aria-label={ext.isInstalled ? `Uninstall ${ext.name}` : `Install ${ext.name}`}
+                  >
+                    {isCardBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : ext.isInstalled ? <Trash2 className="h-4 w-4" /> : <Download className="h-4 w-4" />}
+                  </button>
                 </div>
-                <button
-                  onClick={() => toggleInstall({ pkgName: ext.pkgName, install: !ext.isInstalled })}
-                  disabled={toggling}
-                  className={`flex h-8 w-8 items-center justify-center rounded-lg transition flex-shrink-0 ${
-                    ext.isInstalled 
-                      ? "text-red-400 hover:bg-red-400/10" 
-                      : "bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white"
-                  } disabled:opacity-50`}
-                  title={ext.isInstalled ? "Uninstall" : "Install"}
-                >
-                  {toggling ? <Loader2 className="h-4 w-4 animate-spin" /> : ext.isInstalled ? <Trash2 className="h-4 w-4" /> : <Download className="h-4 w-4" />}
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

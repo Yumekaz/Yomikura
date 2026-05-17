@@ -5,8 +5,8 @@
   "type": "module",
   "packageManager": "pnpm@11.1.2",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "vite --configLoader native",
+    "build": "tsc -b && vite build --configLoader native",
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "codegen": "graphql-codegen --config codegen.ts"
