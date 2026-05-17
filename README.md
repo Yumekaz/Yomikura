@@ -23,9 +23,9 @@ It is designed for people who run their own Suwayomi Server. The app will focus 
 
 ## Current Status
 
-Phase 0 is active: docs, architecture lock, public positioning, and contributor task framing.
+Phase 1 is active: the React/Vite app shell, route shells, and connect-first first page are being built.
 
-No production app code has been scaffolded yet. That is intentional. The blueprint requires the architecture and public safety rules to be accepted before React/Vite work begins.
+Backend integration has not started yet. That is intentional. The blueprint requires server settings and schema discovery before real Suwayomi data flows are implemented.
 
 ## Target MVP
 
@@ -52,6 +52,16 @@ Mock UI alone is not the product.
 - TanStack Query with `graphql-request`
 - Zustand for UI/session state
 - Local storage or IndexedDB for client preferences
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+pnpm build
+```
+
+The current app shell does not call a backend. Server connection begins in Phase 2.
 
 ## Backend Boundary
 
