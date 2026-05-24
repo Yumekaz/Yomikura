@@ -71,6 +71,7 @@ export function GlobalSourceSearchResults({
     }),
     enabled: !!query && !!source.id,
     staleTime: 5 * 60 * 1000,
+    retry: false,
   });
 
   if (!query) return null;

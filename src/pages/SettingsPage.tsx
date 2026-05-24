@@ -32,6 +32,10 @@ function SettingsPage() {
   const [localUrl, setLocalUrl] = useState(serverBaseUrl);
   const [activeTab, setActiveTab] = useState<SettingsTab>("connection");
   const [backupMessage, setBackupMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  
+  const isMixedContent = useMemo(() => {
+    return window.location.protocol === "https:" && localUrl.trim().startsWith("http://");
+  }, [localUrl]);
 
   const queryClient = useQueryClient();
 
@@ -209,6 +213,23 @@ function SettingsPage() {
                     )}
                   </button>
                 </div>
+
+                {isMixedContent && (
+                  <div className="mt-4 flex items-start gap-3 rounded-md border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-400">
+                    <ServerCrash className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+                    <div>
+                      <p className="font-semibold text-amber-300">Mixed Content Warning</p>
+                      <p className="mt-1 text-xs leading-relaxed opacity-90">
+                        You are accessing Yomikura securely via <strong>HTTPS</strong>, but your server URL is configured with <strong>HTTP</strong>. 
+                        Web browsers block insecure API requests from secure pages. To resolve this:
+                      </p>
+                      <ul className="list-disc pl-5 mt-2 space-y-1 text-xs opacity-90">
+                        <li>Configure HTTPS on your Suwayomi server and enter a secure <code>https://</code> URL.</li>
+                        <li>Or access Yomikura via an insecure local <code>http://</code> address (e.g. <code>http://localhost:5173</code>).</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
 
                 {connectionStatus === "error" && errorMessage && (
                   <div className="mt-4 flex items-start gap-3 rounded-md border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">

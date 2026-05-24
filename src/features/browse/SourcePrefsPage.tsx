@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, ArrowLeft, Save, ShieldAlert, Check } from "lucide-react";
+import { Loader2, ArrowLeft, Save, ShieldAlert, Check, Eye, EyeOff } from "lucide-react";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { getErrorMessage } from "../../api/suwayomi/errors";
@@ -29,6 +29,7 @@ export default function SourcePrefsPage() {
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [pendingTextValues, setPendingTextValues] = useState<Record<string, string>>({});
+  const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
 
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
@@ -223,29 +224,48 @@ export default function SourcePrefsPage() {
                     </select>
                   )}
 
-                  {isText && (
-                    /* Text Input with Save button */
-                    <div className="flex gap-2 w-full">
-                      <input
-                        type="text"
-                        value={
-                          pendingTextValues[pref.key] !== undefined
-                            ? pendingTextValues[pref.key]
-                            : (currentValue as string) || ""
-                        }
-                        onChange={(e) => handleTextChange(pref.key, e.target.value)}
-                        className="flex-1 rounded bg-ink-950 border border-white/10 px-3 py-1.5 text-xs text-slate-300 outline-none focus:border-yomi-jade/50 transition-colors"
-                        disabled={!pref.enabled || updating}
-                      />
-                      <button
-                        onClick={() => handleTextSave(pref.key, index, pref.__typename)}
-                        disabled={!pref.enabled || updating || pendingTextValues[pref.key] === undefined}
-                        className="rounded bg-yomi-jade p-1.5 text-ink-950 hover:bg-yomi-jade/90 disabled:opacity-50 transition"
-                      >
-                        <Save className="h-4 w-4" />
-                      </button>
-                    </div>
-                  )}
+                  {isText && (() => {
+                    const isSensitive = ["password", "token", "secret", "key", "auth"].some(
+                      (kw) => pref.key.toLowerCase().includes(kw) || pref.title.toLowerCase().includes(kw)
+                    );
+                    const isVisible = showPasswords[pref.key] || false;
+                    const inputType = isSensitive ? (isVisible ? "text" : "password") : "text";
+
+                    return (
+                      /* Text Input with Save button and password toggler */
+                      <div className="flex gap-2 w-full">
+                        <div className="relative flex-1">
+                          <input
+                            type={inputType}
+                            value={
+                              pendingTextValues[pref.key] !== undefined
+                                ? pendingTextValues[pref.key]
+                                : (currentValue as string) || ""
+                            }
+                            onChange={(e) => handleTextChange(pref.key, e.target.value)}
+                            className="w-full rounded bg-ink-950 border border-white/10 pl-3 pr-8 py-1.5 text-xs text-slate-300 outline-none focus:border-yomi-jade/50 transition-colors"
+                            disabled={!pref.enabled || updating}
+                          />
+                          {isSensitive && (
+                            <button
+                              type="button"
+                              onClick={() => setShowPasswords(prev => ({ ...prev, [pref.key]: !prev[pref.key] }))}
+                              className="absolute right-2 top-1.5 text-slate-500 hover:text-slate-300 transition"
+                            >
+                              {isVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                            </button>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleTextSave(pref.key, index, pref.__typename)}
+                          disabled={!pref.enabled || updating || pendingTextValues[pref.key] === undefined}
+                          className="rounded bg-yomi-jade p-1.5 text-ink-950 hover:bg-yomi-jade/90 disabled:opacity-50 transition shrink-0"
+                        >
+                          <Save className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             );
