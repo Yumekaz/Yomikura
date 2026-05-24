@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { GraphQLClient, gql } from "graphql-request";
@@ -9,6 +9,7 @@ import { SourceRecoveryPanel } from "../../components/source/SourceRecoveryPanel
 import { ChapterList, Chapter } from "./ChapterList";
 import { MangaCategoryModal } from "./MangaCategoryModal";
 import { TrackerPanel } from "./TrackerPanel";
+import { useDownloadStore } from "../../stores/useDownloadStore";
 
 
 const FETCH_CHAPTERS_DOCUMENT = gql`
@@ -49,6 +50,12 @@ export default function MangaDetailPage() {
   const { mangaId } = useParams<{ mangaId: string }>();
   const { serverBaseUrl } = useSettingsStore();
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+
+  const { loadCachedChapters } = useDownloadStore();
+
+  useEffect(() => {
+    void loadCachedChapters();
+  }, [loadCachedChapters]);
 
   const graphqlEndpoint = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
@@ -295,7 +302,7 @@ export default function MangaDetailPage() {
               />
             </div>
           ) : (
-            <ChapterList chapters={chapters} />
+            <ChapterList chapters={chapters} mangaTitle={manga.title} />
           )}
         </div>
 

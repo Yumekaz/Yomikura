@@ -18,12 +18,48 @@ export function ReaderImage({ url, fallbackUrl, pageNumber, onIntersect, mode = 
   const [usingFallback, setUsingFallback] = useState(false);
 
   const imageUrl = usingFallback && fallbackUrl ? fallbackUrl : url;
+  const [displayUrl, setDisplayUrl] = useState("");
 
   useEffect(() => {
     setLoaded(false);
     setError(false);
     setUsingFallback(false);
   }, [url, fallbackUrl]);
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+
+    async function resolveImage() {
+      try {
+        const cache = await caches.open("yomikura-page-cache");
+        const match = await cache.match(imageUrl);
+        if (match) {
+          const blob = await match.blob();
+          if (active) {
+            objectUrl = URL.createObjectURL(blob);
+            setDisplayUrl(objectUrl);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to check cache:", e);
+      }
+
+      if (active) {
+        setDisplayUrl(imageUrl);
+      }
+    }
+
+    void resolveImage();
+
+    return () => {
+      active = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [imageUrl]);
 
   useEffect(() => {
     if (!onIntersect) return;
@@ -108,7 +144,7 @@ export function ReaderImage({ url, fallbackUrl, pageNumber, onIntersect, mode = 
         </div>
       )}
       <img
-        src={imageUrl}
+        src={displayUrl || undefined}
         alt={`Page ${pageNumber + 1}`}
         className={`${imageClass} ${loaded ? "opacity-100" : "opacity-0"}`}
         onLoad={() => setLoaded(true)}

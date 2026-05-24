@@ -9,6 +9,82 @@ import { buildSuwayomiPageUrl, resolveBackendUrl } from "../../api/suwayomi/page
 import { SourceRecoveryPanel } from "../../components/source/SourceRecoveryPanel";
 import { ReaderImage } from "./ReaderImage";
 import { ReaderOverlay } from "./ReaderOverlay";
+import { 
+  getCachedChapter, 
+  getCachedChaptersForManga, 
+  updateCachedChapterProgress 
+} from "../../api/suwayomi/offlineCache";
+
+interface WebtoonPageWrapperProps {
+  pageIndex: number;
+  children: React.ReactNode;
+}
+
+function WebtoonPageWrapper({ pageIndex, children }: WebtoonPageWrapperProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const [measuredHeight, setMeasuredHeight] = useState<number>(800);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        setIsVisible(entry.isIntersecting);
+      },
+      {
+        rootMargin: "1200px 0px",
+        threshold: 0,
+      }
+    );
+
+    observer.observe(el);
+    return () => {
+      observer.unobserve(el);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isVisible || !containerRef.current) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        const h = entry.contentRect.height;
+        if (h > 0) {
+          setMeasuredHeight(h);
+        }
+      }
+    });
+
+    resizeObserver.observe(containerRef.current);
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [isVisible]);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        height: isVisible ? "auto" : `${measuredHeight}px`,
+        contentVisibility: isVisible ? "visible" : "auto",
+        containIntrinsicSize: `auto ${measuredHeight}px`,
+      }}
+      className="w-full bg-black relative min-h-[100px]"
+    >
+      {isVisible ? children : (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+          <div className="h-1 w-12 bg-white/10 rounded overflow-hidden">
+            <div className="h-full bg-yomi-jade/30 animate-pulse" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>();
@@ -29,36 +105,101 @@ export default function ReaderPage() {
   const [showOverlay, setShowOverlay] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const lastSavedPageRef = useRef<number | null>(null);
+  const debouncedUpdateRef = useRef<any>(null);
 
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
     return createGraphqlClient(`${cleanUrl}/api/graphql`);
   }, [serverBaseUrl]);
 
-  // Fetch chapter details
+  // Fetch chapter details (with local IndexedDB fallback)
   const { data: chapterData, isLoading: chapterLoading, isError: chapterError, error: chapterErrorObject, refetch: refetchChapter } = useQuery({
     queryKey: ["chapter", chapterId, serverBaseUrl],
-    queryFn: () => sdk.GetChapter({ id: parseInt(chapterId!) }),
+    queryFn: async () => {
+      try {
+        return await sdk.GetChapter({ id: parseInt(chapterId!) });
+      } catch (err) {
+        console.warn("Failed to fetch chapter from server, checking offline cache...", err);
+        const cached = await getCachedChapter(parseInt(chapterId!));
+        if (cached) {
+          const allCached = await getCachedChaptersForManga(cached.mangaId);
+          return {
+            chapter: {
+              id: cached.id,
+              name: cached.name,
+              chapterNumber: cached.chapterNumber,
+              isRead: cached.isRead || false,
+              lastPageRead: cached.lastPageRead ?? 0,
+              pageCount: cached.pageCount,
+              sourceOrder: cached.sourceOrder,
+              mangaId: cached.mangaId,
+              manga: {
+                title: cached.mangaTitle,
+                chapters: {
+                  edges: allCached.map(c => ({
+                    node: {
+                      id: c.id,
+                      chapterNumber: c.chapterNumber,
+                    }
+                  }))
+                }
+              }
+            }
+          };
+        }
+        throw err;
+      }
+    },
     enabled: !!serverBaseUrl && !!chapterId,
   });
 
-  // Fetch pages mutation
+  // Fetch pages mutation (with local IndexedDB fallback)
   const { mutate: fetchPages, data: pagesData, isPending: pagesLoading, isError: pagesError, error: pagesErrorObject } = useMutation({
-    mutationFn: () => sdk.FetchChapterPages({ input: { chapterId: parseInt(chapterId!) } }),
+    mutationFn: async () => {
+      try {
+        return await sdk.FetchChapterPages({ input: { chapterId: parseInt(chapterId!) } });
+      } catch (err) {
+        console.warn("Failed to fetch pages from server, checking offline cache...", err);
+        const cached = await getCachedChapter(parseInt(chapterId!));
+        if (cached) {
+          return {
+            fetchChapterPages: {
+              pages: cached.pages
+            }
+          };
+        }
+        throw err;
+      }
+    }
   });
 
-  // Update progress mutation
+  // Update progress mutation (with local IndexedDB fallback)
   const { mutate: updateProgress } = useMutation({
-    mutationFn: (pageIndex: number) => 
-      sdk.UpdateChapterProgress({ 
-        input: { 
-          id: parseInt(chapterId!),
-          patch: { 
-            lastPageRead: pageIndex, 
-            isRead: pages && pageIndex >= pages.length - 1 
+    mutationFn: async (pageIndex: number) => {
+      const isRead = pages && pageIndex >= pages.length - 1;
+
+      // Sync progress to local cache first
+      try {
+        await updateCachedChapterProgress(parseInt(chapterId!), pageIndex, !!isRead);
+      } catch (err) {
+        console.error("Failed to update offline progress cache:", err);
+      }
+
+      try {
+        return await sdk.UpdateChapterProgress({ 
+          input: { 
+            id: parseInt(chapterId!),
+            patch: { 
+              lastPageRead: pageIndex, 
+              isRead 
+            } 
           } 
-        } 
-      }),
+        });
+      } catch (err) {
+        console.warn("Failed to update progress on server (saved locally):", err);
+        return null;
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chapter"] });
       queryClient.invalidateQueries({ queryKey: ["manga"] });
@@ -69,6 +210,9 @@ export default function ReaderPage() {
     if (chapterId && serverBaseUrl) {
       setCurrentPage(0);
       lastSavedPageRef.current = null;
+      if (debouncedUpdateRef.current) {
+        clearTimeout(debouncedUpdateRef.current);
+      }
       fetchPages();
     }
   }, [chapterId, serverBaseUrl, fetchPages]);
@@ -107,11 +251,28 @@ export default function ReaderPage() {
     };
   }, [chapter, siblingChapters]);
 
+  // Debounced progress saver
   const saveProgress = useCallback((pageIndex: number) => {
     if (lastSavedPageRef.current === pageIndex) return;
     lastSavedPageRef.current = pageIndex;
-    updateProgress(pageIndex);
+
+    if (debouncedUpdateRef.current) {
+      clearTimeout(debouncedUpdateRef.current);
+    }
+
+    debouncedUpdateRef.current = setTimeout(() => {
+      updateProgress(pageIndex);
+    }, 1500);
   }, [updateProgress]);
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (debouncedUpdateRef.current) {
+        clearTimeout(debouncedUpdateRef.current);
+      }
+    };
+  }, []);
 
   const handleIntersect = useCallback((pageIndex: number) => {
     setCurrentPage(pageIndex);
@@ -337,20 +498,21 @@ export default function ReaderPage() {
         onClick={handlePageClick}
       >
         {readerMode === "WEBTOON" ? (
-          // Webtoon mode: list all images vertically
+          // Webtoon mode: virtualized list
           pages.map((url, i) => (
-            <ReaderImage
-              key={i}
-              url={buildSuwayomiPageUrl({
-                serverBaseUrl,
-                mangaId: chapter.mangaId,
-                chapterSourceOrder: chapter.sourceOrder,
-                pageIndex: i,
-              })}
-              fallbackUrl={resolveBackendUrl(serverBaseUrl, url)}
-              pageNumber={i}
-              onIntersect={handleIntersect}
-            />
+            <WebtoonPageWrapper key={i} pageIndex={i}>
+              <ReaderImage
+                url={buildSuwayomiPageUrl({
+                  serverBaseUrl,
+                  mangaId: chapter.mangaId,
+                  chapterSourceOrder: chapter.sourceOrder,
+                  pageIndex: i,
+                })}
+                fallbackUrl={resolveBackendUrl(serverBaseUrl, url)}
+                pageNumber={i}
+                onIntersect={handleIntersect}
+              />
+            </WebtoonPageWrapper>
           ))
         ) : (
           // Single/Double page mode
