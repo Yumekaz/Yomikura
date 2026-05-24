@@ -1,13 +1,48 @@
-import { BookOpen } from "lucide-react";
+import { BookOpen, Server } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { browseNav, primaryNav, type NavItem } from "../../app/navigation";
+import { useSettingsStore } from "../../stores/useSettingsStore";
+
+function ProfileSwitcher() {
+  const { profiles, activeProfileId, setActiveProfileId } = useSettingsStore();
+  const queryClient = useQueryClient();
+
+  if (profiles.length <= 1) return null;
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg bg-ink-950/60 border border-white/5 px-2.5 py-1.5 text-xs text-slate-400">
+      <Server className="h-3.5 w-3.5 text-yomi-jade shrink-0" />
+      <select
+        value={activeProfileId}
+        onChange={(e) => {
+          setActiveProfileId(e.target.value);
+          queryClient.clear();
+        }}
+        className="flex-1 bg-transparent text-slate-300 outline-none font-medium cursor-pointer"
+      >
+        {profiles.map((p) => (
+          <option key={p.id} value={p.id} className="bg-ink-900 text-slate-200">
+            {p.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
 
 function AppShell() {
   return (
     <div className="min-h-screen bg-ink-950 text-slate-100">
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-white/10 bg-ink-900/95 px-4 py-5 lg:block">
         <BrandLockup />
-        <nav className="mt-8 space-y-1" aria-label="Primary navigation">
+        
+        {/* Profile Switcher */}
+        <div className="mt-5 px-1">
+          <ProfileSwitcher />
+        </div>
+
+        <nav className="mt-6 space-y-1" aria-label="Primary navigation">
           {primaryNav.map((item) => (
             <ShellNavLink key={item.path} item={item} />
           ))}
