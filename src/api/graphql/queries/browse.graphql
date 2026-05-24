@@ -8,6 +8,7 @@ query GetSources {
       iconUrl
       supportsLatest
       isNsfw
+      isConfigurable
       extension {
         pkgName
         isInstalled
@@ -26,6 +27,7 @@ query GetSourcesByCondition($lang: String!) {
       iconUrl
       supportsLatest
       isNsfw
+      isConfigurable
     }
   }
 }

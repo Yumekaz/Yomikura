@@ -5,17 +5,23 @@ import { DEFAULT_SERVER_BASE_URL } from "../config/server";
 
 export type ConnectionStatus = "disconnected" | "connected" | "error" | "testing";
 export type ReaderMode = "WEBTOON" | "LTR" | "RTL";
+export type FitMode = "FIT_SCREEN" | "FIT_WIDTH" | "FIT_HEIGHT";
+export type PageSpread = "SINGLE" | "DOUBLE" | "DOUBLE_COVER";
 
 interface SettingsState {
   serverBaseUrl: string;
   connectionStatus: ConnectionStatus;
   errorMessage: string;
   readerMode: ReaderMode;
+  fitMode: FitMode;
+  pageSpread: PageSpread;
   
   // Actions
   setServerBaseUrl: (url: string) => void;
   testConnection: () => Promise<boolean>;
   setReaderMode: (mode: ReaderMode) => void;
+  setFitMode: (mode: FitMode) => void;
+  setPageSpread: (spread: PageSpread) => void;
   
   // Derived
   getGraphqlEndpoint: () => string;
@@ -28,6 +34,8 @@ export const useSettingsStore = create<SettingsState>()(
       connectionStatus: "disconnected",
       errorMessage: "",
       readerMode: "WEBTOON",
+      fitMode: "FIT_SCREEN",
+      pageSpread: "SINGLE",
 
       setServerBaseUrl: (url: string) => {
         set({
@@ -60,6 +68,8 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       setReaderMode: (mode: ReaderMode) => set({ readerMode: mode }),
+      setFitMode: (mode: FitMode) => set({ fitMode: mode }),
+      setPageSpread: (spread: PageSpread) => set({ pageSpread: spread }),
 
       getGraphqlEndpoint: () => {
         const url = get().serverBaseUrl.replace(/\/$/, "");
@@ -73,6 +83,8 @@ export const useSettingsStore = create<SettingsState>()(
         connectionStatus: state.connectionStatus === "testing" ? "disconnected" : state.connectionStatus,
         errorMessage: state.errorMessage,
         readerMode: state.readerMode,
+        fitMode: state.fitMode,
+        pageSpread: state.pageSpread,
       }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<SettingsState> | undefined;

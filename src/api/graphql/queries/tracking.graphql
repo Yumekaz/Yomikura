@@ -1,0 +1,95 @@
+query GetTrackers {
+  trackers {
+    nodes {
+      id
+      name
+      icon
+      isLoggedIn
+      authUrl
+      scores
+      statuses {
+        name
+        value
+      }
+    }
+  }
+}
+
+query GetMangaTrackers($mangaId: Int!) {
+  trackers {
+    nodes {
+      id
+      name
+      icon
+      isLoggedIn
+      authUrl
+      scores
+      statuses {
+        name
+        value
+      }
+    }
+  }
+  manga(id: $mangaId) {
+    id
+    trackRecords {
+      nodes {
+        id
+        trackerId
+        mangaId
+        title
+        lastChapterRead
+        totalChapters
+        score
+        status
+        remoteUrl
+      }
+    }
+  }
+}
+
+mutation TrackProgress($input: TrackProgressInput!) {
+  trackProgress(input: $input) {
+    trackRecords {
+      id
+      trackerId
+      mangaId
+      title
+      lastChapterRead
+    }
+  }
+}
+
+mutation UnbindTrack($input: UnbindTrackInput!) {
+  unbindTrack(input: $input) {
+    trackRecord {
+      id
+      mangaId
+    }
+  }
+}
+
+mutation UpdateTrack($input: UpdateTrackInput!) {
+  updateTrack(input: $input) {
+    trackRecord {
+      id
+      trackerId
+      mangaId
+      title
+      lastChapterRead
+      totalChapters
+      score
+      status
+      remoteUrl
+    }
+  }
+}
+
+mutation LogoutTracker($input: LogoutTrackerInput!) {
+  logoutTracker(input: $input) {
+    tracker {
+      id
+      isLoggedIn
+    }
+  }
+}

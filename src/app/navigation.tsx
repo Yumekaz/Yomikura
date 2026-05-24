@@ -8,6 +8,7 @@ import {
   RadioTower,
   Search,
   Settings,
+  Download,
 } from "lucide-react";
 
 export type NavItem = {
@@ -26,9 +27,11 @@ export const primaryNav: NavItem[] = [
 ];
 
 export const browseNav: NavItem[] = [
-  { label: "Sources", path: "/browse/sources", icon: Search },
+  { label: "Sources", path: "/browse/sources", icon: Compass },
+  { label: "Global Search", path: "/browse/search", icon: Search },
   { label: "Extensions", path: "/browse/extensions", icon: Puzzle },
   { label: "Repos", path: "/browse/extension-repos", icon: RadioTower },
+  { label: "Downloads", path: "/downloads", icon: Download },
 ];
 
 export const routeCopy: Record<string, { title: string; detail: string }> = {
@@ -47,6 +50,10 @@ export const routeCopy: Record<string, { title: string; detail: string }> = {
   "/browse": {
     title: "Browse",
     detail: "Browse installed sources from your Suwayomi server.",
+  },
+  "/browse/search": {
+    title: "Global Search",
+    detail: "Search for a title across all your installed sources.",
   },
   "/extensions": {
     title: "Extensions",
@@ -68,4 +75,9 @@ export const routeCopy: Record<string, { title: string; detail: string }> = {
     title: "Settings",
     detail: "Manage the Suwayomi server URL and reader preferences.",
   },
+  "/downloads": {
+    title: "Downloads",
+    detail: "Monitor and manage your Suwayomi server's active downloads queue.",
+  },
 };
+

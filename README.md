@@ -23,9 +23,8 @@ It is designed for people who run their own Suwayomi Server. The app will focus 
 
 ## Current Status
 
-Phase 9 is active: the app shell, Suwayomi connection, library, details, reader, browse, and extension metadata surfaces exist.
+Phase 14 is active: the app shell, Suwayomi connection, library, details, reader, browse, extension management, updates, history, downloads, backup/restore, and PWA integration are fully implemented and verified.
 
-Some reader/source failures can still come from upstream source websites, DNS, Cloudflare protection, or Suwayomi extension behavior rather than Yomikura UI code.
 
 ## Target MVP
 

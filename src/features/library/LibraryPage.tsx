@@ -6,11 +6,13 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { LibraryFilters } from "./LibraryFilters";
 import { LibraryGrid, LibraryManga } from "./LibraryGrid";
+import { CategoryDialog } from "./CategoryDialog";
 
 export default function LibraryPage() {
   const { serverBaseUrl } = useSettingsStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategoryId, setActiveCategoryId] = useState<string | number | null>(null);
+  const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
 
   // Recreate SDK instance if URL changes
   const sdk = useMemo(() => {
@@ -144,6 +146,7 @@ export default function LibraryPage() {
         onCategorySelect={setActiveCategoryId}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        onManageCategories={() => setIsCategoryDialogOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -156,6 +159,14 @@ export default function LibraryPage() {
           <LibraryGrid mangas={mangas} serverBaseUrl={serverBaseUrl} />
         )}
       </div>
+
+      {/* Categories dialog */}
+      <CategoryDialog
+        isOpen={isCategoryDialogOpen}
+        onClose={() => setIsCategoryDialogOpen(false)}
+        categories={categories}
+      />
     </div>
   );
 }
+

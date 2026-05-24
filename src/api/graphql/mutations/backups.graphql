@@ -1,0 +1,13 @@
+mutation CreateBackup($input: CreateBackupInput) {
+  createBackup(input: $input) {
+    url
+  }
+}
+
+mutation RestoreBackup($input: RestoreBackupInput!) {
+  restoreBackup(input: $input) {
+    status {
+      state
+    }
+  }
+}

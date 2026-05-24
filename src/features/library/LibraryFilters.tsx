@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { Search, FolderEdit } from "lucide-react";
 
 export interface Category {
   id: string | number;
@@ -11,6 +11,7 @@ interface LibraryFiltersProps {
   onCategorySelect: (id: string | number | null) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  onManageCategories: () => void;
 }
 
 export function LibraryFilters({
@@ -19,11 +20,12 @@ export function LibraryFilters({
   onCategorySelect,
   searchQuery,
   onSearchChange,
+  onManageCategories,
 }: LibraryFiltersProps) {
   return (
     <div className="flex flex-col gap-4 border-b border-white/10 bg-ink-950 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
       {/* Category Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide lg:pb-0 order-2 lg:order-1">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide lg:pb-0 order-2 lg:order-1 flex-1">
         <button
           onClick={() => onCategorySelect(null)}
           className={`flex-shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
@@ -47,6 +49,15 @@ export function LibraryFilters({
             {cat.name}
           </button>
         ))}
+        
+        {/* Manage Categories Action */}
+        <button
+          onClick={onManageCategories}
+          className="flex-shrink-0 rounded-full bg-white/5 border border-white/10 p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
+          title="Manage Categories"
+        >
+          <FolderEdit className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Search Input */}
@@ -63,3 +74,4 @@ export function LibraryFilters({
     </div>
   );
 }
+

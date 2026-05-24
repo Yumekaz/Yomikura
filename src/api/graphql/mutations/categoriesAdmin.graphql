@@ -1,0 +1,43 @@
+mutation CreateCategory($input: CreateCategoryInput!) {
+  createCategory(input: $input) {
+    category {
+      id
+      name
+      order
+    }
+  }
+}
+
+mutation DeleteCategory($input: DeleteCategoryInput!) {
+  deleteCategory(input: $input) {
+    clientMutationId
+  }
+}
+
+mutation UpdateCategory($input: UpdateCategoryInput!) {
+  updateCategory(input: $input) {
+    category {
+      id
+      name
+      order
+    }
+  }
+}
+
+mutation UpdateCategoryOrder($input: UpdateCategoryOrderInput!) {
+  updateCategoryOrder(input: $input) {
+    categories {
+      id
+      name
+      order
+    }
+  }
+}
+
+mutation UpdateMangaCategories($input: UpdateMangaCategoriesInput!) {
+  updateMangaCategories(input: $input) {
+    manga {
+      id
+    }
+  }
+}

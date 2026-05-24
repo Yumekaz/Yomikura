@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { GraphQLClient, gql } from "graphql-request";
@@ -7,6 +7,9 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { SourceRecoveryPanel } from "../../components/source/SourceRecoveryPanel";
 import { ChapterList, Chapter } from "./ChapterList";
+import { MangaCategoryModal } from "./MangaCategoryModal";
+import { TrackerPanel } from "./TrackerPanel";
+
 
 const FETCH_CHAPTERS_DOCUMENT = gql`
   mutation FetchChapters($input: FetchChaptersInput!) {
@@ -45,6 +48,7 @@ type FetchChaptersResponse = {
 export default function MangaDetailPage() {
   const { mangaId } = useParams<{ mangaId: string }>();
   const { serverBaseUrl } = useSettingsStore();
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   const graphqlEndpoint = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
@@ -91,6 +95,14 @@ export default function MangaDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["library"] });
     }
   });
+
+  const currentCategoryIds = useMemo(() => {
+    if (!manga?.categories?.edges) return [];
+    return manga.categories.edges
+      .map((edge) => edge?.node?.id)
+      .filter((id): id is number => id != null)
+      .map(id => parseInt(String(id)));
+  }, [manga]);
 
   const chapters: Chapter[] = useMemo(() => {
     const fetchedChapters = fetchedChaptersData?.fetchChapters?.chapters ?? [];
@@ -145,6 +157,14 @@ export default function MangaDetailPage() {
       ? manga.thumbnailUrl
       : `${serverBaseUrl.replace(/\/$/, "")}${manga.thumbnailUrl.startsWith("/") ? "" : "/"}${manga.thumbnailUrl}`;
   }
+
+  const handleLibraryClick = () => {
+    if (manga.inLibrary) {
+      setIsCategoryModalOpen(true);
+    } else {
+      toggleLibrary();
+    }
+  };
 
   return (
     <div className="min-h-screen bg-ink-950 pb-20 lg:pb-0">
@@ -219,7 +239,7 @@ export default function MangaDetailPage() {
                   </button>
                 )}
                 <button 
-                  onClick={() => toggleLibrary()}
+                  onClick={handleLibraryClick}
                   disabled={togglingLibrary}
                   className={`flex flex-1 items-center justify-center rounded-md border px-6 py-3 font-semibold transition sm:flex-none ${
                     manga.inLibrary 
@@ -278,7 +298,18 @@ export default function MangaDetailPage() {
             <ChapterList chapters={chapters} />
           )}
         </div>
+
+        {/* Tracker Syncing Panel */}
+        <TrackerPanel mangaId={manga.id} />
       </div>
+
+      {/* Categories Selection Modal */}
+      <MangaCategoryModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        mangaId={manga.id}
+        currentCategoryIds={currentCategoryIds}
+      />
     </div>
   );
 }

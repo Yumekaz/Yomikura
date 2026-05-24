@@ -3468,6 +3468,15 @@ export type AuthMode =
   | 'SIMPLE_LOGIN'
   | 'UI_LOGIN';
 
+export type BackupRestoreState =
+  | 'FAILURE'
+  | 'IDLE'
+  | 'RESTORING_CATEGORIES'
+  | 'RESTORING_MANGA'
+  | 'RESTORING_META'
+  | 'RESTORING_SETTINGS'
+  | 'SUCCESS';
+
 export type BooleanFilterInput = {
   distinctFrom?: boolean | null | undefined;
   distinctFromAll?: Array<boolean> | null | undefined;
@@ -3491,9 +3500,102 @@ export type CbzMediaType =
   | 'LEGACY'
   | 'MODERN';
 
+export type ChapterFilterInput = {
+  and?: Array<ChapterFilterInput> | null | undefined;
+  chapterNumber?: DoubleFilterInput | null | undefined;
+  fetchedAt?: LongFilterInput | null | undefined;
+  id?: IntFilterInput | null | undefined;
+  inLibrary?: BooleanFilterInput | null | undefined;
+  isBookmarked?: BooleanFilterInput | null | undefined;
+  isDownloaded?: BooleanFilterInput | null | undefined;
+  isRead?: BooleanFilterInput | null | undefined;
+  lastPageRead?: IntFilterInput | null | undefined;
+  lastReadAt?: LongFilterInput | null | undefined;
+  mangaId?: IntFilterInput | null | undefined;
+  name?: StringFilterInput | null | undefined;
+  not?: ChapterFilterInput | null | undefined;
+  or?: Array<ChapterFilterInput> | null | undefined;
+  pageCount?: IntFilterInput | null | undefined;
+  realUrl?: StringFilterInput | null | undefined;
+  scanlator?: StringFilterInput | null | undefined;
+  sourceOrder?: IntFilterInput | null | undefined;
+  uploadDate?: LongFilterInput | null | undefined;
+  url?: StringFilterInput | null | undefined;
+};
+
+export type ChapterOrderBy =
+  | 'CHAPTER_NUMBER'
+  | 'FETCHED_AT'
+  | 'ID'
+  | 'LAST_READ_AT'
+  | 'NAME'
+  | 'SOURCE_ORDER'
+  | 'UPLOAD_DATE';
+
+export type ChapterOrderInput = {
+  by: ChapterOrderBy;
+  byType?: SortOrder | null | undefined;
+};
+
+export type ClearDownloaderInput = {
+  clientMutationId?: string | null | undefined;
+};
+
+export type CreateBackupInput = {
+  clientMutationId?: string | null | undefined;
+  flags?: PartialBackupFlagsInput | null | undefined;
+};
+
+export type CreateCategoryInput = {
+  clientMutationId?: string | null | undefined;
+  default?: boolean | null | undefined;
+  includeInDownload?: IncludeOrExclude | null | undefined;
+  includeInUpdate?: IncludeOrExclude | null | undefined;
+  name: string;
+  order?: number | null | undefined;
+};
+
 export type DatabaseType =
   | 'H2'
   | 'POSTGRESQL';
+
+export type DeleteCategoryInput = {
+  categoryId: number;
+  clientMutationId?: string | null | undefined;
+};
+
+export type DequeueChapterDownloadInput = {
+  clientMutationId?: string | null | undefined;
+  id: number;
+};
+
+export type DoubleFilterInput = {
+  distinctFrom?: number | null | undefined;
+  distinctFromAll?: Array<number> | null | undefined;
+  distinctFromAny?: Array<number> | null | undefined;
+  equalTo?: number | null | undefined;
+  greaterThan?: number | null | undefined;
+  greaterThanOrEqualTo?: number | null | undefined;
+  in?: Array<number> | null | undefined;
+  isNull?: boolean | null | undefined;
+  lessThan?: number | null | undefined;
+  lessThanOrEqualTo?: number | null | undefined;
+  notDistinctFrom?: number | null | undefined;
+  notEqualTo?: number | null | undefined;
+  notEqualToAll?: Array<number> | null | undefined;
+  notEqualToAny?: Array<number> | null | undefined;
+  notIn?: Array<number> | null | undefined;
+};
+
+export type DownloadState =
+  | 'DOWNLOADING'
+  | 'ERROR'
+  | 'FINISHED'
+  | 'QUEUED';
+
+export type DownloaderState =
+  | 'STARTED'
+  | 'STOPPED';
 
 export type FetchChapterPagesInput = {
   chapterId: number;
@@ -3529,6 +3631,11 @@ export type FilterChangeInput = {
   triState?: TriState | null | undefined;
 };
 
+export type IncludeOrExclude =
+  | 'EXCLUDE'
+  | 'INCLUDE'
+  | 'UNSET';
+
 export type IntFilterInput = {
   distinctFrom?: number | null | undefined;
   distinctFromAll?: Array<number> | null | undefined;
@@ -3556,6 +3663,11 @@ export type KoreaderSyncConflictStrategy =
   | 'KEEP_LOCAL'
   | 'KEEP_REMOTE'
   | 'PROMPT';
+
+export type LogoutTrackerInput = {
+  clientMutationId?: string | null | undefined;
+  trackerId: number;
+};
 
 export type LongFilterInput = {
   distinctFrom?: unknown;
@@ -3623,6 +3735,16 @@ export type MangaStatusFilterInput = {
   notEqualToAll?: Array<MangaStatus> | null | undefined;
   notEqualToAny?: Array<MangaStatus> | null | undefined;
   notIn?: Array<MangaStatus> | null | undefined;
+};
+
+export type PartialBackupFlagsInput = {
+  includeCategories?: boolean | null | undefined;
+  includeChapters?: boolean | null | undefined;
+  includeClientData?: boolean | null | undefined;
+  includeHistory?: boolean | null | undefined;
+  includeManga?: boolean | null | undefined;
+  includeServerSettings?: boolean | null | undefined;
+  includeTracking?: boolean | null | undefined;
 };
 
 export type PartialSettingsTypeInput = {
@@ -3703,6 +3825,12 @@ export type PartialSettingsTypeInput = {
   webUIUpdateCheckInterval?: number | null | undefined;
 };
 
+export type RestoreBackupInput = {
+  backup: unknown;
+  clientMutationId?: string | null | undefined;
+  flags?: PartialBackupFlagsInput | null | undefined;
+};
+
 export type SetSettingsInput = {
   clientMutationId?: string | null | undefined;
   settings: PartialSettingsTypeInput;
@@ -3733,6 +3861,23 @@ export type SortOrder =
 export type SortSelectionInput = {
   ascending: boolean;
   index: number;
+};
+
+export type SourcePreferenceChangeInput = {
+  checkBoxState?: boolean | null | undefined;
+  editTextState?: string | null | undefined;
+  listState?: string | null | undefined;
+  multiSelectState?: Array<string> | null | undefined;
+  position: number;
+  switchState?: boolean | null | undefined;
+};
+
+export type StartDownloaderInput = {
+  clientMutationId?: string | null | undefined;
+};
+
+export type StopDownloaderInput = {
+  clientMutationId?: string | null | undefined;
 };
 
 export type StringFilterInput = {
@@ -3811,10 +3956,41 @@ export type StringFilterInput = {
   startsWithInsensitiveAny?: Array<string> | null | undefined;
 };
 
+export type TrackProgressInput = {
+  clientMutationId?: string | null | undefined;
+  mangaId: number;
+};
+
 export type TriState =
   | 'EXCLUDE'
   | 'IGNORE'
   | 'INCLUDE';
+
+export type UnbindTrackInput = {
+  clientMutationId?: string | null | undefined;
+  /** This will only work if the tracker of the track record supports deleting tracks */
+  deleteRemoteTrack?: boolean | null | undefined;
+  recordId: number;
+};
+
+export type UpdateCategoryInput = {
+  clientMutationId?: string | null | undefined;
+  id: number;
+  patch: UpdateCategoryPatchInput;
+};
+
+export type UpdateCategoryOrderInput = {
+  clientMutationId?: string | null | undefined;
+  id: number;
+  position: number;
+};
+
+export type UpdateCategoryPatchInput = {
+  default?: boolean | null | undefined;
+  includeInDownload?: IncludeOrExclude | null | undefined;
+  includeInUpdate?: IncludeOrExclude | null | undefined;
+  name?: string | null | undefined;
+};
 
 export type UpdateChapterInput = {
   clientMutationId?: string | null | undefined;
@@ -3840,6 +4016,18 @@ export type UpdateExtensionPatchInput = {
   update?: boolean | null | undefined;
 };
 
+export type UpdateMangaCategoriesInput = {
+  clientMutationId?: string | null | undefined;
+  id: number;
+  patch: UpdateMangaCategoriesPatchInput;
+};
+
+export type UpdateMangaCategoriesPatchInput = {
+  addToCategories?: Array<number> | null | undefined;
+  clearCategories?: boolean | null | undefined;
+  removeFromCategories?: Array<number> | null | undefined;
+};
+
 export type UpdateMangaInput = {
   clientMutationId?: string | null | undefined;
   id: number;
@@ -3848,6 +4036,26 @@ export type UpdateMangaInput = {
 
 export type UpdateMangaPatchInput = {
   inLibrary?: boolean | null | undefined;
+};
+
+export type UpdateSourcePreferenceInput = {
+  change: SourcePreferenceChangeInput;
+  clientMutationId?: string | null | undefined;
+  source: unknown;
+};
+
+export type UpdateTrackInput = {
+  clientMutationId?: string | null | undefined;
+  /** This will only work if the tracker of the track record supports reading dates */
+  finishDate?: unknown;
+  lastChapterRead?: number | null | undefined;
+  /** This will only work if the tracker of the track record supports private tracking */
+  private?: boolean | null | undefined;
+  recordId: number;
+  scoreString?: string | null | undefined;
+  /** This will only work if the tracker of the track record supports reading dates */
+  startDate?: unknown;
+  status?: number | null | undefined;
 };
 
 export type WebUiChannel =
@@ -3864,6 +4072,20 @@ export type WebUiInterface =
   | 'BROWSER'
   | 'ELECTRON';
 
+export type CreateBackupMutationVariables = Exact<{
+  input?: CreateBackupInput | null | undefined;
+}>;
+
+
+export type CreateBackupMutation = { createBackup: { url: string } };
+
+export type RestoreBackupMutationVariables = Exact<{
+  input: RestoreBackupInput;
+}>;
+
+
+export type RestoreBackupMutation = { restoreBackup: { status: { state: BackupRestoreState } | null } };
+
 export type FetchSourceMangaMutationVariables = Exact<{
   input: FetchSourceMangaInput;
 }>;
@@ -3877,6 +4099,41 @@ export type ToggleMangaLibraryMutationVariables = Exact<{
 
 
 export type ToggleMangaLibraryMutation = { updateManga: { manga: { id: number, inLibrary: boolean } } | null };
+
+export type CreateCategoryMutationVariables = Exact<{
+  input: CreateCategoryInput;
+}>;
+
+
+export type CreateCategoryMutation = { createCategory: { category: { id: number, name: string, order: number } } | null };
+
+export type DeleteCategoryMutationVariables = Exact<{
+  input: DeleteCategoryInput;
+}>;
+
+
+export type DeleteCategoryMutation = { deleteCategory: { clientMutationId: string | null } | null };
+
+export type UpdateCategoryMutationVariables = Exact<{
+  input: UpdateCategoryInput;
+}>;
+
+
+export type UpdateCategoryMutation = { updateCategory: { category: { id: number, name: string, order: number } } | null };
+
+export type UpdateCategoryOrderMutationVariables = Exact<{
+  input: UpdateCategoryOrderInput;
+}>;
+
+
+export type UpdateCategoryOrderMutation = { updateCategoryOrder: { categories: Array<{ id: number, name: string, order: number }> } | null };
+
+export type UpdateMangaCategoriesMutationVariables = Exact<{
+  input: UpdateMangaCategoriesInput;
+}>;
+
+
+export type UpdateMangaCategoriesMutation = { updateMangaCategories: { manga: { id: number } } | null };
 
 export type SetExtensionReposMutationVariables = Exact<{
   input: SetSettingsInput;
@@ -3916,14 +4173,14 @@ export type UpdateChapterProgressMutation = { updateChapter: { chapter: { id: nu
 export type GetSourcesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetSourcesQuery = { sources: { totalCount: number, nodes: Array<{ id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean, extension: { pkgName: string, isInstalled: boolean } }> } };
+export type GetSourcesQuery = { sources: { totalCount: number, nodes: Array<{ id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean, isConfigurable: boolean, extension: { pkgName: string, isInstalled: boolean } }> } };
 
 export type GetSourcesByConditionQueryVariables = Exact<{
   lang: string;
 }>;
 
 
-export type GetSourcesByConditionQuery = { sources: { totalCount: number, nodes: Array<{ id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean }> } };
+export type GetSourcesByConditionQuery = { sources: { totalCount: number, nodes: Array<{ id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean, isConfigurable: boolean }> } };
 
 export type GetInstalledExtensionLangsQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -3934,6 +4191,39 @@ export type ConnectionTestQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type ConnectionTestQuery = { __typename: 'Query' };
+
+export type GetDownloadStatusQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetDownloadStatusQuery = { downloadStatus: { state: DownloaderState, queue: Array<{ position: number, progress: number, state: DownloadState, tries: number, chapter: { id: number, name: string, chapterNumber: number }, manga: { id: number, title: string, thumbnailUrl: string | null } }> } };
+
+export type StartDownloaderMutationVariables = Exact<{
+  input: StartDownloaderInput;
+}>;
+
+
+export type StartDownloaderMutation = { startDownloader: { downloadStatus: { state: DownloaderState } } | null };
+
+export type StopDownloaderMutationVariables = Exact<{
+  input: StopDownloaderInput;
+}>;
+
+
+export type StopDownloaderMutation = { stopDownloader: { downloadStatus: { state: DownloaderState } } | null };
+
+export type ClearDownloaderMutationVariables = Exact<{
+  input: ClearDownloaderInput;
+}>;
+
+
+export type ClearDownloaderMutation = { clearDownloader: { downloadStatus: { state: DownloaderState } } | null };
+
+export type DequeueChapterDownloadMutationVariables = Exact<{
+  input: DequeueChapterDownloadInput;
+}>;
+
+
+export type DequeueChapterDownloadMutation = { dequeueChapterDownload: { downloadStatus: { state: DownloaderState } } | null };
 
 export type GetExtensionReposQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -3963,7 +4253,7 @@ export type GetMangaDetailsQueryVariables = Exact<{
 }>;
 
 
-export type GetMangaDetailsQuery = { manga: { id: number, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, source: { name: string } | null, chapters: { edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, uploadDate: unknown, scanlator: string | null } }> } } };
+export type GetMangaDetailsQuery = { manga: { id: number, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, categories: { edges: Array<{ node: { id: number } }> }, source: { name: string } | null, chapters: { edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, uploadDate: unknown, scanlator: string | null } }> } } };
 
 export type GetChapterQueryVariables = Exact<{
   id: number;
@@ -3972,7 +4262,109 @@ export type GetChapterQueryVariables = Exact<{
 
 export type GetChapterQuery = { chapter: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, pageCount: number, sourceOrder: number, mangaId: number, manga: { title: string, chapters: { edges: Array<{ node: { id: number, chapterNumber: number } }> } } } };
 
+export type GetSourcePreferencesQueryVariables = Exact<{
+  sourceId: unknown;
+}>;
 
+
+export type GetSourcePreferencesQuery = { source: { id: unknown, name: string, isConfigurable: boolean, preferences: Array<
+      | { __typename: 'CheckBoxPreference', key: string | null, title: string | null, summary: string | null, enabled: boolean, visible: boolean, defaultBool: boolean, valueBool: boolean | null }
+      | { __typename: 'EditTextPreference', key: string | null, title: string | null, summary: string | null, enabled: boolean, visible: boolean, defaultString: string | null, valueString: string | null }
+      | { __typename: 'ListPreference', key: string | null, title: string | null, summary: string | null, entries: Array<string>, entryValues: Array<string>, enabled: boolean, visible: boolean, defaultString: string | null, valueString: string | null }
+      | { __typename: 'MultiSelectListPreference' }
+      | { __typename: 'SwitchPreference', key: string | null, title: string | null, summary: string | null, enabled: boolean, visible: boolean, defaultBool: boolean, valueBool: boolean | null }
+    > } };
+
+export type UpdateSourcePreferenceMutationVariables = Exact<{
+  input: UpdateSourcePreferenceInput;
+}>;
+
+
+export type UpdateSourcePreferenceMutation = { updateSourcePreference: { preferences: Array<
+      | { __typename: 'CheckBoxPreference', key: string | null, valueBool: boolean | null }
+      | { __typename: 'EditTextPreference', key: string | null, valueString: string | null }
+      | { __typename: 'ListPreference', key: string | null, valueString: string | null }
+      | { __typename: 'MultiSelectListPreference' }
+      | { __typename: 'SwitchPreference', key: string | null, valueBool: boolean | null }
+    > } | null };
+
+export type GetTrackersQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetTrackersQuery = { trackers: { nodes: Array<{ id: number, name: string, icon: string, isLoggedIn: boolean, authUrl: string | null, scores: Array<string>, statuses: Array<{ name: string, value: number }> }> } };
+
+export type GetMangaTrackersQueryVariables = Exact<{
+  mangaId: number;
+}>;
+
+
+export type GetMangaTrackersQuery = { trackers: { nodes: Array<{ id: number, name: string, icon: string, isLoggedIn: boolean, authUrl: string | null, scores: Array<string>, statuses: Array<{ name: string, value: number }> }> }, manga: { id: number, trackRecords: { nodes: Array<{ id: number, trackerId: number, mangaId: number, title: string, lastChapterRead: number, totalChapters: number, score: number, status: number, remoteUrl: string }> } } };
+
+export type TrackProgressMutationVariables = Exact<{
+  input: TrackProgressInput;
+}>;
+
+
+export type TrackProgressMutation = { trackProgress: { trackRecords: Array<{ id: number, trackerId: number, mangaId: number, title: string, lastChapterRead: number }> } | null };
+
+export type UnbindTrackMutationVariables = Exact<{
+  input: UnbindTrackInput;
+}>;
+
+
+export type UnbindTrackMutation = { unbindTrack: { trackRecord: { id: number, mangaId: number } | null } };
+
+export type UpdateTrackMutationVariables = Exact<{
+  input: UpdateTrackInput;
+}>;
+
+
+export type UpdateTrackMutation = { updateTrack: { trackRecord: { id: number, trackerId: number, mangaId: number, title: string, lastChapterRead: number, totalChapters: number, score: number, status: number, remoteUrl: string } | null } };
+
+export type LogoutTrackerMutationVariables = Exact<{
+  input: LogoutTrackerInput;
+}>;
+
+
+export type LogoutTrackerMutation = { logoutTracker: { tracker: { id: number, isLoggedIn: boolean } } };
+
+export type GetUpdatesQueryVariables = Exact<{
+  filter?: ChapterFilterInput | null | undefined;
+  order?: Array<ChapterOrderInput> | ChapterOrderInput | null | undefined;
+  first?: number | null | undefined;
+  after?: unknown;
+}>;
+
+
+export type GetUpdatesQuery = { chapters: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, uploadDate: unknown, scanlator: string | null, mangaId: number, manga: { id: number, title: string, thumbnailUrl: string | null } } }> } };
+
+export type GetHistoryQueryVariables = Exact<{
+  filter?: ChapterFilterInput | null | undefined;
+  order?: Array<ChapterOrderInput> | ChapterOrderInput | null | undefined;
+  first?: number | null | undefined;
+  after?: unknown;
+}>;
+
+
+export type GetHistoryQuery = { chapters: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, lastReadAt: unknown, scanlator: string | null, mangaId: number, manga: { id: number, title: string, thumbnailUrl: string | null } } }> } };
+
+
+export const CreateBackupDocument = gql`
+    mutation CreateBackup($input: CreateBackupInput) {
+  createBackup(input: $input) {
+    url
+  }
+}
+    `;
+export const RestoreBackupDocument = gql`
+    mutation RestoreBackup($input: RestoreBackupInput!) {
+  restoreBackup(input: $input) {
+    status {
+      state
+    }
+  }
+}
+    `;
 export const FetchSourceMangaDocument = gql`
     mutation FetchSourceManga($input: FetchSourceMangaInput!) {
   fetchSourceManga(input: $input) {
@@ -3993,6 +4385,55 @@ export const ToggleMangaLibraryDocument = gql`
     manga {
       id
       inLibrary
+    }
+  }
+}
+    `;
+export const CreateCategoryDocument = gql`
+    mutation CreateCategory($input: CreateCategoryInput!) {
+  createCategory(input: $input) {
+    category {
+      id
+      name
+      order
+    }
+  }
+}
+    `;
+export const DeleteCategoryDocument = gql`
+    mutation DeleteCategory($input: DeleteCategoryInput!) {
+  deleteCategory(input: $input) {
+    clientMutationId
+  }
+}
+    `;
+export const UpdateCategoryDocument = gql`
+    mutation UpdateCategory($input: UpdateCategoryInput!) {
+  updateCategory(input: $input) {
+    category {
+      id
+      name
+      order
+    }
+  }
+}
+    `;
+export const UpdateCategoryOrderDocument = gql`
+    mutation UpdateCategoryOrder($input: UpdateCategoryOrderInput!) {
+  updateCategoryOrder(input: $input) {
+    categories {
+      id
+      name
+      order
+    }
+  }
+}
+    `;
+export const UpdateMangaCategoriesDocument = gql`
+    mutation UpdateMangaCategories($input: UpdateMangaCategoriesInput!) {
+  updateMangaCategories(input: $input) {
+    manga {
+      id
     }
   }
 }
@@ -4054,6 +4495,7 @@ export const GetSourcesDocument = gql`
       iconUrl
       supportsLatest
       isNsfw
+      isConfigurable
       extension {
         pkgName
         isInstalled
@@ -4073,6 +4515,7 @@ export const GetSourcesByConditionDocument = gql`
       iconUrl
       supportsLatest
       isNsfw
+      isConfigurable
     }
   }
 }
@@ -4091,6 +4534,65 @@ export const GetInstalledExtensionLangsDocument = gql`
 export const ConnectionTestDocument = gql`
     query ConnectionTest {
   __typename
+}
+    `;
+export const GetDownloadStatusDocument = gql`
+    query GetDownloadStatus {
+  downloadStatus {
+    state
+    queue {
+      position
+      progress
+      state
+      tries
+      chapter {
+        id
+        name
+        chapterNumber
+      }
+      manga {
+        id
+        title
+        thumbnailUrl
+      }
+    }
+  }
+}
+    `;
+export const StartDownloaderDocument = gql`
+    mutation StartDownloader($input: StartDownloaderInput!) {
+  startDownloader(input: $input) {
+    downloadStatus {
+      state
+    }
+  }
+}
+    `;
+export const StopDownloaderDocument = gql`
+    mutation StopDownloader($input: StopDownloaderInput!) {
+  stopDownloader(input: $input) {
+    downloadStatus {
+      state
+    }
+  }
+}
+    `;
+export const ClearDownloaderDocument = gql`
+    mutation ClearDownloader($input: ClearDownloaderInput!) {
+  clearDownloader(input: $input) {
+    downloadStatus {
+      state
+    }
+  }
+}
+    `;
+export const DequeueChapterDownloadDocument = gql`
+    mutation DequeueChapterDownload($input: DequeueChapterDownloadInput!) {
+  dequeueChapterDownload(input: $input) {
+    downloadStatus {
+      state
+    }
+  }
 }
     `;
 export const GetExtensionReposDocument = gql`
@@ -4167,6 +4669,13 @@ export const GetMangaDetailsDocument = gql`
     status
     genre
     inLibrary
+    categories {
+      edges {
+        node {
+          id
+        }
+      }
+    }
     source {
       name
     }
@@ -4212,6 +4721,237 @@ export const GetChapterDocument = gql`
   }
 }
     `;
+export const GetSourcePreferencesDocument = gql`
+    query GetSourcePreferences($sourceId: LongString!) {
+  source(id: $sourceId) {
+    id
+    name
+    isConfigurable
+    preferences {
+      __typename
+      ... on CheckBoxPreference {
+        key
+        title
+        summary
+        defaultBool: default
+        valueBool: currentValue
+        enabled
+        visible
+      }
+      ... on EditTextPreference {
+        key
+        title
+        summary
+        defaultString: default
+        valueString: currentValue
+        enabled
+        visible
+      }
+      ... on ListPreference {
+        key
+        title
+        summary
+        defaultString: default
+        valueString: currentValue
+        entries
+        entryValues
+        enabled
+        visible
+      }
+      ... on SwitchPreference {
+        key
+        title
+        summary
+        defaultBool: default
+        valueBool: currentValue
+        enabled
+        visible
+      }
+    }
+  }
+}
+    `;
+export const UpdateSourcePreferenceDocument = gql`
+    mutation UpdateSourcePreference($input: UpdateSourcePreferenceInput!) {
+  updateSourcePreference(input: $input) {
+    preferences {
+      __typename
+      ... on CheckBoxPreference {
+        key
+        valueBool: currentValue
+      }
+      ... on EditTextPreference {
+        key
+        valueString: currentValue
+      }
+      ... on ListPreference {
+        key
+        valueString: currentValue
+      }
+      ... on SwitchPreference {
+        key
+        valueBool: currentValue
+      }
+    }
+  }
+}
+    `;
+export const GetTrackersDocument = gql`
+    query GetTrackers {
+  trackers {
+    nodes {
+      id
+      name
+      icon
+      isLoggedIn
+      authUrl
+      scores
+      statuses {
+        name
+        value
+      }
+    }
+  }
+}
+    `;
+export const GetMangaTrackersDocument = gql`
+    query GetMangaTrackers($mangaId: Int!) {
+  trackers {
+    nodes {
+      id
+      name
+      icon
+      isLoggedIn
+      authUrl
+      scores
+      statuses {
+        name
+        value
+      }
+    }
+  }
+  manga(id: $mangaId) {
+    id
+    trackRecords {
+      nodes {
+        id
+        trackerId
+        mangaId
+        title
+        lastChapterRead
+        totalChapters
+        score
+        status
+        remoteUrl
+      }
+    }
+  }
+}
+    `;
+export const TrackProgressDocument = gql`
+    mutation TrackProgress($input: TrackProgressInput!) {
+  trackProgress(input: $input) {
+    trackRecords {
+      id
+      trackerId
+      mangaId
+      title
+      lastChapterRead
+    }
+  }
+}
+    `;
+export const UnbindTrackDocument = gql`
+    mutation UnbindTrack($input: UnbindTrackInput!) {
+  unbindTrack(input: $input) {
+    trackRecord {
+      id
+      mangaId
+    }
+  }
+}
+    `;
+export const UpdateTrackDocument = gql`
+    mutation UpdateTrack($input: UpdateTrackInput!) {
+  updateTrack(input: $input) {
+    trackRecord {
+      id
+      trackerId
+      mangaId
+      title
+      lastChapterRead
+      totalChapters
+      score
+      status
+      remoteUrl
+    }
+  }
+}
+    `;
+export const LogoutTrackerDocument = gql`
+    mutation LogoutTracker($input: LogoutTrackerInput!) {
+  logoutTracker(input: $input) {
+    tracker {
+      id
+      isLoggedIn
+    }
+  }
+}
+    `;
+export const GetUpdatesDocument = gql`
+    query GetUpdates($filter: ChapterFilterInput, $order: [ChapterOrderInput!], $first: Int, $after: Cursor) {
+  chapters(filter: $filter, order: $order, first: $first, after: $after) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    edges {
+      node {
+        id
+        name
+        chapterNumber
+        isRead
+        lastPageRead
+        uploadDate
+        scanlator
+        mangaId
+        manga {
+          id
+          title
+          thumbnailUrl
+        }
+      }
+    }
+  }
+}
+    `;
+export const GetHistoryDocument = gql`
+    query GetHistory($filter: ChapterFilterInput, $order: [ChapterOrderInput!], $first: Int, $after: Cursor) {
+  chapters(filter: $filter, order: $order, first: $first, after: $after) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    edges {
+      node {
+        id
+        name
+        chapterNumber
+        isRead
+        lastPageRead
+        lastReadAt
+        scanlator
+        mangaId
+        manga {
+          id
+          title
+          thumbnailUrl
+        }
+      }
+    }
+  }
+}
+    `;
 
 export type SdkFunctionWrapper = <T>(action: (requestHeaders?:Record<string, string>) => Promise<T>, operationName: string, operationType?: string, variables?: any) => Promise<T>;
 
@@ -4220,11 +4960,32 @@ const defaultWrapper: SdkFunctionWrapper = (action, _operationName, _operationTy
 
 export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = defaultWrapper) {
   return {
+    CreateBackup(variables?: CreateBackupMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<CreateBackupMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<CreateBackupMutation>({ document: CreateBackupDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'CreateBackup', 'mutation', variables);
+    },
+    RestoreBackup(variables: RestoreBackupMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<RestoreBackupMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<RestoreBackupMutation>({ document: RestoreBackupDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'RestoreBackup', 'mutation', variables);
+    },
     FetchSourceManga(variables: FetchSourceMangaMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<FetchSourceMangaMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<FetchSourceMangaMutation>({ document: FetchSourceMangaDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'FetchSourceManga', 'mutation', variables);
     },
     ToggleMangaLibrary(variables: ToggleMangaLibraryMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ToggleMangaLibraryMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<ToggleMangaLibraryMutation>({ document: ToggleMangaLibraryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ToggleMangaLibrary', 'mutation', variables);
+    },
+    CreateCategory(variables: CreateCategoryMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<CreateCategoryMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<CreateCategoryMutation>({ document: CreateCategoryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'CreateCategory', 'mutation', variables);
+    },
+    DeleteCategory(variables: DeleteCategoryMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<DeleteCategoryMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<DeleteCategoryMutation>({ document: DeleteCategoryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'DeleteCategory', 'mutation', variables);
+    },
+    UpdateCategory(variables: UpdateCategoryMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateCategoryMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<UpdateCategoryMutation>({ document: UpdateCategoryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateCategory', 'mutation', variables);
+    },
+    UpdateCategoryOrder(variables: UpdateCategoryOrderMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateCategoryOrderMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<UpdateCategoryOrderMutation>({ document: UpdateCategoryOrderDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateCategoryOrder', 'mutation', variables);
+    },
+    UpdateMangaCategories(variables: UpdateMangaCategoriesMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateMangaCategoriesMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<UpdateMangaCategoriesMutation>({ document: UpdateMangaCategoriesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateMangaCategories', 'mutation', variables);
     },
     SetExtensionRepos(variables: SetExtensionReposMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<SetExtensionReposMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<SetExtensionReposMutation>({ document: SetExtensionReposDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'SetExtensionRepos', 'mutation', variables);
@@ -4253,6 +5014,21 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     ConnectionTest(variables?: ConnectionTestQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ConnectionTestQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<ConnectionTestQuery>({ document: ConnectionTestDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ConnectionTest', 'query', variables);
     },
+    GetDownloadStatus(variables?: GetDownloadStatusQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetDownloadStatusQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetDownloadStatusQuery>({ document: GetDownloadStatusDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetDownloadStatus', 'query', variables);
+    },
+    StartDownloader(variables: StartDownloaderMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<StartDownloaderMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<StartDownloaderMutation>({ document: StartDownloaderDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'StartDownloader', 'mutation', variables);
+    },
+    StopDownloader(variables: StopDownloaderMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<StopDownloaderMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<StopDownloaderMutation>({ document: StopDownloaderDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'StopDownloader', 'mutation', variables);
+    },
+    ClearDownloader(variables: ClearDownloaderMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ClearDownloaderMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<ClearDownloaderMutation>({ document: ClearDownloaderDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ClearDownloader', 'mutation', variables);
+    },
+    DequeueChapterDownload(variables: DequeueChapterDownloadMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<DequeueChapterDownloadMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<DequeueChapterDownloadMutation>({ document: DequeueChapterDownloadDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'DequeueChapterDownload', 'mutation', variables);
+    },
     GetExtensionRepos(variables?: GetExtensionReposQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetExtensionReposQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetExtensionReposQuery>({ document: GetExtensionReposDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetExtensionRepos', 'query', variables);
     },
@@ -4270,6 +5046,36 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetChapter(variables: GetChapterQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetChapterQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetChapterQuery>({ document: GetChapterDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetChapter', 'query', variables);
+    },
+    GetSourcePreferences(variables: GetSourcePreferencesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetSourcePreferencesQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetSourcePreferencesQuery>({ document: GetSourcePreferencesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetSourcePreferences', 'query', variables);
+    },
+    UpdateSourcePreference(variables: UpdateSourcePreferenceMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateSourcePreferenceMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<UpdateSourcePreferenceMutation>({ document: UpdateSourcePreferenceDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateSourcePreference', 'mutation', variables);
+    },
+    GetTrackers(variables?: GetTrackersQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetTrackersQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetTrackersQuery>({ document: GetTrackersDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetTrackers', 'query', variables);
+    },
+    GetMangaTrackers(variables: GetMangaTrackersQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetMangaTrackersQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetMangaTrackersQuery>({ document: GetMangaTrackersDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetMangaTrackers', 'query', variables);
+    },
+    TrackProgress(variables: TrackProgressMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<TrackProgressMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<TrackProgressMutation>({ document: TrackProgressDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'TrackProgress', 'mutation', variables);
+    },
+    UnbindTrack(variables: UnbindTrackMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UnbindTrackMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<UnbindTrackMutation>({ document: UnbindTrackDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UnbindTrack', 'mutation', variables);
+    },
+    UpdateTrack(variables: UpdateTrackMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateTrackMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<UpdateTrackMutation>({ document: UpdateTrackDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateTrack', 'mutation', variables);
+    },
+    LogoutTracker(variables: LogoutTrackerMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<LogoutTrackerMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<LogoutTrackerMutation>({ document: LogoutTrackerDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'LogoutTracker', 'mutation', variables);
+    },
+    GetUpdates(variables?: GetUpdatesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetUpdatesQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetUpdatesQuery>({ document: GetUpdatesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetUpdates', 'query', variables);
+    },
+    GetHistory(variables?: GetHistoryQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetHistoryQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetHistoryQuery>({ document: GetHistoryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetHistory', 'query', variables);
     }
   };
 }

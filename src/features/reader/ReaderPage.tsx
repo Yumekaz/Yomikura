@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { useSettingsStore } from "../../stores/useSettingsStore";
+import { useSettingsStore, FitMode, PageSpread } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { classifySourceProblem } from "../../api/suwayomi/errors";
 import { buildSuwayomiPageUrl, resolveBackendUrl } from "../../api/suwayomi/pageUrls";
@@ -14,7 +14,18 @@ export default function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { serverBaseUrl, readerMode, setReaderMode } = useSettingsStore();
+  
+  // Settings store options
+  const { 
+    serverBaseUrl, 
+    readerMode, 
+    setReaderMode, 
+    fitMode, 
+    setFitMode, 
+    pageSpread, 
+    setPageSpread 
+  } = useSettingsStore();
+
   const [showOverlay, setShowOverlay] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const lastSavedPageRef = useRef<number | null>(null);
@@ -107,18 +118,70 @@ export default function ReaderPage() {
     saveProgress(pageIndex);
   }, [saveProgress]);
 
+  // Compute current spread indices A and B
+  const { idxA, idxB } = useMemo(() => {
+    if (readerMode === "WEBTOON" || pageSpread === "SINGLE") {
+      return { idxA: currentPage, idxB: null };
+    }
+    if (pageSpread === "DOUBLE") {
+      const idxA = currentPage % 2 === 0 ? currentPage : currentPage - 1;
+      const idxB = idxA + 1;
+      return { idxA, idxB };
+    }
+    // DOUBLE_COVER
+    if (currentPage === 0) {
+      return { idxA: 0, idxB: null };
+    }
+    const idxA = currentPage % 2 !== 0 ? currentPage : currentPage - 1;
+    const idxB = idxA + 1;
+    return { idxA, idxB };
+  }, [currentPage, readerMode, pageSpread]);
+
+  // Sync progress for single/spread modes based on pages currently showing
+  useEffect(() => {
+    if (readerMode === "WEBTOON" || pages.length === 0) return;
+    const activePage = idxB !== null && idxB < pages.length ? idxB : idxA;
+    saveProgress(activePage);
+  }, [idxA, idxB, readerMode, pages.length, saveProgress]);
+
   const navigatePage = useCallback((dir: number) => {
-    const next = currentPage + dir;
+    let next = currentPage + dir;
+    
+    // Custom double-page navigation jumps
+    if (readerMode !== "WEBTOON" && pageSpread !== "SINGLE") {
+      if (dir === 1) {
+        if (pageSpread === "DOUBLE_COVER" && currentPage === 0) {
+          next = 1;
+        } else {
+          const startIdx = pageSpread === "DOUBLE"
+            ? (currentPage % 2 === 0 ? currentPage : currentPage - 1)
+            : (currentPage % 2 !== 0 ? currentPage : currentPage - 1);
+          next = startIdx + 2;
+        }
+      } else if (dir === -1) {
+        if (pageSpread === "DOUBLE_COVER") {
+          if (currentPage <= 2) {
+            next = 0;
+          } else {
+            const startIdx = currentPage % 2 !== 0 ? currentPage : currentPage - 1;
+            next = startIdx - 2;
+          }
+        } else {
+          const startIdx = currentPage % 2 === 0 ? currentPage : currentPage - 1;
+          next = startIdx - 2;
+        }
+      }
+    }
+
     if (next >= 0 && next < pages.length) {
       setCurrentPage(next);
-      saveProgress(next);
       window.scrollTo(0, 0); // Reset scroll for single page mode
     } else if (next >= pages.length && nextChapterId) {
       navigate(`/reader/${nextChapterId}`);
     } else if (next < 0 && prevChapterId) {
       navigate(`/reader/${prevChapterId}`);
     }
-  }, [currentPage, navigate, nextChapterId, pages.length, prevChapterId, saveProgress]);
+  }, [currentPage, readerMode, pageSpread, pages.length, nextChapterId, prevChapterId, navigate]);
 
   const handlePageClick = useCallback((e: React.MouseEvent) => {
     const width = window.innerWidth;
@@ -142,6 +205,43 @@ export default function ReaderPage() {
       setShowOverlay(!showOverlay);
     }
   }, [navigatePage, readerMode, showOverlay]);
+
+  // Keyboard binding listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      if (key === "arrowright" || key === " ") {
+        // RTL-aware next page flip
+        const dir = readerMode === "RTL" ? -1 : 1;
+        navigatePage(dir);
+      } else if (key === "arrowleft" || key === "backspace") {
+        // RTL-aware prev page flip
+        const dir = readerMode === "RTL" ? 1 : -1;
+        navigatePage(dir);
+      } else if (e.key === "Escape") {
+        navigate(chapter?.mangaId ? `/manga/${chapter.mangaId}` : "/library");
+      } else if (key === "w") {
+        // Cycle Fit Modes: Screen -> Width -> Height
+        const modes: FitMode[] = ["FIT_SCREEN", "FIT_WIDTH", "FIT_HEIGHT"];
+        const nextIdx = (modes.indexOf(fitMode) + 1) % modes.length;
+        setFitMode(modes[nextIdx]);
+      } else if (key === "s") {
+        // Cycle Page Spreads: Single -> Double -> Double + Cover
+        if (readerMode !== "WEBTOON") {
+          const spreads: PageSpread[] = ["SINGLE", "DOUBLE", "DOUBLE_COVER"];
+          const nextIdx = (spreads.indexOf(pageSpread) + 1) % spreads.length;
+          setPageSpread(spreads[nextIdx]);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentPage, readerMode, fitMode, pageSpread, pages.length, navigatePage, navigate, chapter?.mangaId, setFitMode, setPageSpread]);
 
   if (!serverBaseUrl) {
     return (
@@ -201,6 +301,11 @@ export default function ReaderPage() {
     );
   }
 
+  const showB = idxB !== null && idxB < pages.length;
+  const pageIndices = showB
+    ? (readerMode === "RTL" ? [idxB, idxA] : [idxA, idxB])
+    : [idxA];
+
   return (
     <div className="min-h-screen bg-black">
       <ReaderOverlay
@@ -212,13 +317,23 @@ export default function ReaderPage() {
         totalPages={pages.length}
         readerMode={readerMode}
         onModeChange={setReaderMode}
+        fitMode={fitMode}
+        onFitModeChange={setFitMode}
+        pageSpread={pageSpread}
+        onPageSpreadChange={setPageSpread}
         nextChapterId={nextChapterId}
         prevChapterId={prevChapterId}
       />
 
       {/* Pages Container */}
       <div 
-        className={`w-full mx-auto max-w-4xl cursor-pointer ${readerMode === "WEBTOON" ? "flex flex-col" : "flex h-screen items-center justify-center overflow-hidden"}`}
+        className={`w-full mx-auto max-w-4xl cursor-pointer ${
+          readerMode === "WEBTOON" 
+            ? "flex flex-col" 
+            : fitMode === "FIT_WIDTH"
+              ? "h-screen overflow-y-auto flex justify-center items-start"
+              : "flex h-screen items-center justify-center overflow-hidden"
+        }`}
         onClick={handlePageClick}
       >
         {readerMode === "WEBTOON" ? (
@@ -238,18 +353,31 @@ export default function ReaderPage() {
             />
           ))
         ) : (
-          // Single page mode: show only current page
-          <ReaderImage
-              url={buildSuwayomiPageUrl({
-                serverBaseUrl,
-                mangaId: chapter.mangaId,
-                chapterSourceOrder: chapter.sourceOrder,
-                pageIndex: currentPage,
-              })}
-              fallbackUrl={resolveBackendUrl(serverBaseUrl, pages[currentPage])}
-              pageNumber={currentPage}
-              mode="single"
-            />
+          // Single/Double page mode
+          <div className="flex w-full h-full items-center justify-center gap-1 md:gap-2">
+            {pageIndices.map((idx) => {
+              const isDouble = pageIndices.length > 1;
+              return (
+                <div 
+                  key={idx} 
+                  className={`${isDouble ? "w-1/2" : "w-full"} h-full flex items-center justify-center`}
+                >
+                  <ReaderImage
+                    url={buildSuwayomiPageUrl({
+                      serverBaseUrl,
+                      mangaId: chapter.mangaId,
+                      chapterSourceOrder: chapter.sourceOrder,
+                      pageIndex: idx,
+                    })}
+                    fallbackUrl={resolveBackendUrl(serverBaseUrl, pages[idx])}
+                    pageNumber={idx}
+                    mode="single"
+                    fitMode={fitMode}
+                  />
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

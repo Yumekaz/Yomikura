@@ -1,0 +1,72 @@
+query GetSourcePreferences($sourceId: LongString!) {
+  source(id: $sourceId) {
+    id
+    name
+    isConfigurable
+    preferences {
+      __typename
+      ... on CheckBoxPreference {
+        key
+        title
+        summary
+        defaultBool: default
+        valueBool: currentValue
+        enabled
+        visible
+      }
+      ... on EditTextPreference {
+        key
+        title
+        summary
+        defaultString: default
+        valueString: currentValue
+        enabled
+        visible
+      }
+      ... on ListPreference {
+        key
+        title
+        summary
+        defaultString: default
+        valueString: currentValue
+        entries
+        entryValues
+        enabled
+        visible
+      }
+      ... on SwitchPreference {
+        key
+        title
+        summary
+        defaultBool: default
+        valueBool: currentValue
+        enabled
+        visible
+      }
+    }
+  }
+}
+
+mutation UpdateSourcePreference($input: UpdateSourcePreferenceInput!) {
+  updateSourcePreference(input: $input) {
+    preferences {
+      __typename
+      ... on CheckBoxPreference {
+        key
+        valueBool: currentValue
+      }
+      ... on EditTextPreference {
+        key
+        valueString: currentValue
+      }
+      ... on ListPreference {
+        key
+        valueString: currentValue
+      }
+      ... on SwitchPreference {
+        key
+        valueBool: currentValue
+      }
+    }
+  }
+}

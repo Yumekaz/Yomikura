@@ -1,0 +1,16 @@
+{
+  "short_name": "Yomikura",
+  "name": "Yomikura Suwayomi Client",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "start_url": "/library",
+  "background_color": "#090a0c",
+  "theme_color": "#7dd8bd",
+  "display": "standalone",
+  "orientation": "any"
+}

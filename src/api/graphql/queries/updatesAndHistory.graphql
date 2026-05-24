@@ -1,0 +1,51 @@
+query GetUpdates($filter: ChapterFilterInput, $order: [ChapterOrderInput!], $first: Int, $after: Cursor) {
+  chapters(filter: $filter, order: $order, first: $first, after: $after) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    edges {
+      node {
+        id
+        name
+        chapterNumber
+        isRead
+        lastPageRead
+        uploadDate
+        scanlator
+        mangaId
+        manga {
+          id
+          title
+          thumbnailUrl
+        }
+      }
+    }
+  }
+}
+
+query GetHistory($filter: ChapterFilterInput, $order: [ChapterOrderInput!], $first: Int, $after: Cursor) {
+  chapters(filter: $filter, order: $order, first: $first, after: $after) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    edges {
+      node {
+        id
+        name
+        chapterNumber
+        isRead
+        lastPageRead
+        lastReadAt
+        scanlator
+        mangaId
+        manga {
+          id
+          title
+          thumbnailUrl
+        }
+      }
+    }
+  }
+}

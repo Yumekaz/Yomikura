@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Globe } from "lucide-react";
+import { Loader2, Globe, Settings } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 
@@ -57,6 +57,7 @@ export default function SourcesPage() {
         iconUrl: string;
         supportsLatest: boolean;
         isNsfw?: boolean;
+        isConfigurable?: boolean;
       }> = [];
       
       for (const result of results) {
@@ -123,34 +124,47 @@ export default function SourcesPage() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {langSources.map((source) => (
-              <Link 
+              <div 
                 key={String(source.id)} 
-                to={`/browse/${source.id}`}
-                className="flex items-center gap-4 rounded-xl bg-white/5 p-4 transition-colors hover:bg-white/10"
+                className="group relative flex items-center justify-between rounded-xl bg-white/5 p-4 transition-colors hover:bg-white/10"
               >
-                <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-md bg-ink-900 flex items-center justify-center">
-                  {source.iconUrl ? (
-                    <img 
-                      src={source.iconUrl.startsWith("http") ? source.iconUrl : `${serverBaseUrl.replace(/\/$/, "")}${source.iconUrl}`} 
-                      alt={source.name}
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
-                  ) : (
-                    <Globe className="h-5 w-5 text-slate-500" />
-                  )}
-                </div>
-                <div className="flex flex-col flex-1 overflow-hidden">
-                  <span className="font-medium text-slate-200 truncate">{source.name}</span>
-                  <div className="flex items-center gap-2">
-                    {source.supportsLatest && (
-                      <span className="text-xs text-yomi-jade">Supports Latest</span>
+                <Link 
+                  to={`/browse/${source.id}`}
+                  className="flex items-center gap-4 flex-1 overflow-hidden"
+                >
+                  <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-md bg-ink-900 flex items-center justify-center">
+                    {source.iconUrl ? (
+                      <img 
+                        src={source.iconUrl.startsWith("http") ? source.iconUrl : `${serverBaseUrl.replace(/\/$/, "")}${source.iconUrl}`} 
+                        alt={source.name}
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    ) : (
+                      <Globe className="h-5 w-5 text-slate-500" />
                     )}
                   </div>
-                </div>
-              </Link>
+                  <div className="flex flex-col flex-1 overflow-hidden">
+                    <span className="font-medium text-slate-200 truncate">{source.name}</span>
+                    <div className="flex items-center gap-2">
+                      {source.supportsLatest && (
+                        <span className="text-xs text-yomi-jade">Supports Latest</span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+                {source.isConfigurable && (
+                  <Link
+                    to={`/browse/source/${source.id}/settings`}
+                    className="relative z-10 p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition shrink-0 ml-2"
+                    title="Source Preferences"
+                  >
+                    <Settings className="h-4.5 w-4.5" />
+                  </Link>
+                )}
+              </div>
             ))}
           </div>
         </div>

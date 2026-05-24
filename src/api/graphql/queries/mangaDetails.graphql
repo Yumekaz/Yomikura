@@ -9,6 +9,13 @@ query GetMangaDetails($id: Int!) {
     status
     genre
     inLibrary
+    categories {
+      edges {
+        node {
+          id
+        }
+      }
+    }
     source {
       name
     }

@@ -1,0 +1,53 @@
+query GetDownloadStatus {
+  downloadStatus {
+    state
+    queue {
+      position
+      progress
+      state
+      tries
+      chapter {
+        id
+        name
+        chapterNumber
+      }
+      manga {
+        id
+        title
+        thumbnailUrl
+      }
+    }
+  }
+}
+
+mutation StartDownloader($input: StartDownloaderInput!) {
+  startDownloader(input: $input) {
+    downloadStatus {
+      state
+    }
+  }
+}
+
+mutation StopDownloader($input: StopDownloaderInput!) {
+  stopDownloader(input: $input) {
+    downloadStatus {
+      state
+    }
+  }
+}
+
+mutation ClearDownloader($input: ClearDownloaderInput!) {
+  clearDownloader(input: $input) {
+    downloadStatus {
+      state
+    }
+  }
+}
+
+mutation DequeueChapterDownload($input: DequeueChapterDownloadInput!) {
+  dequeueChapterDownload(input: $input) {
+    downloadStatus {
+      state
+    }
+  }
+}
