@@ -48,7 +48,11 @@ function SettingsPage() {
   const handleSaveAndTest = async (e: FormEvent) => {
     e.preventDefault();
     if (!localUrl) return;
+    const urlChanged = localUrl.trim() !== serverBaseUrl;
     setServerBaseUrl(localUrl);
+    if (urlChanged) {
+      queryClient.clear();
+    }
     await testConnection();
   };
 

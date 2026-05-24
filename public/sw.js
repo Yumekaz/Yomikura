@@ -38,8 +38,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Bypass service worker for hot-reloads in development or local API endpoints
-  if (requestUrl.pathname.includes("/api/graphql") || requestUrl.pathname.includes("@vite")) {
+  // Bypass service worker for API endpoints and dev server files
+  if (requestUrl.pathname.includes("/api/") || requestUrl.pathname.includes("@vite")) {
     return;
   }
 
