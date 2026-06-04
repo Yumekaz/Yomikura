@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 
 import { FitMode } from "../../stores/useSettingsStore";
@@ -16,6 +17,7 @@ export function ReaderImage({ url, fallbackUrl, pageNumber, onIntersect, mode = 
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [usingFallback, setUsingFallback] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   const imageUrl = usingFallback && fallbackUrl ? fallbackUrl : url;
   const [displayUrl, setDisplayUrl] = useState("");
@@ -24,6 +26,7 @@ export function ReaderImage({ url, fallbackUrl, pageNumber, onIntersect, mode = 
     setLoaded(false);
     setError(false);
     setUsingFallback(false);
+    setRetryCount(0);
   }, [url, fallbackUrl]);
 
   useEffect(() => {
@@ -82,6 +85,19 @@ export function ReaderImage({ url, fallbackUrl, pageNumber, onIntersect, mode = 
     if (!usingFallback && fallbackUrl && fallbackUrl !== url) {
       setLoaded(false);
       setUsingFallback(true);
+      setRetryCount(0);
+      return;
+    }
+
+    if (retryCount < 3) {
+      const nextRetry = retryCount + 1;
+      setRetryCount(nextRetry);
+      setLoaded(false);
+      const currentUrl = displayUrl;
+      setDisplayUrl("");
+      setTimeout(() => {
+        setDisplayUrl(currentUrl);
+      }, Math.pow(2, nextRetry) * 500);
       return;
     }
 
@@ -93,6 +109,12 @@ export function ReaderImage({ url, fallbackUrl, pageNumber, onIntersect, mode = 
     setLoaded(false);
     setError(false);
     setUsingFallback(false);
+    setRetryCount(0);
+    const currentUrl = displayUrl;
+    setDisplayUrl("");
+    setTimeout(() => {
+      setDisplayUrl(currentUrl);
+    }, 10);
   };
 
   // Determine classes based on mode and fitMode
@@ -141,6 +163,13 @@ export function ReaderImage({ url, fallbackUrl, pageNumber, onIntersect, mode = 
           >
             Open image URL
           </a>
+          <Link
+            to="/settings"
+            onClick={(event) => event.stopPropagation()}
+            className="mt-2 text-xs text-yomi-jade hover:underline"
+          >
+            Server Settings
+          </Link>
         </div>
       )}
       <img

@@ -1,8 +1,10 @@
+import { useEffect } from "react";
 import { BookOpen, Server } from "lucide-react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { browseNav, primaryNav, type NavItem } from "../../app/navigation";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { ErrorBoundary } from "../ErrorBoundary";
 
 function ProfileSwitcher() {
   const { profiles, activeProfileId, setActiveProfileId } = useSettingsStore();
@@ -32,6 +34,15 @@ function ProfileSwitcher() {
 }
 
 function AppShell() {
+  const { connectionStatus, testConnection } = useSettingsStore();
+  const location = useLocation();
+
+  useEffect(() => {
+    testConnection();
+  }, [testConnection]);
+
+  const showOfflineBanner = connectionStatus === "error" && !location.pathname.startsWith("/reader/");
+
   return (
     <div className="min-h-screen bg-ink-950 text-slate-100">
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-white/10 bg-ink-900/95 px-4 py-5 lg:block">
@@ -57,7 +68,14 @@ function AppShell() {
         </div>
       </aside>
       <main className="min-h-screen pb-24 lg:pl-64">
-        <Outlet />
+        {showOfflineBanner && (
+          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center text-xs font-medium text-amber-200">
+            Suwayomi server is offline. Yomikura is running in offline mode.
+          </div>
+        )}
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
       <MobileNav />
     </div>

@@ -51,7 +51,7 @@ export default function MangaDetailPage() {
   const { serverBaseUrl } = useSettingsStore();
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
-  const { loadCachedChapters } = useDownloadStore();
+  const { loadCachedChapters, cachedChapters } = useDownloadStore();
 
   useEffect(() => {
     void loadCachedChapters();
@@ -74,7 +74,34 @@ export default function MangaDetailPage() {
     enabled: !!serverBaseUrl && !!mangaId,
   });
 
-  const manga = data?.manga;
+  const parsedMangaId = useMemo(() => (mangaId ? parseInt(mangaId) : NaN), [mangaId]);
+
+  const offlineChapters = useMemo(() => {
+    if (isNaN(parsedMangaId)) return [];
+    return cachedChapters.filter((ch) => ch.mangaId === parsedMangaId);
+  }, [cachedChapters, parsedMangaId]);
+
+  const isOfflineMode = (isError || !data?.manga) && offlineChapters.length > 0;
+
+  const manga = useMemo(() => {
+    if (isOfflineMode) {
+      const firstCached = offlineChapters[0];
+      return {
+        id: parsedMangaId,
+        title: firstCached?.mangaTitle || "Offline Manga",
+        thumbnailUrl: null,
+        inLibrary: false,
+        author: "Offline Mode",
+        status: "COMPLETED",
+        source: { name: "Offline Cache" },
+        genre: ["Cached"],
+        description: "Viewing in offline mode. Only cached chapters are available.",
+        categories: { edges: [] },
+        chapters: { edges: [] },
+      };
+    }
+    return data?.manga;
+  }, [data?.manga, isOfflineMode, offlineChapters, parsedMangaId]);
 
   const { data: fetchedChaptersData, isLoading: chaptersLoading } = useQuery({
     queryKey: ["manga-chapters", mangaId, serverBaseUrl],
@@ -84,7 +111,7 @@ export default function MangaDetailPage() {
         input: { mangaId: parseInt(mangaId!) },
       });
     },
-    enabled: !!graphqlEndpoint && !!mangaId && !!manga,
+    enabled: !!graphqlEndpoint && !!mangaId && !!manga && !isOfflineMode,
     staleTime: 60_000,
   });
 
@@ -112,12 +139,25 @@ export default function MangaDetailPage() {
   }, [manga]);
 
   const chapters: Chapter[] = useMemo(() => {
+    if (isOfflineMode) {
+      return offlineChapters.map((c) => ({
+        id: c.id,
+        name: c.name,
+        chapterNumber: c.chapterNumber,
+        isRead: !!c.isRead,
+        isBookmarked: false,
+        isDownloaded: true,
+        uploadDate: String(c.cachedAt),
+        scanlator: "Offline",
+      }));
+    }
+
     const fetchedChapters = fetchedChaptersData?.fetchChapters?.chapters ?? [];
-    const cachedChapters = manga?.chapters?.edges
+    const cachedChaptersFromManga = manga?.chapters?.edges
       ?.map((edge) => edge?.node)
       .filter((node): node is NonNullable<typeof node> => node != null) ?? [];
 
-    const sourceChapters = fetchedChapters.length > 0 ? fetchedChapters : cachedChapters;
+    const sourceChapters = fetchedChapters.length > 0 ? fetchedChapters : cachedChaptersFromManga;
 
     return sourceChapters
       .map((c) => ({
@@ -130,7 +170,9 @@ export default function MangaDetailPage() {
         uploadDate: String(c.uploadDate),
         scanlator: c.scanlator,
       }));
-  }, [fetchedChaptersData, manga]);
+  }, [fetchedChaptersData, manga, isOfflineMode, offlineChapters]);
+
+  const isChaptersLoading = isOfflineMode ? false : chaptersLoading;
 
   // Find the first unread chapter to resume reading
   const firstUnreadChapter = useMemo(() => {
@@ -146,7 +188,7 @@ export default function MangaDetailPage() {
     );
   }
 
-  if (isError || !manga) {
+  if (!manga || (isError && !isOfflineMode)) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-ink-950 text-slate-300">
         <p className="text-lg">Failed to load manga details.</p>
@@ -221,7 +263,7 @@ export default function MangaDetailPage() {
 
               {/* Action Buttons */}
               <div className="mt-6 flex flex-wrap gap-3">
-                {chaptersLoading ? (
+                {isChaptersLoading ? (
                   <button
                     disabled
                     className="flex flex-1 items-center justify-center gap-2 rounded-md bg-white/10 px-6 py-3 font-semibold text-slate-400 sm:flex-none"
@@ -286,7 +328,7 @@ export default function MangaDetailPage() {
       {/* Chapters Section */}
       <div className="mx-auto max-w-5xl pb-12">
         <div className="rounded-t-2xl bg-ink-900 shadow-panel lg:rounded-2xl lg:border lg:border-white/5">
-          {chaptersLoading ? (
+          {isChaptersLoading ? (
             <div className="flex min-h-48 items-center justify-center text-slate-400">
               <Loader2 className="mr-3 h-5 w-5 animate-spin text-yomi-jade" />
               Loading chapters...

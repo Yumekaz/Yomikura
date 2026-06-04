@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, RotateCcw, ServerCrash, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { useDownloadStore } from "../../stores/useDownloadStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { LibraryFilters } from "./LibraryFilters";
 import { LibraryGrid, LibraryManga } from "./LibraryGrid";
@@ -10,9 +11,14 @@ import { CategoryDialog } from "./CategoryDialog";
 
 export default function LibraryPage() {
   const { serverBaseUrl } = useSettingsStore();
+  const { cachedChapters, loadCachedChapters } = useDownloadStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategoryId, setActiveCategoryId] = useState<string | number | null>(null);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
+
+  useEffect(() => {
+    loadCachedChapters();
+  }, [loadCachedChapters]);
 
   // Recreate SDK instance if URL changes
   const sdk = useMemo(() => {
@@ -70,8 +76,33 @@ export default function LibraryPage() {
     }));
   }, [catData]);
 
+  const isOfflineMode = !!(libError && cachedChapters && cachedChapters.length > 0);
+
   // Extract and filter mangas
   const mangas: LibraryManga[] = useMemo(() => {
+    if (isOfflineMode) {
+      const uniqueMangaMap = new Map<number | string, { id: number | string; title: string }>();
+      for (const ch of cachedChapters) {
+        if (!uniqueMangaMap.has(ch.mangaId)) {
+          uniqueMangaMap.set(ch.mangaId, {
+            id: ch.mangaId,
+            title: ch.mangaTitle,
+          });
+        }
+      }
+      let filtered = Array.from(uniqueMangaMap.values()).map((m) => ({
+        id: m.id,
+        title: m.title,
+        thumbnailUrl: undefined,
+        unreadCount: 0,
+      }));
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        filtered = filtered.filter((m) => m.title.toLowerCase().includes(q));
+      }
+      return filtered;
+    }
+
     if (!libData?.mangas?.edges) return [];
 
     const uniqueById = new Map<string | number, NonNullable<typeof libData.mangas.edges[number]["node"]>>();
@@ -96,7 +127,7 @@ export default function LibraryPage() {
       thumbnailUrl: m.thumbnailUrl,
       unreadCount: m.unreadCount,
     }));
-  }, [libData, searchQuery]);
+  }, [libData, searchQuery, isOfflineMode, cachedChapters]);
 
   // Handle server unconnected state safely
   if (!serverBaseUrl) {
@@ -118,8 +149,8 @@ export default function LibraryPage() {
     );
   }
 
-  // Handle error
-  if (libError) {
+  // Handle error (only if we're not in offline mode with cached chapters)
+  if (libError && !isOfflineMode) {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center bg-ink-950 p-6 text-center text-red-400">
         <ServerCrash className="mb-4 h-12 w-12 opacity-80" />
@@ -161,6 +192,11 @@ export default function LibraryPage() {
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto">
+        {isOfflineMode && (
+          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center text-xs font-medium text-amber-200 animate-fade-in">
+            Offline Mode — Showing cached titles
+          </div>
+        )}
         {isLoading ? (
           <div className="flex min-h-[400px] w-full items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-yomi-jade/60" />
