@@ -32,7 +32,7 @@ export function LibraryGrid({ mangas, serverBaseUrl }: LibraryGridProps) {
     <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 lg:gap-4 lg:p-6">
       {mangas.map((manga) => {
         // Handle absolute or relative thumbnail URLs safely
-        let imageUrl = "/placeholder-cover.jpg"; // Placeholder if no thumbnail
+        let imageUrl = "/placeholder-cover.svg"; // Placeholder if no thumbnail
         if (manga.thumbnailUrl) {
           imageUrl = manga.thumbnailUrl.startsWith("http")
             ? manga.thumbnailUrl

@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { 
   CachedChapter, 
   getCachedChapters, 
+  getChapterCacheKey,
+  normalizeCacheServerUrl,
   saveCachedChapter, 
   deleteCachedChapter, 
   clearAllCache, 
@@ -40,7 +42,8 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   storageQuota: 0,
 
   loadCachedChapters: async () => {
-    const chapters = await getCachedChapters();
+    const serverBaseUrl = useSettingsStore.getState().serverBaseUrl;
+    const chapters = await getCachedChapters(serverBaseUrl);
     const ids = new Set(chapters.map((c) => c.id));
     const estimate = await getStorageEstimate();
     set({
@@ -182,7 +185,10 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       }
 
       // 5. Save metadata to IndexedDB
+      const normalizedServerBaseUrl = normalizeCacheServerUrl(serverBaseUrl);
       const cachedChapterData: CachedChapter = {
+        cacheKey: getChapterCacheKey(serverBaseUrl, chapterId),
+        serverBaseUrl: normalizedServerBaseUrl,
         id: chapterId,
         name: chapterDetails.name,
         chapterNumber: chapterDetails.chapterNumber,
@@ -227,7 +233,8 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   },
 
   deleteChapter: async (chapterId) => {
-    await deleteCachedChapter(chapterId);
+    const serverBaseUrl = useSettingsStore.getState().serverBaseUrl;
+    await deleteCachedChapter(serverBaseUrl, chapterId);
     await get().loadCachedChapters();
   },
 

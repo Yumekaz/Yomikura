@@ -45,6 +45,7 @@ export default function SourcePrefsPage() {
 
   const source = data?.source;
   const preferences = (source?.preferences || []) as unknown as PreferenceField[];
+  const visiblePreferenceCount = preferences.filter((pref) => pref.visible).length;
 
   // Mutation: Update Source Preference
   const { mutate: updatePreference, isPending: updating } = useMutation({
@@ -159,7 +160,9 @@ export default function SourcePrefsPage() {
         )}
 
         <div className="rounded-xl border border-white/5 bg-ink-900 overflow-hidden divide-y divide-white/5">
-          {preferences.filter(pref => pref.visible).map((pref, index) => {
+          {preferences.map((pref, index) => {
+            if (!pref.visible) return null;
+
             const isText = pref.__typename === "EditTextPreference";
             const isSelect = pref.__typename === "ListPreference";
             const isCheck = pref.__typename === "CheckBoxPreference" || pref.__typename === "SwitchPreference";
@@ -271,7 +274,7 @@ export default function SourcePrefsPage() {
             );
           })}
 
-          {preferences.length === 0 && (
+          {visiblePreferenceCount === 0 && (
             <div className="p-12 text-center text-slate-500">
               No configurable settings found for this source extension.
             </div>

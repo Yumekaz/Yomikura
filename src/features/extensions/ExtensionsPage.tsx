@@ -29,12 +29,14 @@ type StatusMessage = {
   detail?: string;
 };
 
+const ALL_LANG_FILTER = "__all__";
+
 export default function ExtensionsPage() {
   const { serverBaseUrl } = useSettingsStore();
   const queryClient = useQueryClient();
   const [searchInput, setSearchInput] = useState("");
   const [showNsfw, setShowNsfw] = useState(false);
-  const [langFilter, setLangFilter] = useState("all");
+  const [langFilter, setLangFilter] = useState(ALL_LANG_FILTER);
   const [activeExtensionPkgs, setActiveExtensionPkgs] = useState<Set<string>>(() => new Set());
   const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null);
 
@@ -146,13 +148,13 @@ export default function ExtensionsPage() {
   const languages = useMemo(() => {
     const langs = new Set<string>();
     extensions.forEach(ext => ext.lang && langs.add(ext.lang));
-    return ["all", ...Array.from(langs).sort()];
+    return [ALL_LANG_FILTER, ...Array.from(langs).sort()];
   }, [extensions]);
 
   const filteredExtensions = useMemo(() => {
     return extensions.filter(ext => {
       if (!showNsfw && ext.isNsfw) return false;
-      if (langFilter !== "all" && ext.lang !== langFilter) return false;
+      if (langFilter !== ALL_LANG_FILTER && ext.lang !== langFilter) return false;
       if (searchInput) {
         const query = searchInput.toLowerCase();
         return ext.name.toLowerCase().includes(query) || ext.pkgName.toLowerCase().includes(query);
@@ -221,7 +223,7 @@ export default function ExtensionsPage() {
                 className="rounded-lg bg-ink-900 px-3 py-2 text-sm text-slate-300 border border-white/5 focus:outline-none focus:ring-2 focus:ring-yomi-jade/50"
               >
                 {languages.map(lang => (
-                  <option key={lang} value={lang}>{lang === "all" ? "All Languages" : lang.toUpperCase()}</option>
+                  <option key={lang} value={lang}>{lang === ALL_LANG_FILTER ? "All Languages" : lang.toUpperCase()}</option>
                 ))}
               </select>
               <button

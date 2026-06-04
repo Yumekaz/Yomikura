@@ -74,7 +74,7 @@ Core routes:
 /settings
 ```
 
-The root route should show the connect-first page when no server is configured and redirect to `/library` when a saved server is available.
+The root route should redirect directly to `/library`. Connection setup belongs in Settings and in compact fallback states when the configured Suwayomi server is missing or unreachable.
 
 ## API Rule
 

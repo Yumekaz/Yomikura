@@ -5,6 +5,7 @@ import { Loader2, Clock3, Play, BookOpen } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
+import { ChapterOrderBy, SortOrder } from "../../api/graphql/generated/graphql";
 
 interface UpdateItem {
   id: string;
@@ -37,8 +38,8 @@ export default function UpdatesPage() {
         },
         order: [
           {
-            by: "UPLOAD_DATE" as any,
-            byType: "DESC" as any,
+            by: ChapterOrderBy.UploadDate,
+            byType: SortOrder.Desc,
           },
         ],
         first: 100,
@@ -147,7 +148,7 @@ export default function UpdatesPage() {
               </h2>
               <div className="flex flex-col gap-3">
                 {groupItems.map((item) => {
-                  let coverUrl = "/placeholder-cover.jpg";
+                  let coverUrl = "/placeholder-cover.svg";
                   if (item.manga.thumbnailUrl) {
                     coverUrl = item.manga.thumbnailUrl.startsWith("http")
                       ? item.manga.thumbnailUrl

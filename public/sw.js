@@ -1,4 +1,6 @@
 const CACHE_NAME = "yomikura-v1";
+const PAGE_CACHE_NAME = "yomikura-page-cache";
+const KNOWN_CACHE_NAMES = new Set([CACHE_NAME, PAGE_CACHE_NAME]);
 const OFFLINE_URL = "/index.html";
 
 // Assets to cache immediately on install
@@ -22,7 +24,7 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
+          if (cacheName.startsWith("yomikura-") && !KNOWN_CACHE_NAMES.has(cacheName)) {
             return caches.delete(cacheName);
           }
         })

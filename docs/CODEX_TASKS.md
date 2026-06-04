@@ -23,7 +23,7 @@ Implement:
 - app shell
 - router
 - dark theme
-- `/` connect-first page
+- `/` redirects to `/library`
 - `/library`
 - `/updates`
 - `/history`
@@ -45,7 +45,7 @@ Definition of done:
 - dev server works
 - build works
 - navigation works
-- first page is connect-first when no server is configured
+- first page opens the app shell/library route and uses Settings or compact fallback states for connection problems
 - no fake backend claims
 
 ## Task 002 - Server Settings

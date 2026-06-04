@@ -1,10 +1,11 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, History, Play, Trash2, BookOpen } from "lucide-react";
+import { Loader2, History, Play, RotateCcw, BookOpen } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
+import { ChapterOrderBy, SortOrder } from "../../api/graphql/generated/graphql";
 
 interface HistoryItem {
   id: string;
@@ -39,8 +40,8 @@ export default function HistoryPage() {
         },
         order: [
           {
-            by: "LAST_READ_AT" as any,
-            byType: "DESC" as any,
+            by: ChapterOrderBy.LastReadAt,
+            byType: SortOrder.Desc,
           },
         ],
         first: 100,
@@ -48,7 +49,7 @@ export default function HistoryPage() {
     enabled: !!serverBaseUrl,
   });
 
-  // Mutation to clear history (reset progress on chapter)
+  // Suwayomi exposes progress reset here, not a true delete-history action.
   const { mutate: clearItemProgress } = useMutation({
     mutationFn: (chapterId: string) =>
       sdk.UpdateChapterProgress({
@@ -171,7 +172,7 @@ export default function HistoryPage() {
               </h2>
               <div className="flex flex-col gap-3">
                 {groupItems.map((item) => {
-                  let coverUrl = "/placeholder-cover.jpg";
+                  let coverUrl = "/placeholder-cover.svg";
                   if (item.manga.thumbnailUrl) {
                     coverUrl = item.manga.thumbnailUrl.startsWith("http")
                       ? item.manga.thumbnailUrl
@@ -224,14 +225,14 @@ export default function HistoryPage() {
                         </Link>
                         <button
                           onClick={() => {
-                            if (window.confirm("Remove this item from history? This will reset progress.")) {
+                            if (window.confirm("Reset progress for this chapter? Suwayomi may keep it in history until the backend clears last-read metadata.")) {
                               clearItemProgress(item.id);
                             }
                           }}
                           className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-red-400 hover:bg-red-500/10 transition"
-                          title="Remove from history"
+                          title="Reset progress"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <RotateCcw className="h-4 w-4" />
                         </button>
                       </div>
                     </div>

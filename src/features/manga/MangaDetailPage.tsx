@@ -158,7 +158,7 @@ export default function MangaDetailPage() {
   }
 
   // Handle absolute or relative thumbnail URLs safely
-  let imageUrl = "/placeholder-cover.jpg";
+  let imageUrl = "/placeholder-cover.svg";
   if (manga.thumbnailUrl) {
     imageUrl = manga.thumbnailUrl.startsWith("http")
       ? manga.thumbnailUrl

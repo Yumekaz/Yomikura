@@ -180,7 +180,7 @@ export default function DownloadsPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {queue.map((item) => {
-            let coverUrl = "/placeholder-cover.jpg";
+            let coverUrl = "/placeholder-cover.svg";
             if (item.manga.thumbnailUrl) {
               coverUrl = item.manga.thumbnailUrl.startsWith("http")
                 ? item.manga.thumbnailUrl

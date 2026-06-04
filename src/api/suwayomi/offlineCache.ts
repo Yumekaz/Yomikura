@@ -1,4 +1,6 @@
 export interface CachedChapter {
+  cacheKey: string;
+  serverBaseUrl: string;
   id: number;
   name: string;
   chapterNumber: number;
@@ -15,8 +17,16 @@ export interface CachedChapter {
 }
 
 const DB_NAME = "yomikura-offline";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = "chapters";
+
+export function normalizeCacheServerUrl(serverBaseUrl: string): string {
+  return serverBaseUrl.trim().replace(/\/+$/, "");
+}
+
+export function getChapterCacheKey(serverBaseUrl: string, chapterId: number): string {
+  return `${normalizeCacheServerUrl(serverBaseUrl)}::${chapterId}`;
+}
 
 export function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -25,20 +35,26 @@ export function openDB(): Promise<IDBDatabase> {
     request.onsuccess = () => resolve(request.result);
     request.onupgradeneeded = () => {
       const db = request.result;
+      if (db.objectStoreNames.contains(STORE_NAME)) {
+        db.deleteObjectStore(STORE_NAME);
+      }
       if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id" });
+        const store = db.createObjectStore(STORE_NAME, { keyPath: "cacheKey" });
+        store.createIndex("serverBaseUrl", "serverBaseUrl", { unique: false });
+        store.createIndex("id", "id", { unique: false });
+        store.createIndex("mangaId", "mangaId", { unique: false });
       }
     };
   });
 }
 
-export async function getCachedChapter(id: number): Promise<CachedChapter | null> {
+export async function getCachedChapter(serverBaseUrl: string, id: number): Promise<CachedChapter | null> {
   try {
     const db = await openDB();
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(STORE_NAME, "readonly");
       const store = transaction.objectStore(STORE_NAME);
-      const request = store.get(id);
+      const request = store.get(getChapterCacheKey(serverBaseUrl, id));
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result || null);
     });
@@ -48,7 +64,7 @@ export async function getCachedChapter(id: number): Promise<CachedChapter | null
   }
 }
 
-export async function getCachedChapters(): Promise<CachedChapter[]> {
+export async function getCachedChapters(serverBaseUrl?: string): Promise<CachedChapter[]> {
   try {
     const db = await openDB();
     return new Promise((resolve, reject) => {
@@ -56,7 +72,15 @@ export async function getCachedChapters(): Promise<CachedChapter[]> {
       const store = transaction.objectStore(STORE_NAME);
       const request = store.getAll();
       request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result || []);
+      request.onsuccess = () => {
+        const chapters = (request.result || []) as CachedChapter[];
+        if (!serverBaseUrl) {
+          resolve(chapters);
+          return;
+        }
+        const normalizedServer = normalizeCacheServerUrl(serverBaseUrl);
+        resolve(chapters.filter((chapter) => chapter.serverBaseUrl === normalizedServer));
+      };
     });
   } catch (error) {
     console.error("IndexedDB error in getCachedChapters:", error);
@@ -64,8 +88,8 @@ export async function getCachedChapters(): Promise<CachedChapter[]> {
   }
 }
 
-export async function getCachedChaptersForManga(mangaId: number): Promise<CachedChapter[]> {
-  const chapters = await getCachedChapters();
+export async function getCachedChaptersForManga(serverBaseUrl: string, mangaId: number): Promise<CachedChapter[]> {
+  const chapters = await getCachedChapters(serverBaseUrl);
   return chapters.filter((c) => c.mangaId === mangaId);
 }
 
@@ -81,11 +105,12 @@ export async function saveCachedChapter(chapter: CachedChapter): Promise<void> {
 }
 
 export async function updateCachedChapterProgress(
+  serverBaseUrl: string,
   chapterId: number,
   lastPageRead: number,
   isRead: boolean
 ): Promise<void> {
-  const chapter = await getCachedChapter(chapterId);
+  const chapter = await getCachedChapter(serverBaseUrl, chapterId);
   if (!chapter) return;
 
   chapter.lastPageRead = lastPageRead;
@@ -93,8 +118,8 @@ export async function updateCachedChapterProgress(
   await saveCachedChapter(chapter);
 }
 
-export async function deleteCachedChapter(chapterId: number): Promise<void> {
-  const chapter = await getCachedChapter(chapterId);
+export async function deleteCachedChapter(serverBaseUrl: string, chapterId: number): Promise<void> {
+  const chapter = await getCachedChapter(serverBaseUrl, chapterId);
   if (!chapter) return;
 
   // 1. Delete from Cache Storage
@@ -112,7 +137,7 @@ export async function deleteCachedChapter(chapterId: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, "readwrite");
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.delete(chapterId);
+    const request = store.delete(chapter.cacheKey);
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve();
   });

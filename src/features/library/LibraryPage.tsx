@@ -55,9 +55,14 @@ export default function LibraryPage() {
   // Extract and format categories
   const categories = useMemo(() => {
     if (!catData?.categories?.edges) return [];
-    const cats = catData.categories.edges
-      .map((edge) => edge?.node)
-      .filter((node): node is NonNullable<typeof node> => node != null);
+    const uniqueById = new Map<string | number, NonNullable<typeof catData.categories.edges[number]["node"]>>();
+    for (const edge of catData.categories.edges) {
+      const node = edge?.node;
+      if (!node || uniqueById.has(node.id)) continue;
+      uniqueById.set(node.id, node);
+    }
+
+    const cats = Array.from(uniqueById.values());
 
     return cats.sort((a, b) => (a.order || 0) - (b.order || 0)).map(cat => ({
       id: cat.id,
@@ -69,9 +74,14 @@ export default function LibraryPage() {
   const mangas: LibraryManga[] = useMemo(() => {
     if (!libData?.mangas?.edges) return [];
 
-    let filtered = libData.mangas.edges
-      .map((edge) => edge?.node)
-      .filter((node): node is NonNullable<typeof node> => node != null);
+    const uniqueById = new Map<string | number, NonNullable<typeof libData.mangas.edges[number]["node"]>>();
+    for (const edge of libData.mangas.edges) {
+      const node = edge?.node;
+      if (!node || uniqueById.has(node.id)) continue;
+      uniqueById.set(node.id, node);
+    }
+
+    let filtered = Array.from(uniqueById.values());
 
     // Apply front-end search filter (faster than refetching for every keystroke)
     if (searchQuery.trim()) {
@@ -169,4 +179,3 @@ export default function LibraryPage() {
     </div>
   );
 }
-

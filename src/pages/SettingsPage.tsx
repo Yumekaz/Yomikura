@@ -33,6 +33,49 @@ function formatBytes(bytes: number, decimals = 2) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 }
 
+const RESTORE_BACKUP_UPLOAD_QUERY = `
+  mutation RestoreBackup($input: RestoreBackupInput!) {
+    restoreBackup(input: $input) {
+      status {
+        state
+      }
+    }
+  }
+`;
+
+async function restoreBackupUpload(endpoint: string, file: File) {
+  const formData = new FormData();
+  formData.append(
+    "operations",
+    JSON.stringify({
+      query: RESTORE_BACKUP_UPLOAD_QUERY,
+      variables: {
+        input: {
+          backup: null,
+        },
+      },
+    })
+  );
+  formData.append("map", JSON.stringify({ "0": ["variables.input.backup"] }));
+  formData.append("0", file, file.name);
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    body: formData,
+  });
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(result?.errors?.map((item: { message?: string }) => item.message).filter(Boolean).join("; ") || `HTTP ${response.status}`);
+  }
+
+  if (result?.errors?.length) {
+    throw new Error(result.errors.map((item: { message?: string }) => item.message).filter(Boolean).join("; ") || "Restore failed.");
+  }
+
+  return result?.data;
+}
+
 function SettingsPage() {
   const {
     serverBaseUrl,
@@ -78,10 +121,12 @@ function SettingsPage() {
 
   const queryClient = useQueryClient();
 
-  const sdk = useMemo(() => {
+  const graphqlEndpoint = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-    return createGraphqlClient(`${cleanUrl}/api/graphql`);
+    return `${cleanUrl}/api/graphql`;
   }, [serverBaseUrl]);
+
+  const sdk = useMemo(() => createGraphqlClient(graphqlEndpoint), [graphqlEndpoint]);
 
   // Sync local state if store changes outside
   useEffect(() => {
@@ -178,12 +223,7 @@ function SettingsPage() {
 
   // Mutation: Restore Backup
   const { mutate: restoreBackup, isPending: restoringBackup } = useMutation({
-    mutationFn: (file: File) =>
-      sdk.RestoreBackup({
-        input: {
-          backup: file,
-        },
-      }),
+    mutationFn: (file: File) => restoreBackupUpload(graphqlEndpoint, file),
     onMutate: () => {
       setBackupMessage(null);
     },

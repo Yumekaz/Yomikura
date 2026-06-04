@@ -120,9 +120,9 @@ export default function ReaderPage() {
         return await sdk.GetChapter({ id: parseInt(chapterId!) });
       } catch (err) {
         console.warn("Failed to fetch chapter from server, checking offline cache...", err);
-        const cached = await getCachedChapter(parseInt(chapterId!));
+        const cached = await getCachedChapter(serverBaseUrl, parseInt(chapterId!));
         if (cached) {
-          const allCached = await getCachedChaptersForManga(cached.mangaId);
+          const allCached = await getCachedChaptersForManga(serverBaseUrl, cached.mangaId);
           return {
             chapter: {
               id: cached.id,
@@ -160,7 +160,7 @@ export default function ReaderPage() {
         return await sdk.FetchChapterPages({ input: { chapterId: parseInt(chapterId!) } });
       } catch (err) {
         console.warn("Failed to fetch pages from server, checking offline cache...", err);
-        const cached = await getCachedChapter(parseInt(chapterId!));
+        const cached = await getCachedChapter(serverBaseUrl, parseInt(chapterId!));
         if (cached) {
           return {
             fetchChapterPages: {
@@ -180,7 +180,7 @@ export default function ReaderPage() {
 
       // Sync progress to local cache first
       try {
-        await updateCachedChapterProgress(parseInt(chapterId!), pageIndex, !!isRead);
+        await updateCachedChapterProgress(serverBaseUrl, parseInt(chapterId!), pageIndex, !!isRead);
       } catch (err) {
         console.error("Failed to update offline progress cache:", err);
       }

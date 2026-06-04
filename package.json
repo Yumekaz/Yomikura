@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite --configLoader native",
     "build": "tsc -b && vite build --configLoader native",
-    "preview": "vite preview",
+    "preview": "vite preview --configLoader native",
     "typecheck": "tsc -b",
     "codegen": "graphql-codegen --config codegen.ts"
   },

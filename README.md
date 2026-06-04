@@ -23,8 +23,9 @@ It is designed for people who run their own Suwayomi Server. The app will focus 
 
 ## Current Status
 
-Phase 14 is active: the app shell, Suwayomi connection, library, details, reader, browse, extension management, updates, history, downloads, backup/restore, and PWA integration are fully implemented and verified.
+Yomikura has moved beyond the original Phase 14 roadmap: the current app includes Suwayomi connection settings, library/detail/reader flows, browse, extension management, updates, history, downloads, backup/restore UI, PWA shell support, source settings, tracking UI, multi-server profiles, and browser-side chapter caching.
 
+Those features still need end-to-end verification against a running Suwayomi server before they should be described as production-ready. Yomikura should treat upstream source failures as normal and guide users toward working alternate sources.
 
 ## Target MVP
 
@@ -60,7 +61,7 @@ pnpm dev
 pnpm build
 ```
 
-The current app shell does not call a backend. Server connection begins in Phase 2.
+The current app expects a Suwayomi-compatible backend for real data. Without one, routes should remain honest and show connection, empty, or recovery states.
 
 ## Backend Boundary
 

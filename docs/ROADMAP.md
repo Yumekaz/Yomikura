@@ -30,7 +30,7 @@ Deliverables:
 - route shells
 - dark app shell
 - responsive desktop sidebar and mobile bottom navigation
-- connect-first root page
+- direct-to-library root route with Settings-based connection fallback
 - settings route shell
 
 Done when the app runs locally, navigation works, and no route pretends to load real manga.
