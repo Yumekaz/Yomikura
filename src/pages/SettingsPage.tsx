@@ -15,14 +15,20 @@ import {
   Edit2,
   Server,
   HardDrive,
+  AlertCircle,
+  Palette,
+  Sliders,
+  Sun,
+  Moon,
+  Monitor,
 } from "lucide-react";
-import { useSettingsStore, ReaderMode } from "../stores/useSettingsStore";
+import { useSettingsStore, ReaderMode, ServerProfile } from "../stores/useSettingsStore";
 import { DEFAULT_SERVER_BASE_URL } from "../config/server";
 import { createGraphqlClient } from "../api/graphql/client";
 import { getErrorMessage } from "../api/suwayomi/errors";
 import { useDownloadStore } from "../stores/useDownloadStore";
 
-type SettingsTab = "connection" | "reader" | "backup" | "offline";
+type SettingsTab = "connection" | "appearance" | "reader" | "backup" | "offline" | "advanced" | "about";
 
 function formatBytes(bytes: number, decimals = 2) {
   if (bytes === 0) return "0 Bytes";
@@ -91,6 +97,15 @@ function SettingsPage() {
     updateProfile,
     deleteProfile,
     setActiveProfileId,
+    accentColor,
+    setAccentColor,
+    coverDensity,
+    setCoverDensity,
+    themeMode,
+    setThemeMode,
+    mockMode,
+    setMockMode,
+    resetAllSettings,
   } = useSettingsStore();
 
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
@@ -257,6 +272,90 @@ function SettingsPage() {
     e.target.value = "";
   };
 
+  const handleExportProfiles = () => {
+    try {
+      const dataStr = JSON.stringify(profiles, null, 2);
+      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+      
+      const exportFileDefaultName = 'yomikura_profiles.json';
+      
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.click();
+    } catch (err) {
+      alert("Failed to export profiles: " + err);
+    }
+  };
+
+  const handleImportProfiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result;
+        if (typeof text !== "string") return;
+        const imported = JSON.parse(text);
+        if (!Array.isArray(imported)) {
+          throw new Error("Profiles backup must be a JSON array.");
+        }
+        
+        const validProfiles: ServerProfile[] = [];
+        for (const item of imported) {
+          if (item && typeof item === "object" && typeof item.id === "string" && typeof item.name === "string" && typeof item.url === "string") {
+            validProfiles.push({
+              id: item.id,
+              name: item.name.trim(),
+              url: item.url.trim()
+            });
+          }
+        }
+        
+        if (validProfiles.length === 0) {
+          throw new Error("No valid server profiles found in the backup file.");
+        }
+
+        const confirmMerge = window.confirm(
+          `Found ${validProfiles.length} profiles. Do you want to merge them with your existing profiles? (Cancel will overwrite them entirely)`
+        );
+
+        let finalProfiles = [...profiles];
+        if (confirmMerge) {
+          for (const vp of validProfiles) {
+            const exists = finalProfiles.some(p => p.url === vp.url || p.id === vp.id);
+            if (!exists) {
+              finalProfiles.push(vp);
+            }
+          }
+        } else {
+          const confirmOverwrite = window.confirm(
+            "Are you sure you want to overwrite all your existing server profiles? This cannot be undone."
+          );
+          if (!confirmOverwrite) {
+            e.target.value = "";
+            return;
+          }
+          finalProfiles = validProfiles;
+        }
+
+        useSettingsStore.setState({ profiles: finalProfiles });
+        
+        const activeExists = finalProfiles.some(p => p.id === activeProfileId);
+        if (!activeExists && finalProfiles.length > 0) {
+          setActiveProfileId(finalProfiles[0].id);
+        }
+
+        alert("Server profiles imported successfully!");
+      } catch (err: any) {
+        alert("Failed to import profiles: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
   return (
     <section className="min-h-screen px-5 py-6 sm:px-8 lg:px-10">
       <header className="flex flex-col gap-4 border-b border-white/10 pb-5">
@@ -266,8 +365,8 @@ function SettingsPage() {
         </div>
 
         {/* Tabs Bar */}
-        <div className="flex gap-2 border-b border-white/5 pb-px">
-          {(["connection", "reader", "backup", "offline"] as SettingsTab[]).map((tab) => (
+        <div className="flex gap-2 border-b border-white/5 pb-px overflow-x-auto">
+          {(["connection", "appearance", "reader", "backup", "offline", "advanced", "about"] as SettingsTab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -504,6 +603,140 @@ function SettingsPage() {
                   )}
                 </div>
               </div>
+
+              {/* Portability: Backup Server Profiles */}
+              <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
+                <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                  <Download className="h-4.5 w-4.5 text-yomi-jade" />
+                  Portability: Backup Server Profiles
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Export your Yomikura connection profiles to share them across devices, or import a previously exported backup file.
+                </p>
+                <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                  <button
+                    onClick={handleExportProfiles}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-yomi-jade px-4 py-2.5 text-xs font-semibold text-ink-950 hover:bg-yomi-jade/90 transition"
+                  >
+                    <Download className="h-4 w-4" />
+                    Export Profiles
+                  </button>
+                  <label className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white cursor-pointer transition">
+                    <Upload className="h-4 w-4" />
+                    Import Profiles
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={handleImportProfiles}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "appearance" && (
+            <div className="space-y-6">
+              {/* Theme Selection */}
+              <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <Palette className="h-5 w-5 text-yomi-jade" />
+                  Appearance & Theme
+                </h2>
+                <p className="mt-2 text-sm text-slate-400">
+                  Customize theme colors, accents, and visual layout.
+                </p>
+
+                <div className="mt-6 space-y-6">
+                  <div>
+                    <label className="block px-1 pb-3 text-sm font-medium text-slate-300">
+                      Theme Mode
+                    </label>
+                    <div className="grid grid-cols-3 gap-3 max-w-md">
+                      {(["dark", "light", "system"] as const).map((mode) => {
+                        const isSelected = themeMode === mode;
+                        return (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setThemeMode(mode)}
+                            className={`flex flex-col items-center gap-2 p-3 rounded-xl border text-sm font-medium transition ${
+                              isSelected
+                                ? "border-yomi-jade bg-yomi-jade/10 text-yomi-jade"
+                                : "border-white/5 bg-ink-950/40 text-slate-400 hover:border-white/10 hover:text-slate-200"
+                            }`}
+                          >
+                            {mode === "light" && <Sun className="h-5 w-5 text-yomi-jade" />}
+                            {mode === "dark" && <Moon className="h-5 w-5 text-yomi-jade" />}
+                            {mode === "system" && <Monitor className="h-5 w-5 text-yomi-jade" />}
+                            <span className="capitalize">{mode}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Accent Color */}
+                  <div>
+                    <label className="block px-1 pb-3 text-sm font-medium text-slate-300">
+                      Accent Color
+                    </label>
+                    <div className="flex flex-wrap gap-4">
+                      {[
+                        { name: "jade", class: "bg-emerald-500", label: "Jade" },
+                        { name: "mint", class: "bg-teal-400", label: "Mint" },
+                        { name: "gold", class: "bg-amber-500", label: "Gold" },
+                        { name: "plum", class: "bg-fuchsia-600", label: "Plum" },
+                        { name: "coral", class: "bg-rose-500", label: "Coral" },
+                      ].map((color) => {
+                        const isSelected = accentColor === color.name;
+                        return (
+                          <button
+                            key={color.name}
+                            type="button"
+                            onClick={() => setAccentColor(color.name as any)}
+                            className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition ${
+                              isSelected
+                                ? "border-yomi-jade bg-yomi-jade/10 text-white"
+                                : "border-white/5 bg-ink-950/40 text-slate-400 hover:border-white/10 hover:text-slate-200"
+                            }`}
+                          >
+                            <span className={`h-4.5 w-4.5 rounded-full ${color.class} border border-white/15`} />
+                            <span>{color.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Cover Density */}
+                  <div>
+                    <label className="block px-1 pb-3 text-sm font-medium text-slate-300">
+                      Library Cover Grid Density
+                    </label>
+                    <div className="grid grid-cols-3 gap-3 max-w-md">
+                      {(["compact", "normal", "spacious"] as const).map((density) => {
+                        const isSelected = coverDensity === density;
+                        return (
+                          <button
+                            key={density}
+                            type="button"
+                            onClick={() => setCoverDensity(density)}
+                            className={`py-2.5 px-3 rounded-xl border text-sm font-medium transition ${
+                              isSelected
+                                ? "border-yomi-jade bg-yomi-jade/10 text-yomi-jade"
+                                : "border-white/5 bg-ink-950/40 text-slate-400 hover:border-white/10 hover:text-slate-200"
+                            }`}
+                          >
+                            <span className="capitalize">{density}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -688,6 +921,121 @@ function SettingsPage() {
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "advanced" && (
+            <div className="space-y-6">
+              <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <Sliders className="h-5 w-5 text-yomi-jade" />
+                  Advanced Settings
+                </h2>
+                <p className="mt-2 text-sm text-slate-400">
+                  Developer tools, simulations, and complete local state resets.
+                </p>
+
+                <div className="mt-6 space-y-6">
+                  {/* Mock Mode Toggle */}
+                  <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-white/5 bg-ink-950/30">
+                    <div className="space-y-1">
+                      <span className="font-semibold text-sm text-slate-200">
+                        Demo Mode / Playground Simulation
+                      </span>
+                      <p className="text-xs text-slate-400 leading-relaxed max-w-lg">
+                        Enables a simulation mode loaded with mockup catalogs and offline readers. 
+                        Useful for previewing Yomikura's premium interfaces when a Suwayomi server backend is unavailable.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setMockMode(!mockMode)}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        mockMode ? "bg-yomi-jade" : "bg-ink-950 border-white/10"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          mockMode ? "translate-x-5 bg-ink-950" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Reset All Settings */}
+                  <div className="border-t border-white/5 pt-6 space-y-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-200">Reset Yomikura Configuration</h3>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Restores all connection profiles, appearances, accent themes, reader configurations, and browse options to factory defaults.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const confirmFirst = window.confirm(
+                          "Are you sure you want to reset all Yomikura settings? This will clear all configured server profiles."
+                        );
+                        if (confirmFirst) {
+                          const confirmSecond = window.confirm(
+                            "This action cannot be undone. Are you absolutely sure?"
+                          );
+                          if (confirmSecond) {
+                            resetAllSettings();
+                            alert("All settings have been successfully reset.");
+                          }
+                        }
+                      }}
+                      className="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-2.5 text-xs font-semibold text-red-400 hover:bg-red-500/20 hover:text-red-300 transition"
+                    >
+                      Reset All Settings
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "about" && (
+            <div className="space-y-6">
+              <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
+                <div className="flex flex-col items-center text-center pb-6 border-b border-white/5">
+                  <div className="h-16 w-16 rounded-2xl bg-yomi-jade/10 border border-yomi-jade/20 flex items-center justify-center text-yomi-jade font-bold text-3xl shadow-glow">
+                    Y
+                  </div>
+                  <h2 className="mt-4 text-2xl font-bold text-white tracking-tight">Yomikura</h2>
+                  <p className="text-xs font-semibold text-yomi-jade uppercase tracking-wider mt-1">Version 0.1.0</p>
+                  <p className="mt-3 text-sm text-slate-400 max-w-md">
+                    A premium web & PWA manga reader frontend inspired by Mihon/Tachiyomi UX. 
+                    Built for speed, aesthetics, and modularity.
+                  </p>
+                </div>
+
+                <div className="mt-6 space-y-6">
+                  {/* Legal Disclaimer Box */}
+                  <div className="rounded-xl border border-red-500/10 bg-red-500/5 p-5">
+                    <h3 className="text-sm font-semibold text-red-400 flex items-center gap-2">
+                      <AlertCircle className="h-4.5 w-4.5" />
+                      Section 19.2 Legal Disclaimer
+                    </h3>
+                    <p className="mt-2 text-xs text-slate-400 leading-relaxed font-serif italic">
+                      This project is not affiliated with Mihon, Tachiyomi, Suwayomi, Keiyoushi, or any content provider. 
+                      This application hosts zero content. Users are responsible for configuring their own server, sources, and repositories.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div className="rounded-lg bg-ink-950/30 border border-white/5 p-4">
+                      <span className="font-semibold text-slate-300 block mb-1">Inspirations</span>
+                      <span className="text-slate-500">Mihon App & Tachiyomi ecosystem</span>
+                    </div>
+                    <div className="rounded-lg bg-ink-950/30 border border-white/5 p-4">
+                      <span className="font-semibold text-slate-300 block mb-1">Architecture</span>
+                      <span className="text-slate-500">Zustand, React Query, Vite, Tailwind CSS</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}

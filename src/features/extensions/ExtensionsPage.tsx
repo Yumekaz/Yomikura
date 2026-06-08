@@ -32,10 +32,9 @@ type StatusMessage = {
 const ALL_LANG_FILTER = "__all__";
 
 export default function ExtensionsPage() {
-  const { serverBaseUrl } = useSettingsStore();
+  const { serverBaseUrl, showNsfw, setShowNsfw } = useSettingsStore();
   const queryClient = useQueryClient();
   const [searchInput, setSearchInput] = useState("");
-  const [showNsfw, setShowNsfw] = useState(false);
   const [langFilter, setLangFilter] = useState(ALL_LANG_FILTER);
   const [activeExtensionPkgs, setActiveExtensionPkgs] = useState<Set<string>>(() => new Set());
   const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null);

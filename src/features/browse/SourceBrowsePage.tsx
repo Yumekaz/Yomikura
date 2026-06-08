@@ -73,9 +73,20 @@ export default function SourceBrowsePage() {
     return "Browse Source";
   }, [sourcesData, sourceId]);
 
+  const supportsLatest = useMemo(() => {
+    if (!sourcesData || !sourceId) return false;
+    const sources = sourcesData.sources?.nodes || [];
+    const src = sources.find((s) => String(s?.id) === sourceId);
+    return src?.supportsLatest ?? false;
+  }, [sourcesData, sourceId]);
+
+  const [listingType, setListingType] = useState<"popular" | "latest">("popular");
+
   const { mutate: fetchManga, data: mangaData, isPending, isError, error: fetchError } = useMutation({
     mutationFn: (pageNum: number) => {
-      const type = currentQuery.trim() ? FetchSourceMangaType.Search : FetchSourceMangaType.Popular;
+      const type = currentQuery.trim() 
+        ? FetchSourceMangaType.Search 
+        : (listingType === "latest" ? FetchSourceMangaType.Latest : FetchSourceMangaType.Popular);
       return sdk.FetchSourceManga({
         input: {
           source: sourceId!,
@@ -91,7 +102,7 @@ export default function SourceBrowsePage() {
     if (sourceId && serverBaseUrl) {
       fetchManga(1);
     }
-  }, [sourceId, serverBaseUrl, currentQuery, fetchManga]);
+  }, [sourceId, serverBaseUrl, currentQuery, listingType, fetchManga]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,6 +144,39 @@ export default function SourceBrowsePage() {
               className="w-full rounded-full bg-ink-900 py-2 pl-10 pr-4 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-yomi-jade/50"
             />
           </form>
+
+          {supportsLatest && !currentQuery.trim() && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setListingType("popular");
+                  setPage(1);
+                }}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                  listingType === "popular"
+                    ? "bg-yomi-jade/10 text-yomi-jade border-yomi-jade/20"
+                    : "bg-ink-900 text-slate-400 border-white/5 hover:bg-white/5 hover:text-slate-200"
+                }`}
+              >
+                Popular
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setListingType("latest");
+                  setPage(1);
+                }}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                  listingType === "latest"
+                    ? "bg-yomi-jade/10 text-yomi-jade border-yomi-jade/20"
+                    : "bg-ink-900 text-slate-400 border-white/5 hover:bg-white/5 hover:text-slate-200"
+                }`}
+              >
+                Latest
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

@@ -367,6 +367,36 @@ export default function ReaderPage() {
     }
   }, [navigatePage, readerMode, showOverlay]);
 
+  // Preload next 3 images dynamically
+  useEffect(() => {
+    if (pages.length === 0 || !chapter || !serverBaseUrl) return;
+
+    const preloadedImages: HTMLImageElement[] = [];
+    const preloadCount = 3;
+
+    for (let j = 1; j <= preloadCount; j++) {
+      const nextIdx = currentPage + j;
+      if (nextIdx < pages.length) {
+        const preloadUrl = buildSuwayomiPageUrl({
+          serverBaseUrl,
+          mangaId: chapter.mangaId,
+          chapterSourceOrder: chapter.sourceOrder,
+          pageIndex: nextIdx,
+        });
+
+        const img = new Image();
+        img.src = preloadUrl;
+        preloadedImages.push(img);
+      }
+    }
+
+    return () => {
+      preloadedImages.forEach((img) => {
+        img.src = "";
+      });
+    };
+  }, [currentPage, pages, chapter, serverBaseUrl]);
+
   // Keyboard binding listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

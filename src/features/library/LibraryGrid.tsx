@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { BookOpen } from "lucide-react";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 
 export interface LibraryManga {
   id: string | number;
@@ -14,6 +15,8 @@ interface LibraryGridProps {
 }
 
 export function LibraryGrid({ mangas, serverBaseUrl }: LibraryGridProps) {
+  const { coverDensity } = useSettingsStore();
+
   if (mangas.length === 0) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center text-center px-6">
@@ -28,8 +31,31 @@ export function LibraryGrid({ mangas, serverBaseUrl }: LibraryGridProps) {
     );
   }
 
+  // Determine grid container classes based on cover density
+  const gridClasses = 
+    coverDensity === "compact"
+      ? "grid grid-cols-3 gap-2 p-2.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-9 2xl:grid-cols-10 lg:gap-3 lg:p-4"
+      : coverDensity === "spacious"
+      ? "grid grid-cols-1 gap-5 p-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 lg:gap-6 lg:p-8"
+      : "grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 lg:gap-4 lg:p-6";
+
+  // Determine card padding and title text classes
+  const titleClasses =
+    coverDensity === "compact"
+      ? "line-clamp-2 text-[10px] sm:text-xs font-medium leading-tight text-white drop-shadow-md"
+      : coverDensity === "spacious"
+      ? "line-clamp-2 text-sm sm:text-base font-medium leading-snug text-white drop-shadow-md"
+      : "line-clamp-2 text-xs font-medium leading-snug text-white drop-shadow-md sm:text-sm";
+
+  const paddingClasses =
+    coverDensity === "compact"
+      ? "relative z-20 mt-auto p-1.5"
+      : coverDensity === "spacious"
+      ? "relative z-20 mt-auto p-4"
+      : "relative z-20 mt-auto p-2.5";
+
   return (
-    <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 lg:gap-4 lg:p-6">
+    <div className={gridClasses}>
       {mangas.map((manga) => {
         // Handle absolute or relative thumbnail URLs safely
         let imageUrl = "/placeholder-cover.svg"; // Placeholder if no thumbnail
@@ -69,8 +95,8 @@ export function LibraryGrid({ mangas, serverBaseUrl }: LibraryGridProps) {
             <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-90 transition-opacity group-hover:opacity-100" />
             
             {/* Title */}
-            <div className="relative z-20 mt-auto p-2.5">
-              <h4 className="line-clamp-2 text-xs font-medium leading-snug text-white drop-shadow-md sm:text-sm">
+            <div className={paddingClasses}>
+              <h4 className={titleClasses}>
                 {manga.title}
               </h4>
             </div>

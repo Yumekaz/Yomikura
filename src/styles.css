@@ -10,6 +10,25 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Default Jade accent */
+  --yomi-accent: 125, 216, 189;
+
+  /* Theme variables - default dark */
+  --ink-950: #090a0c;
+  --ink-900: #0e1116;
+  --ink-850: #151922;
+  --ink-800: #1c2230;
+}
+
+:root.light-theme {
+  color-scheme: light;
+  background: #f8fafc;
+  
+  --ink-950: #f8fafc;
+  --ink-900: #f1f5f9;
+  --ink-850: #e2e8f0;
+  --ink-800: #cbd5e1;
 }
 
 * {
@@ -18,7 +37,8 @@
 
 html {
   min-width: 320px;
-  background: #090a0c;
+  background: var(--ink-950);
+  transition: background-color 0.2s ease;
 }
 
 body {
@@ -26,12 +46,20 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 18% 10%, rgba(125, 216, 189, 0.12), transparent 28rem),
-    linear-gradient(135deg, #090a0c 0%, #11151d 52%, #090a0c 100%);
+    radial-gradient(circle at 18% 10%, rgba(var(--yomi-accent), 0.12), transparent 28rem),
+    linear-gradient(135deg, var(--ink-950) 0%, var(--ink-900) 52%, var(--ink-950) 100%);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.light-theme body {
+  background:
+    radial-gradient(circle at 18% 10%, rgba(var(--yomi-accent), 0.08), transparent 28rem),
+    linear-gradient(135deg, var(--ink-950) 0%, var(--ink-900) 52%, var(--ink-950) 100%);
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -39,3 +67,57 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+/* Light Theme Overrides */
+.light-theme {
+  color: #334155 !important;
+}
+
+.light-theme .text-white,
+.light-theme .text-slate-100,
+.light-theme .text-slate-200,
+.light-theme h1,
+.light-theme h2,
+.light-theme h3,
+.light-theme h4 {
+  color: #0f172a !important;
+}
+
+.light-theme .text-slate-300 {
+  color: #334155 !important;
+}
+
+.light-theme .text-slate-400 {
+  color: #475569 !important;
+}
+
+.light-theme .text-slate-500 {
+  color: #64748b !important;
+}
+
+.light-theme .border-white\/5 {
+  border-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+.light-theme .border-white\/10 {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.light-theme .bg-white\/5 {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+.light-theme .bg-white\/10 {
+  background-color: rgba(0, 0, 0, 0.07) !important;
+}
+
+.light-theme .bg-ink-950\/20,
+.light-theme .bg-black\/20,
+.light-theme .bg-black\/40 {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+}
+
+.light-theme select {
+  background-color: var(--ink-900);
+}
+

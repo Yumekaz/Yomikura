@@ -6,13 +6,13 @@ export default {
     extend: {
       colors: {
         ink: {
-          950: "#090a0c",
-          900: "#0e1116",
-          850: "#151922",
-          800: "#1c2230",
+          950: "var(--ink-950)",
+          900: "var(--ink-900)",
+          850: "var(--ink-850)",
+          800: "var(--ink-800)",
         },
         yomi: {
-          jade: "#7dd8bd",
+          jade: "rgb(var(--yomi-accent) / <alpha-value>)",
           mint: "#a9f2d4",
           gold: "#f2c879",
           plum: "#b69bff",

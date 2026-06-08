@@ -23,6 +23,11 @@ interface SettingsState {
   pageSpread: PageSpread;
   profiles: ServerProfile[];
   activeProfileId: string;
+  showNsfw: boolean;
+  accentColor: "jade" | "mint" | "gold" | "plum" | "coral";
+  coverDensity: "compact" | "normal" | "spacious";
+  themeMode: "dark" | "light" | "system";
+  mockMode: boolean;
   
   // Actions
   setServerBaseUrl: (url: string) => void;
@@ -34,6 +39,12 @@ interface SettingsState {
   updateProfile: (id: string, name: string, url: string) => void;
   deleteProfile: (id: string) => void;
   setActiveProfileId: (id: string) => void;
+  setShowNsfw: (show: boolean) => void;
+  setAccentColor: (color: "jade" | "mint" | "gold" | "plum" | "coral") => void;
+  setCoverDensity: (density: "compact" | "normal" | "spacious") => void;
+  setThemeMode: (mode: "dark" | "light" | "system") => void;
+  setMockMode: (mock: boolean) => void;
+  resetAllSettings: () => void;
   
   // Derived
   getGraphqlEndpoint: () => string;
@@ -52,6 +63,11 @@ export const useSettingsStore = create<SettingsState>()(
         { id: "default", name: "Default Server", url: DEFAULT_SERVER_BASE_URL }
       ],
       activeProfileId: "default",
+      showNsfw: false,
+      accentColor: "jade",
+      coverDensity: "normal",
+      themeMode: "dark",
+      mockMode: false,
 
       setServerBaseUrl: (url: string) => {
         set((state) => {
@@ -156,6 +172,32 @@ export const useSettingsStore = create<SettingsState>()(
         }
       },
 
+      setShowNsfw: (show: boolean) => set({ showNsfw: show }),
+      setAccentColor: (color) => set({ accentColor: color }),
+      setCoverDensity: (density) => set({ coverDensity: density }),
+      setThemeMode: (mode) => set({ themeMode: mode }),
+      setMockMode: (mock) => set({ mockMode: mock }),
+      
+      resetAllSettings: () => {
+        set({
+          serverBaseUrl: DEFAULT_SERVER_BASE_URL,
+          connectionStatus: "disconnected",
+          errorMessage: "",
+          readerMode: "WEBTOON",
+          fitMode: "FIT_SCREEN",
+          pageSpread: "SINGLE",
+          profiles: [
+            { id: "default", name: "Default Server", url: DEFAULT_SERVER_BASE_URL }
+          ],
+          activeProfileId: "default",
+          showNsfw: false,
+          accentColor: "jade",
+          coverDensity: "normal",
+          themeMode: "dark",
+          mockMode: false,
+        });
+      },
+
       getGraphqlEndpoint: () => {
         const url = get().serverBaseUrl.replace(/\/$/, "");
         return url ? `${url}/api/graphql` : "";
@@ -172,6 +214,11 @@ export const useSettingsStore = create<SettingsState>()(
         pageSpread: state.pageSpread,
         profiles: state.profiles,
         activeProfileId: state.activeProfileId,
+        showNsfw: state.showNsfw,
+        accentColor: state.accentColor,
+        coverDensity: state.coverDensity,
+        themeMode: state.themeMode,
+        mockMode: state.mockMode,
       }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<SettingsState> | undefined;
@@ -193,6 +240,11 @@ export const useSettingsStore = create<SettingsState>()(
               ? "disconnected"
               : persisted?.connectionStatus || currentState.connectionStatus,
           errorMessage: persisted?.errorMessage || "",
+          showNsfw: persisted?.showNsfw ?? currentState.showNsfw,
+          accentColor: persisted?.accentColor ?? currentState.accentColor,
+          coverDensity: persisted?.coverDensity ?? currentState.coverDensity,
+          themeMode: persisted?.themeMode ?? currentState.themeMode,
+          mockMode: persisted?.mockMode ?? currentState.mockMode,
         };
       },
     }

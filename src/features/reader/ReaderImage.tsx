@@ -129,7 +129,7 @@ export function ReaderImage({ url, fallbackUrl, pageNumber, onIntersect, mode = 
     imageClass += " w-full max-w-4xl";
   } else {
     if (fitMode === "FIT_WIDTH") {
-      imageClass += " w-full h-auto";
+      imageClass += " w-full h-auto max-w-[800px] mx-auto";
     } else if (fitMode === "FIT_HEIGHT") {
       imageClass += " h-screen w-auto";
     } else {

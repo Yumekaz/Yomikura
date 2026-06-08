@@ -106,12 +106,15 @@ export default function MangaDetailPage() {
   const { data: fetchedChaptersData, isLoading: chaptersLoading } = useQuery({
     queryKey: ["manga-chapters", mangaId, serverBaseUrl],
     queryFn: async () => {
+      if (useSettingsStore.getState().mockMode) {
+        return { fetchChapters: null };
+      }
       const client = new GraphQLClient(graphqlEndpoint);
       return client.request<FetchChaptersResponse>(FETCH_CHAPTERS_DOCUMENT, {
         input: { mangaId: parseInt(mangaId!) },
       });
     },
-    enabled: !!graphqlEndpoint && !!mangaId && !!manga && !isOfflineMode,
+    enabled: !!graphqlEndpoint && !!mangaId && !!manga && !isOfflineMode && !useSettingsStore.getState().mockMode,
     staleTime: 60_000,
   });
 
