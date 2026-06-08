@@ -1,57 +1,27 @@
-# Legal and Branding
+# Legal and Branding Guidelines
 
-Yomikura must be positioned as an independent web/PWA client for Suwayomi-compatible manga and comic libraries.
+Yomikura is an independent, open-source web and PWA client for Suwayomi-compatible manga and comic libraries. This document outlines the legal position, branding boundaries, and content policy of the project.
 
-## Naming
+## Naming & Identity
 
-`Yomikura` is the project name. It avoids direct use of Mihon, Tachiyomi, Suwayomi, or Keiyoushi names in the product identity.
+The name of the project is **Yomikura**. This identity is selected specifically to avoid direct use of or confusion with existing project names such as Mihon, Tachiyomi, Suwayomi, or Keiyoushi.
 
-Before public release, the final name should be checked for:
+The name Yomikura:
+- Does not imply any official affiliation with content providers or upstream readers.
+- Does not suggest that the application hosts, distributes, or provides copyrighted content.
 
-- confusion with existing reader projects
-- trademark risk
-- implication of official affiliation
-- implication that the app provides content
+## Legal Disclaimer
 
-## Required Disclaimer
+The following disclaimer is displayed prominently within the application (under Settings > About) and in all public-facing documentation:
 
-Use this disclaimer in public docs:
+> Yomikura is not affiliated with Mihon, Tachiyomi, Suwayomi, Keiyoushi, or any content provider. This app hosts zero manga or comic content. Users are responsible for configuring their own server, sources, and repositories.
 
-```text
-Yomikura is not affiliated with Mihon, Tachiyomi, Suwayomi, Keiyoushi, or any content provider. This app hosts zero manga or comic content.
-```
+## Content & Source Boundaries
 
-## Public Copy Rules
+- **Zero Content Hosting:** Yomikura does not host, ship, or mirror any manga, comic, or image files. The client serves purely as a local web browser shell.
+- **No Scraping Logic:** The frontend application does not contain web scraping code, site-specific bypasses, or proxy endpoints. All catalog queries and page retrieval are handled exclusively by the user's self-hosted Suwayomi server.
+- **Copyright Compliance:** Screenshots, mock modes, and demo registries use public domain, synthetic titles, or abstract placeholders. The codebase does not bundle copyrighted graphics or real-world manga catalog details.
 
-Allowed:
+## Extension Registry Boundary
 
-- "A web/PWA client for Suwayomi-compatible manga and comic libraries."
-- "Connect to your own Suwayomi Server."
-- "Display extension repository metadata."
-- "Reader interface for self-hosted libraries."
-
-Avoid:
-
-- "Mihon Web"
-- "Tachiyomi in browser"
-- "free manga site"
-- "read any manga for free"
-- "built-in sources"
-- "we provide extensions"
-- "browser extension execution"
-
-## Content Boundary
-
-The app must not ship manga, comic content, source scraping code, or hosted source proxy behavior.
-
-Screenshots and demo data must use synthetic titles, abstract covers, local placeholder data, or user-provided backend data. Do not use copyrighted-looking manga panels or real catalog titles as built-in demo content.
-
-## Extension Repository Boundary
-
-Extension repositories such as Keiyoushi provide catalog metadata and APK files for compatible Android/server runtimes. Yomikura may display metadata and guide backend-supported actions, but it must not represent browser-side APK execution as possible.
-
-Keiyoushi should be a user-selected preset/helper later, not silently enabled by default.
-
-## Affiliation Boundary
-
-References to Mihon, Tachiyomi, Suwayomi, and Keiyoushi should be factual ecosystem references. They should not be used as project branding, logos, endorsements, or official partnership signals.
+APKs and extensions are Android-specific binaries. Yomikura does not execute APKs or run Kotlin source extensions inside the browser. It only parses and displays metadata from extension repository indexes (such as Keiyoushi's index JSON) to allow users to trigger server-side installations on their connected Suwayomi instance.

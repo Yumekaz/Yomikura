@@ -1,243 +1,43 @@
-# Roadmap
+# Project Roadmap & Milestones
 
-Yomikura should be built phase by phase. Each phase must have a narrow definition of done and must not fake work that belongs to a later phase.
+This document tracks the completed milestones and future engineering goals for **Yomikura**.
 
-## Phase 0 - RFC, Docs, Architecture Lock
+## Completed Milestones
 
-Goal: make the project safe and understandable before code starts.
+### Milestone 1 — Core App Shell & Layout
+- Configured React + TypeScript + Vite project shell.
+- Established responsive sidebar navigation for desktop and bottom bar navigation for mobile screens.
+- Programmed core route views for Library, Updates, History, Browse, and Settings.
 
-Deliverables:
+### Milestone 2 — Server Connection & Settings
+- Implemented persistent connection profile storage in browser storage.
+- Added real-time connection status badges and connection test utilities.
+- Integrated dynamic dark/light theme triggers and Mint, Gold, Coral, Jade, and Plum color accents.
 
-- public README
-- vision document
-- architecture document
-- roadmap
-- API notes
-- legal and branding rules
-- security notes
-- project blueprint stored under `docs/`
+### Milestone 3 — GraphQL API Integration
+- Generated typed TypeScript bindings from Suwayomi's GraphQL schema.
+- Built a type-safe GraphQL client with query-caching support.
 
-Done when the project explains what it is, what it is not, why Suwayomi is the first backend, why browser APK execution is not allowed, and how the MVP will be built.
+### Milestone 4 — Library & Catalog Browsing
+- Configured live library page with cover grids, density settings, category tab filters, and text search.
+- Created extension repository management view supporting custom repository URL registration.
+- Programmed static extension index catalog parser to display metadata (NSFW filters, language, version).
+- Integrated live catalog search across installed sources.
 
-## Phase 1 - Web App Shell
+### Milestone 5 — Reader Engine & Downloads
+- Developed reader engine supporting LTR, RTL, and Webtoon vertical scrolling modes.
+- Added portrait page preloading (next 3 pages) and image fit-width constraints.
+- Integrated background downloads manager tracking progress (0% to 100%) and offline disk quota settings.
+- Programmed PWA service workers and IndexedDB chapter cache to enable reading downloaded chapters completely offline.
 
-Goal: create the React/Vite app without backend claims.
+### Milestone 6 — Backup Portability & Tracking
+- Added JSON server profiles export/import to allow backup migration.
+- Enabled mock trackers (MAL/AniList) inside Sandbox mode.
 
-Deliverables:
+---
 
-- React + TypeScript + Vite + Tailwind
-- route shells
-- dark app shell
-- responsive desktop sidebar and mobile bottom navigation
-- direct-to-library root route with Settings-based connection fallback
-- settings route shell
+## Future Roadmap
 
-Done when the app runs locally, navigation works, and no route pretends to load real manga.
-
-## Phase 2 - Settings and Server Connection
-
-Goal: let users configure Suwayomi.
-
-Deliverables:
-
-- server URL input
-- save/reset behavior
-- persisted settings
-- derived GraphQL endpoint
-- connection test
-- connected/disconnected/error states
-
-Done when a user can enter a server URL, test reachability, and recover from offline or invalid server states.
-
-## Phase 3 - GraphQL Schema and Typed API Layer
-
-Goal: build API access from real Suwayomi schema data.
-
-Deliverables:
-
-- schema inspection notes
-- GraphQL client
-- typed wrappers or generated types
-- API error types
-- first real connection query
-
-Done when query names are documented and build/type checks pass without invented API fields.
-
-## Phase 4 - Library Flow
-
-Goal: show the user's real Suwayomi library.
-
-Deliverables:
-
-- library query
-- manga grid/list
-- search
-- sort
-- category filter where supported
-- loading, empty, offline, and error states
-
-Done when real library entries appear and clicking a manga opens `/manga/:mangaId`.
-
-## Phase 5 - Manga Detail Flow
-
-Goal: expose metadata and chapters.
-
-Deliverables:
-
-- manga detail query
-- cover, title, description, source, status
-- chapter list
-- read/download indicators where available
-- continue reading action
-
-Done when a user can open a real manga and select a real chapter.
-
-## Phase 6 - Reader V1
-
-Goal: make reading work end to end.
-
-Deliverables:
-
-- chapter page fetch
-- single-page mode
-- vertical webtoon mode
-- LTR/RTL navigation
-- page preloading
-- progress saving where supported
-- keyboard shortcuts
-- mobile tap zones
-- image retry state
-
-Done when Library -> Manga -> Chapter -> Reader works on desktop and mobile with backend data.
-
-## Phase 7 - Browse Sources and Search
-
-Goal: discover manga through installed backend sources.
-
-Deliverables:
-
-- installed sources page
-- source search
-- search results
-- manga result detail
-- add to library where API supports it
-
-Done when a user can search an installed source and open or add a result.
-
-## Phase 8 - Extension Repo Management
-
-Goal: implement Mihon-like extension repository management without browser APK execution.
-
-Deliverables:
-
-- add repo URL
-- repo list
-- refresh/delete/copy actions
-- Keiyoushi preset helper
-- URL validation
-- safe fetch errors
-
-Done when Keiyoushi can be added and refreshed as metadata, and bad URLs fail safely.
-
-## Phase 9 - Extension Catalog Parser and UI
-
-Goal: display repository metadata.
-
-Deliverables:
-
-- parser for `index.min.json`
-- extension list
-- search by name, source, and package
-- language filters
-- NSFW visibility setting
-- detail drawer
-- parser fixture tests
-
-Done when the catalog displays correctly and NSFW filtering works.
-
-## Phase 10 - Extension Install/Update Integration
-
-Goal: wire install/update/uninstall only through backend support.
-
-Deliverables:
-
-- inspect actual Suwayomi extension APIs
-- installed/update states
-- install/update/uninstall actions where supported
-- progress and error states
-- unsupported capability messaging
-
-Done when the app can manage backend extensions where Suwayomi supports it and never fakes unsupported actions.
-
-## Phase 11 - Updates and History
-
-Goal: support daily reader workflows.
-
-Deliverables:
-
-- updates page
-- history page
-- group by date
-- continue reading
-- open chapter from updates/history
-
-Done when users can resume reading and inspect recent updates.
-
-## Phase 12 - Downloads UI
-
-Goal: expose backend downloads.
-
-Deliverables:
-
-- download queue
-- chapter download status
-- start/cancel/retry/delete where supported
-- unsupported states
-
-Done when users can manage backend downloads without opening the default Suwayomi UI.
-
-## Phase 13 - Backup and Restore UI
-
-Goal: expose backend backup workflows.
-
-Deliverables:
-
-- create backup
-- restore backup
-- status and errors
-- compatibility explanation
-- destructive restore warning
-
-Done when backup and restore are possible where backend APIs support them.
-
-## Phase 14 - PWA Hardening
-
-Goal: make the app installable and resilient.
-
-Deliverables:
-
-- manifest
-- icons
-- service worker
-- app shell caching
-- offline backend page
-
-Done when the app installs as a PWA and opens its shell without a live backend.
-
-## Phase 15 - Public Beta Hardening
-
-Goal: make the repo safe for public release.
-
-Deliverables:
-
-- polished setup docs
-- screenshots
-- legal disclaimer
-- security policy
-- contribution guide
-- issue templates
-- dependency audit
-- license review
-- no telemetry by default
-
-Done when the project can be published without irresponsible branding, legal, or security claims.
+- **Tauri Integration:** Wrapping the Yomikura PWA into a native desktop application using Tauri.
+- **Local Files Import:** Adding support for importing and reading local CBZ/CBR/PDF files directly in the browser client.
+- **Enhanced Virtualization:** Implementing virtualized grid rendering on the library page to optimize performance for libraries with 1,000+ entries.

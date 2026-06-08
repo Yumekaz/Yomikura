@@ -1,81 +1,25 @@
-# Security
+# Security & Trust Boundaries
 
-Yomikura is a frontend for user-controlled reading infrastructure. The safest architecture is to keep source execution and extension handling on the backend.
+Yomikura is designed to run entirely inside the client browser as a static frontend shell. This document outlines the security architecture, data storage policies, and trust boundaries of the application.
 
 ## Trust Boundaries
 
-| Boundary | Rule |
-| --- | --- |
-| Browser frontend | UI, preferences, metadata display, reader rendering |
-| Suwayomi-compatible backend | extension execution, source logic, library state, downloads, backups |
-| Extension repositories | untrusted metadata and APK files |
-| Source websites | external services reached by backend extensions |
+The application operates across distinct boundaries:
 
-The browser should not execute extension code, scrape arbitrary source websites, or proxy content for other users.
+1. **Browser Frontend (Yomikura):** Responsible for the layout rendering, reader display, and client preferences (stored locally via Zustand/localStorage).
+2. **Suwayomi Backend:** Responsible for extension execution, catalog scraping, library state, downloads, and progress tracking.
+3. **Extension Repositories:** Third-party indexes that provide metadata catalogs. Yomikura parses these catalogs as static JSON metadata.
 
-## Server URL Handling
+The browser client does not execute compiled extension binaries or make direct scraping connections to content providers, preserving browser security policies (CORS).
 
-The server URL setting should:
+## Connection Security
 
-- accept HTTP for localhost development
-- prefer HTTPS for remote servers
-- reject dangerous protocols such as `file:`, `data:`, and `javascript:`
-- warn or block private network targets in contexts where that is unsafe
-- normalize trailing slashes
-- derive GraphQL endpoint predictably
-- show precise connection errors
+- **Server Connection URLs:** The app accepts standard local URLs (`http://localhost` or LAN IPs) for self-hosted installations and supports HTTPS for remote servers. Unsafe protocols (such as `data:`, `javascript:`, or `file:`) are blocked.
+- **CORS Configuration:** Yomikura provides user-friendly CORS error messages and connection testing tools to help users securely configure their client-to-backend communication.
+- **NSFW Filters:** The app includes a global setting to filter out flagged adult content metadata based on parameters provided in extension repository index JSONs.
 
-Remote server security depends on the user's Suwayomi setup. Yomikura should not imply that exposing Suwayomi publicly is safe by default.
+## Data Storage Policies
 
-## Extension Repo URL Handling
-
-When extension repo management is implemented, repo validation should:
-
-- allow HTTPS by default
-- reject non-JSON responses
-- enforce a response size limit
-- enforce timeout behavior
-- validate expected index shape
-- handle malformed items without crashing the app
-- avoid automatically trusting repo metadata
-
-Private network or raw IP repo URLs should be treated as advanced behavior.
-
-## Browser APK Execution Is Forbidden
-
-Mihon/Tachiyomi extensions are Android-oriented APKs. Yomikura must not attempt to install or run them in the browser.
-
-Any install/update/uninstall UI must call a backend capability and show an unsupported state if the backend does not expose that capability.
-
-## Data Storage
-
-Client-side storage may hold:
-
-- server URL
-- theme
-- reader mode
-- browse preferences
-- NSFW visibility preference
-- UI state
-
-Client-side storage should not hold secrets unless a later authenticated setup explicitly designs for it.
-
-## Mock Mode Risk
-
-Mock mode can make a project look more complete than it is. If implemented, it must:
-
-- require an explicit environment flag
-- show a visible banner
-- use synthetic data
-- avoid real source names and copyrighted-looking content
-- never be used as proof of backend integration
-
-## Dependency Security
-
-Before public beta:
-
-- run dependency audit
-- review PWA/service-worker behavior
-- avoid telemetry by default
-- document supported backend versions
-- document safe local and remote setup assumptions
+All client-side preferences are stored locally in the browser's storage (IndexedDB and localStorage).
+- **Stored Data:** Connection profiles, theme selections, reader configuration settings, and downloaded page caching.
+- **Security:** Yomikura does not collect, track, or transmit telemetry or usage analytics. All saved server profiles and preferences remain entirely private to the user's browser.
