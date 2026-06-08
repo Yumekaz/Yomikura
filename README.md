@@ -1,100 +1,73 @@
 # Yomikura
 
-Yomikura is an independent Suwayomi-compatible web/PWA manga and comic reader inspired by Mihon.
+Yomikura is an independent, self-hosted web and PWA frontend client for Suwayomi-compatible manga and comic libraries, inspired by the design and user experience of Mihon.
 
-It is designed for people who run their own Suwayomi Server. The app will focus on a polished browser-first reading experience, extension repository management, library browsing, manga details, and a clean reader engine while keeping extension execution and source logic on the backend.
+> [!IMPORTANT]
+> **Legal Disclaimer & Project Status**
+> - **Yomikura is a frontend-only shell.** It runs entirely in your local browser and does not host, mirror, stream, or distribute any copyrighted manga, comics, or media content.
+> - **Zero Scraping Extensions Included.** Yomikura does not host or distribute third-party scraping extensions or community extension repositories. Extension installation and execution are handled strictly by the user's self-hosted backend.
+> - **Bring Your Own Backend (BYOB).** Yomikura requires a connection to a user-owned, self-hosted [Suwayomi Server](https://github.com/Suwayomi/Suwayomi-Server) to function.
+> - **No Affiliation.** Yomikura is an independent, community-driven open-source project and is not affiliated with, authorized, or endorsed by Mihon, Tachiyomi, Suwayomi, Keiyoushi, or any content provider.
 
-## What This Is
+---
 
-- A web/PWA frontend for a user-controlled Suwayomi-compatible backend.
-- A Mihon/Tachiyomi-inspired reading experience adapted for browser and PWA use.
-- A self-hosted interface for library management, source browsing, extension metadata, and reading.
-- A project that starts from documented architecture before implementation.
+## What Yomikura Is
 
-## What This Is Not
+- A clean web/PWA frontend for a user-controlled Suwayomi-compatible backend.
+- A Mihon/Tachiyomi-inspired library browsing and reading experience optimized for desktop, tablet, and mobile browsers.
+- A private, local-first application where all server profiles, settings, and downloaded chapters are cached locally in your browser storage.
 
-- Not an official Mihon project.
-- Not an official Tachiyomi project.
-- Not an official Suwayomi project.
-- Not a manga or comic hosting service.
-- Not a public scraping proxy.
-- Not an Android/Kotlin-to-web port.
-- Not a browser runtime for Android APK extensions.
+## What Yomikura Is Not
 
-## Current Status
+- **Not a manga hosting service.** It contains no media, links, or pirate indexes.
+- **Not a scraping proxy.** The frontend does not make connections to content providers; it operates solely through your backend server's APIs.
+- **Not an APK runtime.** Yomikura does not run Android extensions in the browser. It only parses repository indexes to let users trigger backend-side extension updates.
 
-Yomikura has moved beyond the original Phase 14 roadmap: the current app includes Suwayomi connection settings, library/detail/reader flows, browse, extension management, updates, history, downloads, backup/restore UI, PWA shell support, source settings, tracking UI, multi-server profiles, and browser-side chapter caching.
+---
 
-Those features still need end-to-end verification against a running Suwayomi server before they should be described as production-ready. Yomikura should treat upstream source failures as normal and guide users toward working alternate sources.
+## Getting Started
 
-## Target MVP
-
-The MVP is real only when this flow works against an actual Suwayomi-compatible backend:
-
+### Prerequisites
+To use Yomikura, you need a running instance of a Suwayomi-compatible backend. By default, Yomikura connects to:
 ```text
-Connect to Suwayomi
--> show real library
--> open manga details
--> open chapter
--> read chapter properly
--> manage extension repo/catalog metadata honestly
+http://127.0.0.1:4567
 ```
 
-Mock UI alone is not the product.
-
-## Planned Stack
-
-- React
-- TypeScript
-- Vite
-- Tailwind CSS
-- React Router
-- TanStack Query with `graphql-request`
-- Zustand for UI/session state
-- Local storage or IndexedDB for client preferences
-
-## Local Development
-
+### Local Development
+To spin up the web client locally:
 ```bash
 pnpm install
 pnpm dev
 pnpm build
 ```
 
-The current app expects a Suwayomi-compatible backend for real data. Without one, routes should remain honest and show connection, empty, or recovery states.
+---
 
-## Backend Boundary
+## Technology Stack
 
-Yomikura will connect to Suwayomi Server first. Suwayomi owns source execution, extension install/run behavior, library state, chapter page retrieval, downloads, backups, and tracking integration.
+- **Framework:** React + TypeScript + Vite
+- **Styling:** Vanilla CSS + Tailwind CSS
+- **State & Caching:** Zustand + TanStack Query + `graphql-request`
+- **Offline Storage:** IndexedDB (via Cache Storage APIs)
 
-The frontend owns app layout, preferences, reader controls, extension repository metadata display, and UI state.
+---
 
-## Extension Repositories
+## Project Documentation
 
-Extension repository indexes such as Keiyoushi's `index.min.json` are metadata catalogs. Yomikura may fetch, validate, parse, search, and display that metadata.
+Explore our detailed architectural and design specifications:
+- [Vision & Goals](docs/VISION.md) - Product definition and core features.
+- [Architecture & Flow](docs/ARCHITECTURE.md) - System boundary diagram and client/server ownership map.
+- [API Specifications](docs/API_NOTES.md) - Suwayomi Server GraphQL schemas and queries implemented.
+- [Project Blueprint](docs/PROJECT_BLUEPRINT.md) - Engineering specs and security constraints.
+- [Security & Trust](docs/SECURITY.md) - Local data storage rules and CORS policies.
+- [Roadmap & Milestones](docs/ROADMAP.md) - Log of completed milestones and future Tauri/Local File features.
+- [Legal & Branding Guidelines](docs/LEGAL_AND_BRANDING.md) - Compliance policies and identity naming.
 
-Yomikura must not attempt to install, run, translate, or execute Android APK extensions inside the browser. Extension install and execution belongs to the backend.
+---
 
-## App Entry
+## License & Compliance
 
-Yomikura opens directly into the app shell and uses a local Suwayomi default during development:
-
-```text
-http://127.0.0.1:4567
-```
-
-Connection setup lives in Settings and appears as a fallback only when the server is missing or unreachable. The product surface should not use fake manga titles, fake library data, or copyrighted-looking previews.
-
-## Documentation
-
-- [Vision](docs/VISION.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Roadmap](docs/ROADMAP.md)
-- [API Notes](docs/API_NOTES.md)
-- [Legal and Branding](docs/LEGAL_AND_BRANDING.md)
-- [Security](docs/SECURITY.md)
-- [Project Blueprint](docs/PROJECT_BLUEPRINT.md)
-
-## Disclaimer
-
-Yomikura is not affiliated with Mihon, Tachiyomi, Suwayomi, Keiyoushi, or any content provider. This app hosts zero manga or comic content.
+Yomikura is built with a strong commitment to open-source compliance, user privacy, and legal safety:
+- **License:** Licensed under the [MIT License](LICENSE), providing standard warranty disclaimers and limitation of liability.
+- **Contributing:** See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines. We do not accept contributions containing scraping logic, bypasses, or copyrighted assets.
+- **DMCA Policy:** We take copyright compliance seriously. For our notice and takedown procedure, see [DMCA.md](DMCA.md).
