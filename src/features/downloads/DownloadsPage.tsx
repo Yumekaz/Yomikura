@@ -24,8 +24,9 @@ interface DownloadItem {
 }
 
 export default function DownloadsPage() {
-  const { serverBaseUrl } = useSettingsStore();
+  const { serverBaseUrl, connectionStatus, mockMode } = useSettingsStore();
   const queryClient = useQueryClient();
+  const isUnconnected = (connectionStatus === "error" || connectionStatus === "disconnected") && !mockMode;
 
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
@@ -36,8 +37,8 @@ export default function DownloadsPage() {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["downloads", serverBaseUrl],
     queryFn: () => sdk.GetDownloadStatus(),
-    enabled: !!serverBaseUrl,
-    refetchInterval: 3000, // Poll every 3 seconds while active
+    enabled: !!serverBaseUrl && !isUnconnected,
+    refetchInterval: isUnconnected ? undefined : 3000, // Poll every 3 seconds while active
   });
 
   const downloaderState = data?.downloadStatus?.state || "STOPPED";
@@ -82,6 +83,27 @@ export default function DownloadsPage() {
       <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400">
         <Download className="mb-4 h-12 w-12 opacity-50" />
         <p>Server not configured.</p>
+      </div>
+    );
+  }
+
+  if (isUnconnected) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center bg-ink-950 p-6 text-center text-slate-300 min-h-[50vh] animate-fade-in">
+        <Download className="mb-4 h-12 w-12 text-slate-600" />
+        <h2 className="text-lg font-semibold text-white">Downloads queue offline</h2>
+        <p className="mt-2 max-w-md text-sm text-slate-500 leading-relaxed">
+          The downloads queue is only available when online. Start your Suwayomi server or restore connection settings to view live downloads.
+        </p>
+        <div className="mt-6 border border-white/5 bg-ink-900 p-5 rounded-xl text-left text-xs max-w-md space-y-3">
+          <p className="font-semibold text-yomi-jade uppercase tracking-wider text-[10px]">How to read completed downloads offline:</p>
+          <ul className="list-disc list-inside text-slate-400 space-y-1.5 leading-relaxed">
+            <li>Go to the <strong className="text-slate-300">Library</strong> tab in the sidebar.</li>
+            <li>Click on any downloaded manga card in the grid (e.g. Chainsaw Man or Solo Leveling).</li>
+            <li>Click on the chapter you saved (marked with a green cached badge).</li>
+            <li>View all offline chapters registry under <strong className="text-slate-300">Settings &rarr; Offline</strong>.</li>
+          </ul>
+        </div>
       </div>
     );
   }
