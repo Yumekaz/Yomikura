@@ -69,5 +69,7 @@ Explore our detailed architectural and design specifications:
 
 Yomikura is built with a strong commitment to open-source compliance, user privacy, and legal safety:
 - **License:** Licensed under the [MIT License](LICENSE), providing standard warranty disclaimers and limitation of liability.
+- **Terms of Service:** Review our [TERMS.md](TERMS.md) file regarding user responsibilities and software limitations.
+- **Privacy Policy:** See [PRIVACY.md](PRIVACY.md) for details on our local-first, zero-telemetry data storage.
 - **Contributing:** See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines. We do not accept contributions containing scraping logic, bypasses, or copyrighted assets.
 - **DMCA Policy:** We take copyright compliance seriously. For our notice and takedown procedure, see [DMCA.md](DMCA.md).
