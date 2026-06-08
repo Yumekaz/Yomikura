@@ -5,9 +5,6 @@ dist/
 *.local
 *.log
 suwayomi-server/
-.codex-local-publish-*
-.agents/
-PROJECT.md
-ORIGINAL_REQUEST.md
-progress.md
-test-e2e.js
+.yomi-local-publish-*
+.cache/
+temp/

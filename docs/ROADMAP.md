@@ -12,7 +12,6 @@ Deliverables:
 - vision document
 - architecture document
 - roadmap
-- Codex task list
 - API notes
 - legal and branding rules
 - security notes

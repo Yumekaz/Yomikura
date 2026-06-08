@@ -90,7 +90,6 @@ Connection setup lives in Settings and appears as a fallback only when the serve
 - [Vision](docs/VISION.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
-- [Codex Tasks](docs/CODEX_TASKS.md)
 - [API Notes](docs/API_NOTES.md)
 - [Legal and Branding](docs/LEGAL_AND_BRANDING.md)
 - [Security](docs/SECURITY.md)
