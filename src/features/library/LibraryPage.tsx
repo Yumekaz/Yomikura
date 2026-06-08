@@ -10,7 +10,7 @@ import { LibraryGrid, LibraryManga } from "./LibraryGrid";
 import { CategoryDialog } from "./CategoryDialog";
 
 export default function LibraryPage() {
-  const { serverBaseUrl } = useSettingsStore();
+  const { serverBaseUrl, setServerBaseUrl, testConnection } = useSettingsStore();
   const { cachedChapters, loadCachedChapters } = useDownloadStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategoryId, setActiveCategoryId] = useState<string | number | null>(null);
@@ -193,8 +193,17 @@ export default function LibraryPage() {
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto">
         {isOfflineMode && (
-          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center text-xs font-medium text-amber-200 animate-fade-in">
-            Offline Mode — Showing cached titles
+          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center text-xs font-medium text-amber-200 animate-fade-in flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
+            <span>Offline Mode — Showing cached titles</span>
+            <button
+              onClick={async () => {
+                setServerBaseUrl("http://127.0.0.1:4567");
+                await testConnection();
+              }}
+              className="rounded-full bg-yomi-jade/20 border border-yomi-jade/30 px-3 py-0.5 text-[10px] font-semibold text-yomi-mint hover:bg-yomi-jade/35 transition"
+            >
+              Reconnect to Live Server (127.0.0.1:4567)
+            </button>
           </div>
         )}
         {isLoading ? (
