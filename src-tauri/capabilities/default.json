@@ -11,19 +11,19 @@
     "http:default",
     "process:default",
     {
-      "identifier": "fs:allow-appdata-recursive",
+      "identifier": "fs:scope-appdata-recursive",
       "allow": [
         { "path": "$APPDATA/**" }
       ]
     },
     {
-      "identifier": "fs:allow-applocaldata-recursive",
+      "identifier": "fs:scope-applocaldata-recursive",
       "allow": [
         { "path": "$APPLOCALDATA/**" }
       ]
     },
     {
-      "identifier": "fs:allow-appconfig-recursive",
+      "identifier": "fs:scope-appconfig-recursive",
       "allow": [
         { "path": "$APPCONFIG/**" }
       ]
