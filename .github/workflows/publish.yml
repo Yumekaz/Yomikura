@@ -45,6 +45,14 @@ jobs:
       - name: Install Frontend Dependencies
         run: pnpm install
 
+      - name: Download Suwayomi Server JAR
+        shell: bash
+        run: |
+          mkdir -p suwayomi-server
+          curl -fsSL -o suwayomi-server/Suwayomi-Server-v2.2.2100.jar \
+            https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.2.2100/Suwayomi-Server-v2.2.2100.jar
+          test -s suwayomi-server/Suwayomi-Server-v2.2.2100.jar
+
       - name: Build and Publish Release
         uses: tauri-apps/tauri-action@v0
         env:
