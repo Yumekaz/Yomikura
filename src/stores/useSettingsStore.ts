@@ -78,6 +78,7 @@ interface SettingsState {
   coverDensity: "compact" | "normal" | "spacious";
   themeMode: "dark" | "light" | "system";
   mockMode: boolean;
+  serverDataPath: string;
   
   // Actions
   setServerBaseUrl: (url: string) => void;
@@ -94,6 +95,7 @@ interface SettingsState {
   setCoverDensity: (density: "compact" | "normal" | "spacious") => void;
   setThemeMode: (mode: "dark" | "light" | "system") => void;
   setMockMode: (mock: boolean) => void;
+  setServerDataPath: (path: string) => void;
   resetAllSettings: () => void;
   
   // Derived
@@ -118,6 +120,7 @@ export const useSettingsStore = create<SettingsState>()(
       coverDensity: "normal",
       themeMode: "dark",
       mockMode: false,
+      serverDataPath: "",
 
       setServerBaseUrl: (url: string) => {
         set((state) => {
@@ -226,7 +229,8 @@ export const useSettingsStore = create<SettingsState>()(
       setAccentColor: (color) => set({ accentColor: color }),
       setCoverDensity: (density) => set({ coverDensity: density }),
       setThemeMode: (mode) => set({ themeMode: mode }),
-      setMockMode: (mock) => set({ mockMode: mock }),
+      setMockMode: (mock: boolean) => set({ mockMode: mock }),
+      setServerDataPath: (path: string) => set({ serverDataPath: path.trim() }),
       
       resetAllSettings: () => {
         set({
@@ -245,6 +249,7 @@ export const useSettingsStore = create<SettingsState>()(
           coverDensity: "normal",
           themeMode: "dark",
           mockMode: false,
+          serverDataPath: "",
         });
       },
 
@@ -270,6 +275,7 @@ export const useSettingsStore = create<SettingsState>()(
         coverDensity: state.coverDensity,
         themeMode: state.themeMode,
         mockMode: state.mockMode,
+        serverDataPath: state.serverDataPath,
       }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<SettingsState> | undefined;
@@ -296,6 +302,7 @@ export const useSettingsStore = create<SettingsState>()(
           coverDensity: persisted?.coverDensity ?? currentState.coverDensity,
           themeMode: persisted?.themeMode ?? currentState.themeMode,
           mockMode: persisted?.mockMode ?? currentState.mockMode,
+          serverDataPath: persisted?.serverDataPath ?? currentState.serverDataPath,
         };
       },
     }

@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Yomikura",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "app.yomikura",
   "build": {
     "frontendDist": "../dist",
@@ -35,6 +35,9 @@
     "active": true,
     "targets": "all",
     "createUpdaterArtifacts": true,
+    "resources": [
+      "../suwayomi-server/Suwayomi-Server-v2.2.2100.jar"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

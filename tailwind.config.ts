@@ -12,7 +12,7 @@ export default {
           800: "var(--ink-800)",
         },
         yomi: {
-          jade: "rgb(var(--yomi-accent) / <alpha-value>)",
+          jade: "rgba(var(--yomi-accent), <alpha-value>)",
           mint: "#a9f2d4",
           gold: "#f2c879",
           plum: "#b69bff",
