@@ -1,5 +1,6 @@
 use std::process::{Child, Command};
 use std::sync::Mutex;
+use tauri::path::BaseDirectory;
 use tauri::{Manager, State};
 
 struct BackendState {
@@ -118,7 +119,10 @@ fn start_backend(
 
     let jar_path = app_handle
         .path()
-        .resolve_resource("Suwayomi-Server-v2.2.2100.jar")
+        .resolve(
+            "../suwayomi-server/Suwayomi-Server-v2.2.2100.jar",
+            BaseDirectory::Resource,
+        )
         .map_err(|e| format!("Failed to resolve server JAR resource: {}", e))?;
 
     if !jar_path.exists() {
