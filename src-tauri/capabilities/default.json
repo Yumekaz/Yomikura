@@ -1,0 +1,32 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "enables the default permissions",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "fs:default",
+    "http:default",
+    "process:default",
+    {
+      "identifier": "fs:allow-appdata-recursive",
+      "allow": [
+        { "path": "$APPDATA/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-applocaldata-recursive",
+      "allow": [
+        { "path": "$APPLOCALDATA/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-appconfig-recursive",
+      "allow": [
+        { "path": "$APPCONFIG/**" }
+      ]
+    }
+  ]
+}

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 
-import { FitMode } from "../../stores/useSettingsStore";
+import { FitMode, isTauri } from "../../stores/useSettingsStore";
 
 interface ReaderImageProps {
   url: string;
@@ -34,6 +34,18 @@ export function ReaderImage({ url, fallbackUrl, pageNumber, onIntersect, mode = 
     let objectUrl: string | null = null;
 
     async function resolveImage() {
+      if (isTauri() && (imageUrl.startsWith("file:") || imageUrl.includes(":\\") || imageUrl.startsWith("/"))) {
+        try {
+          const { convertFileSrc } = await import("@tauri-apps/api/core");
+          if (active) {
+            setDisplayUrl(convertFileSrc(imageUrl));
+            return;
+          }
+        } catch (e) {
+          console.warn("Failed to convert file src:", e);
+        }
+      }
+
       try {
         const cache = await caches.open("yomikura-page-cache");
         const match = await cache.match(imageUrl);

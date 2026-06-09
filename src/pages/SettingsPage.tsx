@@ -22,7 +22,7 @@ import {
   Moon,
   Monitor,
 } from "lucide-react";
-import { useSettingsStore, ReaderMode, ServerProfile } from "../stores/useSettingsStore";
+import { useSettingsStore, ReaderMode, ServerProfile, isTauri } from "../stores/useSettingsStore";
 import { DEFAULT_SERVER_BASE_URL } from "../config/server";
 import { createGraphqlClient } from "../api/graphql/client";
 import { getErrorMessage } from "../api/suwayomi/errors";
@@ -992,6 +992,42 @@ function SettingsPage() {
                       Reset All Settings
                     </button>
                   </div>
+
+                  {/* Desktop App Hard Reset (Tauri context only) */}
+                  {isTauri() && (
+                    <div className="flex items-center justify-between border-t border-white/5 pt-6">
+                      <div>
+                        <h3 className="text-sm font-medium text-red-400">Total Hard Reset</h3>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Wipes all settings, downloaded chapters, and local caches completely from your computer, then restarts the application.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const confirm1 = window.confirm(
+                            "WARNING: This will delete ALL downloaded manga chapters and settings from your device. Are you sure?"
+                          );
+                          if (confirm1) {
+                            const confirm2 = window.confirm(
+                              "This will completely wipe your local Yomikura folder and restart. Are you absolutely sure?"
+                            );
+                            if (confirm2) {
+                              try {
+                                const { invoke } = await import("@tauri-apps/api/core");
+                                await invoke("wipe_all_data");
+                              } catch (err) {
+                                alert("Failed to execute hard reset: " + err);
+                              }
+                            }
+                          }
+                        }}
+                        className="rounded-lg border border-red-600 bg-red-600/10 px-4 py-2.5 text-xs font-semibold text-red-200 hover:bg-red-600 hover:text-white transition shadow-sm"
+                      >
+                        Wipe & Restart
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

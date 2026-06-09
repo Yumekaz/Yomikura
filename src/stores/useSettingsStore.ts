@@ -1,7 +1,57 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, StateStorage, createJSONStorage } from "zustand/middleware";
 import { testServerConnection } from "../api/suwayomi/connection";
 import { DEFAULT_SERVER_BASE_URL } from "../config/server";
+
+export const isTauri = () => typeof window !== "undefined" && (window as any).__TAURI__ !== undefined;
+
+const customTauriStorage: StateStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    if (isTauri()) {
+      try {
+        const { readTextFile, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+        const fileExists = await exists(name + ".json", { baseDir: BaseDirectory.AppConfig });
+        if (fileExists) {
+          return await readTextFile(name + ".json", { baseDir: BaseDirectory.AppConfig });
+        }
+      } catch (err) {
+        console.error("Failed to read settings from Tauri FS:", err);
+      }
+    }
+    return localStorage.getItem(name);
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    if (isTauri()) {
+      try {
+        const { writeTextFile, mkdir, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+        const dirExists = await exists("", { baseDir: BaseDirectory.AppConfig });
+        if (!dirExists) {
+          await mkdir("", { baseDir: BaseDirectory.AppConfig, recursive: true });
+        }
+        await writeTextFile(name + ".json", value, { baseDir: BaseDirectory.AppConfig });
+        return;
+      } catch (err) {
+        console.error("Failed to write settings to Tauri FS:", err);
+      }
+    }
+    localStorage.setItem(name, value);
+  },
+  removeItem: async (name: string): Promise<void> => {
+    if (isTauri()) {
+      try {
+        const { remove, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+        const fileExists = await exists(name + ".json", { baseDir: BaseDirectory.AppConfig });
+        if (fileExists) {
+          await remove(name + ".json", { baseDir: BaseDirectory.AppConfig });
+          return;
+        }
+      } catch (err) {
+        console.error("Failed to remove settings in Tauri FS:", err);
+      }
+    }
+    localStorage.removeItem(name);
+  }
+};
 
 export type ConnectionStatus = "disconnected" | "connected" | "error" | "testing";
 export type ReaderMode = "WEBTOON" | "LTR" | "RTL";
@@ -205,6 +255,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: "yomikura-settings",
+      storage: createJSONStorage(() => customTauriStorage),
       partialize: (state) => ({ 
         serverBaseUrl: state.serverBaseUrl,
         connectionStatus: state.connectionStatus === "testing" ? "disconnected" : state.connectionStatus,
