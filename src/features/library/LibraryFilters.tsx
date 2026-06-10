@@ -1,4 +1,4 @@
-import { Search, FolderEdit } from "lucide-react";
+import { Search, FolderEdit, X } from "lucide-react";
 
 export interface Category {
   id: string | number;
@@ -12,6 +12,12 @@ interface LibraryFiltersProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onManageCategories: () => void;
+  
+  // Selection mode additions
+  isSelectMode?: boolean;
+  selectedCount?: number;
+  onSelectAll?: () => void;
+  onCancelSelect?: () => void;
 }
 
 export function LibraryFilters({
@@ -21,7 +27,46 @@ export function LibraryFilters({
   searchQuery,
   onSearchChange,
   onManageCategories,
+  isSelectMode = false,
+  selectedCount = 0,
+  onSelectAll,
+  onCancelSelect,
 }: LibraryFiltersProps) {
+  if (isSelectMode) {
+    return (
+      <div className="flex items-center justify-between rounded-2xl border border-yomi-jade/30 bg-yomi-jade/10 backdrop-blur-xl shadow-glow-hover px-5 py-3 mx-4 lg:mx-0 mt-2 lg:mt-0 mb-6 animate-fade-in transition-all duration-300">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onCancelSelect}
+            className="rounded-full p-1.5 text-slate-300 hover:bg-white/10 hover:text-white transition"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <span className="text-sm font-bold text-slate-200">
+            {selectedCount} Selected
+          </span>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          {onSelectAll && (
+            <button
+              onClick={onSelectAll}
+              className="rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 px-3.5 py-1.5 text-xs font-bold text-slate-200 transition"
+            >
+              Select All
+            </button>
+          )}
+          <button
+            onClick={onCancelSelect}
+            className="rounded-lg bg-yomi-jade px-3.5 py-1.5 text-xs font-bold text-ink-950 hover:bg-yomi-jade/90 transition"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-white/5 bg-ink-900/35 backdrop-blur-xl shadow-lg px-5 py-3.5 lg:flex-row lg:items-center lg:justify-between mx-4 lg:mx-0 mt-2 lg:mt-0 mb-6 transition-all duration-300">
       {/* Category Pills */}
@@ -74,4 +119,3 @@ export function LibraryFilters({
     </div>
   );
 }
-

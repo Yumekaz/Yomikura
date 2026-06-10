@@ -1,20 +1,15 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Globe, Settings } from "lucide-react";
+import { Loader2, Globe, Settings, Pin, X } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 
 /**
  * SourcesPage - Lists all installed sources.
- * 
- * The Suwayomi `sources` query applies a server-side "enabled languages" filter
- * by default, which hides sources whose language isn't explicitly enabled in the
- * server config. To bypass this, we first fetch installed extensions to discover
- * all languages, then query sources per-language using `condition: { lang }`.
  */
 export default function SourcesPage() {
-  const { serverBaseUrl } = useSettingsStore();
+  const { serverBaseUrl, savedSearches, deleteSavedSearch } = useSettingsStore();
   
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
@@ -34,21 +29,18 @@ export default function SourcesPage() {
     extData.extensions.nodes.forEach((extension) => {
       if (extension?.lang) langs.add(extension.lang);
     });
-    // Always include "localsourcelang" for Local Source and "en"
     langs.add("localsourcelang");
     langs.add("en");
     return Array.from(langs);
   }, [extData]);
 
-  // Step 2: Fetch sources for each language using condition (bypasses server filter)
+  // Step 2: Fetch sources for each language using condition
   const { data: sourcesData, isLoading, isError } = useQuery({
     queryKey: ["all-sources", serverBaseUrl, installedLangs],
     queryFn: async () => {
-      // Query each language in parallel using condition
       const results = await Promise.all(
         installedLangs.map(lang => sdk.GetSourcesByCondition({ lang }))
       );
-      // Flatten and deduplicate
       const seen = new Set<string>();
       const allSources: Array<{
         id: unknown;
@@ -114,12 +106,49 @@ export default function SourcesPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 pb-24 max-w-5xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 pb-24 max-w-5xl mx-auto space-y-8 select-none">
       <h1 className="text-2xl font-bold text-white">Browse Sources</h1>
+
+      {/* Pinned Catalog Searches Section */}
+      {savedSearches && savedSearches.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xs font-bold text-yomi-jade uppercase tracking-wider border-b border-white/5 pb-2 flex items-center gap-1.5">
+            <Pin className="h-3.5 w-3.5" />
+            Pinned Searches
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {savedSearches.map((s) => (
+              <div 
+                key={s.id} 
+                className="group relative flex items-center justify-between rounded-xl bg-yomi-jade/5 p-4 transition border border-yomi-jade/10 hover:border-yomi-jade/30"
+              >
+                <Link 
+                  to={`/browse/${s.sourceId}?query=${encodeURIComponent(s.query)}`}
+                  className="flex items-center gap-3 flex-1 overflow-hidden"
+                >
+                  <Pin className="h-4 w-4 text-yomi-jade shrink-0" />
+                  <div className="flex flex-col flex-1 overflow-hidden">
+                    <span className="font-semibold text-slate-200 truncate text-sm">{s.name}</span>
+                    <span className="text-[10px] text-slate-500 truncate">Query: "{s.query}"</span>
+                  </div>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => deleteSavedSearch(s.id)}
+                  className="p-1.5 rounded bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition"
+                  title="Remove Pin"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       
       {Object.entries(groupedSources).sort(([a], [b]) => a.localeCompare(b)).map(([lang, langSources]) => (
         <div key={lang} className="space-y-4">
-          <h2 className="text-sm font-semibold text-yomi-jade uppercase tracking-wider border-b border-white/10 pb-2">
+          <h2 className="text-xs font-bold text-yomi-jade uppercase tracking-wider border-b border-white/5 pb-2">
             {lang === "localsourcelang" ? "Local" : lang === "all" ? "Multi-Language" : lang.toUpperCase()}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -141,16 +170,17 @@ export default function SourcesPage() {
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = "none";
                         }}
+                        loading="lazy"
                       />
                     ) : (
                       <Globe className="h-5 w-5 text-slate-500" />
                     )}
                   </div>
                   <div className="flex flex-col flex-1 overflow-hidden">
-                    <span className="font-medium text-slate-200 truncate">{source.name}</span>
+                    <span className="font-semibold text-slate-200 truncate">{source.name}</span>
                     <div className="flex items-center gap-2">
                       {source.supportsLatest && (
-                        <span className="text-xs text-yomi-jade">Supports Latest</span>
+                        <span className="text-[10px] text-yomi-jade font-semibold">Supports Latest</span>
                       )}
                     </div>
                   </div>

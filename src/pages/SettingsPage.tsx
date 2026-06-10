@@ -27,6 +27,7 @@ import { DEFAULT_SERVER_BASE_URL } from "../config/server";
 import { createGraphqlClient } from "../api/graphql/client";
 import { getErrorMessage } from "../api/suwayomi/errors";
 import { useDownloadStore } from "../stores/useDownloadStore";
+import { DuplicateScanner } from "../components/library/DuplicateScanner";
 
 type SettingsTab = "connection" | "appearance" | "reader" | "backup" | "offline" | "advanced" | "about";
 
@@ -177,23 +178,13 @@ function TauriUpdaterRow() {
         <div className="rounded-lg bg-white/[0.02] border border-white/5 p-4 space-y-3 animate-fade-in">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-200">
-              New Version Available: v{updateInfo.version}
-            </span>
-            <span className="text-[10px] text-slate-500">
-              Released: {updateInfo.date ? new Date(updateInfo.date).toLocaleDateString() : 'Recent'}
+              Update Available: v{updateInfo.version}
             </span>
           </div>
-
-          {updateInfo.body && (
-            <div className="text-[11px] text-slate-400 bg-black/20 p-2.5 rounded border border-white/5 max-h-24 overflow-y-auto font-mono scrollbar-none">
-              {updateInfo.body}
-            </div>
-          )}
-
           <button
             onClick={handleInstallUpdate}
             disabled={downloading}
-            className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-yomi-jade py-2 px-3 text-xs font-semibold text-ink-950 hover:bg-yomi-jade/90 transition disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 rounded-lg bg-yomi-jade py-2 px-4 text-xs font-bold text-ink-950 hover:bg-yomi-jade/90 transition disabled:opacity-50"
           >
             {downloading ? (
               <>
@@ -209,6 +200,92 @@ function TauriUpdaterRow() {
             )}
           </button>
         </div>
+      )}
+    </div>
+  );
+}
+
+function SuwayomiServerUpdaterRow() {
+  const { serverBaseUrl } = useSettingsStore();
+  const [checking, setChecking] = useState(false);
+  const [latestVersion, setLatestVersion] = useState<string | null>(null);
+  const [runningVersion, setRunningVersion] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const checkServerUpdate = async () => {
+    setChecking(true);
+    setError(null);
+    try {
+      const cleanUrl = serverBaseUrl.replace(/\/$/, "");
+      const infoResponse = await fetch(`${cleanUrl}/api/v1/info`);
+      if (infoResponse.ok) {
+        const infoData = await infoResponse.json();
+        setRunningVersion(infoData.version || "Unknown");
+      } else {
+        setRunningVersion("2.2.2100");
+      }
+
+      const res = await fetch("https://api.github.com/repos/Suwayomi/Suwayomi-Server/releases/latest");
+      if (res.ok) {
+        const data = await res.json();
+        const tag = data.tag_name ? data.tag_name.replace(/^v/, "") : null;
+        setLatestVersion(tag);
+      } else {
+        throw new Error("Failed to check GitHub releases API.");
+      }
+    } catch (err: any) {
+      console.error("Suwayomi Server update check failed:", err);
+      setError(err.message || String(err));
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  useEffect(() => {
+    checkServerUpdate();
+  }, [serverBaseUrl]);
+
+  const hasUpdate = useMemo(() => {
+    if (!latestVersion || !runningVersion) return false;
+    return latestVersion !== runningVersion && !runningVersion.includes("dev");
+  }, [latestVersion, runningVersion]);
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-white/5 bg-ink-950/30 p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="font-semibold text-sm text-slate-200">Suwayomi Server Engine</span>
+          <p className="text-xs text-slate-500 mt-1">
+            Running: {runningVersion || "Checking..."} | Latest: {latestVersion || "Checking..."}
+          </p>
+        </div>
+        <button
+          onClick={checkServerUpdate}
+          disabled={checking}
+          className="rounded-lg bg-yomi-jade/10 border border-yomi-jade/20 hover:bg-yomi-jade/20 px-3 py-1.5 text-xs font-semibold text-yomi-jade transition disabled:opacity-50"
+        >
+          {checking ? "Checking..." : "Check"}
+        </button>
+      </div>
+
+      {hasUpdate && (
+        <div className="rounded-lg bg-yomi-jade/10 border border-yomi-jade/20 p-3 flex flex-col sm:flex-row items-center justify-between gap-3 animate-pulse">
+          <span className="text-[11px] text-yomi-mint font-semibold">
+            Update available! Version {latestVersion} is out.
+          </span>
+          <a
+            href="https://github.com/Suwayomi/Suwayomi-Server/releases/latest"
+            target="_blank"
+            rel="noreferrer"
+            className="rounded bg-yomi-jade text-ink-950 px-3 py-1 text-[10px] font-bold hover:bg-yomi-jade/90 transition shrink-0"
+          >
+            Download Release
+          </a>
+        </div>
+      )}
+
+      {error && (
+        <span className="text-[10px] text-red-400">Failed to check server updates: {error}</span>
       )}
     </div>
   );
@@ -239,6 +316,8 @@ function SettingsPage() {
     setMockMode,
     resetAllSettings,
     serverDataPath,
+    customKeybinds,
+    setCustomKeybinds,
   } = useSettingsStore();
 
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
@@ -258,6 +337,48 @@ function SettingsPage() {
     storageUsage, 
     storageQuota 
   } = useDownloadStore();
+
+  const [recordingAction, setRecordingAction] = useState<string | null>(null);
+
+  const startRecording = (action: string) => {
+    setRecordingAction(action);
+  };
+
+  useEffect(() => {
+    if (!recordingAction) return;
+
+    const handleKeyRecord = (e: KeyboardEvent) => {
+      e.preventDefault();
+      const key = e.key.toLowerCase();
+      
+      const newKeybinds = { ...customKeybinds };
+      const currentKeys = newKeybinds[recordingAction] || [];
+      if (!currentKeys.includes(key)) {
+        newKeybinds[recordingAction] = [...currentKeys, key];
+        setCustomKeybinds(newKeybinds);
+      }
+      setRecordingAction(null);
+    };
+
+    window.addEventListener("keydown", handleKeyRecord);
+    return () => window.removeEventListener("keydown", handleKeyRecord);
+  }, [recordingAction, customKeybinds, setCustomKeybinds]);
+
+  const handleRemoveKey = (action: string, keyToRemove: string) => {
+    const newKeybinds = { ...customKeybinds };
+    newKeybinds[action] = (newKeybinds[action] || []).filter(k => k !== keyToRemove);
+    setCustomKeybinds(newKeybinds);
+  };
+
+  const handleResetKeybinds = () => {
+    setCustomKeybinds({
+      prevPage: ["arrowleft", "a", "backspace"],
+      nextPage: ["arrowright", "d", " ", "enter"],
+      toggleOverlay: ["escape"],
+      cycleFit: ["w"],
+      cycleSpread: ["s"]
+    });
+  };
 
   useEffect(() => {
     void loadCachedChapters();
@@ -874,29 +995,105 @@ function SettingsPage() {
           )}
 
           {activeTab === "reader" && (
-            <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <BookOpen className="h-5 w-5 text-yomi-jade" />
-                Reader Preferences
-              </h2>
-              <p className="mt-2 text-sm text-slate-400">
-                Configure your default layout and reading preferences.
-              </p>
+            <div className="space-y-6">
+              <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-yomi-jade" />
+                  Reader Preferences
+                </h2>
+                <p className="mt-2 text-sm text-slate-400">
+                  Configure your default layout and reading preferences.
+                </p>
 
-              <div className="mt-6 space-y-4">
-                <div>
-                  <label className="block px-1 pb-2 text-sm font-medium text-slate-300">
-                    Reading Mode
-                  </label>
-                  <select
-                    value={readerMode}
-                    onChange={(e) => setReaderMode(e.target.value as ReaderMode)}
-                    className="w-full sm:w-72 rounded-md border border-white/10 bg-ink-950 px-4 py-2.5 text-sm text-slate-300 outline-none focus:border-yomi-jade/50 focus:ring-1 focus:ring-yomi-jade/50 transition-colors"
-                  >
-                    <option value="WEBTOON">Vertical Webtoon</option>
-                    <option value="LTR">Left to Right (Single Page)</option>
-                    <option value="RTL">Right to Left (Single Page)</option>
-                  </select>
+                <div className="mt-6 space-y-4">
+                  <div>
+                    <label className="block px-1 pb-2 text-sm font-medium text-slate-300">
+                      Reading Mode
+                    </label>
+                    <select
+                      value={readerMode}
+                      onChange={(e) => setReaderMode(e.target.value as ReaderMode)}
+                      className="w-full sm:w-72 rounded-md border border-white/10 bg-ink-950 px-4 py-2.5 text-sm text-slate-300 outline-none focus:border-yomi-jade/50 focus:ring-1 focus:ring-yomi-jade/50 transition-colors"
+                    >
+                      <option value="WEBTOON">Vertical Webtoon</option>
+                      <option value="LTR">Left to Right (Single Page)</option>
+                      <option value="RTL">Right to Left (Single Page)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Custom Keyboard Shortcuts */}
+              <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <Sliders className="h-5 w-5 text-yomi-jade" />
+                  Custom Keyboard Shortcuts
+                </h2>
+                <p className="mt-2 text-sm text-slate-400">
+                  Map reader navigation controls to custom keys. Click Record, then press any key.
+                </p>
+
+                <div className="mt-6 space-y-4 max-w-xl">
+                  {Object.entries(customKeybinds || {}).map(([action, keys]) => {
+                    const friendlyName: Record<string, string> = {
+                      prevPage: "Previous Page",
+                      nextPage: "Next Page",
+                      toggleOverlay: "Toggle Reader Overlay / Exit",
+                      cycleFit: "Cycle Scale/Fit Mode",
+                      cycleSpread: "Cycle Page Layout Spread"
+                    };
+
+                    const isRecording = recordingAction === action;
+
+                    return (
+                      <div key={action} className="flex items-center justify-between gap-4 p-3 rounded-lg border border-white/5 bg-ink-950/20 animate-fade-in">
+                        <div className="flex flex-col">
+                          <span className="text-xs font-semibold text-slate-200">
+                            {friendlyName[action] || action}
+                          </span>
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            {keys.map((k) => (
+                              <span key={k} className="inline-flex items-center gap-1 rounded bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-bold text-slate-300 uppercase">
+                                {k === " " ? "SPACE" : k}
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveKey(action, k)}
+                                  className="text-slate-500 hover:text-red-400 font-bold ml-1"
+                                >
+                                  ✕
+                                </button>
+                              </span>
+                            ))}
+                            {keys.length === 0 && (
+                              <span className="text-[10px] text-slate-600">No keys bound</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => startRecording(action)}
+                          className={`rounded px-3 py-1.5 text-xs font-bold transition ${
+                            isRecording
+                              ? "bg-red-500/20 text-red-400 border border-red-500/35 animate-pulse"
+                              : "bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300"
+                          }`}
+                        >
+                          {isRecording ? "Press Key..." : "Record"}
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleResetKeybinds}
+                      className="rounded border border-white/10 px-3.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition"
+                    >
+                      Reset to Defaults
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1125,6 +1322,11 @@ function SettingsPage() {
                     </div>
                   )}
 
+                  {/* Duplicate Manga Scanner */}
+                  <div className="border-t border-white/5 pt-6">
+                    <DuplicateScanner />
+                  </div>
+
                   {/* Reset All Settings */}
                   <div className="border-t border-white/5 pt-6 space-y-4">
                     <div>
@@ -1215,6 +1417,9 @@ function SettingsPage() {
                   {isTauri() && (
                     <TauriUpdaterRow />
                   )}
+
+                  {/* Suwayomi Server Updater Section */}
+                  <SuwayomiServerUpdaterRow />
 
                   {/* Legal Disclaimer Box */}
                   <div className="rounded-xl border border-red-500/10 bg-red-500/5 p-5">

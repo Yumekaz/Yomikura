@@ -64,6 +64,27 @@ export interface ServerProfile {
   url: string;
 }
 
+export interface MangaOverride {
+  readerMode?: ReaderMode;
+  fitMode?: FitMode;
+  pageSpread?: PageSpread;
+}
+
+export interface ImageFilters {
+  grayscale: number;
+  invert: number;
+  brightness: number;
+  contrast: number;
+}
+
+export interface SavedSearch {
+  id: string;
+  name: string;
+  sourceId: string;
+  query: string;
+  filters: string;
+}
+
 interface SettingsState {
   serverBaseUrl: string;
   connectionStatus: ConnectionStatus;
@@ -79,6 +100,16 @@ interface SettingsState {
   themeMode: "dark" | "light" | "system";
   mockMode: boolean;
   serverDataPath: string;
+  
+  // Phase 2 features
+  mangaSettingsOverrides: Record<string | number, MangaOverride>;
+  autoScrollSpeed: number;
+  imageFilters: ImageFilters;
+  cropBorders: boolean;
+  pageTransition: "fade" | "slide" | "none";
+  autoDownloadCount: number;
+  customKeybinds: Record<string, string[]>;
+  savedSearches: SavedSearch[];
   
   // Actions
   setServerBaseUrl: (url: string) => void;
@@ -97,6 +128,18 @@ interface SettingsState {
   setMockMode: (mock: boolean) => void;
   setServerDataPath: (path: string) => void;
   resetAllSettings: () => void;
+  
+  // Phase 2 actions
+  setMangaOverride: (mangaId: string | number, override: Partial<MangaOverride>) => void;
+  clearMangaOverride: (mangaId: string | number) => void;
+  setAutoScrollSpeed: (speed: number) => void;
+  setImageFilters: (filters: Partial<ImageFilters>) => void;
+  setCropBorders: (crop: boolean) => void;
+  setPageTransition: (transition: "fade" | "slide" | "none") => void;
+  setAutoDownloadCount: (count: number) => void;
+  setCustomKeybinds: (keybinds: Record<string, string[]>) => void;
+  addSavedSearch: (name: string, sourceId: string, query: string, filters: string) => void;
+  deleteSavedSearch: (id: string) => void;
   
   // Derived
   getGraphqlEndpoint: () => string;
@@ -121,6 +164,22 @@ export const useSettingsStore = create<SettingsState>()(
       themeMode: "dark",
       mockMode: false,
       serverDataPath: "",
+      
+      // Phase 2 default state
+      mangaSettingsOverrides: {},
+      autoScrollSpeed: 1,
+      imageFilters: { grayscale: 0, invert: 0, brightness: 100, contrast: 100 },
+      cropBorders: false,
+      pageTransition: "none",
+      autoDownloadCount: 0,
+      customKeybinds: {
+        prevPage: ["arrowleft", "a", "backspace"],
+        nextPage: ["arrowright", "d", " ", "enter"],
+        toggleOverlay: ["escape"],
+        cycleFit: ["w"],
+        cycleSpread: ["s"]
+      },
+      savedSearches: [],
 
       setServerBaseUrl: (url: string) => {
         set((state) => {
@@ -232,6 +291,45 @@ export const useSettingsStore = create<SettingsState>()(
       setMockMode: (mock: boolean) => set({ mockMode: mock }),
       setServerDataPath: (path: string) => set({ serverDataPath: path.trim() }),
       
+      // Phase 2 actions implementation
+      setMangaOverride: (mangaId, override) => set((state) => ({
+        mangaSettingsOverrides: {
+          ...state.mangaSettingsOverrides,
+          [mangaId]: {
+            ...state.mangaSettingsOverrides[mangaId],
+            ...override
+          }
+        }
+      })),
+      clearMangaOverride: (mangaId) => set((state) => {
+        const copy = { ...state.mangaSettingsOverrides };
+        delete copy[mangaId];
+        return { mangaSettingsOverrides: copy };
+      }),
+      setAutoScrollSpeed: (speed) => set({ autoScrollSpeed: speed }),
+      setImageFilters: (filters) => set((state) => ({
+        imageFilters: { ...state.imageFilters, ...filters }
+      })),
+      setCropBorders: (crop) => set({ cropBorders: crop }),
+      setPageTransition: (transition) => set({ pageTransition: transition }),
+      setAutoDownloadCount: (count) => set({ autoDownloadCount: count }),
+      setCustomKeybinds: (keybinds) => set({ customKeybinds: keybinds }),
+      addSavedSearch: (name, sourceId, query, filters) => {
+        const newSearch: SavedSearch = {
+          id: Math.random().toString(36).substring(2, 9),
+          name: name.trim(),
+          sourceId,
+          query,
+          filters
+        };
+        set((state) => ({
+          savedSearches: [...state.savedSearches, newSearch]
+        }));
+      },
+      deleteSavedSearch: (id) => set((state) => ({
+        savedSearches: state.savedSearches.filter(s => s.id !== id)
+      })),
+      
       resetAllSettings: () => {
         set({
           serverBaseUrl: DEFAULT_SERVER_BASE_URL,
@@ -250,6 +348,20 @@ export const useSettingsStore = create<SettingsState>()(
           themeMode: "dark",
           mockMode: false,
           serverDataPath: "",
+          mangaSettingsOverrides: {},
+          autoScrollSpeed: 1,
+          imageFilters: { grayscale: 0, invert: 0, brightness: 100, contrast: 100 },
+          cropBorders: false,
+          pageTransition: "none",
+          autoDownloadCount: 0,
+          customKeybinds: {
+            prevPage: ["arrowleft", "a", "backspace"],
+            nextPage: ["arrowright", "d", " ", "enter"],
+            toggleOverlay: ["escape"],
+            cycleFit: ["w"],
+            cycleSpread: ["s"]
+          },
+          savedSearches: [],
         });
       },
 
@@ -276,6 +388,14 @@ export const useSettingsStore = create<SettingsState>()(
         themeMode: state.themeMode,
         mockMode: state.mockMode,
         serverDataPath: state.serverDataPath,
+        mangaSettingsOverrides: state.mangaSettingsOverrides,
+        autoScrollSpeed: state.autoScrollSpeed,
+        imageFilters: state.imageFilters,
+        cropBorders: state.cropBorders,
+        pageTransition: state.pageTransition,
+        autoDownloadCount: state.autoDownloadCount,
+        customKeybinds: state.customKeybinds,
+        savedSearches: state.savedSearches,
       }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<SettingsState> | undefined;
@@ -303,6 +423,14 @@ export const useSettingsStore = create<SettingsState>()(
           themeMode: persisted?.themeMode ?? currentState.themeMode,
           mockMode: persisted?.mockMode ?? currentState.mockMode,
           serverDataPath: persisted?.serverDataPath ?? currentState.serverDataPath,
+          mangaSettingsOverrides: persisted?.mangaSettingsOverrides ?? currentState.mangaSettingsOverrides,
+          autoScrollSpeed: persisted?.autoScrollSpeed ?? currentState.autoScrollSpeed,
+          imageFilters: persisted?.imageFilters ?? currentState.imageFilters,
+          cropBorders: persisted?.cropBorders ?? currentState.cropBorders,
+          pageTransition: persisted?.pageTransition ?? currentState.pageTransition,
+          autoDownloadCount: persisted?.autoDownloadCount ?? currentState.autoDownloadCount,
+          customKeybinds: persisted?.customKeybinds ?? currentState.customKeybinds,
+          savedSearches: persisted?.savedSearches ?? currentState.savedSearches,
         };
       },
     }

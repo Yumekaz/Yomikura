@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 
-import { FitMode, isTauri } from "../../stores/useSettingsStore";
+import { FitMode, isTauri, useSettingsStore } from "../../stores/useSettingsStore";
 
 interface ReaderImageProps {
   url: string;
@@ -18,6 +18,8 @@ export function ReaderImage({ url, fallbackUrl, pageNumber, onIntersect, mode = 
   const [error, setError] = useState(false);
   const [usingFallback, setUsingFallback] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+
+  const { imageFilters, cropBorders } = useSettingsStore();
 
   const imageUrl = usingFallback && fallbackUrl ? fallbackUrl : url;
   const [displayUrl, setDisplayUrl] = useState("");
@@ -131,8 +133,8 @@ export function ReaderImage({ url, fallbackUrl, pageNumber, onIntersect, mode = 
 
   // Determine classes based on mode and fitMode
   const containerClass = mode === "webtoon"
-    ? "relative flex w-full flex-col items-center justify-center bg-black min-h-[50vh]"
-    : `relative flex w-full flex-col items-center justify-center bg-black ${
+    ? "relative flex w-full flex-col items-center justify-center bg-black min-h-[50vh] overflow-hidden"
+    : `relative flex w-full flex-col items-center justify-center bg-black overflow-hidden ${
         fitMode === "FIT_WIDTH" ? "h-auto min-h-screen py-2" : "h-screen"
       }`;
 
@@ -149,6 +151,8 @@ export function ReaderImage({ url, fallbackUrl, pageNumber, onIntersect, mode = 
       imageClass += " max-h-full max-w-full";
     }
   }
+
+  const filterStyle = `grayscale(${imageFilters.grayscale}%) invert(${imageFilters.invert}%) brightness(${imageFilters.brightness}%) contrast(${imageFilters.contrast}%)`;
 
   return (
     <div
@@ -188,6 +192,11 @@ export function ReaderImage({ url, fallbackUrl, pageNumber, onIntersect, mode = 
         src={displayUrl || undefined}
         alt={`Page ${pageNumber + 1}`}
         className={`${imageClass} ${loaded ? "opacity-100" : "opacity-0"}`}
+        style={{
+          filter: filterStyle,
+          transform: cropBorders ? "scale(1.08)" : "none",
+          transformOrigin: "center",
+        }}
         onLoad={() => setLoaded(true)}
         onError={handleError}
       />

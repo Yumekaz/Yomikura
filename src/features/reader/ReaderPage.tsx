@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { useSettingsStore, FitMode, PageSpread } from "../../stores/useSettingsStore";
+import { useSettingsStore, FitMode, PageSpread, ReaderMode } from "../../stores/useSettingsStore";
+import { useDownloadStore } from "../../stores/useDownloadStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { classifySourceProblem } from "../../api/suwayomi/errors";
 import { buildSuwayomiPageUrl, resolveBackendUrl } from "../../api/suwayomi/pageUrls";
@@ -91,28 +92,41 @@ export default function ReaderPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   
-  // Settings store options
+  // Settings store global values & setters
   const { 
     serverBaseUrl, 
-    readerMode, 
-    setReaderMode, 
-    fitMode, 
-    setFitMode, 
-    pageSpread, 
-    setPageSpread 
+    readerMode: globalReaderMode, 
+    setReaderMode: setGlobalReaderMode, 
+    fitMode: globalFitMode, 
+    setFitMode: setGlobalFitMode, 
+    pageSpread: globalPageSpread, 
+    setPageSpread: setGlobalPageSpread,
+    mangaSettingsOverrides,
+    setMangaOverride,
+    clearMangaOverride,
+    autoScrollSpeed,
+    pageTransition,
+    autoDownloadCount,
+    customKeybinds
   } = useSettingsStore();
+
+  const { downloadChapter, cachedChapters } = useDownloadStore();
 
   const [showOverlay, setShowOverlay] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isAutoScrolling, setIsAutoScrolling] = useState(false);
   const lastSavedPageRef = useRef<number | null>(null);
   const debouncedUpdateRef = useRef<any>(null);
+  const scrollRef = useRef<number | null>(null);
+  const autoScrollEndTriggered = useRef(false);
 
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
     return createGraphqlClient(`${cleanUrl}/api/graphql`);
   }, [serverBaseUrl]);
 
-  // Fetch chapter details (with local IndexedDB fallback)
+  // Fetch chapter details
   const { data: chapterData, isLoading: chapterLoading, isError: chapterError, error: chapterErrorObject, refetch: refetchChapter } = useQuery({
     queryKey: ["chapter", chapterId, serverBaseUrl],
     queryFn: async () => {
@@ -153,7 +167,54 @@ export default function ReaderPage() {
     enabled: !!serverBaseUrl && !!chapterId,
   });
 
-  // Fetch pages mutation (with local IndexedDB fallback)
+  const chapter = chapterData?.chapter;
+  const mangaId = chapter?.mangaId;
+
+  // Resolve Overrides
+  const hasOverride = mangaId !== undefined && mangaSettingsOverrides[mangaId] !== undefined;
+  
+  const readerMode = hasOverride && mangaSettingsOverrides[mangaId]?.readerMode ? mangaSettingsOverrides[mangaId].readerMode! : globalReaderMode;
+  const fitMode = hasOverride && mangaSettingsOverrides[mangaId]?.fitMode ? mangaSettingsOverrides[mangaId].fitMode! : globalFitMode;
+  const pageSpread = hasOverride && mangaSettingsOverrides[mangaId]?.pageSpread ? mangaSettingsOverrides[mangaId].pageSpread! : globalPageSpread;
+
+  const handleReaderModeChange = useCallback((mode: ReaderMode) => {
+    if (mangaId !== undefined && hasOverride) {
+      setMangaOverride(mangaId, { readerMode: mode });
+    } else {
+      setGlobalReaderMode(mode);
+    }
+  }, [mangaId, hasOverride, setMangaOverride, setGlobalReaderMode]);
+
+  const handleFitModeChange = useCallback((mode: FitMode) => {
+    if (mangaId !== undefined && hasOverride) {
+      setMangaOverride(mangaId, { fitMode: mode });
+    } else {
+      setGlobalFitMode(mode);
+    }
+  }, [mangaId, hasOverride, setMangaOverride, setGlobalFitMode]);
+
+  const handlePageSpreadChange = useCallback((spread: PageSpread) => {
+    if (mangaId !== undefined && hasOverride) {
+      setMangaOverride(mangaId, { pageSpread: spread });
+    } else {
+      setGlobalPageSpread(spread);
+    }
+  }, [mangaId, hasOverride, setMangaOverride, setGlobalPageSpread]);
+
+  const handleToggleOverride = useCallback(() => {
+    if (mangaId === undefined) return;
+    if (hasOverride) {
+      clearMangaOverride(mangaId);
+    } else {
+      setMangaOverride(mangaId, {
+        readerMode,
+        fitMode,
+        pageSpread
+      });
+    }
+  }, [mangaId, hasOverride, clearMangaOverride, setMangaOverride, readerMode, fitMode, pageSpread]);
+
+  // Fetch pages mutation
   const { mutate: fetchPages, data: pagesData, isPending: pagesLoading, isError: pagesError, error: pagesErrorObject } = useMutation({
     mutationFn: async () => {
       try {
@@ -173,12 +234,11 @@ export default function ReaderPage() {
     }
   });
 
-  // Update progress mutation (with local IndexedDB fallback)
+  // Update progress mutation
   const { mutate: updateProgress } = useMutation({
     mutationFn: async (pageIndex: number) => {
       const isRead = pages && pageIndex >= pages.length - 1;
 
-      // Sync progress to local cache first
       try {
         await updateCachedChapterProgress(serverBaseUrl, parseInt(chapterId!), pageIndex, !!isRead);
       } catch (err) {
@@ -210,6 +270,8 @@ export default function ReaderPage() {
     if (chapterId && serverBaseUrl) {
       setCurrentPage(0);
       lastSavedPageRef.current = null;
+      setIsAutoScrolling(false);
+      autoScrollEndTriggered.current = false;
       if (debouncedUpdateRef.current) {
         clearTimeout(debouncedUpdateRef.current);
       }
@@ -217,7 +279,6 @@ export default function ReaderPage() {
     }
   }, [chapterId, serverBaseUrl, fetchPages]);
 
-  const chapter = chapterData?.chapter;
   const pages = pagesData?.fetchChapterPages?.pages || [];
   const pageProblem = chapterError || pagesError ? classifySourceProblem(chapterErrorObject ?? pagesErrorObject) : null;
 
@@ -233,13 +294,13 @@ export default function ReaderPage() {
     lastSavedPageRef.current = savedPage;
   }, [chapter?.id, chapter?.lastPageRead, pages.length]);
 
-  // Compute Next/Prev chapters
+  // Compute Sibling Chapters
   const siblingChapters = useMemo(() => {
     if (!chapter?.manga?.chapters?.edges) return [];
     return chapter.manga.chapters.edges
       .map(e => e?.node)
       .filter((n): n is NonNullable<typeof n> => n != null)
-      .sort((a, b) => a.chapterNumber - b.chapterNumber); // Ascending order
+      .sort((a, b) => a.chapterNumber - b.chapterNumber);
   }, [chapter]);
 
   const { prevChapterId, nextChapterId } = useMemo(() => {
@@ -250,6 +311,31 @@ export default function ReaderPage() {
       nextChapterId: idx >= 0 && idx < siblingChapters.length - 1 ? siblingChapters[idx + 1].id : undefined,
     };
   }, [chapter, siblingChapters]);
+
+  // Auto-Download Queue effect
+  useEffect(() => {
+    if (!chapter || autoDownloadCount <= 0 || siblingChapters.length === 0) return;
+
+    const idx = siblingChapters.findIndex(c => c.id === chapter.id);
+    if (idx === -1) return;
+
+    const nextChapters = siblingChapters.slice(idx + 1, idx + 1 + autoDownloadCount);
+
+    const triggerDownloads = async () => {
+      for (const ch of nextChapters) {
+        const isAlreadyDownloaded = cachedChapters?.some(cc => cc.id === ch.id);
+        if (!isAlreadyDownloaded) {
+          try {
+            await downloadChapter(ch.id, chapter.manga?.title);
+          } catch (err) {
+            console.error("Failed background auto-download for chapter:", ch.id, err);
+          }
+        }
+      }
+    };
+
+    void triggerDownloads();
+  }, [chapter?.id, autoDownloadCount, siblingChapters, cachedChapters, downloadChapter]);
 
   // Debounced progress saver
   const saveProgress = useCallback((pageIndex: number) => {
@@ -279,6 +365,22 @@ export default function ReaderPage() {
     saveProgress(pageIndex);
   }, [saveProgress]);
 
+  // Page Transitions Engine
+  const changePageWithTransition = useCallback((nextIndex: number) => {
+    if (pageTransition === "none") {
+      setCurrentPage(nextIndex);
+      window.scrollTo(0, 0);
+      return;
+    }
+
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setCurrentPage(nextIndex);
+      window.scrollTo(0, 0);
+      setIsTransitioning(false);
+    }, 150);
+  }, [pageTransition]);
+
   // Compute current spread indices A and B
   const { idxA, idxB } = useMemo(() => {
     if (readerMode === "WEBTOON" || pageSpread === "SINGLE") {
@@ -298,17 +400,17 @@ export default function ReaderPage() {
     return { idxA, idxB };
   }, [currentPage, readerMode, pageSpread]);
 
-  // Sync progress for single/spread modes based on pages currently showing
+  // Sync progress for single/spread modes
   useEffect(() => {
     if (readerMode === "WEBTOON" || pages.length === 0) return;
     const activePage = idxB !== null && idxB < pages.length ? idxB : idxA;
     saveProgress(activePage);
   }, [idxA, idxB, readerMode, pages.length, saveProgress]);
 
+  // Navigation Logic
   const navigatePage = useCallback((dir: number) => {
     let next = currentPage + dir;
     
-    // Custom double-page navigation jumps
     if (readerMode !== "WEBTOON" && pageSpread !== "SINGLE") {
       if (dir === 1) {
         if (pageSpread === "DOUBLE_COVER" && currentPage === 0) {
@@ -335,29 +437,26 @@ export default function ReaderPage() {
     }
 
     if (next >= 0 && next < pages.length) {
-      setCurrentPage(next);
-      window.scrollTo(0, 0); // Reset scroll for single page mode
+      changePageWithTransition(next);
     } else if (next >= pages.length && nextChapterId) {
       navigate(`/reader/${nextChapterId}`);
     } else if (next < 0 && prevChapterId) {
       navigate(`/reader/${prevChapterId}`);
     }
-  }, [currentPage, readerMode, pageSpread, pages.length, nextChapterId, prevChapterId, navigate]);
+  }, [currentPage, readerMode, pageSpread, pages.length, nextChapterId, prevChapterId, navigate, changePageWithTransition]);
 
   const handlePageClick = useCallback((e: React.MouseEvent) => {
     const width = window.innerWidth;
     const x = e.clientX;
-    const threshold = width * 0.3; // 30% edge tap zones
+    const threshold = width * 0.3;
 
     if (readerMode !== "WEBTOON") {
       e.stopPropagation();
       if (x < threshold) {
-        // Left tap
-        const dir = readerMode === "LTR" ? -1 : 1;
+        const dir = readerMode === "RTL" ? 1 : -1;
         navigatePage(dir);
       } else if (x > width - threshold) {
-        // Right tap
-        const dir = readerMode === "LTR" ? 1 : -1;
+        const dir = readerMode === "RTL" ? -1 : 1;
         navigatePage(dir);
       } else {
         setShowOverlay(!showOverlay);
@@ -366,6 +465,11 @@ export default function ReaderPage() {
       setShowOverlay(!showOverlay);
     }
   }, [navigatePage, readerMode, showOverlay]);
+
+  const handleJumpToPage = useCallback((pageIndex: number) => {
+    const target = Math.min(Math.max(0, pageIndex), pages.length - 1);
+    changePageWithTransition(target);
+  }, [pages.length, changePageWithTransition]);
 
   // Preload next 3 images dynamically
   useEffect(() => {
@@ -397,6 +501,81 @@ export default function ReaderPage() {
     };
   }, [currentPage, pages, chapter, serverBaseUrl]);
 
+  // Webtoon infinite-scroll binge effect (scroll to bottom auto-advance)
+  useEffect(() => {
+    if (readerMode !== "WEBTOON" || !nextChapterId) return;
+
+    const handleWebtoonScroll = () => {
+      const isNearBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 50;
+      if (isNearBottom && !autoScrollEndTriggered.current) {
+        autoScrollEndTriggered.current = true;
+        setIsAutoScrolling(false);
+        // Load next chapter after 1.2s delay
+        setTimeout(() => {
+          navigate(`/reader/${nextChapterId}`);
+        }, 1200);
+      }
+    };
+
+    window.addEventListener("scroll", handleWebtoonScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleWebtoonScroll);
+  }, [readerMode, nextChapterId, navigate]);
+
+  // Auto-scroll loop
+  useEffect(() => {
+    if (!isAutoScrolling) {
+      if (scrollRef.current) {
+        cancelAnimationFrame(scrollRef.current);
+        scrollRef.current = null;
+      }
+      return;
+    }
+
+    let lastTime = performance.now();
+    
+    const scrollLoop = (time: number) => {
+      const elapsed = time - lastTime;
+      lastTime = time;
+      
+      const step = (autoScrollSpeed * elapsed) / 16; // Adjust speed denominator for frame pacing
+      window.scrollBy(0, step);
+
+      const scrolledToBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 5;
+      if (scrolledToBottom) {
+        setIsAutoScrolling(false);
+      } else {
+        scrollRef.current = requestAnimationFrame(scrollLoop);
+      }
+    };
+
+    scrollRef.current = requestAnimationFrame(scrollLoop);
+
+    return () => {
+      if (scrollRef.current) {
+        cancelAnimationFrame(scrollRef.current);
+      }
+    };
+  }, [isAutoScrolling, autoScrollSpeed]);
+
+  // Pause scroll on user manual actions
+  useEffect(() => {
+    if (!isAutoScrolling) return;
+
+    const stopScroll = () => {
+      setIsAutoScrolling(false);
+    };
+
+    window.addEventListener("wheel", stopScroll, { passive: true });
+    window.addEventListener("touchstart", stopScroll, { passive: true });
+    window.addEventListener("mousedown", stopScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("wheel", stopScroll);
+      window.removeEventListener("touchstart", stopScroll);
+      window.removeEventListener("mousedown", stopScroll);
+    };
+  }, [isAutoScrolling]);
+
   // Keyboard binding listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -405,34 +584,54 @@ export default function ReaderPage() {
       }
 
       const key = e.key.toLowerCase();
-      if (key === "arrowright" || key === " " || key === "d") {
-        // RTL-aware next page flip
+
+      const isNext = customKeybinds?.nextPage?.includes(key);
+      const isPrev = customKeybinds?.prevPage?.includes(key);
+      const isExit = customKeybinds?.toggleOverlay?.includes(key) || key === "escape";
+      const isCycleFit = customKeybinds?.cycleFit?.includes(key);
+      const isCycleSpread = customKeybinds?.cycleSpread?.includes(key);
+
+      if (isNext) {
         const dir = readerMode === "RTL" ? -1 : 1;
         navigatePage(dir);
-      } else if (key === "arrowleft" || key === "backspace" || key === "a") {
-        // RTL-aware prev page flip
+      } else if (isPrev) {
         const dir = readerMode === "RTL" ? 1 : -1;
         navigatePage(dir);
-      } else if (e.key === "Escape") {
-        navigate(chapter?.mangaId ? `/manga/${chapter.mangaId}` : "/library");
-      } else if (key === "w") {
-        // Cycle Fit Modes: Screen -> Width -> Height
+      } else if (isExit) {
+        if (showOverlay) {
+          navigate(chapter?.mangaId ? `/manga/${chapter.mangaId}` : "/library");
+        } else {
+          setShowOverlay(true);
+        }
+      } else if (isCycleFit) {
         const modes: FitMode[] = ["FIT_SCREEN", "FIT_WIDTH", "FIT_HEIGHT"];
         const nextIdx = (modes.indexOf(fitMode) + 1) % modes.length;
-        setFitMode(modes[nextIdx]);
-      } else if (key === "s") {
-        // Cycle Page Spreads: Single -> Double -> Double + Cover
+        handleFitModeChange(modes[nextIdx]);
+      } else if (isCycleSpread) {
         if (readerMode !== "WEBTOON") {
           const spreads: PageSpread[] = ["SINGLE", "DOUBLE", "DOUBLE_COVER"];
           const nextIdx = (spreads.indexOf(pageSpread) + 1) % spreads.length;
-          setPageSpread(spreads[nextIdx]);
+          handlePageSpreadChange(spreads[nextIdx]);
         }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentPage, readerMode, fitMode, pageSpread, pages.length, navigatePage, navigate, chapter?.mangaId, setFitMode, setPageSpread]);
+  }, [
+    currentPage, 
+    readerMode, 
+    fitMode, 
+    pageSpread, 
+    pages.length, 
+    navigatePage, 
+    navigate, 
+    chapter?.mangaId, 
+    handleFitModeChange, 
+    handlePageSpreadChange, 
+    customKeybinds, 
+    showOverlay
+  ]);
 
   if (!serverBaseUrl) {
     return (
@@ -497,6 +696,25 @@ export default function ReaderPage() {
     ? (readerMode === "RTL" ? [idxB, idxA] : [idxA, idxB])
     : [idxA];
 
+  const buildPageUrl = (pageIndex: number) => {
+    return buildSuwayomiPageUrl({
+      serverBaseUrl,
+      mangaId: chapter.mangaId,
+      chapterSourceOrder: chapter.sourceOrder,
+      pageIndex,
+    });
+  };
+
+  // Determine transition animations
+  let transitionClass = "transition-all duration-150";
+  if (isTransitioning) {
+    if (pageTransition === "fade") transitionClass += " opacity-0";
+    else if (pageTransition === "slide") transitionClass += " transform translate-x-8 opacity-0";
+  } else {
+    if (pageTransition === "fade") transitionClass += " opacity-100";
+    else if (pageTransition === "slide") transitionClass += " transform translate-x-0 opacity-100";
+  }
+
   return (
     <div className="min-h-screen bg-black">
       <ReaderOverlay
@@ -507,13 +725,19 @@ export default function ReaderPage() {
         currentPage={currentPage}
         totalPages={pages.length}
         readerMode={readerMode}
-        onModeChange={setReaderMode}
+        onModeChange={handleReaderModeChange}
         fitMode={fitMode}
-        onFitModeChange={setFitMode}
+        onFitModeChange={handleFitModeChange}
         pageSpread={pageSpread}
-        onPageSpreadChange={setPageSpread}
+        onPageSpreadChange={handlePageSpreadChange}
         nextChapterId={nextChapterId}
         prevChapterId={prevChapterId}
+        hasOverride={hasOverride}
+        onToggleOverride={handleToggleOverride}
+        buildPageUrl={buildPageUrl}
+        onJumpToPage={handleJumpToPage}
+        isAutoScrolling={isAutoScrolling}
+        onToggleAutoScroll={() => setIsAutoScrolling(!isAutoScrolling)}
       />
 
       {/* Pages Container */}
@@ -524,26 +748,39 @@ export default function ReaderPage() {
             : fitMode === "FIT_WIDTH"
               ? "h-screen overflow-y-auto flex justify-center items-start"
               : "flex h-screen items-center justify-center overflow-hidden"
-        }`}
+        } ${transitionClass}`}
         onClick={handlePageClick}
       >
         {readerMode === "WEBTOON" ? (
-          // Webtoon mode: virtualized list
-          pages.map((url, i) => (
-            <WebtoonPageWrapper key={i} pageIndex={i}>
-              <ReaderImage
-                url={buildSuwayomiPageUrl({
-                  serverBaseUrl,
-                  mangaId: chapter.mangaId,
-                  chapterSourceOrder: chapter.sourceOrder,
-                  pageIndex: i,
-                })}
-                fallbackUrl={resolveBackendUrl(serverBaseUrl, url)}
-                pageNumber={i}
-                onIntersect={handleIntersect}
-              />
-            </WebtoonPageWrapper>
-          ))
+          // Webtoon mode
+          <div className="flex flex-col w-full">
+            {pages.map((url, i) => (
+              <WebtoonPageWrapper key={i} pageIndex={i}>
+                <ReaderImage
+                  url={buildPageUrl(i)}
+                  fallbackUrl={resolveBackendUrl(serverBaseUrl, url)}
+                  pageNumber={i}
+                  onIntersect={handleIntersect}
+                />
+              </WebtoonPageWrapper>
+            ))}
+            
+            {/* Inline Up Next Chapter bar for binge scrolling */}
+            {nextChapterId && (
+              <div className="w-full bg-ink-950 p-8 text-center border-t border-white/5 flex flex-col items-center justify-center gap-3">
+                <span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Completed Chapter</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/reader/${nextChapterId}`);
+                  }}
+                  className="rounded-xl bg-yomi-jade/10 border border-yomi-jade/20 hover:bg-yomi-jade/20 text-yomi-mint px-6 py-3 text-sm font-semibold transition-all duration-300"
+                >
+                  Load Next Chapter
+                </button>
+              </div>
+            )}
+          </div>
         ) : (
           // Single/Double page mode
           <div className="flex w-full h-full items-center justify-center gap-1 md:gap-2">
@@ -555,12 +792,7 @@ export default function ReaderPage() {
                   className={`${isDouble ? "w-1/2" : "w-full"} h-full flex items-center justify-center`}
                 >
                   <ReaderImage
-                    url={buildSuwayomiPageUrl({
-                      serverBaseUrl,
-                      mangaId: chapter.mangaId,
-                      chapterSourceOrder: chapter.sourceOrder,
-                      pageIndex: idx,
-                    })}
+                    url={buildPageUrl(idx)}
                     fallbackUrl={resolveBackendUrl(serverBaseUrl, pages[idx])}
                     pageNumber={idx}
                     mode="single"

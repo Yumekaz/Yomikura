@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, RotateCcw, ServerCrash, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -8,13 +8,21 @@ import { createGraphqlClient } from "../../api/graphql/client";
 import { LibraryFilters } from "./LibraryFilters";
 import { LibraryGrid, LibraryManga } from "./LibraryGrid";
 import { CategoryDialog } from "./CategoryDialog";
+import { BulkCategoryModal } from "../../components/library/BulkCategoryModal";
 
 export default function LibraryPage() {
   const { serverBaseUrl, setServerBaseUrl, testConnection } = useSettingsStore();
-  const { cachedChapters, loadCachedChapters } = useDownloadStore();
+  const { cachedChapters, loadCachedChapters, downloadChapter } = useDownloadStore();
+  const queryClient = useQueryClient();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategoryId, setActiveCategoryId] = useState<string | number | null>(null);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
+
+  // Bulk Select States
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedMangaIds, setSelectedMangaIds] = useState<Set<string | number>>(new Set());
+  const [isBulkCatOpen, setIsBulkCatOpen] = useState(false);
 
   useEffect(() => {
     loadCachedChapters();
@@ -31,11 +39,10 @@ export default function LibraryPage() {
     queryKey: ["categories", serverBaseUrl],
     queryFn: () => sdk.GetCategories(),
     enabled: !!serverBaseUrl,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
   });
 
   // Fetch Library
-  // We fetch all library items and perform category filtering on the frontend for instant response
   const {
     data: libData,
     isLoading: libLoading,
@@ -48,7 +55,7 @@ export default function LibraryPage() {
         filter: { 
           inLibrary: { equalTo: true }
         },
-        first: 500, // Fetch up to 500 for a solid initial load
+        first: 500,
       });
     },
     enabled: !!serverBaseUrl,
@@ -115,22 +122,19 @@ export default function LibraryPage() {
       filtered = filtered.filter((m) => {
         const catIds = m.categories?.nodes?.map(c => c?.id) || [];
         if (activeCategoryId === 0 || activeCategoryId === "0") {
-          // Default category: manga has no categories or contains category ID 0
           return catIds.length === 0 || catIds.includes(0);
         } else {
-          // Custom category: manga must explicitly belong to this category ID
           return catIds.some(id => String(id) === String(activeCategoryId));
         }
       });
     }
 
-    // Apply front-end search filter (faster than refetching for every keystroke)
+    // Apply front-end search filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter((m) => m.title.toLowerCase().includes(q));
     }
 
-    // Map to our UI type
     return filtered.map((m) => ({
       id: m.id,
       title: m.title,
@@ -139,7 +143,82 @@ export default function LibraryPage() {
     }));
   }, [libData, searchQuery, isOfflineMode, cachedChapters, activeCategoryId]);
 
-  // Handle server unconnected state safely
+  // Bulk select handlers
+  const handleToggleSelectManga = useCallback((mangaId: string | number) => {
+    setIsSelectMode(true);
+    setSelectedMangaIds((prev) => {
+      const copy = new Set(prev);
+      if (copy.has(mangaId)) {
+        copy.delete(mangaId);
+        if (copy.size === 0) {
+          setIsSelectMode(false);
+        }
+      } else {
+        copy.add(mangaId);
+      }
+      return copy;
+    });
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setIsSelectMode(false);
+    setSelectedMangaIds(new Set());
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    setSelectedMangaIds(new Set(mangas.map((m) => m.id)));
+  }, [mangas]);
+
+  const bulkDownloadSelected = async () => {
+    const idArray = Array.from(selectedMangaIds);
+    handleClearSelection();
+    
+    for (const mangaId of idArray) {
+      try {
+        const details = await sdk.GetMangaDetails({ id: parseInt(String(mangaId)) });
+        const nodes = details.manga?.chapters?.edges?.map(e => e?.node).filter(Boolean) || [];
+        const targetChapters = nodes.filter(n => !n.isRead && !n.isDownloaded);
+        
+        for (const ch of targetChapters) {
+          await downloadChapter(parseInt(String(ch.id)), details.manga?.title);
+        }
+      } catch (err) {
+        console.error("Bulk download failed for manga:", mangaId, err);
+      }
+    }
+  };
+
+  const bulkMarkReadStatus = async (isRead: boolean) => {
+    const idArray = Array.from(selectedMangaIds);
+    handleClearSelection();
+    
+    for (const mangaId of idArray) {
+      try {
+        const details = await sdk.GetMangaDetails({ id: parseInt(String(mangaId)) });
+        const nodes = details.manga?.chapters?.edges?.map(e => e?.node).filter(Boolean) || [];
+        const targetChapters = nodes.filter(n => n.isRead !== isRead);
+        
+        await Promise.all(
+          targetChapters.map((ch) =>
+            sdk.UpdateChapterProgress({
+              input: {
+                id: parseInt(String(ch.id)),
+                patch: {
+                  isRead,
+                  lastPageRead: isRead ? 999 : 0
+                }
+              }
+            })
+          )
+        );
+      } catch (err) {
+        console.error("Bulk mark read status failed for manga:", mangaId, err);
+      }
+    }
+    
+    queryClient.invalidateQueries({ queryKey: ["library"] });
+  };
+
   if (!serverBaseUrl) {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center bg-ink-950 p-6 text-center text-slate-300">
@@ -159,7 +238,6 @@ export default function LibraryPage() {
     );
   }
 
-  // Handle error (only if we're not in offline mode with cached chapters)
   if (libError && !isOfflineMode) {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center bg-ink-950 p-6 text-center text-red-400">
@@ -189,7 +267,7 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="flex h-full w-full flex-col bg-transparent">
+    <div className="flex h-full w-full flex-col bg-transparent relative">
       {/* Filters Bar */}
       <LibraryFilters
         categories={categories}
@@ -198,9 +276,13 @@ export default function LibraryPage() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onManageCategories={() => setIsCategoryDialogOpen(true)}
+        isSelectMode={isSelectMode}
+        selectedCount={selectedMangaIds.size}
+        onSelectAll={handleSelectAll}
+        onCancelSelect={handleClearSelection}
       />
 
-      {/* Main Content Area */}
+      {/* Main Grid Area */}
       <div className="flex-1 overflow-y-auto">
         {isOfflineMode && (
           <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center text-xs font-medium text-amber-200 animate-fade-in flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
@@ -221,15 +303,67 @@ export default function LibraryPage() {
             <Loader2 className="h-8 w-8 animate-spin text-yomi-jade/60" />
           </div>
         ) : (
-          <LibraryGrid mangas={mangas} serverBaseUrl={serverBaseUrl} />
+          <LibraryGrid
+            mangas={mangas}
+            serverBaseUrl={serverBaseUrl}
+            isSelectMode={isSelectMode}
+            selectedMangaIds={selectedMangaIds}
+            onToggleSelectManga={handleToggleSelectManga}
+          />
         )}
       </div>
 
-      {/* Categories dialog */}
+      {/* Floating Batch Actions Bar */}
+      {isSelectMode && (
+        <div className="fixed bottom-20 inset-x-4 lg:left-72 lg:right-8 z-40 bg-ink-950/95 border border-yomi-jade/30 rounded-xl px-5 py-3.5 shadow-glow flex items-center justify-between gap-4 animate-fade-in-up backdrop-blur-md">
+          <span className="text-xs font-bold text-slate-300 hidden sm:inline">
+            Selected: {selectedMangaIds.size} titles
+          </span>
+          
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-around sm:justify-end">
+            <button
+              onClick={bulkDownloadSelected}
+              className="rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 px-3 py-2 text-xs font-bold text-slate-200 transition"
+            >
+              Download
+            </button>
+            <button
+              onClick={() => setIsBulkCatOpen(true)}
+              className="rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 px-3 py-2 text-xs font-bold text-slate-200 transition"
+            >
+              Categories
+            </button>
+            <button
+              onClick={() => bulkMarkReadStatus(true)}
+              className="rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 px-3 py-2 text-xs font-bold text-slate-200 transition"
+            >
+              Mark Read
+            </button>
+            <button
+              onClick={() => bulkMarkReadStatus(false)}
+              className="rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 px-3 py-2 text-xs font-bold text-slate-200 transition"
+            >
+              Mark Unread
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Categories management dialog */}
       <CategoryDialog
         isOpen={isCategoryDialogOpen}
         onClose={() => setIsCategoryDialogOpen(false)}
         categories={categories}
+      />
+
+      {/* Bulk category modal */}
+      <BulkCategoryModal
+        isOpen={isBulkCatOpen}
+        onClose={() => {
+          setIsBulkCatOpen(false);
+          handleClearSelection();
+        }}
+        mangaIds={Array.from(selectedMangaIds).map(Number)}
       />
     </div>
   );

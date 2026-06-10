@@ -4253,7 +4253,7 @@ export type GetMangaDetailsQueryVariables = Exact<{
 }>;
 
 
-export type GetMangaDetailsQuery = { manga: { id: number, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, categories: { edges: Array<{ node: { id: number } }> }, source: { name: string } | null, chapters: { edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, uploadDate: unknown, scanlator: string | null } }> } } };
+export type GetMangaDetailsQuery = { manga: { id: number, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, categories: { edges: Array<{ node: { id: number } }> }, source: { name: string } | null, chapters: { edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, isBookmarked: boolean, isDownloaded: boolean, uploadDate: unknown, scanlator: string | null } }> } } };
 
 export type GetChapterQueryVariables = Exact<{
   id: number;

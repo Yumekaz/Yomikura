@@ -28,6 +28,7 @@ query GetMangaDetails($id: Int!) {
           isRead
           isBookmarked
           isDownloaded
+          lastPageRead
           uploadDate
           scanlator
         }

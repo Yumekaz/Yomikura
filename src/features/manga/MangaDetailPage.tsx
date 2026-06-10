@@ -10,6 +10,7 @@ import { ChapterList, Chapter } from "./ChapterList";
 import { MangaCategoryModal } from "./MangaCategoryModal";
 import { TrackerPanel } from "./TrackerPanel";
 import { useDownloadStore } from "../../stores/useDownloadStore";
+import { SourceMigrationModal } from "../../components/source/SourceMigrationModal";
 
 
 const FETCH_CHAPTERS_DOCUMENT = gql`
@@ -50,6 +51,7 @@ export default function MangaDetailPage() {
   const { mangaId } = useParams<{ mangaId: string }>();
   const { serverBaseUrl } = useSettingsStore();
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isMigrationOpen, setIsMigrationOpen] = useState(false);
 
   const { loadCachedChapters, cachedChapters } = useDownloadStore();
 
@@ -301,6 +303,14 @@ export default function MangaDetailPage() {
                 >
                   {togglingLibrary ? <Loader2 className="h-5 w-5 animate-spin" /> : manga.inLibrary ? "In Library" : "Add to Library"}
                 </button>
+                {manga.inLibrary && !isOfflineMode && (
+                  <button
+                    onClick={() => setIsMigrationOpen(true)}
+                    className="flex flex-1 items-center justify-center rounded-xl border border-white/10 bg-ink-900/50 px-6 py-3 font-semibold text-slate-300 hover:bg-white/5 hover:border-white/20 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] sm:flex-none"
+                  >
+                    Migrate Source
+                  </button>
+                )}
               </div>
 
               {/* Genres */}
@@ -361,6 +371,15 @@ export default function MangaDetailPage() {
         onClose={() => setIsCategoryModalOpen(false)}
         mangaId={manga.id}
         currentCategoryIds={currentCategoryIds}
+      />
+
+      {/* Migration Modal */}
+      <SourceMigrationModal
+        isOpen={isMigrationOpen}
+        onClose={() => setIsMigrationOpen(false)}
+        mangaId={manga.id}
+        mangaTitle={manga.title}
+        sourceName={manga.source?.name || "Unknown"}
       />
     </div>
   );

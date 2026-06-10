@@ -1,14 +1,19 @@
-import { useState, useEffect, useMemo } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Search, Loader2, ArrowLeft } from "lucide-react";
+import { Search, Loader2, ArrowLeft, Pin } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { FetchSourceMangaType } from "../../api/graphql/generated/graphql";
 import { classifySourceProblem } from "../../api/suwayomi/errors";
 import { SourceRecoveryPanel } from "../../components/source/SourceRecoveryPanel";
 
-function MangaCard({ manga, serverBaseUrl }: { manga: any; serverBaseUrl: string }) {
+interface MangaCardProps {
+  manga: any;
+  serverBaseUrl: string;
+}
+
+function MangaCard({ manga, serverBaseUrl }: MangaCardProps) {
   const thumbnailUrl = manga.thumbnailUrl
     ? manga.thumbnailUrl.startsWith("http")
       ? manga.thumbnailUrl
@@ -18,39 +23,41 @@ function MangaCard({ manga, serverBaseUrl }: { manga: any; serverBaseUrl: string
   return (
     <Link to={`/manga/${manga.id}`} className="group relative flex flex-col gap-2">
       <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-ink-900 shadow-md">
-        {thumbnailUrl ? (
-          <img
-            src={thumbnailUrl}
-            alt={manga.title}
-            className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-            loading="lazy"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-slate-500">No Image</div>
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+        <img
+          src={thumbnailUrl || "/placeholder-cover.svg"}
+          alt={manga.title}
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = "none";
+          }}
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition duration-200" />
       </div>
-      <div className="flex flex-col px-1">
-        <span className="line-clamp-2 text-sm font-medium text-slate-200 group-hover:text-yomi-jade transition-colors">
-          {manga.title}
-        </span>
-        {manga.inLibrary && (
-          <span className="mt-1 inline-flex w-fit items-center rounded bg-yomi-jade/20 px-1.5 py-0.5 text-[10px] font-medium text-yomi-jade">
-            In Library
-          </span>
-        )}
-      </div>
+      <span className="text-xs font-semibold text-slate-200 line-clamp-2 leading-snug group-hover:text-yomi-mint transition-colors">
+        {manga.title}
+      </span>
     </Link>
   );
 }
 
 export default function SourceBrowsePage() {
   const { sourceId } = useParams<{ sourceId: string }>();
-  const { serverBaseUrl } = useSettingsStore();
-  
-  const [searchInput, setSearchInput] = useState("");
-  const [currentQuery, setCurrentQuery] = useState("");
+  const [searchParams] = useSearchParams();
+  const urlQuery = searchParams.get("query") || "";
+
+  const { serverBaseUrl, addSavedSearch, savedSearches } = useSettingsStore();
+
+  const [searchInput, setSearchInput] = useState(urlQuery);
+  const [currentQuery, setCurrentQuery] = useState(urlQuery);
   const [page, setPage] = useState(1);
+
+  // Sync if query param changes
+  useEffect(() => {
+    setSearchInput(urlQuery);
+    setCurrentQuery(urlQuery);
+    setPage(1);
+  }, [urlQuery]);
 
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
@@ -117,21 +124,53 @@ export default function SourceBrowsePage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handlePinSearch = useCallback(() => {
+    if (!currentQuery.trim() || !sourceId) return;
+    const name = window.prompt("Enter a label for this saved search:", `${sourceName} - "${currentQuery}"`);
+    if (name && name.trim()) {
+      addSavedSearch(name, sourceId, currentQuery, "{}");
+      alert("Search pinned successfully!");
+    }
+  }, [currentQuery, sourceId, sourceName, addSavedSearch]);
+
   const payload = mangaData?.fetchSourceManga;
   const mangas = payload?.mangas || [];
   const hasNextPage = payload?.hasNextPage || false;
   const sourceProblem = isError ? classifySourceProblem(fetchError) : null;
 
+  const isPinned = useMemo(() => {
+    return savedSearches.some(s => s.sourceId === sourceId && s.query === currentQuery);
+  }, [savedSearches, sourceId, currentQuery]);
+
   return (
-    <div className="min-h-screen bg-transparent pb-24">
+    <div className="min-h-screen bg-transparent pb-24 select-none">
       {/* Header */}
       <div className="sticky top-0 z-20 bg-ink-950/40 backdrop-blur-xl border-b border-white/5 px-4 py-4 sm:px-6 mb-6">
         <div className="max-w-7xl mx-auto flex flex-col gap-4">
-          <div className="flex items-center gap-3">
-            <Link to="/browse" className="rounded-full p-2 hover:bg-white/10 text-slate-300">
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <h1 className="text-xl font-bold text-white truncate">{sourceName}</h1>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Link to="/browse" className="rounded-full p-2 hover:bg-white/10 text-slate-300">
+                <ArrowLeft className="h-5 w-5" />
+              </Link>
+              <h1 className="text-xl font-bold text-white truncate">{sourceName}</h1>
+            </div>
+
+            {currentQuery.trim() && (
+              <button
+                type="button"
+                onClick={handlePinSearch}
+                disabled={isPinned}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition border ${
+                  isPinned
+                    ? "bg-white/5 border-white/10 text-slate-500 cursor-not-allowed"
+                    : "bg-yomi-jade/10 border-yomi-jade/25 text-yomi-mint hover:bg-yomi-jade/20"
+                }`}
+                title={isPinned ? "Already pinned" : "Pin this search to Browse"}
+              >
+                <Pin className="h-3.5 w-3.5" />
+                <span>{isPinned ? "Pinned" : "Pin Search"}</span>
+              </button>
+            )}
           </div>
 
           <form onSubmit={handleSearchSubmit} className="relative">
