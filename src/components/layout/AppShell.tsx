@@ -13,7 +13,7 @@ function ProfileSwitcher() {
   if (profiles.length <= 1) return null;
 
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-ink-950/60 border border-white/5 px-2.5 py-1.5 text-xs text-slate-400">
+    <div className="flex items-center gap-2 rounded-lg bg-ink-950/60 border border-white/5 hover:border-yomi-jade/30 px-2.5 py-1.5 text-xs text-slate-400 transition-all duration-300 shadow-sm hover:shadow-glow-hover">
       <Server className="h-3.5 w-3.5 text-yomi-jade shrink-0" />
       <select
         value={activeProfileId}
@@ -97,7 +97,7 @@ function AppShell() {
 
   return (
     <div className="min-h-screen bg-ink-950 text-slate-100">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-white/10 bg-ink-900/95 px-4 py-5 lg:block">
+      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-white/5 bg-ink-900/50 backdrop-blur-xl px-4 py-5 lg:block">
         <BrandLockup />
         
         {/* Profile Switcher */}
@@ -110,7 +110,7 @@ function AppShell() {
             <ShellNavLink key={item.path} item={item} />
           ))}
         </nav>
-        <div className="mt-8 border-t border-white/10 pt-5">
+        <div className="mt-8 border-t border-white/5 pt-5">
           <p className="px-3 text-xs font-semibold uppercase text-slate-500">Browse</p>
           <nav className="mt-2 space-y-1" aria-label="Browse navigation">
             {browseNav.map((item) => (
@@ -626,16 +626,24 @@ function ShellNavLink({ item }: { item: NavItem }) {
   return (
     <NavLink
       className={({ isActive }) =>
-        `flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition ${
+        `group relative flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm transition-all duration-300 ${
           isActive
-            ? "bg-yomi-jade/15 text-yomi-mint"
-            : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
+            ? "bg-yomi-jade/15 text-yomi-mint font-semibold shadow-glow scale-[1.02]"
+            : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100 hover:scale-[1.01]"
         }`
       }
       to={item.path}
     >
-      <Icon className="h-4 w-4" />
-      <span>{item.label}</span>
+      {({ isActive }) => (
+        <>
+          {/* Left active line indicator */}
+          {isActive && (
+            <div className="absolute left-0 top-2.5 bottom-2.5 w-1 rounded-r-full bg-yomi-jade shadow-glow" />
+          )}
+          <Icon className={`h-4 w-4 transition-transform duration-200 group-hover:scale-110 ${isActive ? "text-yomi-jade" : "text-slate-400 group-hover:text-slate-200"}`} />
+          <span>{item.label}</span>
+        </>
+      )}
     </NavLink>
   );
 }
@@ -643,7 +651,7 @@ function ShellNavLink({ item }: { item: NavItem }) {
 function MobileNav() {
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-ink-900/95 px-2 py-2 backdrop-blur lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-20 border-t border-white/5 bg-ink-900/60 backdrop-blur-xl px-2 py-2 lg:hidden"
       aria-label="Mobile navigation"
     >
       <div className="grid grid-cols-6 gap-1">
@@ -653,13 +661,13 @@ function MobileNav() {
             <NavLink
               key={item.path}
               className={({ isActive }) =>
-                `flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-medium ${
-                  isActive ? "bg-yomi-jade/15 text-yomi-mint" : "text-slate-500"
+                `group flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-medium transition-all duration-200 ${
+                  isActive ? "bg-yomi-jade/15 text-yomi-mint scale-[1.03]" : "text-slate-500 hover:text-slate-300"
                 }`
               }
               to={item.path}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
               <span>{item.label}</span>
             </NavLink>
           );

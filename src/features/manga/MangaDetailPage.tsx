@@ -232,7 +232,7 @@ export default function MangaDetailPage() {
         <div className="relative z-20 flex items-center gap-4 p-4 lg:p-6">
           <Link
             to="/library"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md transition hover:bg-black/60"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white border border-white/5 backdrop-blur-md transition-all duration-200 hover:bg-black/60 hover:border-white/20 hover:scale-105"
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
@@ -242,8 +242,8 @@ export default function MangaDetailPage() {
         <div className="relative z-10 mx-auto max-w-5xl px-6 pb-8 pt-4 lg:px-12 lg:pt-12">
           <div className="flex flex-col gap-6 sm:flex-row sm:gap-8">
             {/* Cover Image */}
-            <div className="mx-auto w-48 shrink-0 overflow-hidden rounded-lg shadow-2xl sm:mx-0 sm:w-56 md:w-64">
-              <img src={imageUrl} alt={manga.title} className="aspect-[2/3] w-full object-cover" />
+            <div className="mx-auto w-48 shrink-0 overflow-hidden rounded-xl border border-white/10 hover:border-yomi-jade/30 transition-all duration-300 shadow-2xl sm:mx-0 sm:w-56 md:w-64 group/cover shadow-glow-hover">
+              <img src={imageUrl} alt={manga.title} className="aspect-[2/3] w-full object-cover transition-transform duration-500 group-hover/cover:scale-105" />
             </div>
 
             {/* Manga Info */}
@@ -269,7 +269,7 @@ export default function MangaDetailPage() {
                 {isChaptersLoading ? (
                   <button
                     disabled
-                    className="flex flex-1 items-center justify-center gap-2 rounded-md bg-white/10 px-6 py-3 font-semibold text-slate-400 sm:flex-none"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/10 px-6 py-3 font-semibold text-slate-400 sm:flex-none"
                   >
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Loading chapters
@@ -277,7 +277,7 @@ export default function MangaDetailPage() {
                 ) : firstUnreadChapter ? (
                   <Link
                     to={`/reader/${firstUnreadChapter.id}`}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-md bg-yomi-jade px-6 py-3 font-semibold text-ink-950 transition hover:bg-yomi-jade/90 sm:flex-none"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-yomi-jade px-6 py-3 font-semibold text-ink-950 transition-all duration-300 hover:bg-yomi-jade/90 hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-glow sm:flex-none"
                   >
                     <Play className="h-4 w-4 fill-current" />
                     Resume
@@ -285,7 +285,7 @@ export default function MangaDetailPage() {
                 ) : (
                   <button
                     disabled
-                    className="flex flex-1 items-center justify-center gap-2 rounded-md bg-white/10 px-6 py-3 font-semibold text-slate-400 sm:flex-none"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/10 px-6 py-3 font-semibold text-slate-400 sm:flex-none"
                   >
                     No Chapters
                   </button>
@@ -293,10 +293,10 @@ export default function MangaDetailPage() {
                 <button 
                   onClick={handleLibraryClick}
                   disabled={togglingLibrary}
-                  className={`flex flex-1 items-center justify-center rounded-md border px-6 py-3 font-semibold transition sm:flex-none ${
+                  className={`flex flex-1 items-center justify-center rounded-xl border px-6 py-3 font-semibold transition-all duration-300 sm:flex-none hover:scale-[1.02] active:scale-[0.98] ${
                     manga.inLibrary 
-                      ? "border-white/10 bg-ink-900/50 text-slate-200 hover:bg-white/5" 
-                      : "border-yomi-jade/30 bg-ink-900 text-yomi-jade hover:bg-ink-800"
+                      ? "border-white/10 bg-ink-900/50 text-slate-200 hover:bg-white/5 hover:border-white/20" 
+                      : "border-yomi-jade/30 bg-ink-900 text-yomi-jade hover:bg-ink-800 hover:border-yomi-jade/60 hover:shadow-glow-hover"
                   }`}
                 >
                   {togglingLibrary ? <Loader2 className="h-5 w-5 animate-spin" /> : manga.inLibrary ? "In Library" : "Add to Library"}
@@ -309,7 +309,7 @@ export default function MangaDetailPage() {
                   {manga.genre.map((g) => (
                     <span
                       key={g}
-                      className="rounded-full border border-white/5 bg-ink-800 px-3 py-1 text-xs text-slate-300"
+                      className="rounded-full border border-white/5 bg-ink-850 px-3 py-1.5 text-xs text-slate-300 hover:border-white/10 hover:text-white transition duration-200"
                     >
                       {g}
                     </span>
@@ -330,7 +330,7 @@ export default function MangaDetailPage() {
 
       {/* Chapters Section */}
       <div className="mx-auto max-w-5xl pb-12">
-        <div className="rounded-t-2xl bg-ink-900 shadow-panel lg:rounded-2xl lg:border lg:border-white/5">
+        <div className="rounded-t-2xl bg-ink-900/50 backdrop-blur-md shadow-panel lg:rounded-2xl lg:border lg:border-white/5">
           {isChaptersLoading ? (
             <div className="flex min-h-48 items-center justify-center text-slate-400">
               <Loader2 className="mr-3 h-5 w-5 animate-spin text-yomi-jade" />

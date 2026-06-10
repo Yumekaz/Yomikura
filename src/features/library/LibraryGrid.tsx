@@ -56,7 +56,7 @@ export function LibraryGrid({ mangas, serverBaseUrl }: LibraryGridProps) {
 
   return (
     <div className={gridClasses}>
-      {mangas.map((manga) => {
+      {mangas.map((manga, idx) => {
         // Handle absolute or relative thumbnail URLs safely
         let imageUrl = "/placeholder-cover.svg"; // Placeholder if no thumbnail
         if (manga.thumbnailUrl) {
@@ -69,34 +69,34 @@ export function LibraryGrid({ mangas, serverBaseUrl }: LibraryGridProps) {
           <Link
             key={manga.id}
             to={`/manga/${manga.id}`}
-            className="group relative flex aspect-[2/3] w-full flex-col overflow-hidden rounded-md bg-ink-850 transition hover:ring-2 hover:ring-yomi-jade/80"
+            className="group relative flex aspect-[2/3] w-full flex-col overflow-hidden rounded-xl bg-ink-850 border border-white/5 card-lift animate-fade-in-up shadow-md"
+            style={{ animationDelay: `${(idx % 12) * 40}ms` }}
           >
             {/* Background Image */}
             <div className="absolute inset-0 z-0">
               <img
                 src={imageUrl}
                 alt={manga.title}
-                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 onError={(e) => {
-                  // Fallback if image fails to load
                   (e.target as HTMLImageElement).style.display = "none";
                 }}
               />
             </div>
 
-            {/* Unread badge */}
+            {/* Unread badge (Notification Circle with pulsing glow) */}
             {manga.unreadCount > 0 && (
-              <div className="absolute left-1.5 top-1.5 z-20 rounded bg-yomi-jade px-1.5 py-0.5 text-xs font-bold text-ink-950 shadow-sm">
+              <div className="absolute -right-1 -top-1 z-20 flex h-6 min-w-[24px] items-center justify-center rounded-full bg-yomi-jade px-1.5 text-[10px] font-black text-ink-950 shadow-panel border border-ink-950/20 animate-pulse-ring">
                 {manga.unreadCount}
               </div>
             )}
 
             {/* Gradient overlay for text readability */}
-            <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-90 transition-opacity group-hover:opacity-100" />
+            <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/95 via-black/30 to-transparent opacity-90 transition-opacity duration-300 group-hover:opacity-100" />
             
             {/* Title */}
-            <div className={paddingClasses}>
-              <h4 className={titleClasses}>
+            <div className={`${paddingClasses} bg-gradient-to-t from-black/80 via-transparent to-transparent pt-8`}>
+              <h4 className={`${titleClasses} group-hover:text-yomi-mint transition-colors duration-200`}>
                 {manga.title}
               </h4>
             </div>
