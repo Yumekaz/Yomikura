@@ -20,7 +20,7 @@ import { getErrorMessage } from "../../api/suwayomi/errors";
 type ExtensionAction = {
   pkgName: string;
   name: string;
-  install: boolean;
+  action: "install" | "uninstall" | "update";
 };
 
 type StatusMessage = {
@@ -95,11 +95,16 @@ export default function ExtensionsPage() {
   });
 
   const { mutate: toggleInstall } = useMutation({
-    mutationFn: ({ pkgName, install }: ExtensionAction) =>
+    mutationFn: ({ pkgName, action }: ExtensionAction) =>
       sdk.ToggleExtensionInstall({
         input: {
           id: pkgName,
-          patch: install ? { install: true } : { uninstall: true }
+          patch:
+            action === "install"
+              ? { install: true }
+              : action === "uninstall"
+                ? { uninstall: true }
+                : { update: true }
         }
       }),
     onMutate: ({ pkgName }) => {
@@ -107,18 +112,31 @@ export default function ExtensionsPage() {
       setStatusMessage(null);
     },
     onSuccess: (result, variables) => {
-      const isInstalled = result.updateExtension?.extension?.isInstalled ?? variables.install;
+      const isInstalled = result.updateExtension?.extension?.isInstalled ?? (variables.action !== "uninstall");
       setStatusMessage({
         kind: "success",
-        title: isInstalled ? "Extension installed" : "Extension uninstalled",
-        detail: `${variables.name} ${isInstalled ? "is available in Browse." : "was removed from this Suwayomi server."}`,
+        title:
+          variables.action === "update"
+            ? "Extension updated"
+            : isInstalled
+              ? "Extension installed"
+              : "Extension uninstalled",
+        detail:
+          variables.action === "update"
+            ? `${variables.name} has been updated to the latest version.`
+            : `${variables.name} ${isInstalled ? "is available in Browse." : "was removed from this Suwayomi server."}`,
       });
       invalidateExtensionData();
     },
     onError: (error, variables) => {
       setStatusMessage({
         kind: "error",
-        title: variables.install ? "Install failed" : "Uninstall failed",
+        title:
+          variables.action === "update"
+            ? "Update failed"
+            : variables.action === "install"
+              ? "Install failed"
+              : "Uninstall failed",
         detail: `${variables.name}: ${getErrorMessage(error)}`,
       });
     },
@@ -347,10 +365,28 @@ export default function ExtensionsPage() {
                       <span className="uppercase">{ext.lang}</span>
                       <span>•</span>
                       <span>v{ext.versionName}</span>
+                      {ext.isInstalled && ext.hasUpdate && (
+                        <span className="rounded bg-yomi-jade/10 px-1 py-0.5 text-[9px] font-bold text-yomi-jade">Update Available</span>
+                      )}
                     </div>
                   </div>
+                  {ext.isInstalled && ext.hasUpdate && (
+                    <button
+                      onClick={() => toggleInstall({ pkgName: ext.pkgName, name: ext.name, action: "update" })}
+                      disabled={isCardBusy}
+                      className="flex h-8 px-2.5 items-center justify-center gap-1 rounded-lg bg-yomi-jade/10 border border-yomi-jade/30 text-yomi-jade hover:bg-yomi-jade/20 text-xs font-semibold transition flex-shrink-0 disabled:opacity-60"
+                      title="Update Extension"
+                    >
+                      {isCardBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                      <span>Update</span>
+                    </button>
+                  )}
                   <button
-                    onClick={() => toggleInstall({ pkgName: ext.pkgName, name: ext.name, install: !ext.isInstalled })}
+                    onClick={() => toggleInstall({ 
+                      pkgName: ext.pkgName, 
+                      name: ext.name, 
+                      action: ext.isInstalled ? "uninstall" : "install" 
+                    })}
                     disabled={isCardBusy}
                     className={`flex h-8 w-8 items-center justify-center rounded-lg transition flex-shrink-0 ${
                       ext.isInstalled

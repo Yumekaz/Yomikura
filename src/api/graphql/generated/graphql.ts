@@ -4233,7 +4233,7 @@ export type GetExtensionReposQuery = { settings: { extensionRepos: Array<string>
 export type GetExtensionsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetExtensionsQuery = { extensions: { totalCount: number, nodes: Array<{ pkgName: string, name: string, lang: string, isNsfw: boolean, isInstalled: boolean, iconUrl: string, versionName: string }> } };
+export type GetExtensionsQuery = { extensions: { totalCount: number, nodes: Array<{ pkgName: string, name: string, lang: string, isNsfw: boolean, isInstalled: boolean, iconUrl: string, versionName: string, hasUpdate: boolean }> } };
 
 export type GetCategoriesQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -4614,6 +4614,7 @@ export const GetExtensionsDocument = gql`
       isInstalled
       iconUrl
       versionName
+      hasUpdate
     }
   }
 }
