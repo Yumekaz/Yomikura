@@ -149,7 +149,7 @@ export const useSettingsStore = create<SettingsState>()(
         try {
           const success = await testServerConnection(serverBaseUrl);
           if (success) {
-            set({ connectionStatus: "connected", errorMessage: "" });
+            set({ connectionStatus: "connected", errorMessage: "", mockMode: false });
             return true;
           }
           return false;
