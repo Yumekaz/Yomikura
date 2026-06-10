@@ -47,6 +47,30 @@ function AppShell() {
   } = useSettingsStore();
   const location = useLocation();
 
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement).isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.key === "?") {
+        e.preventDefault();
+        setShowShortcuts((prev) => !prev);
+      } else if (e.key === "Escape" && showShortcuts) {
+        setShowShortcuts(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showShortcuts]);
+
   useEffect(() => {
     testConnection();
   }, [testConnection]);
@@ -131,6 +155,80 @@ function AppShell() {
         </ErrorBoundary>
       </main>
       <MobileNav />
+      {showShortcuts && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md animate-fade-in"
+          onClick={() => setShowShortcuts(false)}
+        >
+          <div 
+            className="w-full max-w-lg rounded-2xl border border-white/10 bg-ink-900/80 p-8 backdrop-blur-2xl shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              onClick={() => setShowShortcuts(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-200 text-sm font-semibold transition"
+            >
+              ✕
+            </button>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-6 border-b border-white/5 pb-3">
+              <Sparkles className="h-5 w-5 text-yomi-jade" />
+              Keyboard Shortcuts Help
+            </h2>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-yomi-jade">Navigation</h3>
+                  <div className="flex items-center justify-between text-xs text-slate-300">
+                    <span>Next Page</span>
+                    <span className="flex items-center gap-1">
+                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">D</kbd>
+                      <span className="text-slate-500">or</span>
+                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">➜</kbd>
+                      <span className="text-slate-500">or</span>
+                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">Space</kbd>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-300">
+                    <span>Previous Page</span>
+                    <span className="flex items-center gap-1">
+                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">A</kbd>
+                      <span className="text-slate-500">or</span>
+                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">⬅</kbd>
+                      <span className="text-slate-500">or</span>
+                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">Backspace</kbd>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-300">
+                    <span>Exit Reader</span>
+                    <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">Esc</kbd>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-yomi-jade">Reader Settings</h3>
+                  <div className="flex items-center justify-between text-xs text-slate-300">
+                    <span>Cycle Fit Mode</span>
+                    <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">W</kbd>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-300">
+                    <span>Cycle Page Spread</span>
+                    <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">S</kbd>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-300">
+                    <span>Show Keyboard Help</span>
+                    <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">?</kbd>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <p className="mt-8 text-[10px] text-slate-500 text-center border-t border-white/5 pt-4">
+              Press <kbd className="px-1 rounded bg-white/5 border border-white/5">?</kbd> at any time to toggle this help cheatsheet.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -164,7 +262,7 @@ function WelcomeOnboarding({
 }) {
   const { serverDataPath, setServerDataPath } = useSettingsStore();
   const [currentStep, setCurrentStep] = useState<"storage" | "backend" | "ready">("storage");
-  const [javaStatus, setJavaStatus] = useState<"checking" | "installed" | "missing">("checking");
+  const [javaStatus, setJavaStatus] = useState<"checking" | "downloading" | "installed" | "missing">("checking");
   const [serverStatus, setServerStatus] = useState<"idle" | "starting" | "running" | "error">("idle");
   const [localError, setLocalError] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -192,12 +290,28 @@ function WelcomeOnboarding({
         const { invoke } = await import("@tauri-apps/api/core");
 
         setJavaStatus("checking");
-        const hasJava = await invoke<boolean>("check_java_installed");
+        const hasJava = await invoke<boolean>("check_java_installed", { dataPath: serverDataPath });
         if (!active) return;
 
         if (!hasJava) {
-          setJavaStatus("missing");
-          return;
+          setJavaStatus("downloading");
+          try {
+            await invoke("download_and_install_jre", { dataPath: serverDataPath });
+          } catch (err: any) {
+            console.error("Local JRE auto-install failed:", err);
+            if (active) {
+              setJavaStatus("missing");
+              setLocalError(err.message || String(err));
+            }
+            return;
+          }
+          if (!active) return;
+
+          const hasJavaPost = await invoke<boolean>("check_java_installed", { dataPath: serverDataPath });
+          if (!hasJavaPost && active) {
+            setJavaStatus("missing");
+            return;
+          }
         }
 
         setJavaStatus("installed");
@@ -393,6 +507,21 @@ function WelcomeOnboarding({
                 <Loader2 className="h-10 w-10 animate-spin text-yomi-jade mb-3" />
                 <h3 className="text-sm font-semibold text-slate-200">Checking Java Environment...</h3>
                 <p className="text-[11px] text-slate-500 mt-1">Verifying OpenJDK runtime on your system PATH.</p>
+              </div>
+            )}
+
+            {/* Java Check: Downloading State */}
+            {javaStatus === "downloading" && (
+              <div className="py-6 flex flex-col items-center w-full max-w-sm">
+                <Loader2 className="h-10 w-10 animate-spin text-yomi-jade mb-3" />
+                <h3 className="text-sm font-semibold text-slate-200">Setting up Java Runtime...</h3>
+                <p className="text-[11px] text-slate-400 mt-2 max-w-xs leading-relaxed">
+                  Yomikura is automatically downloading and configuring a private OpenJDK 17 runtime inside your local data directory. This removes setup friction and won't affect any system-wide Java settings.
+                </p>
+                <div className="mt-5 w-full bg-white/5 rounded-full h-1.5 overflow-hidden border border-white/5">
+                  <div className="bg-yomi-jade h-full w-2/3 animate-pulse rounded-full" style={{ animationDuration: '2s' }} />
+                </div>
+                <span className="text-[10px] text-slate-500 mt-3">Downloading Eclipse Temurin JRE 17 ~ 40MB</span>
               </div>
             )}
 

@@ -82,6 +82,138 @@ async function restoreBackupUpload(endpoint: string, file: File) {
   return result?.data;
 }
 
+function TauriUpdaterRow() {
+  const [checking, setChecking] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<{ downloaded: number; total: number } | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [checked, setChecked] = useState(false);
+
+  const handleCheckUpdate = async () => {
+    setChecking(true);
+    setError(null);
+    setChecked(true);
+    try {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const update = await check();
+      setUpdateInfo(update || null);
+    } catch (err: any) {
+      console.error("Update check failed:", err);
+      setError(err.message || String(err));
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const handleInstallUpdate = async () => {
+    if (!updateInfo) return;
+    setDownloading(true);
+    setError(null);
+    try {
+      let totalBytes = 0;
+      let downloadedBytes = 0;
+
+      await updateInfo.downloadAndInstall((event: any) => {
+        switch (event.event) {
+          case 'Started':
+            totalBytes = event.data.contentLength || 0;
+            setDownloadProgress({ downloaded: 0, total: totalBytes });
+            break;
+          case 'Progress':
+            downloadedBytes += event.data.chunkLength;
+            setDownloadProgress({ downloaded: downloadedBytes, total: totalBytes });
+            break;
+          case 'Finished':
+            setDownloadProgress(null);
+            break;
+        }
+      });
+
+      const { relaunch } = await import("@tauri-apps/plugin-process");
+      await relaunch();
+    } catch (err: any) {
+      console.error("Update installation failed:", err);
+      setError(err.message || String(err));
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-white/5 bg-ink-950/40 p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-200">Application Updates</h3>
+          <p className="text-xs text-slate-500 mt-1">Keep Yomikura native client up to date.</p>
+        </div>
+        <button
+          onClick={handleCheckUpdate}
+          disabled={checking || downloading}
+          className="flex items-center gap-1.5 rounded-lg bg-yomi-jade/10 border border-yomi-jade/20 hover:bg-yomi-jade/20 px-3 py-1.5 text-xs font-semibold text-yomi-jade transition disabled:opacity-50"
+        >
+          {checking ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span>Checking...</span>
+            </>
+          ) : (
+            <span>Check for Updates</span>
+          )}
+        </button>
+      </div>
+
+      {error && (
+        <p className="text-xs text-red-400 leading-normal">{error}</p>
+      )}
+
+      {checked && !checking && !updateInfo && !error && (
+        <p className="text-xs text-yomi-jade flex items-center gap-1.5 font-semibold">
+          <CheckCircle2 className="h-4 w-4" />
+          Yomikura is up to date! (v0.1.5)
+        </p>
+      )}
+
+      {updateInfo && (
+        <div className="rounded-lg bg-white/[0.02] border border-white/5 p-4 space-y-3 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-200">
+              New Version Available: v{updateInfo.version}
+            </span>
+            <span className="text-[10px] text-slate-500">
+              Released: {updateInfo.date ? new Date(updateInfo.date).toLocaleDateString() : 'Recent'}
+            </span>
+          </div>
+
+          {updateInfo.body && (
+            <div className="text-[11px] text-slate-400 bg-black/20 p-2.5 rounded border border-white/5 max-h-24 overflow-y-auto font-mono scrollbar-none">
+              {updateInfo.body}
+            </div>
+          )}
+
+          <button
+            onClick={handleInstallUpdate}
+            disabled={downloading}
+            className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-yomi-jade py-2 px-3 text-xs font-semibold text-ink-950 hover:bg-yomi-jade/90 transition disabled:opacity-50"
+          >
+            {downloading ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span>
+                  {downloadProgress 
+                    ? `Downloading: ${Math.round((downloadProgress.downloaded / (downloadProgress.total || 1)) * 100)}%`
+                    : "Installing update..."}
+                </span>
+              </>
+            ) : (
+              <span>Download & Relaunch Update</span>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsPage() {
   const {
     serverBaseUrl,
@@ -1041,7 +1173,7 @@ function SettingsPage() {
                     Y
                   </div>
                   <h2 className="mt-4 text-2xl font-bold text-white tracking-tight">Yomikura</h2>
-                  <p className="text-xs font-semibold text-yomi-jade uppercase tracking-wider mt-1">Version 0.1.0</p>
+                  <p className="text-xs font-semibold text-yomi-jade uppercase tracking-wider mt-1">Version 0.1.5</p>
                   <p className="mt-3 text-sm text-slate-400 max-w-md">
                     A premium web & PWA manga reader frontend inspired by Mihon/Tachiyomi UX. 
                     Built for speed, aesthetics, and modularity.
@@ -1049,6 +1181,11 @@ function SettingsPage() {
                 </div>
 
                 <div className="mt-6 space-y-6">
+                  {/* Tauri Updater Section */}
+                  {isTauri() && (
+                    <TauriUpdaterRow />
+                  )}
+
                   {/* Legal Disclaimer Box */}
                   <div className="rounded-xl border border-red-500/10 bg-red-500/5 p-5">
                     <h3 className="text-sm font-semibold text-red-400 flex items-center gap-2">

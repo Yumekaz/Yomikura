@@ -405,11 +405,11 @@ export default function ReaderPage() {
       }
 
       const key = e.key.toLowerCase();
-      if (key === "arrowright" || key === " ") {
+      if (key === "arrowright" || key === " " || key === "d") {
         // RTL-aware next page flip
         const dir = readerMode === "RTL" ? -1 : 1;
         navigatePage(dir);
-      } else if (key === "arrowleft" || key === "backspace") {
+      } else if (key === "arrowleft" || key === "backspace" || key === "a") {
         // RTL-aware prev page flip
         const dir = readerMode === "RTL" ? 1 : -1;
         navigatePage(dir);

@@ -2,6 +2,9 @@ use std::process::{Child, Command};
 use std::sync::Mutex;
 use tauri::path::BaseDirectory;
 use tauri::{Manager, State};
+use tauri::menu::{MenuBuilder, MenuItem};
+use tauri::tray::TrayIconBuilder;
+use tauri::WindowEvent;
 
 struct BackendState {
     child: Mutex<Option<Child>>,
@@ -93,8 +96,45 @@ fn select_directory() -> Result<Option<String>, String> {
     Ok(None)
 }
 
+fn find_java_binary(dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    if !dir.exists() || !dir.is_dir() {
+        return None;
+    }
+    
+    let target_name = if cfg!(windows) { "java.exe" } else { "java" };
+
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(path) = stack.pop() {
+        if let Ok(entries) = std::fs::read_dir(path) {
+            for entry in entries.flatten() {
+                let entry_path = entry.path();
+                if entry_path.is_dir() {
+                    stack.push(entry_path);
+                } else if entry_path.is_file() {
+                    if let Some(file_name) = entry_path.file_name() {
+                        if file_name == target_name {
+                            return Some(entry_path);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 #[tauri::command]
-fn check_java_installed() -> bool {
+fn check_java_installed(data_path: Option<String>) -> bool {
+    if let Some(path) = data_path {
+        let data_dir = std::path::PathBuf::from(&path);
+        let jre_dir = data_dir.join("jre");
+        if let Some(java_bin) = find_java_binary(&jre_dir) {
+            if java_bin.exists() {
+                return true;
+            }
+        }
+    }
+
     #[cfg(windows)]
     use std::os::windows::process::CommandExt;
 
@@ -104,6 +144,130 @@ fn check_java_installed() -> bool {
     cmd.arg("-version");
 
     cmd.output().is_ok()
+}
+
+#[tauri::command]
+fn download_and_install_jre(data_path: String) -> Result<(), String> {
+    let os = if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "mac"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else {
+        return Err("Unsupported OS".to_string());
+    };
+
+    let arch = if cfg!(target_arch = "x86_64") {
+        "x64"
+    } else if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else {
+        return Err("Unsupported architecture".to_string());
+    };
+
+    let url = format!(
+        "https://api.adoptium.net/v3/binary/latest/17/ga/{}/{}/jre/hotspot/normal/eclipse",
+        os, arch
+    );
+
+    let data_dir = std::path::PathBuf::from(&data_path);
+    std::fs::create_dir_all(&data_dir).map_err(|e| format!("Failed to create storage directory: {}", e))?;
+
+    let jre_dir = data_dir.join("jre");
+    
+    if jre_dir.exists() {
+        if let Some(java_bin) = find_java_binary(&jre_dir) {
+            if java_bin.exists() {
+                return Ok(());
+            }
+        }
+        let _ = std::fs::remove_dir_all(&jre_dir);
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        
+        let zip_path = data_dir.join("jre.zip");
+        let zip_str = zip_path.to_string_lossy().replace("\\", "/");
+        let jre_str = jre_dir.to_string_lossy().replace("\\", "/");
+
+        // Download JRE zip
+        let download_script = format!(
+            "$webclient = New-Object System.Net.WebClient; $webclient.DownloadFile('{}', '{}')",
+            url, zip_str
+        );
+        let download_output = Command::new("powershell")
+            .arg("-NoProfile")
+            .arg("-Command")
+            .arg(&download_script)
+            .creation_flags(0x08000000)
+            .output()
+            .map_err(|e| format!("Failed to download JRE: {}", e))?;
+
+        if !download_output.status.success() {
+            let stderr = String::from_utf8_lossy(&download_output.stderr);
+            return Err(format!("PowerShell JRE download failed: {}", stderr));
+        }
+
+        // Unzip
+        let unzip_script = format!(
+            "Expand-Archive -Path '{}' -DestinationPath '{}' -Force",
+            zip_str, jre_str
+        );
+        let unzip_output = Command::new("powershell")
+            .arg("-NoProfile")
+            .arg("-Command")
+            .arg(&unzip_script)
+            .creation_flags(0x08000000)
+            .output()
+            .map_err(|e| format!("Failed to unzip JRE: {}", e))?;
+
+        let _ = std::fs::remove_file(&zip_path);
+
+        if !unzip_output.status.success() {
+            let stderr = String::from_utf8_lossy(&unzip_output.stderr);
+            return Err(format!("PowerShell JRE unzip failed: {}", stderr));
+        }
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        let tar_path = data_dir.join("jre.tar.gz");
+        let tar_str = tar_path.to_string_lossy().to_string();
+        let jre_str = jre_dir.to_string_lossy().to_string();
+
+        std::fs::create_dir_all(&jre_dir).map_err(|e| format!("Failed to create JRE directory: {}", e))?;
+
+        let download_output = Command::new("curl")
+            .arg("-L")
+            .arg("-o")
+            .arg(&tar_str)
+            .arg(&url)
+            .output()
+            .map_err(|e| format!("Failed to download JRE via curl: {}", e))?;
+
+        if !download_output.status.success() {
+            return Err("curl JRE download failed".to_string());
+        }
+
+        let extract_output = Command::new("tar")
+            .arg("-xzf")
+            .arg(&tar_str)
+            .arg("-C")
+            .arg(&jre_str)
+            .output()
+            .map_err(|e| format!("Failed to extract JRE via tar: {}", e))?;
+
+        let _ = std::fs::remove_file(&tar_path);
+
+        if !extract_output.status.success() {
+            return Err("tar JRE extraction failed".to_string());
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -141,7 +305,14 @@ fn start_backend(
     #[cfg(windows)]
     use std::os::windows::process::CommandExt;
 
-    let mut cmd = Command::new("java");
+    let jre_dir = data_dir.join("jre");
+    let java_program = if let Some(local_bin) = find_java_binary(&jre_dir) {
+        local_bin
+    } else {
+        std::path::PathBuf::from("java")
+    };
+
+    let mut cmd = Command::new(java_program);
     #[cfg(windows)]
     cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
 
@@ -221,6 +392,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(BackendState {
             child: Mutex::new(Option::None),
         })
@@ -230,7 +402,8 @@ pub fn run() {
             check_java_installed,
             start_backend,
             stop_backend,
-            get_backend_status
+            get_backend_status,
+            download_and_install_jre
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -240,7 +413,52 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            // Set up System Tray Menu
+            let show_i = MenuItem::with_id(app, "show", "Show Yomikura", true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(app, "quit", "Quit Yomikura", true, None::<&str>)?;
+            
+            let menu = MenuBuilder::new(app)
+                .item(&show_i)
+                .separator()
+                .item(&quit_i)
+                .build()?;
+
+            if let Some(icon) = app.default_window_icon() {
+                let _tray = TrayIconBuilder::new()
+                    .icon(icon.clone())
+                    .menu(&menu)
+                    .show_menu_on_left_click(false)
+                    .on_menu_event(|app, event| {
+                        match event.id().as_ref() {
+                            "show" => {
+                                if let Some(window) = app.get_webview_window("main") {
+                                    let _ = window.show();
+                                    let _ = window.set_focus();
+                                }
+                            }
+                            "quit" => {
+                                let state: State<'_, BackendState> = app.state();
+                                let mut lock = state.child.lock().unwrap();
+                                if let Some(mut child) = lock.take() {
+                                    let _ = child.kill();
+                                }
+                                app.exit(0);
+                            }
+                            _ => {}
+                        }
+                    })
+                    .build(app)?;
+            }
+
             Ok(())
+        })
+        .on_window_event(|window, event| match event {
+            WindowEvent::CloseRequested { api, .. } => {
+                let _ = window.hide();
+                api.prevent_close();
+            }
+            _ => {}
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
