@@ -107,7 +107,8 @@ export default function ReaderPage() {
     autoScrollSpeed,
     pageTransition,
     autoDownloadCount,
-    customKeybinds
+    customKeybinds,
+    autoDeleteReadChapters
   } = useSettingsStore();
 
   const { downloadChapter, cachedChapters } = useDownloadStore();
@@ -246,7 +247,7 @@ export default function ReaderPage() {
       }
 
       try {
-        return await sdk.UpdateChapterProgress({ 
+        const result = await sdk.UpdateChapterProgress({ 
           input: { 
             id: parseInt(chapterId!),
             patch: { 
@@ -255,6 +256,20 @@ export default function ReaderPage() {
             } 
           } 
         });
+
+        if (isRead && autoDeleteReadChapters) {
+          try {
+            await sdk.DeleteDownloadedChapter({
+              input: {
+                id: parseInt(chapterId!)
+              }
+            });
+          } catch (deleteErr) {
+            console.error("Failed to auto-delete read downloaded chapter:", deleteErr);
+          }
+        }
+
+        return result;
       } catch (err) {
         console.warn("Failed to update progress on server (saved locally):", err);
         return null;

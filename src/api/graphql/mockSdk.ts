@@ -337,6 +337,9 @@ const mockImpl: any = {
   async DequeueChapterDownload() {
     return { dequeueChapterDownload: { downloadStatus: { state: "STOPPED" } } };
   },
+  async DeleteDownloadedChapter({ input }: any) {
+    return { deleteDownloadedChapter: { clientMutationId: input.clientMutationId || "1" } };
+  },
   async GetExtensionRepos() {
     return { settings: { extensionRepos: [] } };
   },

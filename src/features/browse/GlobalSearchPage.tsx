@@ -219,23 +219,82 @@ export default function GlobalSearchPage() {
     enabled: !!serverBaseUrl && installedLangs.length > 0,
   });
 
+  // Global Search V2 Filters States
+  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("all");
+  const [hideNsfw, setHideNsfw] = useState<boolean>(true); // Hide NSFW by default
+  const [showSourceDropdown, setShowSourceDropdown] = useState(false);
+  const [sourceSearchInput, setSourceSearchInput] = useState("");
+
+  const scopedSources = useMemo(() => {
+    if (!sources) return [];
+    let list = sources;
+    // Filter NSFW sources early if hideNsfw is true
+    if (hideNsfw) {
+      list = list.filter(s => !s.isNsfw);
+    }
+    // Filter by source scoping selection
+    if (selectedSourceIds.length > 0) {
+      list = list.filter(s => selectedSourceIds.includes(s.id));
+    }
+    return list;
+  }, [sources, selectedSourceIds, hideNsfw]);
+
   const {
     data: searchOutcomes,
     isLoading: searchingSources,
     isError: searchFailed,
     error: searchError,
   } = useQuery({
-    queryKey: ["global-search-batch", serverBaseUrl, activeQuery, sources?.map((source) => source.id).join("|")],
-    queryFn: () => searchSourcesWithLimit({ query: activeQuery, sdk, sources: sources || [] }),
-    enabled: !!serverBaseUrl && !!activeQuery && !!sources?.length,
+    queryKey: ["global-search-batch", serverBaseUrl, activeQuery, scopedSources.map((source) => source.id).join("|")],
+    queryFn: () => searchSourcesWithLimit({ query: activeQuery, sdk, sources: scopedSources }),
+    enabled: !!serverBaseUrl && !!activeQuery && scopedSources.length > 0,
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
 
   const outcomes = searchOutcomes || [];
-  const resultOutcomes = outcomes.filter((outcome) => outcome.mangas.length > 0);
-  const failedOutcomes = outcomes.filter((outcome) => outcome.error);
-  const emptyOutcomes = outcomes.filter((outcome) => !outcome.error && outcome.mangas.length === 0);
+
+  const processedOutcomes = useMemo(() => {
+    let filtered = outcomes;
+
+    // Filter by language
+    if (selectedLanguage !== "all") {
+      filtered = filtered.filter(outcome => outcome.source.lang === selectedLanguage);
+    }
+
+    // Relevance scoring function
+    const getRelevanceScore = (title: string, query: string): number => {
+      const t = title.toLowerCase();
+      const q = query.toLowerCase();
+      if (t === q) return 100;
+      if (t.startsWith(q)) return 80;
+      if (t.includes(` ${q}`)) return 60;
+      if (t.includes(q)) return 40;
+      return 0;
+    };
+
+    // Process each outcome: sort mangas inside by relevance
+    const processed = filtered.map(outcome => {
+      const sortedMangas = [...outcome.mangas].sort((a, b) => {
+        const scoreA = getRelevanceScore(a.title, activeQuery);
+        const scoreB = getRelevanceScore(b.title, activeQuery);
+        return scoreB - scoreA;
+      });
+      return {
+        ...outcome,
+        mangas: sortedMangas,
+        maxScore: sortedMangas.length > 0 ? getRelevanceScore(sortedMangas[0].title, activeQuery) : 0
+      };
+    });
+
+    // Sort the outcomes themselves so that sources with higher relevance scores appear first
+    return processed.sort((a, b) => b.maxScore - a.maxScore);
+  }, [outcomes, selectedLanguage, activeQuery]);
+
+  const resultOutcomes = processedOutcomes.filter((outcome) => outcome.mangas.length > 0);
+  const failedOutcomes = processedOutcomes.filter((outcome) => outcome.error);
+  const emptyOutcomes = processedOutcomes.filter((outcome) => !outcome.error && outcome.mangas.length === 0);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -287,6 +346,124 @@ export default function GlobalSearchPage() {
             </button>
           </form>
         </div>
+
+        {/* Filter Controls Row */}
+        {sources && sources.length > 0 && (
+          <div className="max-w-5xl mx-auto mt-4 pt-3 border-t border-white/5 flex flex-wrap items-center justify-between gap-3 text-xs relative">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* NSFW Toggle */}
+              <button
+                type="button"
+                onClick={() => setHideNsfw(!hideNsfw)}
+                className={`rounded-lg border px-3 py-1.5 font-bold transition flex items-center gap-1.5 ${
+                  hideNsfw
+                    ? "bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20"
+                    : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10"
+                }`}
+              >
+                <span>{hideNsfw ? "NSFW: Filtered" : "NSFW: Visible"}</span>
+              </button>
+
+              {/* Source Filter Dropdown Button */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowSourceDropdown(!showSourceDropdown)}
+                  className={`rounded-lg border px-3 py-1.5 font-bold transition flex items-center gap-1.5 ${
+                    selectedSourceIds.length > 0
+                      ? "bg-yomi-jade/10 border-yomi-jade/30 text-yomi-jade hover:bg-yomi-jade/20"
+                      : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10"
+                  }`}
+                >
+                  <span>Sources: {selectedSourceIds.length > 0 ? `${selectedSourceIds.length}` : "All"}</span>
+                </button>
+
+                {showSourceDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-25" onClick={() => setShowSourceDropdown(false)} />
+                    <div className="absolute left-0 mt-2 w-72 rounded-xl bg-ink-900 border border-white/10 p-3 shadow-xl z-30 space-y-3 animate-fade-in">
+                      <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                        <span className="text-xs font-bold text-white">Filter Sources</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSourceIds([])}
+                          className="text-[10px] text-yomi-jade hover:underline font-bold"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Search sources..."
+                        value={sourceSearchInput}
+                        onChange={(e) => setSourceSearchInput(e.target.value)}
+                        className="w-full rounded-lg bg-ink-950 border border-white/10 px-2.5 py-1.5 text-[11px] text-slate-200 outline-none focus:border-yomi-jade/40"
+                      />
+                      <div className="max-h-48 overflow-y-auto space-y-1 scrollbar-thin">
+                        {sources
+                          .filter(s => s.name.toLowerCase().includes(sourceSearchInput.toLowerCase()))
+                          .map((source) => {
+                            const isChecked = selectedSourceIds.includes(source.id);
+                            return (
+                              <label key={source.id} className="flex items-center gap-2 px-1.5 py-1 hover:bg-white/5 rounded cursor-pointer text-xs text-slate-300 select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    if (isChecked) {
+                                      setSelectedSourceIds(selectedSourceIds.filter(id => id !== source.id));
+                                    } else {
+                                      setSelectedSourceIds([...selectedSourceIds, source.id]);
+                                    }
+                                  }}
+                                  className="rounded border-white/15 bg-ink-950 text-yomi-jade focus:ring-0 h-3.5 w-3.5"
+                                />
+                                <span className="truncate flex-1">{source.name}</span>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase">{source.lang === "localsourcelang" ? "Local" : source.lang}</span>
+                              </label>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Language Selection Chips */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none max-w-full">
+              <button
+                type="button"
+                onClick={() => setSelectedLanguage("all")}
+                className={`rounded-full px-3 py-1 font-bold transition flex-shrink-0 ${
+                  selectedLanguage === "all"
+                    ? "bg-yomi-jade text-ink-950 shadow-glow"
+                    : "bg-white/5 text-slate-400 hover:bg-white/10"
+                }`}
+              >
+                All Languages
+              </button>
+              {Array.from(new Set(sources.map((s) => s.lang))).sort().map((lang) => {
+                const isSelected = selectedLanguage === lang;
+                const displayName = lang === "localsourcelang" ? "Local" : lang.toUpperCase();
+                return (
+                  <button
+                    key={lang}
+                    type="button"
+                    onClick={() => setSelectedLanguage(lang)}
+                    className={`rounded-full px-3 py-1 font-bold transition flex-shrink-0 ${
+                      isSelected
+                        ? "bg-yomi-jade/80 text-ink-950 shadow-glow"
+                        : "bg-white/5 text-slate-400 hover:bg-white/10"
+                    }`}
+                  >
+                    {displayName}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Results Container */}

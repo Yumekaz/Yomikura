@@ -1,0 +1,5 @@
+mutation DeleteDownloadedChapter($input: DeleteDownloadedChapterInput!) {
+  deleteDownloadedChapter(input: $input) {
+    clientMutationId
+  }
+}

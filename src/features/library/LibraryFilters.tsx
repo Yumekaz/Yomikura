@@ -1,4 +1,5 @@
 import { Search, FolderEdit, X } from "lucide-react";
+import { useTranslation } from "../../hooks/useTranslation";
 
 export interface Category {
   id: string | number;
@@ -32,6 +33,8 @@ export function LibraryFilters({
   onSelectAll,
   onCancelSelect,
 }: LibraryFiltersProps) {
+  const { t } = useTranslation();
+
   if (isSelectMode) {
     return (
       <div className="flex items-center justify-between rounded-2xl border border-yomi-jade/30 bg-yomi-jade/10 backdrop-blur-xl shadow-glow-hover px-5 py-3 mx-4 lg:mx-0 mt-2 lg:mt-0 mb-6 animate-fade-in transition-all duration-300">
@@ -79,8 +82,29 @@ export function LibraryFilters({
               : "bg-white/5 border border-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200 hover:scale-[1.01]"
           }`}
         >
-          All
+          {t("all")}
         </button>
+
+        {/* Smart Categories */}
+        {[
+          { id: "smart:reading", name: t("reading") },
+          { id: "smart:plan_to_read", name: t("plan_to_read") },
+          { id: "smart:completed", name: t("completed") },
+          { id: "smart:downloaded", name: t("downloaded") },
+        ].map((smartCat) => (
+          <button
+            key={smartCat.id}
+            onClick={() => onCategorySelect(smartCat.id)}
+            className={`flex-shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition-all duration-300 ${
+              activeCategoryId === smartCat.id
+                ? "bg-gradient-to-r from-yomi-jade/80 to-yomi-mint/80 text-ink-950 shadow-glow scale-[1.02] border border-yomi-jade/30"
+                : "bg-white/5 border border-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200 hover:scale-[1.01]"
+            }`}
+          >
+            {smartCat.name}
+          </button>
+        ))}
+
         {categories.map((cat) => (
           <button
             key={cat.id}

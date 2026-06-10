@@ -119,14 +119,24 @@ export default function LibraryPage() {
 
     // Apply front-end category filtering
     if (activeCategoryId !== null && activeCategoryId !== undefined) {
-      filtered = filtered.filter((m) => {
-        const catIds = m.categories?.nodes?.map(c => c?.id) || [];
-        if (activeCategoryId === 0 || activeCategoryId === "0") {
-          return catIds.length === 0 || catIds.includes(0);
-        } else {
-          return catIds.some(id => String(id) === String(activeCategoryId));
-        }
-      });
+      if (activeCategoryId === "smart:reading") {
+        filtered = filtered.filter((m) => m.lastReadChapter !== null && m.lastReadChapter !== undefined && m.unreadCount > 0);
+      } else if (activeCategoryId === "smart:plan_to_read") {
+        filtered = filtered.filter((m) => m.lastReadChapter === null || m.lastReadChapter === undefined);
+      } else if (activeCategoryId === "smart:completed") {
+        filtered = filtered.filter((m) => m.unreadCount === 0);
+      } else if (activeCategoryId === "smart:downloaded") {
+        filtered = filtered.filter((m) => (m.downloadCount || 0) > 0);
+      } else {
+        filtered = filtered.filter((m) => {
+          const catIds = m.categories?.nodes?.map(c => c?.id) || [];
+          if (activeCategoryId === 0 || activeCategoryId === "0") {
+            return catIds.length === 0 || catIds.includes(0);
+          } else {
+            return catIds.some(id => String(id) === String(activeCategoryId));
+          }
+        });
+      }
     }
 
     // Apply front-end search filter

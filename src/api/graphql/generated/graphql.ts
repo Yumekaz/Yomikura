@@ -4225,10 +4225,22 @@ export type DequeueChapterDownloadMutationVariables = Exact<{
 
 export type DequeueChapterDownloadMutation = { dequeueChapterDownload: { downloadStatus: { state: DownloaderState } } | null };
 
+export type DeleteDownloadedChapterMutationVariables = Exact<{
+  input: DeleteDownloadedChapterInput;
+}>;
+
+
+export type DeleteDownloadedChapterMutation = { deleteDownloadedChapter?: { clientMutationId?: string | null } | null };
+
 export type GetExtensionReposQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type GetExtensionReposQuery = { settings: { extensionRepos: Array<string> } };
+
+export type GetServerSettingsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetServerSettingsQuery = { settings: { localSourcePath: string } };
 
 export type GetExtensionsQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -4246,7 +4258,7 @@ export type GetLibraryQueryVariables = Exact<{
 }>;
 
 
-export type GetLibraryQuery = { mangas: { nodes: Array<{ id: number, title: string, thumbnailUrl: string | null, unreadCount: number, downloadCount: number, categories: { nodes: Array<{ id: number }> } }> } };
+export type GetLibraryQuery = { mangas: { nodes: Array<{ id: number, title: string, thumbnailUrl: string | null, unreadCount: number, downloadCount: number, lastReadChapter?: { id: number } | null, categories: { nodes: Array<{ id: number }> } }> } };
 
 export type GetMangaDetailsQueryVariables = Exact<{
   id: number;
@@ -4599,6 +4611,20 @@ export const GetExtensionReposDocument = gql`
     query GetExtensionRepos {
   settings {
     extensionRepos
+  }
+}
+    `;
+export const GetServerSettingsDocument = gql`
+    query GetServerSettings {
+  settings {
+    localSourcePath
+  }
+}
+    `;
+export const DeleteDownloadedChapterDocument = gql`
+    mutation DeleteDownloadedChapter($input: DeleteDownloadedChapterInput!) {
+  deleteDownloadedChapter(input: $input) {
+    clientMutationId
   }
 }
     `;
@@ -5020,8 +5046,14 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     DequeueChapterDownload(variables: DequeueChapterDownloadMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<DequeueChapterDownloadMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<DequeueChapterDownloadMutation>({ document: DequeueChapterDownloadDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'DequeueChapterDownload', 'mutation', variables);
     },
+    DeleteDownloadedChapter(variables: DeleteDownloadedChapterMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<DeleteDownloadedChapterMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<DeleteDownloadedChapterMutation>({ document: DeleteDownloadedChapterDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'DeleteDownloadedChapter', 'mutation', variables);
+    },
     GetExtensionRepos(variables?: GetExtensionReposQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetExtensionReposQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetExtensionReposQuery>({ document: GetExtensionReposDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetExtensionRepos', 'query', variables);
+    },
+    GetServerSettings(variables?: GetServerSettingsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetServerSettingsQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetServerSettingsQuery>({ document: GetServerSettingsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetServerSettings', 'query', variables);
     },
     GetExtensions(variables?: GetExtensionsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetExtensionsQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetExtensionsQuery>({ document: GetExtensionsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetExtensions', 'query', variables);

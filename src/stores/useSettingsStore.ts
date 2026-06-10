@@ -85,6 +85,14 @@ export interface SavedSearch {
   filters: string;
 }
 
+export interface SettingsProfile {
+  id: string;
+  name: string;
+  readerMode: ReaderMode;
+  fitMode: FitMode;
+  pageSpread: PageSpread;
+}
+
 interface SettingsState {
   serverBaseUrl: string;
   connectionStatus: ConnectionStatus;
@@ -110,6 +118,11 @@ interface SettingsState {
   autoDownloadCount: number;
   customKeybinds: Record<string, string[]>;
   savedSearches: SavedSearch[];
+
+  // Phase 3 features
+  language: string;
+  autoDeleteReadChapters: boolean;
+  settingsProfiles: SettingsProfile[];
   
   // Actions
   setServerBaseUrl: (url: string) => void;
@@ -140,6 +153,13 @@ interface SettingsState {
   setCustomKeybinds: (keybinds: Record<string, string[]>) => void;
   addSavedSearch: (name: string, sourceId: string, query: string, filters: string) => void;
   deleteSavedSearch: (id: string) => void;
+
+  // Phase 3 actions
+  setLanguage: (lang: string) => void;
+  setAutoDeleteReadChapters: (deleteChapters: boolean) => void;
+  addSettingsProfile: (name: string, profile: Omit<SettingsProfile, "id" | "name">) => void;
+  deleteSettingsProfile: (id: string) => void;
+  applySettingsProfile: (id: string) => void;
   
   // Derived
   getGraphqlEndpoint: () => string;
@@ -180,6 +200,11 @@ export const useSettingsStore = create<SettingsState>()(
         cycleSpread: ["s"]
       },
       savedSearches: [],
+
+      // Phase 3 default state
+      language: "en",
+      autoDeleteReadChapters: false,
+      settingsProfiles: [],
 
       setServerBaseUrl: (url: string) => {
         set((state) => {
@@ -329,6 +354,33 @@ export const useSettingsStore = create<SettingsState>()(
       deleteSavedSearch: (id) => set((state) => ({
         savedSearches: state.savedSearches.filter(s => s.id !== id)
       })),
+
+      // Phase 3 actions implementation
+      setLanguage: (lang) => set({ language: lang }),
+      setAutoDeleteReadChapters: (deleteChapters) => set({ autoDeleteReadChapters: deleteChapters }),
+      addSettingsProfile: (name, profile) => {
+        const newProfile: SettingsProfile = {
+          id: Math.random().toString(36).substring(2, 9),
+          name: name.trim(),
+          ...profile
+        };
+        set((state) => ({
+          settingsProfiles: [...state.settingsProfiles, newProfile]
+        }));
+      },
+      deleteSettingsProfile: (id) => set((state) => ({
+        settingsProfiles: state.settingsProfiles.filter(p => p.id !== id)
+      })),
+      applySettingsProfile: (id) => {
+        const profile = get().settingsProfiles.find(p => p.id === id);
+        if (profile) {
+          set({
+            readerMode: profile.readerMode,
+            fitMode: profile.fitMode,
+            pageSpread: profile.pageSpread
+          });
+        }
+      },
       
       resetAllSettings: () => {
         set({
@@ -362,6 +414,9 @@ export const useSettingsStore = create<SettingsState>()(
             cycleSpread: ["s"]
           },
           savedSearches: [],
+          language: "en",
+          autoDeleteReadChapters: false,
+          settingsProfiles: [],
         });
       },
 
@@ -396,6 +451,9 @@ export const useSettingsStore = create<SettingsState>()(
         autoDownloadCount: state.autoDownloadCount,
         customKeybinds: state.customKeybinds,
         savedSearches: state.savedSearches,
+        language: state.language,
+        autoDeleteReadChapters: state.autoDeleteReadChapters,
+        settingsProfiles: state.settingsProfiles,
       }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<SettingsState> | undefined;
@@ -431,6 +489,9 @@ export const useSettingsStore = create<SettingsState>()(
           autoDownloadCount: persisted?.autoDownloadCount ?? currentState.autoDownloadCount,
           customKeybinds: persisted?.customKeybinds ?? currentState.customKeybinds,
           savedSearches: persisted?.savedSearches ?? currentState.savedSearches,
+          language: persisted?.language ?? currentState.language,
+          autoDeleteReadChapters: persisted?.autoDeleteReadChapters ?? currentState.autoDeleteReadChapters,
+          settingsProfiles: persisted?.settingsProfiles ?? currentState.settingsProfiles,
         };
       },
     }

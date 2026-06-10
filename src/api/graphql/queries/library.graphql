@@ -19,6 +19,9 @@ query GetLibrary(
       thumbnailUrl
       unreadCount
       downloadCount
+      lastReadChapter {
+        id
+      }
       categories {
         nodes {
           id

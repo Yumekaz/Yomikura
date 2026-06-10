@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, History, Play, RotateCcw, BookOpen } from "lucide-react";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Loader2, History, Play, RotateCcw } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
@@ -31,9 +31,18 @@ export default function HistoryPage() {
     return createGraphqlClient(`${cleanUrl}/api/graphql`);
   }, [serverBaseUrl]);
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useInfiniteQuery({
     queryKey: ["history", serverBaseUrl],
-    queryFn: () =>
+    queryFn: ({ pageParam }) =>
       sdk.GetHistory({
         filter: {
           lastReadAt: { isNull: false },
@@ -44,8 +53,14 @@ export default function HistoryPage() {
             byType: SortOrder.Desc,
           },
         ],
-        first: 100,
+        first: 30,
+        after: pageParam,
       }),
+    initialPageParam: undefined as any,
+    getNextPageParam: (lastPage) => {
+      const pageInfo = lastPage.chapters?.pageInfo;
+      return pageInfo?.hasNextPage ? pageInfo.endCursor : undefined;
+    },
     enabled: !!serverBaseUrl,
   });
 
@@ -68,10 +83,13 @@ export default function HistoryPage() {
   });
 
   const historyItems = useMemo(() => {
-    if (!data?.chapters?.edges) return [];
-    return data.chapters.edges
-      .map((edge) => edge?.node)
-      .filter((node): node is NonNullable<typeof node> => node != null) as unknown as HistoryItem[];
+    if (!data?.pages) return [];
+    return data.pages.flatMap((page) => {
+      if (!page?.chapters?.edges) return [];
+      return page.chapters.edges
+        .map((edge) => edge?.node)
+        .filter((node): node is NonNullable<typeof node> => node != null);
+    }) as unknown as HistoryItem[];
   }, [data]);
 
   // Group history items by read date
@@ -244,6 +262,25 @@ export default function HistoryPage() {
           );
         })}
       </div>
+
+      {hasNextPage && (
+        <div className="flex justify-center pt-4">
+          <button
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+            className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 px-6 py-2.5 text-xs font-bold text-slate-200 transition disabled:opacity-50"
+          >
+            {isFetchingNextPage ? (
+              <>
+                <Loader2 className="h-4.5 w-4.5 animate-spin text-yomi-jade" />
+                Loading...
+              </>
+            ) : (
+              "Load More"
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

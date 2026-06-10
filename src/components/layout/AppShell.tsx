@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { browseNav, primaryNav, type NavItem } from "../../app/navigation";
 import { useSettingsStore, isTauri } from "../../stores/useSettingsStore";
 import { ErrorBoundary } from "../ErrorBoundary";
+import { useTranslation } from "../../hooks/useTranslation";
 
 function ProfileSwitcher() {
   const { profiles, activeProfileId, setActiveProfileId } = useSettingsStore();
@@ -68,6 +69,7 @@ function BackendHealthBadge() {
 }
 
 function AppShell() {
+  const { t } = useTranslation();
   const { 
     connectionStatus, 
     testConnection, 
@@ -170,7 +172,7 @@ function AppShell() {
           ))}
         </nav>
         <div className="mt-8 border-t border-white/5 pt-5 pb-6">
-          <p className="px-3 text-xs font-semibold uppercase text-slate-500">Browse</p>
+          <p className="px-3 text-xs font-semibold uppercase text-slate-500">{t("browse")}</p>
           <nav className="mt-2 space-y-1" aria-label="Browse navigation">
             {browseNav.map((item) => (
               <ShellNavLink key={item.path} item={item} />
@@ -788,6 +790,9 @@ function WelcomeOnboarding({
 
 function ShellNavLink({ item }: { item: NavItem }) {
   const Icon = item.icon;
+  const { t } = useTranslation();
+  const translationKey = item.label.toLowerCase().replace(" ", "_") as any;
+  const label = t(translationKey) === translationKey ? item.label : t(translationKey);
   return (
     <NavLink
       className={({ isActive }) =>
@@ -806,7 +811,7 @@ function ShellNavLink({ item }: { item: NavItem }) {
             <div className="absolute left-0 top-2.5 bottom-2.5 w-1 rounded-r-full bg-yomi-jade shadow-glow" />
           )}
           <Icon className={`h-4 w-4 transition-transform duration-200 group-hover:scale-110 ${isActive ? "text-yomi-jade" : "text-slate-400 group-hover:text-slate-200"}`} />
-          <span>{item.label}</span>
+          <span>{label}</span>
         </>
       )}
     </NavLink>
@@ -814,6 +819,7 @@ function ShellNavLink({ item }: { item: NavItem }) {
 }
 
 function MobileNav() {
+  const { t } = useTranslation();
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-20 border-t border-white/5 bg-ink-900/60 backdrop-blur-xl px-2 py-2 lg:hidden"
@@ -822,6 +828,8 @@ function MobileNav() {
       <div className="grid grid-cols-6 gap-1">
         {primaryNav.map((item) => {
           const Icon = item.icon;
+          const translationKey = item.label.toLowerCase().replace(" ", "_") as any;
+          const label = t(translationKey) === translationKey ? item.label : t(translationKey);
           return (
             <NavLink
               key={item.path}
@@ -833,7 +841,7 @@ function MobileNav() {
               to={item.path}
             >
               <Icon className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
-              <span>{item.label}</span>
+              <span>{label}</span>
             </NavLink>
           );
         })}

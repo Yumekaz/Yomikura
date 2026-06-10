@@ -21,13 +21,16 @@ import {
   Sun,
   Moon,
   Monitor,
+  Globe,
 } from "lucide-react";
-import { useSettingsStore, ReaderMode, ServerProfile, isTauri } from "../stores/useSettingsStore";
+import { useSettingsStore, ReaderMode, ServerProfile, isTauri, SettingsProfile } from "../stores/useSettingsStore";
 import { DEFAULT_SERVER_BASE_URL } from "../config/server";
 import { createGraphqlClient } from "../api/graphql/client";
 import { getErrorMessage } from "../api/suwayomi/errors";
 import { useDownloadStore } from "../stores/useDownloadStore";
 import { DuplicateScanner } from "../components/library/DuplicateScanner";
+import { LocalImportSection } from "../components/library/LocalImportSection";
+import { useTranslation } from "../hooks/useTranslation";
 
 type SettingsTab = "connection" | "appearance" | "reader" | "backup" | "offline" | "advanced" | "about";
 
@@ -292,6 +295,7 @@ function SuwayomiServerUpdaterRow() {
 }
 
 function SettingsPage() {
+  const { t } = useTranslation();
   const {
     serverBaseUrl,
     setServerBaseUrl,
@@ -300,6 +304,8 @@ function SettingsPage() {
     errorMessage,
     readerMode,
     setReaderMode,
+    fitMode,
+    pageSpread,
     profiles,
     activeProfileId,
     addProfile,
@@ -318,12 +324,23 @@ function SettingsPage() {
     serverDataPath,
     customKeybinds,
     setCustomKeybinds,
+    language,
+    setLanguage,
+    autoDeleteReadChapters,
+    setAutoDeleteReadChapters,
+    settingsProfiles,
+    addSettingsProfile,
+    deleteSettingsProfile,
+    applySettingsProfile,
   } = useSettingsStore();
 
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [profileNameInput, setProfileNameInput] = useState("");
   const [profileUrlInput, setProfileUrlInput] = useState("");
   const [isAddingNew, setIsAddingNew] = useState(false);
+
+  const [settingsProfileNameInput, setSettingsProfileNameInput] = useState("");
+  const [isAddingSettingsProfile, setIsAddingSettingsProfile] = useState(false);
 
   const [localUrl, setLocalUrl] = useState(serverBaseUrl);
   const [activeTab, setActiveTab] = useState<SettingsTab>("connection");
@@ -630,7 +647,7 @@ function SettingsPage() {
                   : "border-transparent text-slate-400 hover:text-slate-200"
               } capitalize`}
             >
-              {tab}
+              {tab === "appearance" ? t("theme") : tab === "offline" ? t("offline") : tab}
             </button>
           ))}
         </div>
@@ -989,6 +1006,32 @@ function SettingsPage() {
                       })}
                     </div>
                   </div>
+
+                  {/* Language Selection */}
+                  <div className="border-t border-white/5 pt-6">
+                    <label className="block px-1 pb-3 text-sm font-medium text-slate-300">
+                      Language / Idioma
+                    </label>
+                    <div className="flex items-center gap-3 max-w-md">
+                      <Globe className="h-4.5 w-4.5 text-yomi-jade shrink-0" />
+                      <select
+                        value={language || "en"}
+                        onChange={(e) => setLanguage(e.target.value)}
+                        className="w-full rounded-xl border border-white/10 bg-ink-950 px-3 py-2.5 text-xs text-slate-300 outline-none focus:border-yomi-jade/55 transition"
+                      >
+                        <option value="en">English</option>
+                        <option value="es">Español (Spanish)</option>
+                        <option value="fr">Français (French)</option>
+                        <option value="de">Deutsch (German)</option>
+                        <option value="ja">日本語 (Japanese)</option>
+                        <option value="pt">Português (Portuguese)</option>
+                        <option value="zh">中文 (Chinese)</option>
+                        <option value="ru">Русский (Russian)</option>
+                        <option value="it">Italiano (Italian)</option>
+                        <option value="ko">한국어 (Korean)</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1019,6 +1062,127 @@ function SettingsPage() {
                       <option value="LTR">Left to Right (Single Page)</option>
                       <option value="RTL">Right to Left (Single Page)</option>
                     </select>
+                  </div>
+
+                  {/* Auto Delete Read Chapters Toggle */}
+                  <div className="pt-2">
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={autoDeleteReadChapters}
+                        onChange={(e) => setAutoDeleteReadChapters(e.target.checked)}
+                        className="rounded border-white/10 bg-ink-950 text-yomi-jade focus:ring-0 focus:ring-offset-0 h-4 w-4"
+                      />
+                      <span className="text-xs font-semibold text-slate-300">
+                        {t("auto_delete_read")}
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Settings Profiles Preset Manager */}
+              <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <Palette className="h-5 w-5 text-yomi-jade" />
+                  Reader Layout Presets
+                </h2>
+                <p className="mt-2 text-sm text-slate-400">
+                  Save combinations of Reader Mode, Fit Mode, and Page Spread for different layout setups (e.g. mobile vs desktop).
+                </p>
+
+                <div className="mt-6 space-y-4">
+                  {/* Existing Profiles List */}
+                  {settingsProfiles && settingsProfiles.length > 0 ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {settingsProfiles.map((prof) => (
+                        <div
+                          key={prof.id}
+                          className="flex items-center justify-between gap-4 p-3 rounded-lg border border-white/5 bg-ink-950/20"
+                        >
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-xs font-bold text-slate-200 truncate">{prof.name}</span>
+                            <span className="text-[10px] text-slate-500 truncate mt-0.5">
+                              {prof.readerMode} • {prof.fitMode} • {prof.pageSpread}
+                            </span>
+                          </div>
+
+                          <div className="flex gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => applySettingsProfile(prof.id)}
+                              className="rounded bg-yomi-jade/10 border border-yomi-jade/20 hover:bg-yomi-jade/20 text-yomi-jade px-2.5 py-1 text-xs font-bold transition"
+                            >
+                              Apply
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteSettingsProfile(prof.id)}
+                              className="text-slate-500 hover:text-red-400 p-1"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500">No layout presets created yet.</p>
+                  )}
+
+                  {/* Add New Profile Block */}
+                  <div className="pt-2 border-t border-white/5">
+                    {isAddingSettingsProfile ? (
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          if (!settingsProfileNameInput.trim()) return;
+                          addSettingsProfile(settingsProfileNameInput.trim(), {
+                            readerMode,
+                            fitMode,
+                            pageSpread,
+                          });
+                          setSettingsProfileNameInput("");
+                          setIsAddingSettingsProfile(false);
+                        }}
+                        className="flex flex-col sm:flex-row gap-2 max-w-md"
+                      >
+                        <input
+                          type="text"
+                          required
+                          value={settingsProfileNameInput}
+                          onChange={(e) => setSettingsProfileNameInput(e.target.value)}
+                          placeholder="e.g. Phone Layout, Desktop Reading"
+                          className="flex-1 rounded bg-ink-950 border border-white/10 px-3 py-1.5 text-xs text-slate-200 outline-none focus:border-yomi-jade/50 transition"
+                        />
+                        <div className="flex gap-1.5 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAddingSettingsProfile(false);
+                              setSettingsProfileNameInput("");
+                            }}
+                            className="rounded border border-white/10 px-3 py-1.5 text-xs text-slate-400 hover:bg-white/5"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="rounded bg-yomi-jade text-ink-950 px-3 py-1.5 text-xs font-bold hover:bg-yomi-jade/90 transition"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingSettingsProfile(true)}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-yomi-jade hover:underline"
+                      >
+                        <Plus className="h-4 w-4" /> Save current layout as preset
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1257,6 +1421,9 @@ function SettingsPage() {
 
           {activeTab === "advanced" && (
             <div className="space-y-6">
+              {/* Local Import Section */}
+              <LocalImportSection />
+
               <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
                 <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                   <Sliders className="h-5 w-5 text-yomi-jade" />
@@ -1325,6 +1492,37 @@ function SettingsPage() {
                   {/* Duplicate Manga Scanner */}
                   <div className="border-t border-white/5 pt-6">
                     <DuplicateScanner />
+                  </div>
+
+                  {/* Reset Onboarding Wizard */}
+                  <div className="border-t border-white/5 pt-6 space-y-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-200">Reset Setup Onboarding Wizard</h3>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Clears the local connection configuration and data path storage memory, re-triggering the native setup onboarding wizard on the next launch.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const confirmReset = window.confirm(
+                          "Are you sure you want to reset the setup wizard? This will disconnect your active server profile and run onboarding on next launch."
+                        );
+                        if (confirmReset) {
+                          useSettingsStore.setState({
+                            connectionStatus: "disconnected",
+                            serverBaseUrl: "",
+                            activeProfileId: "",
+                            serverDataPath: "",
+                          });
+                          alert("Setup wizard has been reset. Please restart the app or reload.");
+                          window.location.reload();
+                        }
+                      }}
+                      className="rounded-lg border border-yomi-jade/30 bg-yomi-jade/5 px-4 py-2.5 text-xs font-semibold text-yomi-jade hover:bg-yomi-jade/20 transition"
+                    >
+                      Reset Onboarding Wizard
+                    </button>
                   </div>
 
                   {/* Reset All Settings */}
