@@ -33,6 +33,40 @@ function ProfileSwitcher() {
   );
 }
 
+function BackendHealthBadge() {
+  const { connectionStatus, mockMode, serverBaseUrl } = useSettingsStore();
+
+  let dotColor = "bg-slate-500";
+  let textColor = "text-slate-400";
+  let statusText = "Disconnected";
+
+  if (connectionStatus === "connected") {
+    const port = serverBaseUrl.split(":").pop() || "4567";
+    dotColor = "bg-yomi-jade animate-pulse";
+    textColor = "text-yomi-mint";
+    statusText = `Local Engine: Active (Port ${port})`;
+  } else if (connectionStatus === "testing") {
+    dotColor = "bg-blue-400 animate-pulse";
+    textColor = "text-blue-400";
+    statusText = "Connecting...";
+  } else if (mockMode) {
+    dotColor = "bg-purple-400 animate-pulse";
+    textColor = "text-purple-300";
+    statusText = "Demo Sandbox Mode";
+  } else if (connectionStatus === "error") {
+    dotColor = "bg-red-400 animate-pulse";
+    textColor = "text-red-400";
+    statusText = "Offline";
+  }
+
+  return (
+    <div className="mt-2.5 px-2.5 py-1.5 rounded-lg bg-ink-950/40 border border-white/5 flex items-center gap-2 text-[10px] font-semibold tracking-wide select-none">
+      <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
+      <span className={textColor}>{statusText}</span>
+    </div>
+  );
+}
+
 function AppShell() {
   const { 
     connectionStatus, 
@@ -123,6 +157,7 @@ function AppShell() {
     <div className="min-h-screen bg-transparent text-slate-100">
       <aside className="fixed left-4 top-4 bottom-4 hidden w-64 rounded-2xl border border-white/10 bg-ink-900/30 backdrop-blur-2xl px-4 py-5 lg:block overflow-y-auto scrollbar-none shadow-2xl z-30">
         <BrandLockup />
+        <BackendHealthBadge />
         
         {/* Profile Switcher */}
         <div className="mt-5 px-1">

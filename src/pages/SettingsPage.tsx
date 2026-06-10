@@ -238,6 +238,7 @@ function SettingsPage() {
     mockMode,
     setMockMode,
     resetAllSettings,
+    serverDataPath,
   } = useSettingsStore();
 
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
@@ -1094,6 +1095,35 @@ function SettingsPage() {
                       />
                     </button>
                   </div>
+
+                  {/* Local Storage Directory (Tauri only) */}
+                  {isTauri() && (
+                    <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-white/5 bg-ink-950/30">
+                      <div className="space-y-1">
+                        <span className="font-semibold text-sm text-slate-200">
+                          Application Storage Directory
+                        </span>
+                        <p className="text-xs text-slate-400 leading-relaxed max-w-lg">
+                          Open the local directory containing Suwayomi-Server databases, extensions, configuration files, and execution logs.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const { invoke } = await import("@tauri-apps/api/core");
+                            await invoke("open_logs_folder", { dataPath: serverDataPath });
+                          } catch (err: any) {
+                            console.error("Failed to open storage directory:", err);
+                            alert("Failed to open directory: " + (err.message || String(err)));
+                          }
+                        }}
+                        className="rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 px-4 py-2 text-xs font-semibold text-slate-300 transition shrink-0"
+                      >
+                        Open Directory
+                      </button>
+                    </div>
+                  )}
 
                   {/* Reset All Settings */}
                   <div className="border-t border-white/5 pt-6 space-y-4">

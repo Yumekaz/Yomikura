@@ -316,9 +316,17 @@ fn start_backend(
     #[cfg(windows)]
     cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
 
-    cmd.arg("-Djavax.net.ssl.trustStore=NONE")
-        .arg("-Djavax.net.ssl.trustStoreType=Windows-ROOT")
-        .arg(format!("-Dsuwayomi.tachidesk.config.server.rootDir={}", data_dir.to_string_lossy()))
+    #[cfg(target_os = "windows")]
+    {
+        cmd.arg("-Djavax.net.ssl.trustStore=NONE")
+            .arg("-Djavax.net.ssl.trustStoreType=Windows-ROOT");
+    }
+    #[cfg(target_os = "macos")]
+    {
+        cmd.arg("-Djavax.net.ssl.trustStoreType=KeychainStore");
+    }
+
+    cmd.arg(format!("-Dsuwayomi.tachidesk.config.server.rootDir={}", data_dir.to_string_lossy()))
         .arg(format!("-Dsuwayomi.tachidesk.config.server.port={}", port))
         .arg("-jar")
         .arg(jar_path)
@@ -385,9 +393,46 @@ fn wipe_all_data(app_handle: tauri::AppHandle, state: State<'_, BackendState>) -
     Ok(())
 }
 
+#[tauri::command]
+fn open_logs_folder(data_path: String) -> Result<(), String> {
+    let data_dir = std::path::PathBuf::from(&data_path);
+    if !data_dir.exists() {
+        return Err("Storage directory does not exist.".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer")
+            .arg(data_dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open directory: {}", e))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(data_dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open directory: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(data_dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open directory: {}", e))?;
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_http::init())
@@ -403,7 +448,8 @@ pub fn run() {
             start_backend,
             stop_backend,
             get_backend_status,
-            download_and_install_jre
+            download_and_install_jre,
+            open_logs_folder
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
