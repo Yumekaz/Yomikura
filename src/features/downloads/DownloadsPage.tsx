@@ -89,7 +89,7 @@ export default function DownloadsPage() {
 
   if (isUnconnected) {
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center bg-ink-950 p-6 text-center text-slate-300 min-h-[50vh] animate-fade-in">
+      <div className="flex h-full w-full flex-col items-center justify-center bg-transparent p-6 text-center text-slate-300 min-h-[50vh] animate-fade-in">
         <Download className="mb-4 h-12 w-12 text-slate-600" />
         <h2 className="text-lg font-semibold text-white">Downloads queue offline</h2>
         <p className="mt-2 max-w-md text-sm text-slate-500 leading-relaxed">

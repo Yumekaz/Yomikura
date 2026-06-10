@@ -56,8 +56,8 @@ export default function ReposPage() {
   };
 
   return (
-    <div className="min-h-screen bg-ink-950 pb-24">
-      <div className="sticky top-0 z-20 bg-ink-950/90 backdrop-blur-md border-b border-white/5 px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-transparent pb-24">
+      <div className="sticky top-0 z-20 bg-ink-950/40 backdrop-blur-xl border-b border-white/5 px-4 py-4 sm:px-6 mb-6">
         <div className="max-w-3xl mx-auto flex items-center gap-3">
           <Link to="/extensions" className="rounded-full p-2 hover:bg-white/10 text-slate-300">
             <ArrowLeft className="h-5 w-5" />

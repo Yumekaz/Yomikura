@@ -186,9 +186,9 @@ export default function ExtensionsPage() {
   }, [extensions, searchInput, showNsfw, langFilter]);
 
   return (
-    <div className="min-h-screen bg-ink-950 pb-24">
+    <div className="min-h-screen bg-transparent pb-24">
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-ink-950/90 backdrop-blur-md border-b border-white/5 px-4 py-4 sm:px-6">
+      <div className="sticky top-0 z-20 bg-ink-950/40 backdrop-blur-xl border-b border-white/5 px-4 py-4 sm:px-6 mb-6">
         <div className="max-w-5xl mx-auto flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-white flex items-center gap-2">

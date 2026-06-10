@@ -46,15 +46,17 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 18% 10%, rgba(var(--yomi-accent), 0.12), transparent 28rem),
-    linear-gradient(135deg, var(--ink-950) 0%, var(--ink-900) 52%, var(--ink-950) 100%);
+    radial-gradient(circle at 15% 15%, rgba(var(--yomi-accent), 0.18), transparent 32rem),
+    radial-gradient(circle at 85% 85%, rgba(var(--yomi-accent), 0.08), transparent 28rem),
+    linear-gradient(135deg, var(--ink-950) 0%, var(--ink-900) 50%, var(--ink-950) 100%);
   transition: background 0.2s ease, color 0.2s ease;
 }
 
 .light-theme body {
   background:
-    radial-gradient(circle at 18% 10%, rgba(var(--yomi-accent), 0.08), transparent 28rem),
-    linear-gradient(135deg, var(--ink-950) 0%, var(--ink-900) 52%, var(--ink-950) 100%);
+    radial-gradient(circle at 15% 15%, rgba(var(--yomi-accent), 0.12), transparent 32rem),
+    radial-gradient(circle at 85% 85%, rgba(var(--yomi-accent), 0.05), transparent 28rem),
+    linear-gradient(135deg, var(--ink-950) 0%, var(--ink-900) 50%, var(--ink-950) 100%);
 }
 
 button,

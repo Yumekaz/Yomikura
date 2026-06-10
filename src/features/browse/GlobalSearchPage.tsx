@@ -250,9 +250,9 @@ export default function GlobalSearchPage() {
   }, [urlQuery]);
 
   return (
-    <div className="min-h-screen bg-ink-950 pb-24 text-slate-100">
+    <div className="min-h-screen bg-transparent pb-24 text-slate-100">
       {/* Top Sticky Header */}
-      <div className="sticky top-0 z-20 bg-ink-950/90 backdrop-blur-md border-b border-white/5 px-4 py-4 sm:px-6">
+      <div className="sticky top-0 z-20 bg-ink-950/40 backdrop-blur-xl border-b border-white/5 px-4 py-4 sm:px-6 mb-6">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button
@@ -275,13 +275,13 @@ export default function GlobalSearchPage() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search manga title globally..."
-                className="w-full rounded-lg bg-ink-900 border border-white/5 py-2 pl-10 pr-4 text-sm text-slate-200 placeholder-slate-500 focus:border-yomi-jade/50 focus:outline-none transition"
+                className="w-full rounded-xl bg-ink-900 border border-white/10 focus:border-yomi-jade/50 focus:shadow-glow py-2 pl-10 pr-4 text-xs text-slate-200 placeholder-slate-500 focus:outline-none transition-all duration-300"
               />
               <Search className="absolute left-3.5 top-2.5 h-4.5 w-4.5 text-slate-500" />
             </div>
             <button
               type="submit"
-              className="rounded-lg bg-yomi-jade px-4 py-2 text-sm font-semibold text-ink-950 hover:bg-yomi-jade/90 transition shadow-md"
+              className="rounded-xl bg-yomi-jade px-4 py-2 text-xs font-bold text-ink-950 hover:bg-yomi-jade/90 hover:scale-[1.02] active:scale-[0.98] transition shadow-md hover:shadow-glow"
             >
               Search
             </button>

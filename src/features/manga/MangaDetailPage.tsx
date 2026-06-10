@@ -219,7 +219,7 @@ export default function MangaDetailPage() {
   };
 
   return (
-    <div className="min-h-screen bg-ink-950 pb-20 lg:pb-0">
+    <div className="min-h-screen bg-transparent pb-20 lg:pb-0">
       {/* Top Banner & Metadata Area */}
       <div className="relative">
         {/* Blurred background */}

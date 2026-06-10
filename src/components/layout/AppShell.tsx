@@ -96,8 +96,8 @@ function AppShell() {
   }
 
   return (
-    <div className="min-h-screen bg-ink-950 text-slate-100">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-white/5 bg-ink-900/50 backdrop-blur-xl px-4 py-5 lg:block">
+    <div className="min-h-screen bg-transparent text-slate-100">
+      <aside className="fixed left-4 top-4 bottom-4 hidden w-64 rounded-2xl border border-white/10 bg-ink-900/30 backdrop-blur-2xl px-4 py-5 lg:block shadow-2xl z-30">
         <BrandLockup />
         
         {/* Profile Switcher */}
@@ -119,10 +119,11 @@ function AppShell() {
           </nav>
         </div>
       </aside>
-      <main className="min-h-screen pb-24 lg:pl-64">
+      <main className="min-h-screen pb-24 lg:pl-[18.5rem] lg:pr-6 lg:pt-4">
         {showOfflineBanner && (
-          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center text-xs font-medium text-amber-200">
-            Suwayomi server is offline. Yomikura is running in offline mode.
+          <div className="mx-auto my-3 max-w-xl rounded-full bg-amber-500/10 border border-amber-500/20 px-4 py-1.5 text-center text-xs font-semibold text-amber-300 backdrop-blur-md shadow-md animate-fade-in flex items-center justify-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span>Suwayomi server is offline. Yomikura is running in offline mode.</span>
           </div>
         )}
         <ErrorBoundary>

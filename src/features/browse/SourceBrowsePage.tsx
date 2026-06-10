@@ -123,9 +123,9 @@ export default function SourceBrowsePage() {
   const sourceProblem = isError ? classifySourceProblem(fetchError) : null;
 
   return (
-    <div className="min-h-screen bg-ink-950 pb-24">
+    <div className="min-h-screen bg-transparent pb-24">
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-ink-950/90 backdrop-blur-md border-b border-white/5 px-4 py-4 sm:px-6">
+      <div className="sticky top-0 z-20 bg-ink-950/40 backdrop-blur-xl border-b border-white/5 px-4 py-4 sm:px-6 mb-6">
         <div className="max-w-7xl mx-auto flex flex-col gap-4">
           <div className="flex items-center gap-3">
             <Link to="/browse" className="rounded-full p-2 hover:bg-white/10 text-slate-300">
@@ -135,13 +135,13 @@ export default function SourceBrowsePage() {
           </div>
 
           <form onSubmit={handleSearchSubmit} className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+            <Search className="absolute left-3.5 top-2.5 h-4.5 w-4.5 text-slate-500" />
             <input
               type="text"
               placeholder="Search manga in source..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full rounded-full bg-ink-900 py-2 pl-10 pr-4 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-yomi-jade/50"
+              className="w-full rounded-xl bg-ink-900 border border-white/10 py-2 pl-10 pr-4 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-yomi-jade/50 focus:shadow-glow transition-all duration-300"
             />
           </form>
 

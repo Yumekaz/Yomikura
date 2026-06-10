@@ -179,7 +179,7 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="flex h-full w-full flex-col bg-ink-950">
+    <div className="flex h-full w-full flex-col bg-transparent">
       {/* Filters Bar */}
       <LibraryFilters
         categories={categories}
