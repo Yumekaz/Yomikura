@@ -79,7 +79,8 @@ export default function HistoryPage() {
     const groups: Record<string, HistoryItem[]> = {};
 
     historyItems.forEach((item) => {
-      const time = parseInt(item.lastReadAt);
+      const rawTime = parseInt(item.lastReadAt);
+      const time = !isNaN(rawTime) && rawTime < 30000000000 ? rawTime * 1000 : rawTime;
       if (isNaN(time)) {
         const key = "Unknown Date";
         if (!groups[key]) groups[key] = [];
@@ -207,7 +208,7 @@ export default function HistoryPage() {
                           </span>
                           <span>•</span>
                           <span>
-                            {new Date(parseInt(item.lastReadAt)).toLocaleTimeString([], {
+                            {new Date(parseInt(item.lastReadAt) < 30000000000 ? parseInt(item.lastReadAt) * 1000 : parseInt(item.lastReadAt)).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
                             })}

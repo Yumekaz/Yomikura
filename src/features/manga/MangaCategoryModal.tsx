@@ -36,9 +36,8 @@ export function MangaCategoryModal({
   });
 
   const categories = useMemo(() => {
-    if (!catData?.categories?.edges) return [];
-    return catData.categories.edges
-      .map((edge) => edge?.node)
+    if (!catData?.categories?.nodes) return [];
+    return catData.categories.nodes
       .filter((node): node is NonNullable<typeof node> => node != null)
       .map((cat) => ({
         id: parseInt(String(cat.id)),

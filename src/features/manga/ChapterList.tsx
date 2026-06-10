@@ -72,7 +72,7 @@ export function ChapterList({ chapters, mangaTitle }: ChapterListProps) {
                     {chapter.name}
                   </span>
                   <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
-                    <span>{new Date(parseInt(chapter.uploadDate)).toLocaleDateString()}</span>
+                    <span>{new Date(parseInt(chapter.uploadDate) < 30000000000 ? parseInt(chapter.uploadDate) * 1000 : parseInt(chapter.uploadDate)).toLocaleDateString()}</span>
                     {chapter.scanlator && (
                       <>
                         <span>•</span>

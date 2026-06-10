@@ -17,12 +17,12 @@ function MangaCard({ manga, serverBaseUrl }: { manga: any; serverBaseUrl: string
 
   return (
     <Link to={`/manga/${manga.id}`} className="group relative flex flex-col gap-2">
-      <div className="aspect-[2/3] w-full overflow-hidden rounded-lg bg-ink-900 shadow-md">
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-ink-900 shadow-md">
         {thumbnailUrl ? (
           <img
             src={thumbnailUrl}
             alt={manga.title}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             loading="lazy"
           />
         ) : (

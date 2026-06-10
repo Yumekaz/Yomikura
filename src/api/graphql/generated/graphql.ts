@@ -4238,7 +4238,7 @@ export type GetExtensionsQuery = { extensions: { totalCount: number, nodes: Arra
 export type GetCategoriesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetCategoriesQuery = { categories: { edges: Array<{ node: { id: number, name: string, order: number } }> } };
+export type GetCategoriesQuery = { categories: { nodes: Array<{ id: number, name: string, order: number }> } };
 
 export type GetLibraryQueryVariables = Exact<{
   filter?: MangaFilterInput | null | undefined;
@@ -4246,7 +4246,7 @@ export type GetLibraryQueryVariables = Exact<{
 }>;
 
 
-export type GetLibraryQuery = { mangas: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, edges: Array<{ node: { id: number, title: string, thumbnailUrl: string | null, unreadCount: number, downloadCount: number, categories: { edges: Array<{ node: { id: number } }> } } }> } };
+export type GetLibraryQuery = { mangas: { nodes: Array<{ id: number, title: string, thumbnailUrl: string | null, unreadCount: number, downloadCount: number, categories: { nodes: Array<{ id: number }> } }> } };
 
 export type GetMangaDetailsQueryVariables = Exact<{
   id: number;
@@ -4622,12 +4622,10 @@ export const GetExtensionsDocument = gql`
 export const GetCategoriesDocument = gql`
     query GetCategories {
   categories {
-    edges {
-      node {
-        id
-        name
-        order
-      }
+    nodes {
+      id
+      name
+      order
     }
   }
 }
@@ -4635,23 +4633,15 @@ export const GetCategoriesDocument = gql`
 export const GetLibraryDocument = gql`
     query GetLibrary($filter: MangaFilterInput, $first: Int) {
   mangas(filter: $filter, first: $first) {
-    pageInfo {
-      hasNextPage
-      endCursor
-    }
-    edges {
-      node {
-        id
-        title
-        thumbnailUrl
-        unreadCount
-        downloadCount
-        categories {
-          edges {
-            node {
-              id
-            }
-          }
+    nodes {
+      id
+      title
+      thumbnailUrl
+      unreadCount
+      downloadCount
+      categories {
+        nodes {
+          id
         }
       }
     }

@@ -35,20 +35,18 @@ export default function LibraryPage() {
   });
 
   // Fetch Library
-  // We use the category ID for backend filtering if available.
+  // We fetch all library items and perform category filtering on the frontend for instant response
   const {
     data: libData,
     isLoading: libLoading,
     isError: libError,
     refetch: refetchLibrary,
   } = useQuery({
-    queryKey: ["library", serverBaseUrl, activeCategoryId],
+    queryKey: ["library", serverBaseUrl],
     queryFn: () => {
       return sdk.GetLibrary({
-        // Optional backend category filtering
         filter: { 
-          inLibrary: { equalTo: true },
-          ...(activeCategoryId ? { categoryId: { equalTo: activeCategoryId as number } } : {})
+          inLibrary: { equalTo: true }
         },
         first: 500, // Fetch up to 500 for a solid initial load
       });
@@ -60,10 +58,9 @@ export default function LibraryPage() {
 
   // Extract and format categories
   const categories = useMemo(() => {
-    if (!catData?.categories?.edges) return [];
-    const uniqueById = new Map<string | number, NonNullable<typeof catData.categories.edges[number]["node"]>>();
-    for (const edge of catData.categories.edges) {
-      const node = edge?.node;
+    if (!catData?.categories?.nodes) return [];
+    const uniqueById = new Map<string | number, NonNullable<typeof catData.categories.nodes[number]>>();
+    for (const node of catData.categories.nodes) {
       if (!node || uniqueById.has(node.id)) continue;
       uniqueById.set(node.id, node);
     }
@@ -103,16 +100,29 @@ export default function LibraryPage() {
       return filtered;
     }
 
-    if (!libData?.mangas?.edges) return [];
+    if (!libData?.mangas?.nodes) return [];
 
-    const uniqueById = new Map<string | number, NonNullable<typeof libData.mangas.edges[number]["node"]>>();
-    for (const edge of libData.mangas.edges) {
-      const node = edge?.node;
+    const uniqueById = new Map<string | number, NonNullable<typeof libData.mangas.nodes[number]>>();
+    for (const node of libData.mangas.nodes) {
       if (!node || uniqueById.has(node.id)) continue;
       uniqueById.set(node.id, node);
     }
 
     let filtered = Array.from(uniqueById.values());
+
+    // Apply front-end category filtering
+    if (activeCategoryId !== null && activeCategoryId !== undefined) {
+      filtered = filtered.filter((m) => {
+        const catIds = m.categories?.nodes?.map(c => c?.id) || [];
+        if (activeCategoryId === 0 || activeCategoryId === "0") {
+          // Default category: manga has no categories or contains category ID 0
+          return catIds.length === 0 || catIds.includes(0);
+        } else {
+          // Custom category: manga must explicitly belong to this category ID
+          return catIds.some(id => String(id) === String(activeCategoryId));
+        }
+      });
+    }
 
     // Apply front-end search filter (faster than refetching for every keystroke)
     if (searchQuery.trim()) {
@@ -127,7 +137,7 @@ export default function LibraryPage() {
       thumbnailUrl: m.thumbnailUrl,
       unreadCount: m.unreadCount,
     }));
-  }, [libData, searchQuery, isOfflineMode, cachedChapters]);
+  }, [libData, searchQuery, isOfflineMode, cachedChapters, activeCategoryId]);
 
   // Handle server unconnected state safely
   if (!serverBaseUrl) {

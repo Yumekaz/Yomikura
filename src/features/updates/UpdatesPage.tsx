@@ -63,7 +63,8 @@ export default function UpdatesPage() {
     const startOfWeek = startOfToday - 7 * 24 * 60 * 60 * 1000;
 
     updates.forEach((item) => {
-      const time = parseInt(item.uploadDate);
+      const rawTime = parseInt(item.uploadDate);
+      const time = !isNaN(rawTime) && rawTime < 30000000000 ? rawTime * 1000 : rawTime;
       if (isNaN(time)) {
         const key = "Unknown Date";
         if (!groups[key]) groups[key] = [];
@@ -179,7 +180,7 @@ export default function UpdatesPage() {
                         </span>
                         <div className="flex items-center gap-2 text-[10px] sm:text-xs text-slate-500 mt-1">
                           <span>
-                            {new Date(parseInt(item.uploadDate)).toLocaleDateString()}
+                            {new Date(parseInt(item.uploadDate) < 30000000000 ? parseInt(item.uploadDate) * 1000 : parseInt(item.uploadDate)).toLocaleDateString()}
                           </span>
                           {item.scanlator && (
                             <>

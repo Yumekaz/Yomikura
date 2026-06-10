@@ -240,10 +240,10 @@ export default function MangaDetailPage() {
 
         {/* Content Container */}
         <div className="relative z-10 mx-auto max-w-5xl px-6 pb-8 pt-4 lg:px-12 lg:pt-12">
-          <div className="flex flex-col gap-6 sm:flex-row sm:gap-8">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
             {/* Cover Image */}
-            <div className="mx-auto w-48 shrink-0 overflow-hidden rounded-xl border border-white/10 hover:border-yomi-jade/30 transition-all duration-300 shadow-2xl sm:mx-0 sm:w-56 md:w-64 group/cover shadow-glow-hover">
-              <img src={imageUrl} alt={manga.title} className="aspect-[2/3] w-full object-cover transition-transform duration-500 group-hover/cover:scale-105" />
+            <div className="relative mx-auto w-48 aspect-[2/3] shrink-0 overflow-hidden rounded-xl border border-white/10 hover:border-yomi-jade/30 transition-all duration-300 shadow-2xl sm:mx-0 sm:w-56 md:w-64 group/cover shadow-glow-hover">
+              <img src={imageUrl} alt={manga.title} className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover/cover:scale-105" />
             </div>
 
             {/* Manga Info */}

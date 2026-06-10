@@ -1057,7 +1057,16 @@ function SettingsPage() {
                     </h3>
                     <p className="mt-2 text-xs text-slate-400 leading-relaxed font-serif italic">
                       This project is not affiliated with Mihon, Tachiyomi, Suwayomi, Keiyoushi, or any content provider. 
-                      This application hosts zero content. Users are responsible for configuring their own server, sources, and repositories.
+                      This application hosts zero content.{" "}
+                      {isTauri() ? (
+                        <span>
+                          In desktop mode, Yomikura automatically runs a bundled local instance of the Suwayomi server for convenience. Users are responsible for configuring their own sources, repositories, and local library data.
+                        </span>
+                      ) : (
+                        <span>
+                          Users are responsible for configuring their own server, sources, and repositories.
+                        </span>
+                      )}
                     </p>
                   </div>
 

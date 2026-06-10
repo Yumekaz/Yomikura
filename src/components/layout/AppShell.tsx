@@ -97,7 +97,7 @@ function AppShell() {
 
   return (
     <div className="min-h-screen bg-transparent text-slate-100">
-      <aside className="fixed left-4 top-4 bottom-4 hidden w-64 rounded-2xl border border-white/10 bg-ink-900/30 backdrop-blur-2xl px-4 py-5 lg:block shadow-2xl z-30">
+      <aside className="fixed left-4 top-4 bottom-4 hidden w-64 rounded-2xl border border-white/10 bg-ink-900/30 backdrop-blur-2xl px-4 py-5 lg:block overflow-y-auto scrollbar-none shadow-2xl z-30">
         <BrandLockup />
         
         {/* Profile Switcher */}
@@ -110,7 +110,7 @@ function AppShell() {
             <ShellNavLink key={item.path} item={item} />
           ))}
         </nav>
-        <div className="mt-8 border-t border-white/5 pt-5">
+        <div className="mt-8 border-t border-white/5 pt-5 pb-6">
           <p className="px-3 text-xs font-semibold uppercase text-slate-500">Browse</p>
           <nav className="mt-2 space-y-1" aria-label="Browse navigation">
             {browseNav.map((item) => (
