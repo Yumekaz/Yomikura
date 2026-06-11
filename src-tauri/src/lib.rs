@@ -14,15 +14,78 @@ struct BackendState {
 const SUWAYOMI_JAR_NAME: &str = "Suwayomi-Server-v2.2.2100.jar";
 const SUWAYOMI_JAR_URL: &str =
     "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.2.2100/Suwayomi-Server-v2.2.2100.jar";
+const SUWAYOMI_JAR_MIN_BYTES: u64 = 50_000_000;
+
+fn jar_looks_valid(path: &std::path::Path) -> bool {
+    let Ok(meta) = path.metadata() else {
+        return false;
+    };
+    if meta.len() < SUWAYOMI_JAR_MIN_BYTES {
+        return false;
+    }
+
+    let Ok(mut file) = std::fs::File::open(path) else {
+        return false;
+    };
+    let mut header = [0u8; 4];
+    std::io::Read::read_exact(&mut file, &mut header).is_ok() && header == [0x50, 0x4B, 0x03, 0x04]
+}
+
+fn download_file_with_curl(url: &str, dest: &std::path::Path) -> Result<(), String> {
+    let part_path = dest.with_extension("part");
+    if part_path.exists() {
+        let _ = std::fs::remove_file(&part_path);
+    }
+
+    #[cfg(windows)]
+    use std::os::windows::process::CommandExt;
+
+    let mut cmd = Command::new("curl");
+    #[cfg(windows)]
+    cmd.creation_flags(0x08000000);
+
+    let output = cmd
+        .arg("-fL")
+        .arg("--retry")
+        .arg("3")
+        .arg("--connect-timeout")
+        .arg("30")
+        .arg("--max-time")
+        .arg("1200")
+        .arg("-A")
+        .arg("Yomikura/1.0")
+        .arg("-o")
+        .arg(&part_path)
+        .arg(url)
+        .output()
+        .map_err(|e| format!("Failed to run curl: {}", e))?;
+
+    if !output.status.success() {
+        let _ = std::fs::remove_file(&part_path);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("curl download failed: {}", stderr.trim()));
+    }
+
+    if !jar_looks_valid(&part_path) {
+        let _ = std::fs::remove_file(&part_path);
+        return Err("Downloaded file is not a valid Suwayomi JAR.".to_string());
+    }
+
+    if dest.exists() {
+        let _ = std::fs::remove_file(dest);
+    }
+
+    std::fs::rename(&part_path, dest)
+        .map_err(|e| format!("Failed to finalize Suwayomi JAR download: {}", e))
+}
 
 fn resolve_jar_path(app_handle: &tauri::AppHandle, data_dir: &std::path::Path) -> Result<std::path::PathBuf, String> {
     let local_jar = data_dir.join(SUWAYOMI_JAR_NAME);
+    if jar_looks_valid(&local_jar) {
+        return Ok(local_jar);
+    }
     if local_jar.exists() {
-        if let Ok(meta) = local_jar.metadata() {
-            if meta.len() > 1_000_000 {
-                return Ok(local_jar);
-            }
-        }
+        let _ = std::fs::remove_file(&local_jar);
     }
 
     let bundled_jar = app_handle
@@ -417,38 +480,18 @@ fn wipe_all_data(app_handle: tauri::AppHandle, state: State<'_, BackendState>) -
 
 #[tauri::command]
 fn download_suwayomi_jar(data_path: String) -> Result<String, String> {
-    use std::io::Write;
-
     let data_dir = std::path::PathBuf::from(&data_path);
     std::fs::create_dir_all(&data_dir).map_err(|e| format!("Failed to create data dir: {}", e))?;
 
     let dest = data_dir.join(SUWAYOMI_JAR_NAME);
+    if jar_looks_valid(&dest) {
+        return Ok(dest.to_string_lossy().to_string());
+    }
     if dest.exists() {
-        if let Ok(meta) = dest.metadata() {
-            if meta.len() > 1_000_000 {
-                return Ok(dest.to_string_lossy().to_string());
-            }
-        }
+        let _ = std::fs::remove_file(&dest);
     }
 
-    let response = reqwest::blocking::get(SUWAYOMI_JAR_URL)
-        .map_err(|e| format!("Failed to download Suwayomi JAR: {}", e))?;
-
-    if !response.status().is_success() {
-        return Err(format!(
-            "Suwayomi JAR download failed with HTTP {}",
-            response.status()
-        ));
-    }
-
-    let bytes = response
-        .bytes()
-        .map_err(|e| format!("Failed to read Suwayomi JAR bytes: {}", e))?;
-
-    let mut file =
-        std::fs::File::create(&dest).map_err(|e| format!("Failed to write Suwayomi JAR: {}", e))?;
-    file.write_all(&bytes)
-        .map_err(|e| format!("Failed to save Suwayomi JAR: {}", e))?;
+    download_file_with_curl(SUWAYOMI_JAR_URL, &dest)?;
 
     Ok(dest.to_string_lossy().to_string())
 }
