@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build --configLoader native",
     "preview": "vite preview --configLoader native",
     "typecheck": "tsc -b",
+    "verify-desktop": "pwsh -NoProfile -File scripts/verify-desktop.ps1",
     "codegen": "graphql-codegen --config codegen.ts"
   },
   "dependencies": {

@@ -56,7 +56,9 @@ export function ChapterList({ chapters, mangaTitle }: ChapterListProps) {
               key={chapter.id}
               to={`/reader/${chapter.id}`}
               className={`flex items-center justify-between px-6 py-4 transition hover:bg-white/5 ${
-                chapter.isRead ? "opacity-60" : "opacity-100"
+                chapter.isRead
+                  ? "opacity-55 bg-white/[0.02] grayscale-[0.25]"
+                  : "opacity-100"
               }`}
             >
               <div className="flex items-start gap-4">
@@ -68,7 +70,11 @@ export function ChapterList({ chapters, mangaTitle }: ChapterListProps) {
                   )}
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-medium text-slate-200 line-clamp-1">
+                  <span
+                    className={`font-medium line-clamp-1 ${
+                      chapter.isRead ? "text-slate-500" : "text-slate-200"
+                    }`}
+                  >
                     {chapter.name}
                   </span>
                   <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">

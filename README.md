@@ -4,16 +4,17 @@ Yomikura is an independent, self-hosted web and PWA frontend client for Suwayomi
 
 > [!IMPORTANT]
 > **Legal Disclaimer & Project Status**
-> - **Yomikura is a frontend-only shell.** It runs entirely in your local browser and does not host, mirror, stream, or distribute any copyrighted manga, comics, or media content.
-> - **Zero Scraping Extensions Included.** Yomikura does not host or distribute third-party scraping extensions or community extension repositories. Extension installation and execution are handled strictly by the user's self-hosted backend.
-> - **Bring Your Own Backend (BYOB).** Yomikura requires a connection to a user-owned, self-hosted [Suwayomi Server](https://github.com/Suwayomi/Suwayomi-Server) to function.
-> - **No Affiliation.** Yomikura is an independent, community-driven open-source project and is not affiliated with, authorized, or endorsed by Mihon, Tachiyomi, Suwayomi, Keiyoushi, or any content provider.
+> - **Yomikura is a client, not a content host.** It does not host, mirror, stream, or distribute copyrighted manga, comics, or media.
+> - **Zero extensions bundled.** Scraping extensions and repository indexes are user-configured on Suwayomi Server—not shipped by Yomikura.
+> - **Web/PWA:** Connect to your own [Suwayomi Server](https://github.com/Suwayomi/Suwayomi-Server) URL.
+> - **Desktop (Tauri):** Can connect to a remote server **or** optionally download and run Suwayomi Server + JRE locally on your machine. Content fetching still happens inside Suwayomi, not Yomikura.
+> - **No Affiliation.** Independent project—not endorsed by Mihon, Tachiyomi, Suwayomi, Keiyoushi, or any publisher.
 
 ---
 
 ## What Yomikura Is
 
-- A clean web/PWA frontend for a user-controlled Suwayomi-compatible backend.
+- A clean web/PWA/desktop client for a user-controlled Suwayomi-compatible backend.
 - A Mihon/Tachiyomi-inspired library browsing and reading experience optimized for desktop, tablet, and mobile browsers.
 - A private, local-first application where all server profiles, settings, and downloaded chapters are cached locally in your browser storage.
 
@@ -68,8 +69,9 @@ Explore our detailed architectural and design specifications:
 ## License & Compliance
 
 Yomikura is built with a strong commitment to open-source compliance, user privacy, and legal safety:
-- **License:** Licensed under the [MIT License](LICENSE), providing standard warranty disclaimers and limitation of liability.
-- **Terms of Service:** Review our [TERMS.md](TERMS.md) file regarding user responsibilities and software limitations.
-- **Privacy Policy:** See [PRIVACY.md](PRIVACY.md) for details on our local-first, zero-telemetry data storage.
+- **License:** [MIT License](LICENSE) for Yomikura UI/shell code.
+- **Third-Party:** [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — Suwayomi Server (MPL-2.0), Temurin JRE, Tauri.
+- **Terms of Service:** [TERMS.md](TERMS.md)
+- **Privacy Policy:** [PRIVACY.md](PRIVACY.md) — local-first, zero project telemetry.
 - **Contributing:** See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines. We do not accept contributions containing scraping logic, bypasses, or copyrighted assets.
 - **DMCA Policy:** We take copyright compliance seriously. For our notice and takedown procedure, see [DMCA.md](DMCA.md).

@@ -11,8 +11,13 @@ query GetCategories {
 query GetLibrary(
   $filter: MangaFilterInput
   $first: Int
+  $after: Cursor
 ) {
-  mangas(filter: $filter, first: $first) {
+  mangas(filter: $filter, first: $first, after: $after) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
     nodes {
       id
       title

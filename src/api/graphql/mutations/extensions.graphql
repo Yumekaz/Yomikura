@@ -22,3 +22,14 @@ mutation ToggleExtensionInstall($input: UpdateExtensionInput!) {
     }
   }
 }
+
+mutation UpdateExtensions($input: UpdateExtensionsInput!) {
+  updateExtensions(input: $input) {
+    extensions {
+      pkgName
+      isInstalled
+      hasUpdate
+      versionName
+    }
+  }
+}

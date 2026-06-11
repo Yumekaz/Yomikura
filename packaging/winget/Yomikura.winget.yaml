@@ -1,0 +1,17 @@
+# Submit to winget-pkgs: https://github.com/microsoft/winget-pkgs
+PackageIdentifier: Yumekaz.Yomikura
+PackageVersion: 1.0.0
+PackageLocale: en-US
+Publisher: Yumekaz
+PackageName: Yomikura
+License: MIT
+ShortDescription: Mihon-inspired Suwayomi desktop manga reader
+Moniker: yomikura
+Installers:
+  - Architecture: x64
+    InstallerType: exe
+    InstallerUrl: https://github.com/Yumekaz/Yomikura/releases/download/v1.0.0/Yomikura_1.0.0_x64-setup.exe
+    InstallerSha256: PLACEHOLDER_UPDATE_ON_RELEASE
+    Scope: user
+ManifestType: singleton
+ManifestVersion: 1.6.0

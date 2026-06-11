@@ -1,5 +1,6 @@
 import { Search, FolderEdit, X } from "lucide-react";
 import { useTranslation } from "../../hooks/useTranslation";
+import { LibraryUpdateButton } from "../../components/library/LibraryUpdateButton";
 
 export interface Category {
   id: string | number;
@@ -129,16 +130,18 @@ export function LibraryFilters({
         </button>
       </div>
 
-      {/* Search Input */}
-      <div className="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-ink-950/40 focus-within:border-yomi-jade/50 focus-within:shadow-glow px-3.5 py-2 lg:w-80 order-1 lg:order-2 transition-all duration-300">
-        <Search className="h-4 w-4 text-slate-500" />
-        <input
-          type="text"
-          placeholder="Search library..."
-          className="flex-1 bg-transparent text-xs text-slate-200 outline-none placeholder:text-slate-500"
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-        />
+      <div className="flex w-full items-center gap-2 order-1 lg:order-2 lg:w-auto">
+        <LibraryUpdateButton />
+        <div className="flex flex-1 items-center gap-2 rounded-xl border border-white/10 bg-ink-950/40 focus-within:border-yomi-jade/50 focus-within:shadow-glow px-3.5 py-2 lg:w-72 transition-all duration-300">
+          <Search className="h-4 w-4 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Search library..."
+            className="flex-1 bg-transparent text-xs text-slate-200 outline-none placeholder:text-slate-500"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+          />
+        </div>
       </div>
     </div>
   );

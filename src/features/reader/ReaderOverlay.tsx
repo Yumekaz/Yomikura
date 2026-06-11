@@ -57,6 +57,10 @@ export function ReaderOverlay({
     setCropBorders,
     autoScrollSpeed,
     setAutoScrollSpeed,
+    pageTransition,
+    setPageTransition,
+    autoDownloadCount,
+    setAutoDownloadCount,
   } = useSettingsStore();
 
   if (!show) return null;
@@ -149,6 +153,33 @@ export function ReaderOverlay({
                     </div>
                   </>
                 )}
+
+                <div className="flex items-center justify-between border-t border-white/5 pt-3">
+                  <span className="text-xs font-semibold text-slate-300">Page transition</span>
+                  <select
+                    value={pageTransition}
+                    onChange={(e) => setPageTransition(e.target.value as "fade" | "slide" | "none")}
+                    className="rounded bg-ink-950 border border-white/10 px-2 py-1 text-xs text-slate-300"
+                  >
+                    <option value="none">None</option>
+                    <option value="fade">Fade</option>
+                    <option value="slide">Slide</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-300">Auto-download ahead</span>
+                  <select
+                    value={autoDownloadCount}
+                    onChange={(e) => setAutoDownloadCount(parseInt(e.target.value, 10))}
+                    className="rounded bg-ink-950 border border-white/10 px-2 py-1 text-xs text-slate-300"
+                  >
+                    <option value={0}>Off</option>
+                    <option value={1}>1</option>
+                    <option value={3}>3</option>
+                    <option value={5}>5</option>
+                  </select>
+                </div>
 
                 {/* Overrides Toggle */}
                 {mangaId !== undefined && (

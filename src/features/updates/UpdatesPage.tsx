@@ -6,6 +6,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
 import { ChapterOrderBy, SortOrder } from "../../api/graphql/generated/graphql";
+import { useTranslation } from "../../hooks/useTranslation";
 
 interface UpdateItem {
   id: string;
@@ -23,6 +24,7 @@ interface UpdateItem {
 
 export default function UpdatesPage() {
   const { serverBaseUrl } = useSettingsStore();
+  const { t, language } = useTranslation();
 
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
@@ -74,9 +76,9 @@ export default function UpdatesPage() {
 
       let key = "Older";
       if (time >= startOfToday) {
-        key = "Today";
+        key = t("today");
       } else if (time >= startOfYesterday) {
-        key = "Yesterday";
+        key = t("yesterday");
       } else if (time >= startOfWeek) {
         key = "This Week";
       }
@@ -86,13 +88,13 @@ export default function UpdatesPage() {
     });
 
     return groups;
-  }, [updates]);
+  }, [updates, language]);
 
   if (!serverBaseUrl) {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400">
         <Clock3 className="mb-4 h-12 w-12 opacity-50" />
-        <p>Server not configured.</p>
+        <p>{t("no_server")}</p>
       </div>
     );
   }
@@ -114,7 +116,7 @@ export default function UpdatesPage() {
           onClick={() => refetch()}
           className="rounded-lg bg-yomi-jade px-4 py-2 font-medium text-ink-950 hover:bg-yomi-jade/90"
         >
-          Retry
+          {t("retry")}
         </button>
       </div>
     );
@@ -124,7 +126,7 @@ export default function UpdatesPage() {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400">
         <Clock3 className="mb-4 h-12 w-12 opacity-50" />
-        <p className="text-lg text-slate-300">No recent updates</p>
+        <p className="text-lg text-slate-300">{t("no_updates")}</p>
         <p className="text-sm mt-1">Updates for manga in your library will appear here.</p>
       </div>
     );
@@ -134,11 +136,11 @@ export default function UpdatesPage() {
     <div className="p-4 sm:p-6 pb-24 max-w-3xl mx-auto space-y-8">
       <h1 className="text-2xl font-bold text-white flex items-center gap-2">
         <Clock3 className="h-6 w-6 text-yomi-jade" />
-        Recent Updates
+        {t("updates")}
       </h1>
 
       <div className="space-y-8">
-        {["Today", "Yesterday", "This Week", "Older"].map((groupName) => {
+        {[t("today"), t("yesterday"), "This Week", "Older"].map((groupName) => {
           const groupItems = groupedUpdates[groupName] || [];
           if (groupItems.length === 0) return null;
 

@@ -44,9 +44,34 @@ export type TranslationKey =
   | "crop_borders"
   | "page_transitions"
   | "sources"
-  | "repos";
+  | "repos"
+  | "loading"
+  | "no_server"
+  | "load_next_chapter"
+  | "completed_chapter"
+  | "empty_library"
+  | "today"
+  | "yesterday"
+  | "resume"
+  | "chapters"
+  | "tracking"
+  | "infinite_reading"
+  | "cover_theme"
+  | "portable_mode"
+  | "opds_feed"
+  | "tracker_settings"
+  | "extension_health"
+  | "auto_download_ahead"
+  | "filter_titles"
+  | "connect_server"
+  | "retry"
+  | "no_updates"
+  | "no_history"
+  | "loading_chapter"
+  | "high_contrast"
+  | "reduce_motion";
 
-export const translations: Record<string, Record<TranslationKey, string>> = {
+const partialTranslations: Record<string, Partial<Record<TranslationKey, string>>> = {
   en: {
     library: "Library",
     updates: "Updates",
@@ -94,6 +119,31 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     page_transitions: "Page Transitions",
     sources: "Sources",
     repos: "Repos",
+    loading: "Loading…",
+    no_server: "Suwayomi server not configured",
+    load_next_chapter: "Load Next Chapter",
+    completed_chapter: "Completed Chapter",
+    empty_library: "No manga in this category",
+    today: "Today",
+    yesterday: "Yesterday",
+    resume: "Resume",
+    chapters: "Chapters",
+    tracking: "Tracking",
+    infinite_reading: "Infinite chapter reading (webtoon)",
+    cover_theme: "Accent from manga cover",
+    portable_mode: "Portable mode (data next to app)",
+    opds_feed: "OPDS feed",
+    tracker_settings: "Tracker accounts",
+    extension_health: "Extension health",
+    auto_download_ahead: "Auto-download ahead",
+    filter_titles: "Filter titles…",
+    connect_server: "Connect server",
+    retry: "Retry",
+    no_updates: "No recent updates",
+    no_history: "No reading history yet",
+    loading_chapter: "Loading chapter…",
+    high_contrast: "High contrast mode",
+    reduce_motion: "Reduce motion",
   },
   es: {
     library: "Biblioteca",
@@ -528,3 +578,12 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     repos: "저장소",
   },
 };
+
+// New keys fall back to English for locales that haven't been fully translated yet.
+const EN_BASE = partialTranslations.en as Record<TranslationKey, string>;
+export const translations: Record<string, Record<TranslationKey, string>> = Object.fromEntries(
+  Object.entries(partialTranslations).map(([lang, dict]) => [
+    lang,
+    { ...EN_BASE, ...dict } as Record<TranslationKey, string>,
+  ])
+);

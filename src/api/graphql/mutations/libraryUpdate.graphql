@@ -1,0 +1,12 @@
+mutation UpdateLibrary($input: UpdateLibraryInput!) {
+  updateLibrary(input: $input) {
+    updateStatus {
+      jobsInfo {
+        isRunning
+        finishedJobs
+        totalJobs
+        skippedMangasCount
+      }
+    }
+  }
+}

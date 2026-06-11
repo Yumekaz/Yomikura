@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useDownloadStore } from "../../stores/useDownloadStore";
 import { createGraphqlClient } from "../../api/graphql/client";
+import { fetchAllLibrary } from "../../api/library/fetchAllLibrary";
 import { LibraryFilters } from "./LibraryFilters";
 import { LibraryGrid, LibraryManga } from "./LibraryGrid";
 import { CategoryDialog } from "./CategoryDialog";
@@ -50,13 +51,11 @@ export default function LibraryPage() {
     refetch: refetchLibrary,
   } = useQuery({
     queryKey: ["library", serverBaseUrl],
-    queryFn: () => {
-      return sdk.GetLibrary({
-        filter: { 
-          inLibrary: { equalTo: true }
-        },
-        first: 500,
+    queryFn: async () => {
+      const nodes = await fetchAllLibrary(sdk, {
+        inLibrary: { equalTo: true },
       });
+      return { mangas: { nodes } };
     },
     enabled: !!serverBaseUrl,
   });
@@ -99,6 +98,7 @@ export default function LibraryPage() {
         title: m.title,
         thumbnailUrl: undefined,
         unreadCount: 0,
+        hasStartedReading: false,
       }));
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -150,6 +150,7 @@ export default function LibraryPage() {
       title: m.title,
       thumbnailUrl: m.thumbnailUrl,
       unreadCount: m.unreadCount,
+      hasStartedReading: !!m.lastReadChapter?.id,
     }));
   }, [libData, searchQuery, isOfflineMode, cachedChapters, activeCategoryId]);
 

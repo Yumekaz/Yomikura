@@ -6,6 +6,8 @@ import { browseNav, primaryNav, type NavItem } from "../../app/navigation";
 import { useSettingsStore, isTauri } from "../../stores/useSettingsStore";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { useTranslation } from "../../hooks/useTranslation";
+import { UpdateNotificationBanner } from "../UpdateNotificationBanner";
+import { useDeviceProfileBootstrap } from "../../hooks/useDeviceProfile";
 
 function ProfileSwitcher() {
   const { profiles, activeProfileId, setActiveProfileId } = useSettingsStore();
@@ -79,11 +81,27 @@ function AppShell() {
     setMockMode, 
     serverBaseUrl, 
     setServerBaseUrl, 
-    errorMessage 
+    errorMessage,
+    highContrastMode,
+    reducedMotion,
   } = useSettingsStore();
   const location = useLocation();
 
   const [showShortcuts, setShowShortcuts] = useState(false);
+
+  useDeviceProfileBootstrap();
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      const { listen } = await import("@tauri-apps/api/event");
+      unlisten = await listen("menu-check-updates", () => {
+        window.dispatchEvent(new Event("yomikura-check-updates"));
+      });
+    })();
+    return () => unlisten?.();
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -136,7 +154,10 @@ function AppShell() {
     
     const rgb = accents[accentColor] || accents.jade;
     htmlElement.style.setProperty("--yomi-accent", rgb);
-  }, [themeMode, accentColor]);
+
+    htmlElement.classList.toggle("high-contrast", highContrastMode);
+    htmlElement.classList.toggle("reduce-motion", reducedMotion);
+  }, [themeMode, accentColor, highContrastMode, reducedMotion]);
 
   const showOfflineBanner = connectionStatus === "error" && !location.pathname.startsWith("/reader/") && mockMode;
 
@@ -181,6 +202,9 @@ function AppShell() {
         </div>
       </aside>
       <main className="min-h-screen pb-24 lg:pl-[18.5rem] lg:pr-6 lg:pt-4">
+        <div className="px-4 pt-2 lg:px-0">
+          <UpdateNotificationBanner />
+        </div>
         {showOfflineBanner && (
           <div className="mx-auto my-3 max-w-xl rounded-full bg-amber-500/10 border border-amber-500/20 px-4 py-1.5 text-center text-xs font-semibold text-amber-300 backdrop-blur-md shadow-md animate-fade-in flex items-center justify-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
@@ -297,7 +321,7 @@ function WelcomeOnboarding({
   errorMessage: string;
   setMockMode: (mock: boolean) => void;
 }) {
-  const { serverDataPath, setServerDataPath } = useSettingsStore();
+  const { serverDataPath, setServerDataPath, setPortableMode } = useSettingsStore();
   const [currentStep, setCurrentStep] = useState<"storage" | "backend" | "ready">("storage");
   const [javaStatus, setJavaStatus] = useState<"checking" | "downloading" | "installed" | "missing">("checking");
   const [serverStatus, setServerStatus] = useState<"idle" | "starting" | "running" | "error">("idle");
@@ -354,6 +378,8 @@ function WelcomeOnboarding({
         setJavaStatus("installed");
         setServerStatus("starting");
 
+        await invoke<string>("download_suwayomi_jar", { dataPath: serverDataPath });
+
         const port = await invoke<number>("start_backend", { dataPath: serverDataPath });
         if (!active) return;
 
@@ -405,6 +431,7 @@ function WelcomeOnboarding({
 
   const handleSelectCustomFolder = async () => {
     try {
+      setPortableMode(false);
       const { invoke } = await import("@tauri-apps/api/core");
       const path = await invoke<string | null>("select_directory");
       if (path) {
@@ -418,6 +445,7 @@ function WelcomeOnboarding({
 
   const handleSelectDefaultFolder = async () => {
     try {
+      setPortableMode(false);
       const { localDataDir } = await import("@tauri-apps/api/path");
       const localData = await localDataDir();
       const defaultPath = `${localData}/app.yomikura/server-data`.replace(/\\/g, "/");
@@ -427,6 +455,18 @@ function WelcomeOnboarding({
       console.error("Failed to get local data dir:", err);
       setServerDataPath("C:/YomikuraData");
       setCurrentStep("backend");
+    }
+  };
+
+  const handleSelectPortableFolder = async () => {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const path = await invoke<string>("get_portable_data_path");
+      setPortableMode(true);
+      setServerDataPath(path);
+      setCurrentStep("backend");
+    } catch (err) {
+      console.error("Failed to get portable data path:", err);
     }
   };
 
@@ -486,7 +526,7 @@ function WelcomeOnboarding({
               Select where downloaded manga chapters, databases, and library configurations will be stored. You can select a folder on any drive (C:, D:, E: etc.) to save disk space.
             </p>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 w-full">
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 w-full">
               {/* Option 1: Default AppData */}
               <button
                 onClick={handleSelectDefaultFolder}
@@ -522,6 +562,25 @@ function WelcomeOnboarding({
                 </div>
                 <span className="mt-4 text-[10px] font-bold text-yomi-jade hover:underline">
                   Browse Folder &rarr;
+                </span>
+              </button>
+
+              {/* Option 3: Portable (next to app) */}
+              <button
+                onClick={handleSelectPortableFolder}
+                className="rounded-xl border border-white/5 bg-ink-950/40 p-5 flex flex-col items-center justify-between text-center hover:border-white/10 hover:bg-white/[0.02] active:scale-[0.99] transition w-full sm:col-span-2 lg:col-span-1"
+              >
+                <div className="flex flex-col items-center">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yomi-jade/10 border border-yomi-jade/20 text-yomi-jade">
+                    <RefreshCw className="h-5 w-5" />
+                  </div>
+                  <h3 className="mt-3 text-xs font-semibold text-slate-200">Portable mode</h3>
+                  <p className="mt-1.5 text-[10px] text-slate-500 max-w-[160px] leading-normal">
+                    Store data next to the app — great for USB drives.
+                  </p>
+                </div>
+                <span className="mt-4 text-[10px] font-bold text-yomi-jade hover:underline">
+                  Use Portable &rarr;
                 </span>
               </button>
             </div>
@@ -781,7 +840,7 @@ function WelcomeOnboarding({
 
         {/* Footer legal disclaimer */}
         <p className="mt-8 text-[9px] text-slate-600 text-center leading-relaxed max-w-sm">
-          Yomikura is a frontend reader and hosts no content. Users are responsible for configuring their own server and sources.
+          Yomikura hosts no content. Desktop mode may run Suwayomi locally on your device; you are responsible for sources and repositories.
         </p>
       </div>
     </div>

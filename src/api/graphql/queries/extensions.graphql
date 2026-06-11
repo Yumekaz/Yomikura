@@ -16,6 +16,7 @@ query GetExtensions {
       iconUrl
       versionName
       hasUpdate
+      isObsolete
     }
   }
 }

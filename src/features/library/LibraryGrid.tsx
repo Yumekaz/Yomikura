@@ -8,6 +8,8 @@ export interface LibraryManga {
   title: string;
   thumbnailUrl: string | null | undefined;
   unreadCount: number;
+  /** True when user has opened/read at least one chapter */
+  hasStartedReading: boolean;
 }
 
 interface LibraryGridProps {
@@ -193,6 +195,8 @@ export function LibraryGrid({
             }
           };
 
+          const isCaughtUp = manga.unreadCount === 0 && manga.hasStartedReading;
+
           const CardBody = (
             <>
               {/* Background Image */}
@@ -200,7 +204,9 @@ export function LibraryGrid({
                 <img
                   src={imageUrl}
                   alt={manga.title}
-                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  className={`h-full w-full object-cover transition-all duration-500 group-hover:scale-105 ${
+                    isCaughtUp ? "opacity-45 grayscale-[0.4] saturate-50" : ""
+                  }`}
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
                   }}
@@ -233,7 +239,13 @@ export function LibraryGrid({
               
               {/* Title */}
               <div className={`${paddingClasses} bg-gradient-to-t from-black/80 via-transparent to-transparent pt-8`}>
-                <h4 className={`${titleClasses} group-hover:text-yomi-mint transition-colors duration-200`}>
+                <h4
+                  className={`${titleClasses} transition-colors duration-200 ${
+                    isCaughtUp
+                      ? "text-slate-500 group-hover:text-slate-400"
+                      : "group-hover:text-yomi-mint"
+                  }`}
+                >
                   {manga.title}
                 </h4>
               </div>

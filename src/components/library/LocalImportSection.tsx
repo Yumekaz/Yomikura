@@ -26,24 +26,34 @@ export function LocalImportSection() {
 
   const localSourcePath = settingsData?.settings?.localSourcePath || "";
 
+  const applyFiles = (files: File[]) => {
+    const archives = files.filter((f) => /\.(cbz|cbr|pdf)$/i.test(f.name));
+    if (archives.length === 0) return;
+    setSelectedFiles(archives);
+    if (archives[0] && !mangaTitle) {
+      const name = archives[0].name;
+      const titleCandidate = name
+        .replace(/\.(cbz|cbr|pdf)$/i, "")
+        .replace(/[-_]ch(apter)?\s*\d+/i, "")
+        .replace(/[-_]c\d+/i, "")
+        .replace(/\[.*?\]/g, "")
+        .replace(/\(.*?\)/g, "")
+        .trim();
+      setMangaTitle(titleCandidate || "Imported Manga");
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const files = Array.from(e.target.files);
-      setSelectedFiles(files);
-      
-      // Auto-extract a title candidate from the first file name
-      if (files[0] && !mangaTitle) {
-        const name = files[0].name;
-        // Clean up common suffix patterns (e.g. - c001, [scanlator], etc.)
-        const titleCandidate = name
-          .replace(/\.(cbz|cbr|pdf)$/i, "")
-          .replace(/[-_]ch(apter)?\s*\d+/i, "")
-          .replace(/[-_]c\d+/i, "")
-          .replace(/\[.*?\]/g, "")
-          .replace(/\(.*?\)/g, "")
-          .trim();
-        setMangaTitle(titleCandidate || "Imported Manga");
-      }
+      applyFiles(Array.from(e.target.files));
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.files?.length) {
+      applyFiles(Array.from(e.dataTransfer.files));
     }
   };
 
@@ -139,7 +149,11 @@ export function LocalImportSection() {
           <label className="block px-1 pb-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Select Archive Files
           </label>
-          <div className="relative border border-dashed border-white/10 rounded-xl hover:border-yomi-jade/50 bg-ink-950/20 p-6 transition flex flex-col items-center justify-center text-center cursor-pointer">
+          <div
+            className="relative border border-dashed border-white/10 rounded-xl hover:border-yomi-jade/50 bg-ink-950/20 p-6 transition flex flex-col items-center justify-center text-center cursor-pointer"
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onDrop={handleDrop}
+          >
             <input
               type="file"
               multiple

@@ -31,6 +31,10 @@ import { useDownloadStore } from "../stores/useDownloadStore";
 import { DuplicateScanner } from "../components/library/DuplicateScanner";
 import { LocalImportSection } from "../components/library/LocalImportSection";
 import { useTranslation } from "../hooks/useTranslation";
+import { APP_VERSION } from "../utils/appVersion";
+import { ExtensionHealthPanel } from "../components/ExtensionHealthPanel";
+import { OpdsPanel } from "../components/settings/OpdsPanel";
+import { TrackerSettingsPanel } from "../components/settings/TrackerSettingsPanel";
 
 type SettingsTab = "connection" | "appearance" | "reader" | "backup" | "offline" | "advanced" | "about";
 
@@ -173,7 +177,7 @@ function TauriUpdaterRow() {
       {checked && !checking && !updateInfo && !error && (
         <p className="text-xs text-yomi-jade flex items-center gap-1.5 font-semibold">
           <CheckCircle2 className="h-4 w-4" />
-          Yomikura is up to date! (v0.1.5)
+          Yomikura is up to date! (v{APP_VERSION})
         </p>
       )}
 
@@ -332,6 +336,20 @@ function SettingsPage() {
     addSettingsProfile,
     deleteSettingsProfile,
     applySettingsProfile,
+    pageTransition,
+    setPageTransition,
+    autoDownloadCount,
+    setAutoDownloadCount,
+    highContrastMode,
+    setHighContrastMode,
+    reducedMotion,
+    setReducedMotion,
+    infiniteChapterReading,
+    setInfiniteChapterReading,
+    coverDynamicTheme,
+    setCoverDynamicTheme,
+    portableMode,
+    setPortableMode,
   } = useSettingsStore();
 
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
@@ -1007,6 +1025,40 @@ function SettingsPage() {
                     </div>
                   </div>
 
+                  {/* Accessibility */}
+                  <div className="border-t border-white/5 pt-6 space-y-3">
+                    <label className="block px-1 pb-1 text-sm font-medium text-slate-300">
+                      Accessibility
+                    </label>
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={highContrastMode}
+                        onChange={(e) => setHighContrastMode(e.target.checked)}
+                        className="h-4 w-4 rounded border-white/10 bg-ink-950 text-yomi-jade"
+                      />
+                      <span className="text-xs font-semibold text-slate-300">{t("high_contrast")}</span>
+                    </label>
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={reducedMotion}
+                        onChange={(e) => setReducedMotion(e.target.checked)}
+                        className="h-4 w-4 rounded border-white/10 bg-ink-950 text-yomi-jade"
+                      />
+                      <span className="text-xs font-semibold text-slate-300">{t("reduce_motion")}</span>
+                    </label>
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={coverDynamicTheme}
+                        onChange={(e) => setCoverDynamicTheme(e.target.checked)}
+                        className="h-4 w-4 rounded border-white/10 bg-ink-950 text-yomi-jade"
+                      />
+                      <span className="text-xs font-semibold text-slate-300">{t("cover_theme")}</span>
+                    </label>
+                  </div>
+
                   {/* Language Selection */}
                   <div className="border-t border-white/5 pt-6">
                     <label className="block px-1 pb-3 text-sm font-medium text-slate-300">
@@ -1077,6 +1129,52 @@ function SettingsPage() {
                         {t("auto_delete_read")}
                       </span>
                     </label>
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={infiniteChapterReading}
+                        onChange={(e) => setInfiniteChapterReading(e.target.checked)}
+                        className="rounded border-white/10 bg-ink-950 text-yomi-jade focus:ring-0 focus:ring-offset-0 h-4 w-4"
+                      />
+                      <span className="text-xs font-semibold text-slate-300">
+                        {t("infinite_reading")}
+                      </span>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block px-1 pb-2 text-sm font-medium text-slate-300">
+                      {t("page_transitions")}
+                    </label>
+                    <select
+                      value={pageTransition}
+                      onChange={(e) => setPageTransition(e.target.value as "fade" | "slide" | "none")}
+                      className="w-full sm:w-72 rounded-md border border-white/10 bg-ink-950 px-4 py-2.5 text-sm text-slate-300 outline-none focus:border-yomi-jade/50"
+                    >
+                      <option value="none">None</option>
+                      <option value="fade">Fade</option>
+                      <option value="slide">Slide</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block px-1 pb-2 text-sm font-medium text-slate-300">
+                      {t("auto_download_ahead")}
+                    </label>
+                    <select
+                      value={autoDownloadCount}
+                      onChange={(e) => setAutoDownloadCount(parseInt(e.target.value, 10))}
+                      className="w-full sm:w-72 rounded-md border border-white/10 bg-ink-950 px-4 py-2.5 text-sm text-slate-300 outline-none focus:border-yomi-jade/50"
+                    >
+                      <option value={0}>Disabled</option>
+                      <option value={1}>Next 1 chapter</option>
+                      <option value={3}>Next 3 chapters</option>
+                      <option value={5}>Next 5 chapters</option>
+                      <option value={10}>Next 10 chapters</option>
+                    </select>
                   </div>
                 </div>
               </div>
@@ -1489,6 +1587,58 @@ function SettingsPage() {
                     </div>
                   )}
 
+                  {isTauri() && (
+                    <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-white/5 bg-ink-950/30">
+                      <div className="space-y-1">
+                        <span className="font-semibold text-sm text-slate-200">{t("portable_mode")}</span>
+                        <p className="text-xs text-slate-400 leading-relaxed max-w-lg">
+                          Store Suwayomi data in a folder next to the app executable. Ideal for USB drives or portable installs.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const next = !portableMode;
+                          setPortableMode(next);
+                          if (next && isTauri()) {
+                            try {
+                              const { invoke } = await import("@tauri-apps/api/core");
+                              const path = await invoke<string>("get_portable_data_path");
+                              useSettingsStore.getState().setServerDataPath(path);
+                            } catch (err) {
+                              console.error("Failed to resolve portable data path:", err);
+                            }
+                          }
+                        }}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          portableMode ? "bg-yomi-jade" : "bg-ink-950 border-white/10"
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            portableMode ? "translate-x-5 bg-ink-950" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="border-t border-white/5 pt-6">
+                    <h3 className="text-sm font-semibold text-slate-200 mb-3">{t("opds_feed")}</h3>
+                    <OpdsPanel />
+                  </div>
+
+                  <div className="border-t border-white/5 pt-6">
+                    <h3 className="text-sm font-semibold text-slate-200 mb-3">{t("tracker_settings")}</h3>
+                    <TrackerSettingsPanel />
+                  </div>
+
+                  {/* Extension health */}
+                  <div className="border-t border-white/5 pt-6">
+                    <h3 className="text-sm font-semibold text-slate-200 mb-3">{t("extension_health")}</h3>
+                    <ExtensionHealthPanel />
+                  </div>
+
                   {/* Duplicate Manga Scanner */}
                   <div className="border-t border-white/5 pt-6">
                     <DuplicateScanner />
@@ -1603,7 +1753,7 @@ function SettingsPage() {
                     Y
                   </div>
                   <h2 className="mt-4 text-2xl font-bold text-white tracking-tight">Yomikura</h2>
-                  <p className="text-xs font-semibold text-yomi-jade uppercase tracking-wider mt-1">Version 0.1.5</p>
+                  <p className="text-xs font-semibold text-yomi-jade uppercase tracking-wider mt-1">Version {APP_VERSION}</p>
                   <p className="mt-3 text-sm text-slate-400 max-w-md">
                     A premium web & PWA manga reader frontend inspired by Mihon/Tachiyomi UX. 
                     Built for speed, aesthetics, and modularity.
@@ -1647,9 +1797,22 @@ function SettingsPage() {
                     </div>
                     <div className="rounded-lg bg-ink-950/30 border border-white/5 p-4">
                       <span className="font-semibold text-slate-300 block mb-1">Architecture</span>
-                      <span className="text-slate-500">Zustand, React Query, Vite, Tailwind CSS</span>
+                      <span className="text-slate-500">Zustand, React Query, Vite, Tauri</span>
                     </div>
                   </div>
+
+                  <p className="text-[10px] text-slate-500 leading-relaxed">
+                    Third-party components (Suwayomi Server MPL-2.0, Temurin JRE) are documented in{" "}
+                    <a
+                      href="https://github.com/Yumekaz/Yomikura/blob/main/THIRD_PARTY_NOTICES.md"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-yomi-jade hover:underline"
+                    >
+                      THIRD_PARTY_NOTICES.md
+                    </a>
+                    .
+                  </p>
                 </div>
               </div>
             </div>

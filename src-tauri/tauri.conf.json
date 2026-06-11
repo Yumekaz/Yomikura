@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "Yomikura",
-        "width": 800,
-        "height": 600,
+        "width": 1280,
+        "height": 800,
         "resizable": true,
         "fullscreen": false
       }
@@ -35,9 +35,7 @@
     "active": true,
     "targets": "all",
     "createUpdaterArtifacts": true,
-    "resources": [
-      "../suwayomi-server/Suwayomi-Server-v2.2.2100.jar"
-    ],
+    "resources": [],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

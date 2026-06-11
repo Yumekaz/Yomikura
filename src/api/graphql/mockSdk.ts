@@ -319,6 +319,47 @@ const mockImpl: any = {
   async ToggleExtensionInstall({ input }: any) {
     return { updateExtension: { extension: { pkgName: input.id, isInstalled: !!input.patch?.install } } };
   },
+  async UpdateExtensions({ input }: any) {
+    return {
+      updateExtensions: {
+        extensions: (input.ids || []).map((id: string) => ({
+          pkgName: id,
+          isInstalled: true,
+          hasUpdate: false,
+          versionName: "1.0.0",
+        })),
+      },
+    };
+  },
+  async GetLibraryUpdateStatus() {
+    return {
+      libraryUpdateStatus: {
+        jobsInfo: {
+          isRunning: false,
+          finishedJobs: 0,
+          totalJobs: 0,
+          skippedMangasCount: 0,
+        },
+      },
+    };
+  },
+  async UpdateLibrary() {
+    return {
+      updateLibrary: {
+        updateStatus: {
+          jobsInfo: {
+            isRunning: false,
+            finishedJobs: 2,
+            totalJobs: 2,
+            skippedMangasCount: 0,
+          },
+        },
+      },
+    };
+  },
+  async GetServerSettings() {
+    return { settings: { localSourcePath: "/mock/local", globalUpdateInterval: 12 } };
+  },
   async UpdateChapterProgress({ input }: any) {
     return { updateChapter: { chapter: { id: input.id, isRead: !!input.patch?.isRead, lastPageRead: input.patch?.lastPageRead || 0 } } };
   },

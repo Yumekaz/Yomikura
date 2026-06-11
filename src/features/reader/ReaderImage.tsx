@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 
-import { FitMode, isTauri, useSettingsStore } from "../../stores/useSettingsStore";
+import { FitMode, ImageFilters, isTauri, useSettingsStore } from "../../stores/useSettingsStore";
 
 interface ReaderImageProps {
   url: string;
@@ -11,15 +11,28 @@ interface ReaderImageProps {
   onIntersect?: (pageIndex: number) => void;
   mode?: "webtoon" | "single";
   fitMode?: FitMode;
+  imageFilters?: ImageFilters;
+  cropBorders?: boolean;
 }
 
-export function ReaderImage({ url, fallbackUrl, pageNumber, onIntersect, mode = "webtoon", fitMode = "FIT_SCREEN" }: ReaderImageProps) {
+export function ReaderImage({
+  url,
+  fallbackUrl,
+  pageNumber,
+  onIntersect,
+  mode = "webtoon",
+  fitMode = "FIT_SCREEN",
+  imageFilters: imageFiltersProp,
+  cropBorders: cropBordersProp,
+}: ReaderImageProps) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [usingFallback, setUsingFallback] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
 
-  const { imageFilters, cropBorders } = useSettingsStore();
+  const { imageFilters: storeFilters, cropBorders: storeCrop } = useSettingsStore();
+  const imageFilters = imageFiltersProp ?? storeFilters;
+  const cropBorders = cropBordersProp ?? storeCrop;
 
   const imageUrl = usingFallback && fallbackUrl ? fallbackUrl : url;
   const [displayUrl, setDisplayUrl] = useState("");
@@ -194,8 +207,9 @@ export function ReaderImage({ url, fallbackUrl, pageNumber, onIntersect, mode = 
         className={`${imageClass} ${loaded ? "opacity-100" : "opacity-0"}`}
         style={{
           filter: filterStyle,
-          transform: cropBorders ? "scale(1.08)" : "none",
+          transform: cropBorders ? "scale(1.12)" : "none",
           transformOrigin: "center",
+          clipPath: cropBorders ? "inset(2% 2% 2% 2%)" : "none",
         }}
         onLoad={() => setLoaded(true)}
         onError={handleError}

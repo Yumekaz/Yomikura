@@ -1,4 +1,8 @@
 mihon_blueprint.md
+docs/PRODUCT_ROADMAP.md
+agent-tools/
+scratch/
+terminals/
 node_modules/
 dist/
 .vite/

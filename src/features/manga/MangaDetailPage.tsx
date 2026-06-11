@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { GraphQLClient, gql } from "graphql-request";
 import { ArrowLeft, Loader2, Play } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { applyCoverAccentFromImage, useCoverAccentEnabled } from "../../hooks/useCoverAccent";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { SourceRecoveryPanel } from "../../components/source/SourceRecoveryPanel";
 import { ChapterList, Chapter } from "./ChapterList";
@@ -50,6 +51,7 @@ type FetchChaptersResponse = {
 export default function MangaDetailPage() {
   const { mangaId } = useParams<{ mangaId: string }>();
   const { serverBaseUrl } = useSettingsStore();
+  const coverAccentEnabled = useCoverAccentEnabled();
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isMigrationOpen, setIsMigrationOpen] = useState(false);
 
@@ -185,6 +187,17 @@ export default function MangaDetailPage() {
     return sorted.find((c) => !c.isRead) || sorted[0];
   }, [chapters]);
 
+  const imageUrl = useMemo(() => {
+    if (!manga?.thumbnailUrl) return "/placeholder-cover.svg";
+    return manga.thumbnailUrl.startsWith("http")
+      ? manga.thumbnailUrl
+      : `${serverBaseUrl.replace(/\/$/, "")}${manga.thumbnailUrl.startsWith("/") ? "" : "/"}${manga.thumbnailUrl}`;
+  }, [manga?.thumbnailUrl, serverBaseUrl]);
+
+  useEffect(() => {
+    applyCoverAccentFromImage(imageUrl, coverAccentEnabled);
+  }, [imageUrl, coverAccentEnabled]);
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-ink-950">
@@ -202,14 +215,6 @@ export default function MangaDetailPage() {
         </Link>
       </div>
     );
-  }
-
-  // Handle absolute or relative thumbnail URLs safely
-  let imageUrl = "/placeholder-cover.svg";
-  if (manga.thumbnailUrl) {
-    imageUrl = manga.thumbnailUrl.startsWith("http")
-      ? manga.thumbnailUrl
-      : `${serverBaseUrl.replace(/\/$/, "")}${manga.thumbnailUrl.startsWith("/") ? "" : "/"}${manga.thumbnailUrl}`;
   }
 
   const handleLibraryClick = () => {

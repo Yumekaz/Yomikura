@@ -2,12 +2,45 @@ use std::process::{Child, Command};
 use std::sync::Mutex;
 use tauri::path::BaseDirectory;
 use tauri::{Manager, State};
-use tauri::menu::{MenuBuilder, MenuItem};
+use tauri::menu::{MenuBuilder, MenuItem, SubmenuBuilder};
+use tauri::Emitter;
 use tauri::tray::TrayIconBuilder;
 use tauri::WindowEvent;
 
 struct BackendState {
     child: Mutex<Option<Child>>,
+}
+
+const SUWAYOMI_JAR_NAME: &str = "Suwayomi-Server-v2.2.2100.jar";
+const SUWAYOMI_JAR_URL: &str =
+    "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.2.2100/Suwayomi-Server-v2.2.2100.jar";
+
+fn resolve_jar_path(app_handle: &tauri::AppHandle, data_dir: &std::path::Path) -> Result<std::path::PathBuf, String> {
+    let local_jar = data_dir.join(SUWAYOMI_JAR_NAME);
+    if local_jar.exists() {
+        if let Ok(meta) = local_jar.metadata() {
+            if meta.len() > 1_000_000 {
+                return Ok(local_jar);
+            }
+        }
+    }
+
+    let bundled_jar = app_handle
+        .path()
+        .resolve(
+            format!("../suwayomi-server/{}", SUWAYOMI_JAR_NAME),
+            BaseDirectory::Resource,
+        )
+        .map_err(|e| format!("Failed to resolve bundled JAR: {}", e))?;
+
+    if bundled_jar.exists() {
+        return Ok(bundled_jar);
+    }
+
+    Err(
+        "Suwayomi server JAR not found. Download it on first launch or place it in your data folder."
+            .to_string(),
+    )
 }
 
 fn get_available_port(start_port: u16) -> u16 {
@@ -281,19 +314,8 @@ fn start_backend(
         return Ok(4567);
     }
 
-    let jar_path = app_handle
-        .path()
-        .resolve(
-            "../suwayomi-server/Suwayomi-Server-v2.2.2100.jar",
-            BaseDirectory::Resource,
-        )
-        .map_err(|e| format!("Failed to resolve server JAR resource: {}", e))?;
-
-    if !jar_path.exists() {
-        return Err("Bundled Suwayomi JAR file not found in resources.".to_string());
-    }
-
     let data_dir = std::path::PathBuf::from(&data_path);
+    let jar_path = resolve_jar_path(&app_handle, &data_dir)?;
     std::fs::create_dir_all(&data_dir).map_err(|e| format!("Failed to create data directory: {}", e))?;
 
     let port = get_available_port(4567);
@@ -394,6 +416,56 @@ fn wipe_all_data(app_handle: tauri::AppHandle, state: State<'_, BackendState>) -
 }
 
 #[tauri::command]
+fn download_suwayomi_jar(data_path: String) -> Result<String, String> {
+    use std::io::Write;
+
+    let data_dir = std::path::PathBuf::from(&data_path);
+    std::fs::create_dir_all(&data_dir).map_err(|e| format!("Failed to create data dir: {}", e))?;
+
+    let dest = data_dir.join(SUWAYOMI_JAR_NAME);
+    if dest.exists() {
+        if let Ok(meta) = dest.metadata() {
+            if meta.len() > 1_000_000 {
+                return Ok(dest.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    let response = reqwest::blocking::get(SUWAYOMI_JAR_URL)
+        .map_err(|e| format!("Failed to download Suwayomi JAR: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "Suwayomi JAR download failed with HTTP {}",
+            response.status()
+        ));
+    }
+
+    let bytes = response
+        .bytes()
+        .map_err(|e| format!("Failed to read Suwayomi JAR bytes: {}", e))?;
+
+    let mut file =
+        std::fs::File::create(&dest).map_err(|e| format!("Failed to write Suwayomi JAR: {}", e))?;
+    file.write_all(&bytes)
+        .map_err(|e| format!("Failed to save Suwayomi JAR: {}", e))?;
+
+    Ok(dest.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn get_portable_data_path() -> Result<String, String> {
+    let exe = std::env::current_exe().map_err(|e| format!("Failed to resolve executable: {}", e))?;
+    let parent = exe
+        .parent()
+        .ok_or_else(|| "Executable has no parent directory.".to_string())?;
+    let portable = parent.join("YomikuraPortable");
+    std::fs::create_dir_all(&portable)
+        .map_err(|e| format!("Failed to create portable folder: {}", e))?;
+    Ok(portable.to_string_lossy().replace('\\', "/"))
+}
+
+#[tauri::command]
 fn open_logs_folder(data_path: String) -> Result<(), String> {
     let data_dir = std::path::PathBuf::from(&data_path);
     if !data_dir.exists() {
@@ -449,6 +521,8 @@ pub fn run() {
             stop_backend,
             get_backend_status,
             download_and_install_jre,
+            download_suwayomi_jar,
+            get_portable_data_path,
             open_logs_folder
         ])
         .setup(|app| {
@@ -469,6 +543,35 @@ pub fn run() {
                 .separator()
                 .item(&quit_i)
                 .build()?;
+
+            // Native window menu (File / Help)
+            let quit_menu = MenuItem::with_id(app, "quit_menu", "Quit Yomikura", true, None::<&str>)?;
+            let check_updates = MenuItem::with_id(app, "check_updates", "Check for Updates", true, None::<&str>)?;
+            let file_sub = SubmenuBuilder::new(app, "File").item(&quit_menu).build()?;
+            let help_sub = SubmenuBuilder::new(app, "Help").item(&check_updates).build()?;
+            let window_menu = MenuBuilder::new(app).items(&[&file_sub, &help_sub]).build()?;
+            if let Some(main_window) = app.get_webview_window("main") {
+                main_window.set_menu(window_menu)?;
+            }
+
+            app.on_menu_event(|app_handle, event| {
+                match event.id().as_ref() {
+                    "quit_menu" => {
+                        let state: State<'_, BackendState> = app_handle.state();
+                        let mut lock = state.child.lock().unwrap();
+                        if let Some(mut child) = lock.take() {
+                            let _ = child.kill();
+                        }
+                        app_handle.exit(0);
+                    }
+                    "check_updates" => {
+                        if let Some(window) = app_handle.get_webview_window("main") {
+                            let _ = window.emit("menu-check-updates", ());
+                        }
+                    }
+                    _ => {}
+                }
+            });
 
             if let Some(icon) = app.default_window_icon() {
                 let _tray = TrayIconBuilder::new()

@@ -220,3 +220,38 @@ a {
   background: rgba(var(--yomi-accent), 0.5);
 }
 
+/* Accessibility modes */
+html.high-contrast {
+  --ink-950: #000000;
+  --ink-900: #0a0a0a;
+  --ink-850: #141414;
+  --ink-800: #1f1f1f;
+}
+
+html.high-contrast body,
+html.high-contrast .text-slate-400,
+html.high-contrast .text-slate-500 {
+  color: #e8e8e8 !important;
+}
+
+html.high-contrast .border-white\/5,
+html.high-contrast .border-white\/10 {
+  border-color: rgba(255, 255, 255, 0.35) !important;
+}
+
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not(.reduce-motion) * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+

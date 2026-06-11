@@ -4240,12 +4240,28 @@ export type GetExtensionReposQuery = { settings: { extensionRepos: Array<string>
 export type GetServerSettingsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetServerSettingsQuery = { settings: { localSourcePath: string } };
+export type GetServerSettingsQuery = { settings: { localSourcePath: string, globalUpdateInterval: number } };
+
+export type GetLibraryUpdateStatusQueryVariables = Exact<{ [key: string]: never; }>;
+
+export type GetLibraryUpdateStatusQuery = { libraryUpdateStatus: { jobsInfo: { isRunning: boolean, finishedJobs: number, totalJobs: number, skippedMangasCount: number } } };
+
+export type UpdateLibraryMutationVariables = Exact<{
+  input: UpdateLibraryInput;
+}>;
+
+export type UpdateLibraryMutation = { updateLibrary: { updateStatus: { jobsInfo: { isRunning: boolean, finishedJobs: number, totalJobs: number, skippedMangasCount: number } } } | null };
+
+export type UpdateExtensionsMutationVariables = Exact<{
+  input: UpdateExtensionsInput;
+}>;
+
+export type UpdateExtensionsMutation = { updateExtensions: { extensions: Array<{ pkgName: string, isInstalled: boolean, hasUpdate: boolean, versionName: string }> } | null };
 
 export type GetExtensionsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetExtensionsQuery = { extensions: { totalCount: number, nodes: Array<{ pkgName: string, name: string, lang: string, isNsfw: boolean, isInstalled: boolean, iconUrl: string, versionName: string, hasUpdate: boolean }> } };
+export type GetExtensionsQuery = { extensions: { totalCount: number, nodes: Array<{ pkgName: string, name: string, lang: string, isNsfw: boolean, isInstalled: boolean, iconUrl: string, versionName: string, hasUpdate: boolean, isObsolete: boolean }> } };
 
 export type GetCategoriesQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -4255,10 +4271,11 @@ export type GetCategoriesQuery = { categories: { nodes: Array<{ id: number, name
 export type GetLibraryQueryVariables = Exact<{
   filter?: MangaFilterInput | null | undefined;
   first?: number | null | undefined;
+  after?: InputMaybe<Scalars['Cursor']['input']>;
 }>;
 
 
-export type GetLibraryQuery = { mangas: { nodes: Array<{ id: number, title: string, thumbnailUrl: string | null, unreadCount: number, downloadCount: number, lastReadChapter?: { id: number } | null, categories: { nodes: Array<{ id: number }> } }> } };
+export type GetLibraryQuery = { mangas: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, title: string, thumbnailUrl: string | null, unreadCount: number, downloadCount: number, lastReadChapter?: { id: number } | null, categories: { nodes: Array<{ id: number }> } }> } };
 
 export type GetMangaDetailsQueryVariables = Exact<{
   id: number;
@@ -4618,6 +4635,45 @@ export const GetServerSettingsDocument = gql`
     query GetServerSettings {
   settings {
     localSourcePath
+    globalUpdateInterval
+  }
+}
+    `;
+export const GetLibraryUpdateStatusDocument = gql`
+    query GetLibraryUpdateStatus {
+  libraryUpdateStatus {
+    jobsInfo {
+      isRunning
+      finishedJobs
+      totalJobs
+      skippedMangasCount
+    }
+  }
+}
+    `;
+export const UpdateLibraryDocument = gql`
+    mutation UpdateLibrary($input: UpdateLibraryInput!) {
+  updateLibrary(input: $input) {
+    updateStatus {
+      jobsInfo {
+        isRunning
+        finishedJobs
+        totalJobs
+        skippedMangasCount
+      }
+    }
+  }
+}
+    `;
+export const UpdateExtensionsDocument = gql`
+    mutation UpdateExtensions($input: UpdateExtensionsInput!) {
+  updateExtensions(input: $input) {
+    extensions {
+      pkgName
+      isInstalled
+      hasUpdate
+      versionName
+    }
   }
 }
     `;
@@ -4641,6 +4697,7 @@ export const GetExtensionsDocument = gql`
       iconUrl
       versionName
       hasUpdate
+      isObsolete
     }
   }
 }
@@ -4657,14 +4714,21 @@ export const GetCategoriesDocument = gql`
 }
     `;
 export const GetLibraryDocument = gql`
-    query GetLibrary($filter: MangaFilterInput, $first: Int) {
-  mangas(filter: $filter, first: $first) {
+    query GetLibrary($filter: MangaFilterInput, $first: Int, $after: Cursor) {
+  mangas(filter: $filter, first: $first, after: $after) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
     nodes {
       id
       title
       thumbnailUrl
       unreadCount
       downloadCount
+      lastReadChapter {
+        id
+      }
       categories {
         nodes {
           id
@@ -5099,6 +5163,15 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetHistory(variables?: GetHistoryQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetHistoryQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetHistoryQuery>({ document: GetHistoryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetHistory', 'query', variables);
+    },
+    GetLibraryUpdateStatus(variables?: GetLibraryUpdateStatusQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetLibraryUpdateStatusQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetLibraryUpdateStatusQuery>({ document: GetLibraryUpdateStatusDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetLibraryUpdateStatus', 'query', variables);
+    },
+    UpdateLibrary(variables: UpdateLibraryMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateLibraryMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<UpdateLibraryMutation>({ document: UpdateLibraryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateLibrary', 'mutation', variables);
+    },
+    UpdateExtensions(variables: UpdateExtensionsMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateExtensionsMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<UpdateExtensionsMutation>({ document: UpdateExtensionsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateExtensions', 'mutation', variables);
     }
   };
 }

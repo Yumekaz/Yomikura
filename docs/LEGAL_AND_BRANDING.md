@@ -1,27 +1,40 @@
 # Legal and Branding Guidelines
 
-Yomikura is an independent, open-source web and PWA client for Suwayomi-compatible manga and comic libraries. This document outlines the legal position, branding boundaries, and content policy of the project.
+Yomikura is an independent, open-source client for Suwayomi-compatible manga and comic libraries (web, PWA, and desktop).
 
 ## Naming & Identity
 
-The name of the project is **Yomikura**. This identity is selected specifically to avoid direct use of or confusion with existing project names such as Mihon, Tachiyomi, Suwayomi, or Keiyoushi.
+The project name is **Yomikura**—chosen to avoid confusion with Mihon, Tachiyomi, Suwayomi, or Keiyoushi.
 
-The name Yomikura:
-- Does not imply any official affiliation with content providers or upstream readers.
-- Does not suggest that the application hosts, distributes, or provides copyrighted content.
+- Does not imply official affiliation with content providers or upstream readers.
+- Does not suggest the app hosts or distributes copyrighted content.
 
 ## Legal Disclaimer
 
-The following disclaimer is displayed prominently within the application (under Settings > About) and in all public-facing documentation:
+Displayed in Settings → About and public documentation:
 
-> Yomikura is not affiliated with Mihon, Tachiyomi, Suwayomi, Keiyoushi, or any content provider. This app hosts zero manga or comic content. Users are responsible for configuring their own server, sources, and repositories.
+> Yomikura is not affiliated with Mihon, Tachiyomi, Suwayomi, Keiyoushi, or any content provider. This app hosts zero manga or comic content. Users are responsible for configuring their own sources and repositories. In desktop mode, Yomikura may download and run Suwayomi Server locally on the user's machine; extension execution and content fetching remain Suwayomi's responsibility.
 
-## Content & Source Boundaries
+## Architecture & Liability Boundaries
 
-- **Zero Content Hosting:** Yomikura does not host, ship, or mirror any manga, comic, or image files. The client serves purely as a local web browser shell.
-- **No Scraping Logic:** The frontend application does not contain web scraping code, site-specific bypasses, or proxy endpoints. All catalog queries and page retrieval are handled exclusively by the user's self-hosted Suwayomi server.
-- **Copyright Compliance:** Screenshots, mock modes, and demo registries use public domain, synthetic titles, or abstract placeholders. The codebase does not bundle copyrighted graphics or real-world manga catalog details.
+| Layer | Responsibility |
+|-------|----------------|
+| **Yomikura UI** (MIT) | Layout, reader, settings, local preferences |
+| **Suwayomi Server** (MPL-2.0) | Extensions, scraping, library DB, downloads |
+| **Extension repos** (user-added) | Third-party catalog metadata |
+
+- **Zero content hosting:** Yomikura ships no manga pages, covers, or catalogs.
+- **No scraping in the UI:** The frontend only calls Suwayomi GraphQL/HTTP APIs.
+- **Desktop convenience ≠ distribution:** Downloading Suwayomi JAR on first launch is an optional local setup step, not Yomikura hosting content.
 
 ## Extension Registry Boundary
 
-APKs and extensions are Android-specific binaries. Yomikura does not execute APKs or run Kotlin source extensions inside the browser. It only parses and displays metadata from extension repository indexes (such as Keiyoushi's index JSON) to allow users to trigger server-side installations on their connected Suwayomi instance.
+Yomikura does not execute Android APK extensions. It may display extension metadata from indexes the user configures; installation runs on Suwayomi Server.
+
+## Third-Party Licenses
+
+See [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) for Suwayomi Server, Temurin JRE, and Tauri attribution.
+
+## Copyright Compliance in Repo Assets
+
+Screenshots and demo mode use synthetic or public-domain placeholders—no bundled copyrighted manga art.

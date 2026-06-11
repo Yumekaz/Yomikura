@@ -149,6 +149,44 @@ export default function ExtensionsPage() {
     return data?.extensions?.nodes?.filter((n): n is NonNullable<typeof n> => n != null) || [];
   }, [data]);
 
+  const outdatedExtensions = useMemo(
+    () => extensions.filter((ext) => ext.isInstalled && ext.hasUpdate),
+    [extensions]
+  );
+
+  const { mutate: updateAllExtensions, isPending: updatingAll } = useMutation({
+    mutationFn: () =>
+      sdk.UpdateExtensions({
+        input: {
+          ids: outdatedExtensions.map((ext) => ext.pkgName),
+          patch: { update: true },
+        },
+      }),
+    onMutate: () => {
+      setStatusMessage(null);
+      outdatedExtensions.forEach((ext) => markExtensionBusy(ext.pkgName, true));
+    },
+    onSuccess: (result) => {
+      const count = result.updateExtensions?.extensions?.length ?? outdatedExtensions.length;
+      setStatusMessage({
+        kind: "success",
+        title: "Extensions updated",
+        detail: `${count} extension${count === 1 ? "" : "s"} updated. Your library and sources are unchanged.`,
+      });
+      invalidateExtensionData();
+    },
+    onError: (error) => {
+      setStatusMessage({
+        kind: "error",
+        title: "Bulk update failed",
+        detail: getErrorMessage(error),
+      });
+    },
+    onSettled: () => {
+      outdatedExtensions.forEach((ext) => markExtensionBusy(ext.pkgName, false));
+    },
+  });
+
   const extensionCounts = useMemo(() => {
     const hiddenByNsfw = extensions.filter((ext) => ext.isNsfw).length;
     const installed = extensions.filter((ext) => ext.isInstalled).length;
@@ -196,6 +234,25 @@ export default function ExtensionsPage() {
               Extensions
             </h1>
             <div className="flex items-center gap-2">
+              {outdatedExtensions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => updateAllExtensions()}
+                  disabled={updatingAll || !serverBaseUrl}
+                  className="flex items-center gap-2 rounded-lg border border-yomi-jade/30 bg-yomi-jade/10 px-3 py-1.5 text-sm font-semibold text-yomi-jade hover:bg-yomi-jade/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  title="Update all outdated extensions without losing library data"
+                >
+                  {updatingAll ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline">
+                    Update all ({outdatedExtensions.length})
+                  </span>
+                  <span className="sm:hidden">{outdatedExtensions.length}</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => refreshCatalog()}

@@ -68,6 +68,10 @@ export interface MangaOverride {
   readerMode?: ReaderMode;
   fitMode?: FitMode;
   pageSpread?: PageSpread;
+  imageFilters?: Partial<ImageFilters>;
+  cropBorders?: boolean;
+  pageTransition?: "fade" | "slide" | "none";
+  autoDownloadCount?: number;
 }
 
 export interface ImageFilters {
@@ -123,6 +127,11 @@ interface SettingsState {
   language: string;
   autoDeleteReadChapters: boolean;
   settingsProfiles: SettingsProfile[];
+  highContrastMode: boolean;
+  reducedMotion: boolean;
+  infiniteChapterReading: boolean;
+  coverDynamicTheme: boolean;
+  portableMode: boolean;
   
   // Actions
   setServerBaseUrl: (url: string) => void;
@@ -157,6 +166,11 @@ interface SettingsState {
   // Phase 3 actions
   setLanguage: (lang: string) => void;
   setAutoDeleteReadChapters: (deleteChapters: boolean) => void;
+  setHighContrastMode: (enabled: boolean) => void;
+  setReducedMotion: (enabled: boolean) => void;
+  setInfiniteChapterReading: (enabled: boolean) => void;
+  setCoverDynamicTheme: (enabled: boolean) => void;
+  setPortableMode: (enabled: boolean) => void;
   addSettingsProfile: (name: string, profile: Omit<SettingsProfile, "id" | "name">) => void;
   deleteSettingsProfile: (id: string) => void;
   applySettingsProfile: (id: string) => void;
@@ -205,6 +219,11 @@ export const useSettingsStore = create<SettingsState>()(
       language: "en",
       autoDeleteReadChapters: false,
       settingsProfiles: [],
+      highContrastMode: false,
+      reducedMotion: false,
+      infiniteChapterReading: true,
+      coverDynamicTheme: false,
+      portableMode: false,
 
       setServerBaseUrl: (url: string) => {
         set((state) => {
@@ -358,6 +377,11 @@ export const useSettingsStore = create<SettingsState>()(
       // Phase 3 actions implementation
       setLanguage: (lang) => set({ language: lang }),
       setAutoDeleteReadChapters: (deleteChapters) => set({ autoDeleteReadChapters: deleteChapters }),
+      setHighContrastMode: (enabled) => set({ highContrastMode: enabled }),
+      setReducedMotion: (enabled) => set({ reducedMotion: enabled }),
+      setInfiniteChapterReading: (enabled) => set({ infiniteChapterReading: enabled }),
+      setCoverDynamicTheme: (enabled) => set({ coverDynamicTheme: enabled }),
+      setPortableMode: (enabled) => set({ portableMode: enabled }),
       addSettingsProfile: (name, profile) => {
         const newProfile: SettingsProfile = {
           id: Math.random().toString(36).substring(2, 9),
@@ -417,6 +441,11 @@ export const useSettingsStore = create<SettingsState>()(
           language: "en",
           autoDeleteReadChapters: false,
           settingsProfiles: [],
+          highContrastMode: false,
+          reducedMotion: false,
+          infiniteChapterReading: true,
+          coverDynamicTheme: false,
+          portableMode: false,
         });
       },
 
@@ -454,6 +483,11 @@ export const useSettingsStore = create<SettingsState>()(
         language: state.language,
         autoDeleteReadChapters: state.autoDeleteReadChapters,
         settingsProfiles: state.settingsProfiles,
+        highContrastMode: state.highContrastMode,
+        reducedMotion: state.reducedMotion,
+        infiniteChapterReading: state.infiniteChapterReading,
+        coverDynamicTheme: state.coverDynamicTheme,
+        portableMode: state.portableMode,
       }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<SettingsState> | undefined;
@@ -492,6 +526,11 @@ export const useSettingsStore = create<SettingsState>()(
           language: persisted?.language ?? currentState.language,
           autoDeleteReadChapters: persisted?.autoDeleteReadChapters ?? currentState.autoDeleteReadChapters,
           settingsProfiles: persisted?.settingsProfiles ?? currentState.settingsProfiles,
+          highContrastMode: persisted?.highContrastMode ?? currentState.highContrastMode,
+          reducedMotion: persisted?.reducedMotion ?? currentState.reducedMotion,
+          infiniteChapterReading: persisted?.infiniteChapterReading ?? currentState.infiniteChapterReading,
+          coverDynamicTheme: persisted?.coverDynamicTheme ?? currentState.coverDynamicTheme,
+          portableMode: persisted?.portableMode ?? currentState.portableMode,
         };
       },
     }

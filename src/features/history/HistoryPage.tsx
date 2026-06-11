@@ -6,6 +6,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
 import { ChapterOrderBy, SortOrder } from "../../api/graphql/generated/graphql";
+import { useTranslation } from "../../hooks/useTranslation";
 
 interface HistoryItem {
   id: string;
@@ -25,6 +26,7 @@ interface HistoryItem {
 export default function HistoryPage() {
   const { serverBaseUrl } = useSettingsStore();
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
 
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
@@ -135,7 +137,7 @@ export default function HistoryPage() {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400">
         <History className="mb-4 h-12 w-12 opacity-50" />
-        <p>Server not configured.</p>
+        <p>{t("no_server")}</p>
       </div>
     );
   }
@@ -157,7 +159,7 @@ export default function HistoryPage() {
           onClick={() => refetch()}
           className="rounded-lg bg-yomi-jade px-4 py-2 font-medium text-ink-950 hover:bg-yomi-jade/90"
         >
-          Retry
+          {t("retry")}
         </button>
       </div>
     );
@@ -167,7 +169,7 @@ export default function HistoryPage() {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400">
         <History className="mb-4 h-12 w-12 opacity-50" />
-        <p className="text-lg text-slate-300">No reading history</p>
+        <p className="text-lg text-slate-300">{t("no_history")}</p>
         <p className="text-sm mt-1">Chapters you start reading will appear here.</p>
       </div>
     );
@@ -177,7 +179,7 @@ export default function HistoryPage() {
     <div className="p-4 sm:p-6 pb-24 max-w-3xl mx-auto space-y-8">
       <h1 className="text-2xl font-bold text-white flex items-center gap-2">
         <History className="h-6 w-6 text-yomi-jade" />
-        Reading History
+        {t("history")}
       </h1>
 
       <div className="space-y-8">
