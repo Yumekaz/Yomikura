@@ -3,7 +3,16 @@ import { persist, StateStorage, createJSONStorage } from "zustand/middleware";
 import { testServerConnection } from "../api/suwayomi/connection";
 import { DEFAULT_SERVER_BASE_URL } from "../config/server";
 
-export const isTauri = () => typeof window !== "undefined" && (window as any).__TAURI__ !== undefined;
+/** Tauri v2 sets `window.isTauri`; v1 used `__TAURI__` when withGlobalTauri is enabled. */
+export const isTauri = () => {
+  if (typeof window === "undefined") return false;
+  const w = window as typeof window & {
+    isTauri?: boolean;
+    __TAURI__?: unknown;
+    __TAURI_INTERNALS__?: unknown;
+  };
+  return !!(w.isTauri || w.__TAURI__ || w.__TAURI_INTERNALS__);
+};
 
 const customTauriStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
