@@ -1,25 +1,25 @@
 # Architecture
 
-Yomikura is a browser/PWA frontend. Suwayomi-compatible servers are the backend. Extension repositories are metadata sources.
+Yomikura is a **client shell** (web, PWA, or Tauri desktop) over Suwayomi-compatible backends. Extension repositories are user-configured metadata sources.
 
 ```text
-Web/PWA frontend
-  React + TypeScript + Vite
-  UI, routing, reader controls, preferences, extension metadata display
+Yomikura client (one React codebase)
+  Web / PWA in browser          OR          Tauri desktop shell
+  React + TypeScript + Vite                 + tray, updater, local data path
+  UI, reader, settings, extension metadata
 
         GraphQL / HTTP
               |
               v
 
-Suwayomi-compatible backend
-  extension execution, library state, source browse/search,
-  manga details, chapters, pages, downloads, backups, tracking
+Suwayomi Server (remote URL or local on desktop)
+  extensions, library DB, browse/search, chapters, downloads, tracking
 
               |
               v
 
-Extension repositories
-  index.min.json, index.json, repo.json, APK files, icons
+Extension repositories (user-added)
+  index.min.json, repo catalogs — not shipped by Yomikura
 ```
 
 ## Ownership Boundaries
@@ -42,7 +42,7 @@ Extension repositories
 
 ## Frontend Stack
 
-The planned frontend stack is:
+The client stack is:
 
 - React
 - TypeScript
@@ -88,6 +88,8 @@ Keiyoushi-style indexes are catalog metadata. The frontend may validate and pars
 
 The frontend must not execute APKs, translate Kotlin extension code, bypass source websites, or pretend browser-side extension installation is possible.
 
-## PWA Boundary
+## Web, PWA & Desktop Boundaries
 
-PWA work can cache the app shell and local preferences. Offline chapter caching is a later feature and must be explicit, user-controlled, and legally cautious.
+- **Web/PWA:** App shell and preferences in browser storage; optional IndexedDB chapter cache.
+- **Desktop:** Same UI in Tauri; Suwayomi data + optional JRE in a user-chosen folder; system tray and auto-updater.
+- **All platforms:** No extension execution or content scraping in the Yomikura UI layer.

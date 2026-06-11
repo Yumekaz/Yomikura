@@ -1,6 +1,11 @@
 # Yomikura
 
-Yomikura is an independent, self-hosted web and PWA frontend client for Suwayomi-compatible manga and comic libraries, inspired by the design and user experience of Mihon.
+Yomikura is an independent Suwayomi client for manga and comic libraries — **one codebase, two ways to run it:**
+
+- **Web / PWA** — self-host or open in any modern browser
+- **Desktop** — native Windows, macOS, and Linux app (Tauri)
+
+Inspired by the design and feel of Mihon.
 
 > [!IMPORTANT]
 > **Legal Disclaimer & Project Status**
@@ -14,9 +19,9 @@ Yomikura is an independent, self-hosted web and PWA frontend client for Suwayomi
 
 ## What Yomikura Is
 
-- A clean web/PWA/desktop client for a user-controlled Suwayomi-compatible backend.
-- A Mihon/Tachiyomi-inspired library browsing and reading experience optimized for desktop, tablet, and mobile browsers.
-- A private, local-first application where all server profiles, settings, and downloaded chapters are cached locally in your browser storage.
+- A clean **web, PWA, and desktop** client for a user-controlled Suwayomi backend.
+- A Mihon/Tachiyomi-inspired library and reader experience on desktop, tablet, and mobile.
+- A private, local-first app — settings and offline chapters stay on **your device** (browser storage or desktop data folder).
 
 ## What Yomikura Is Not
 
@@ -28,28 +33,38 @@ Yomikura is an independent, self-hosted web and PWA frontend client for Suwayomi
 
 ## Getting Started
 
-### Prerequisites
-To use Yomikura, you need a running instance of a Suwayomi-compatible backend. By default, Yomikura connects to:
+### Desktop app (recommended for most users)
+
+1. Download the installer for your OS from **[GitHub Releases](https://github.com/Yumekaz/Yomikura/releases)**.
+2. Launch Yomikura — onboarding will guide you through storage location, optional JRE + Suwayomi download, and first connection.
+3. Add extension repositories and sources in **Extensions** / **Browse** (user-configured; nothing bundled).
+
+### Web / PWA
+
+Host the built `dist/` folder or run locally. You need a Suwayomi server URL (your own instance or LAN). Default:
 ```text
 http://127.0.0.1:4567
 ```
 
-### Local Development
-To spin up the web client locally:
+### Development
+
 ```bash
 pnpm install
-pnpm dev
-pnpm build
+pnpm dev          # web UI at http://localhost:5173
+pnpm build        # production web build
+pnpm tauri dev    # desktop shell + web UI (requires Rust)
+pnpm run verify-desktop   # quick local readiness check
 ```
 
 ---
 
 ## Technology Stack
 
-- **Framework:** React + TypeScript + Vite
+- **UI:** React + TypeScript + Vite
+- **Desktop:** Tauri 2 (Windows, macOS, Linux)
 - **Styling:** Vanilla CSS + Tailwind CSS
-- **State & Caching:** Zustand + TanStack Query + `graphql-request`
-- **Offline Storage:** IndexedDB (via Cache Storage APIs)
+- **State:** Zustand + TanStack Query + `graphql-request`
+- **Offline:** IndexedDB (web) / local files (desktop) + optional Suwayomi downloads
 
 ---
 
@@ -61,7 +76,7 @@ Explore our detailed architectural and design specifications:
 - [API Specifications](docs/API_NOTES.md) - Suwayomi Server GraphQL schemas and queries implemented.
 - [Project Blueprint](docs/PROJECT_BLUEPRINT.md) - Engineering specs and security constraints.
 - [Security & Trust](docs/SECURITY.md) - Local data storage rules and CORS policies.
-- [Roadmap & Milestones](docs/ROADMAP.md) - Log of completed milestones and future Tauri/Local File features.
+- [Roadmap & Milestones](docs/ROADMAP.md) - Shipped milestones (web, PWA, desktop) and what's next.
 - [Legal & Branding Guidelines](docs/LEGAL_AND_BRANDING.md) - Compliance policies and identity naming.
 
 ---

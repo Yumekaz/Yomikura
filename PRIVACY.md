@@ -2,7 +2,7 @@
 
 **Last Updated:** June 2026
 
-Yomikura is a free, open-source manga/comic **client** (web, PWA, and optional desktop app). We value your privacy and are committed to protecting it. Yomikura does **not** operate central servers, collect personal data, or track your reading habits.
+Yomikura is a free, open-source manga/comic **client** available as **web, PWA, and native desktop app** (Windows, macOS, Linux). We value your privacy and are committed to protecting it. Yomikura does **not** operate central servers, collect personal data, or track your reading habits.
 
 ---
 

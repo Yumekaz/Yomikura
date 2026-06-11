@@ -1,16 +1,17 @@
 # Yomikura — Engineering & Architecture Blueprint
 
-This document outlines the core architecture, technical design, and safety constraints of **Yomikura**, a public-quality, Mihon-inspired web/PWA client for Suwayomi-compatible manga and comic libraries.
+This document outlines the core architecture, technical design, and safety constraints of **Yomikura**, a Mihon-inspired Suwayomi client for **web, PWA, and desktop (Tauri)**.
 
 ---
 
 ## 1. Product Definition & Vision
 
-Yomikura is an independent, self-hosted web and PWA frontend designed to connect to a user-controlled Suwayomi Server (or compatible backend) for library management, source browsing, extensions metadata, downloads, and progress tracking.
+Yomikura is an independent client (web, PWA, and Tauri desktop) for user-controlled Suwayomi Server backends — library, browse, extensions metadata, downloads, and progress.
 
 ### Core Goals:
-- **Polished Web/PWA-First UX:** Tailored reading interfaces optimized for mobile, tablet, and desktop viewports.
-- **Self-Hosted/Local-First:** The app runs entirely in the client browser, connecting directly to the user's personal Suwayomi backend.
+- **One codebase, multiple surfaces:** Same React UI in the browser and in a native desktop shell.
+- **Polished UX:** Reading interfaces optimized for mobile, tablet, and desktop.
+- **Local-first:** Data stays on the user's device — browser storage (web) or chosen data folder (desktop).
 - **Aesthetics & Performance:** Modern, responsive dark/light styling with configurable accents and fast image preloading.
 
 ---
@@ -19,7 +20,7 @@ Yomikura is an independent, self-hosted web and PWA frontend designed to connect
 
 To ensure safety, compliance, and clean architecture, Yomikura enforces a strict separation of concerns:
 
-- **Frontend (Yomikura Web Client):**
+- **Client (Yomikura UI — web or desktop):**
   - Owns the responsive layout, navigation, themes, and client preferences (stored locally).
   - Handles page rendering, image scaling (fit-width constraints), and reader configurations (LTR, RTL, Webtoon).
   - Displays extension repository metadata fetched from index catalogs.

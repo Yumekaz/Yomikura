@@ -1,6 +1,6 @@
 # Contributing Guidelines
 
-Thank you for your interest in contributing to **Yomikura**! We welcome community contributions that improve our self-hosted web client's performance, layout configurations, and reader experience.
+Thank you for your interest in contributing to **Yomikura**! We welcome contributions that improve the **web, PWA, and desktop** client — performance, layout, reader UX, and Tauri integration.
 
 ## Contribution Policy & Legal Compliance
 

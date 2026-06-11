@@ -34,10 +34,22 @@ This document tracks the completed milestones and future engineering goals for *
 - Added JSON server profiles export/import to allow backup migration.
 - Enabled mock trackers (MAL/AniList) inside Sandbox mode.
 
+### Milestone 7 — Native Desktop (Tauri)
+- Shipped Windows, macOS, and Linux builds from the same React codebase.
+- Onboarding: storage picker, optional JRE + Suwayomi download, portable mode.
+- System tray, single-instance lock, window state memory, in-app updater.
+- Native menu bar, backend health badge, open-data-folder action.
+
+### Milestone 8 — Power Reader & Library (v0.3 / v1.0)
+- Infinite chapters, filters, per-manga overrides, thumbnail navigator, auto-download.
+- Bulk library actions, source migration, library virtualization, Mihon-style read dimming.
+- Library “check for updates”, extension update-all, extension health panel.
+
 ---
 
 ## Future Roadmap
 
-- **Tauri Integration:** Wrapping the Yomikura PWA into a native desktop application using Tauri.
-- **Local Files Import:** Adding support for importing and reading local CBZ/CBR/PDF files directly in the browser client.
-- **Enhanced Virtualization:** Implementing virtualized grid rendering on the library page to optimize performance for libraries with 1,000+ entries.
+- **Distribution:** winget, Homebrew, Chocolatey manifests (scaffolded).
+- **Public demo site:** GitHub Pages sandbox build.
+- **Full i18n:** Wire all screens to locale files beyond English-first.
+- **Global search v2:** Ranking and filter polish.
