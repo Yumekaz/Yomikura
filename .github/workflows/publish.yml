@@ -62,5 +62,5 @@ jobs:
           tagName: v__VERSION__
           releaseName: "Yomikura v__VERSION__"
           releaseBody: "See the assets below to download and install this version of Yomikura."
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
