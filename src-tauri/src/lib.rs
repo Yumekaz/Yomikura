@@ -42,7 +42,10 @@ fn download_file_with_curl(url: &str, dest: &std::path::Path) -> Result<(), Stri
 
     let mut cmd = Command::new("curl");
     #[cfg(windows)]
-    cmd.creation_flags(0x08000000);
+    {
+        cmd.creation_flags(0x08000000);
+        cmd.arg("--ssl-no-revoke");
+    }
 
     let output = cmd
         .arg("-fL")
@@ -291,7 +294,7 @@ fn download_and_install_jre(data_path: String) -> Result<(), String> {
 
         // Download JRE zip
         let download_script = format!(
-            "$webclient = New-Object System.Net.WebClient; $webclient.DownloadFile('{}', '{}')",
+            "[System.Net.ServicePointManager]::CheckCertificateRevocationList = $false; $webclient = New-Object System.Net.WebClient; $webclient.DownloadFile('{}', '{}')",
             url, zip_str
         );
         let download_output = Command::new("powershell")
