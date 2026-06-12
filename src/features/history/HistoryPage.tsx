@@ -101,10 +101,9 @@ export default function HistoryPage() {
     historyItems.forEach((item) => {
       const rawTime = parseInt(item.lastReadAt);
       const time = !isNaN(rawTime) && rawTime < 30000000000 ? rawTime * 1000 : rawTime;
-      if (isNaN(time)) {
-        const key = "Unknown Date";
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(item);
+      
+      // Banish Unix Epoch (0 / 1970-01-01) timestamps which represent unread/default metadata states
+      if (isNaN(time) || time <= 0) {
         return;
       }
 
@@ -165,7 +164,7 @@ export default function HistoryPage() {
     );
   }
 
-  if (historyItems.length === 0) {
+  if (Object.keys(groupedHistory).length === 0) {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400">
         <History className="mb-4 h-12 w-12 opacity-50" />
