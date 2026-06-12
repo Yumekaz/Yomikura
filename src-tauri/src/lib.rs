@@ -407,7 +407,10 @@ fn start_backend(
     #[cfg(target_os = "windows")]
     {
         cmd.arg("-Djavax.net.ssl.trustStore=NONE")
-            .arg("-Djavax.net.ssl.trustStoreType=Windows-ROOT");
+            .arg("-Djavax.net.ssl.trustStoreType=Windows-ROOT")
+            .arg("-Dcom.sun.net.ssl.checkRevocation=false")
+            .arg("-Dcom.sun.security.enableCRLDP=false")
+            .arg("-Docsp.enable=false");
     }
     #[cfg(target_os = "macos")]
     {
