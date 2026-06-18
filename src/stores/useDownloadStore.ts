@@ -163,7 +163,7 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
             blob = new Blob([buffer], { type: contentType });
           }
         } catch (err: any) {
-          errorMsg = err.message || "Failed primary URL";
+          errorMsg = err instanceof Error ? err.message : String(err);
           // Try fallback URL
           try {
             response = await fetchFn(fallbackUrl, { mode: "cors" });
@@ -177,7 +177,8 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
               blob = new Blob([buffer], { type: contentType });
             }
           } catch (fallbackErr: any) {
-            throw new Error(`Failed to download page ${i + 1}. Primary: ${errorMsg}, Fallback: ${fallbackErr.message}`);
+            const fallbackMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+            throw new Error(`Failed to download page ${i + 1}. Primary: ${errorMsg}, Fallback: ${fallbackMsg}`);
           }
         }
 
