@@ -340,6 +340,23 @@ function WelcomeOnboarding({
     }
   }, [inTauri, serverDataPath]);
 
+  // Keep custom_path.txt updated for the uninstaller to read
+  useEffect(() => {
+    if (inTauri && serverDataPath) {
+      import("@tauri-apps/plugin-fs").then(async ({ writeTextFile, mkdir, exists, BaseDirectory }) => {
+        try {
+          const dirExists = await exists("", { baseDir: BaseDirectory.AppConfig });
+          if (!dirExists) {
+            await mkdir("", { baseDir: BaseDirectory.AppConfig, recursive: true });
+          }
+          await writeTextFile("custom_path.txt", serverDataPath, { baseDir: BaseDirectory.AppConfig });
+        } catch (e) {
+          console.error("Auto-syncing custom_path.txt failed:", e);
+        }
+      });
+    }
+  }, [inTauri, serverDataPath]);
+
   useEffect(() => {
     if (currentStep !== "backend") return;
 
