@@ -9,7 +9,7 @@ import {
   clearAllCache, 
   getStorageEstimate 
 } from "../api/suwayomi/offlineCache";
-import { useSettingsStore } from "./useSettingsStore";
+import { useSettingsStore, isTauri } from "./useSettingsStore";
 import { createGraphqlClient } from "../api/graphql/client";
 import { buildSuwayomiPageUrl, resolveBackendUrl } from "../api/suwayomi/pageUrls";
 
@@ -125,6 +125,17 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       const cachedUrls: string[] = [];
       let totalSizeBytes = 0;
 
+      // Resolve the fetch function. In Tauri environment, we use native tauri fetch plugin to bypass CORS/PNA restrictions.
+      let fetchFn: typeof fetch = fetch;
+      if (isTauri()) {
+        try {
+          const { fetch: tauriFetch } = await import("@tauri-apps/plugin-http");
+          fetchFn = tauriFetch as any;
+        } catch (err) {
+          console.warn("Failed to load @tauri-apps/plugin-http fetch, falling back to browser fetch", err);
+        }
+      }
+
       // 4. Download pages sequentially or in small chunks
       for (let i = 0; i < pages.length; i++) {
         const pageUrl = buildSuwayomiPageUrl({
@@ -141,16 +152,30 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
 
         // Try primary URL first
         try {
-          response = await fetch(pageUrl, { mode: "cors" });
+          response = await fetchFn(pageUrl, { mode: "cors" });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          blob = await response.blob();
+          
+          if (typeof response.blob === "function") {
+            blob = await response.blob();
+          } else {
+            const buffer = await response.arrayBuffer();
+            const contentType = response.headers.get("content-type") || "image/jpeg";
+            blob = new Blob([buffer], { type: contentType });
+          }
         } catch (err: any) {
           errorMsg = err.message || "Failed primary URL";
           // Try fallback URL
           try {
-            response = await fetch(fallbackUrl, { mode: "cors" });
+            response = await fetchFn(fallbackUrl, { mode: "cors" });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            blob = await response.blob();
+            
+            if (typeof response.blob === "function") {
+              blob = await response.blob();
+            } else {
+              const buffer = await response.arrayBuffer();
+              const contentType = response.headers.get("content-type") || "image/jpeg";
+              blob = new Blob([buffer], { type: contentType });
+            }
           } catch (fallbackErr: any) {
             throw new Error(`Failed to download page ${i + 1}. Primary: ${errorMsg}, Fallback: ${fallbackErr.message}`);
           }
