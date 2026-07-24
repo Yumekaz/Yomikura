@@ -6,18 +6,8 @@
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL
-  ; Read custom storage path if it exists
-  ClearErrors
-  FileOpen $0 "$APPDATA\app.yomikura\custom_path.txt" r
-  IfErrors no_custom_path
-  FileRead $0 $1
-  FileClose $0
-  StrCmp $1 "" no_custom_path
-  DetailPrint "Removing custom storage folder: $1"
-  RMDir /r "$1"
-no_custom_path:
-
-  ; Remove app data folders (Local and Roaming)
+  ; Only remove application-owned folders. A user-selected storage folder may
+  ; contain unrelated files, so it must never be recursively removed here.
   RMDir /r "$LOCALAPPDATA\app.yomikura"
   RMDir /r "$APPDATA\app.yomikura"
 !macroend

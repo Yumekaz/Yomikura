@@ -8,7 +8,13 @@ use tauri::tray::TrayIconBuilder;
 use tauri::WindowEvent;
 
 struct BackendState {
-    child: Mutex<Option<Child>>,
+    backend: Mutex<Option<RunningBackend>>,
+}
+
+struct RunningBackend {
+    child: Child,
+    port: u16,
+    data_path: std::path::PathBuf,
 }
 
 const SUWAYOMI_JAR_NAME: &str = "Suwayomi-Server-v2.2.2100.jar";
@@ -375,14 +381,27 @@ fn start_backend(
     state: State<'_, BackendState>,
     data_path: String,
 ) -> Result<u16, String> {
-    let mut lock = state.child.lock().unwrap();
-    if lock.is_some() {
-        return Ok(4567);
+    let data_dir = std::path::PathBuf::from(&data_path);
+    let mut lock = state.backend.lock().unwrap();
+
+    if let Some(existing) = lock.as_mut() {
+        match existing.child.try_wait() {
+            Ok(None) if existing.data_path == data_dir => return Ok(existing.port),
+            Ok(None) => {
+                return Err(format!(
+                    "A local Suwayomi server is already running from '{}'. Stop it before changing the storage location.",
+                    existing.data_path.display()
+                ));
+            }
+            Ok(Some(_)) | Err(_) => {
+                // The child has exited (or can no longer be queried), so it is safe to start a replacement.
+                *lock = None;
+            }
+        }
     }
 
-    let data_dir = std::path::PathBuf::from(&data_path);
-    let jar_path = resolve_jar_path(&app_handle, &data_dir)?;
     std::fs::create_dir_all(&data_dir).map_err(|e| format!("Failed to create data directory: {}", e))?;
+    let jar_path = resolve_jar_path(&app_handle, &data_dir)?;
 
     let port = get_available_port(4567);
 
@@ -426,7 +445,11 @@ fn start_backend(
 
     match cmd.spawn() {
         Ok(child) => {
-            *lock = Some(child);
+            *lock = Some(RunningBackend {
+                child,
+                port,
+                data_path: data_dir,
+            });
             Ok(port)
         }
         Err(e) => Err(format!("Failed to start Suwayomi process: {}", e)),
@@ -435,18 +458,21 @@ fn start_backend(
 
 #[tauri::command]
 fn stop_backend(state: State<'_, BackendState>) -> Result<(), String> {
-    let mut lock = state.child.lock().unwrap();
-    if let Some(mut child) = lock.take() {
-        child.kill().map_err(|e| format!("Failed to kill backend process: {}", e))?;
+    let mut lock = state.backend.lock().unwrap();
+    if let Some(mut backend) = lock.take() {
+        if let Ok(None) = backend.child.try_wait() {
+            backend.child.kill().map_err(|e| format!("Failed to stop backend process: {}", e))?;
+            let _ = backend.child.wait();
+        }
     }
     Ok(())
 }
 
 #[tauri::command]
 fn get_backend_status(state: State<'_, BackendState>) -> String {
-    let mut lock = state.child.lock().unwrap();
-    if let Some(ref mut child) = *lock {
-        match child.try_wait() {
+    let mut lock = state.backend.lock().unwrap();
+    if let Some(ref mut backend) = *lock {
+        match backend.child.try_wait() {
             Ok(None) => "running".to_string(),
             Ok(Some(status)) => {
                 *lock = None;
@@ -464,9 +490,9 @@ fn get_backend_status(state: State<'_, BackendState>) -> String {
 
 #[tauri::command]
 fn wipe_all_data(app_handle: tauri::AppHandle, state: State<'_, BackendState>) -> Result<(), String> {
-    let mut lock = state.child.lock().unwrap();
-    if let Some(mut child) = lock.take() {
-        let _ = child.kill();
+    let mut lock = state.backend.lock().unwrap();
+    if let Some(mut backend) = lock.take() {
+        let _ = backend.child.kill();
         std::thread::sleep(std::time::Duration::from_millis(500));
     }
 
@@ -560,7 +586,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(BackendState {
-            child: Mutex::new(Option::None),
+            backend: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             wipe_all_data,
@@ -607,9 +633,9 @@ pub fn run() {
                 match event.id().as_ref() {
                     "quit_menu" => {
                         let state: State<'_, BackendState> = app_handle.state();
-                        let mut lock = state.child.lock().unwrap();
-                        if let Some(mut child) = lock.take() {
-                            let _ = child.kill();
+                        let mut lock = state.backend.lock().unwrap();
+                        if let Some(mut backend) = lock.take() {
+                            let _ = backend.child.kill();
                         }
                         app_handle.exit(0);
                     }
@@ -637,9 +663,9 @@ pub fn run() {
                             }
                             "quit" => {
                                 let state: State<'_, BackendState> = app.state();
-                                let mut lock = state.child.lock().unwrap();
-                                if let Some(mut child) = lock.take() {
-                                    let _ = child.kill();
+                                let mut lock = state.backend.lock().unwrap();
+                                if let Some(mut backend) = lock.take() {
+                                    let _ = backend.child.kill();
                                 }
                                 app.exit(0);
                             }
@@ -664,9 +690,9 @@ pub fn run() {
     app.run(|app_handle, event| {
         if let tauri::RunEvent::Exit = event {
             let state: State<'_, BackendState> = app_handle.state();
-            let mut lock = state.child.lock().unwrap();
-            if let Some(mut child) = lock.take() {
-                let _ = child.kill();
+            let mut lock = state.backend.lock().unwrap();
+            if let Some(mut backend) = lock.take() {
+                let _ = backend.child.kill();
             }
         }
     });

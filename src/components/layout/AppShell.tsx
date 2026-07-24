@@ -340,28 +340,12 @@ function WelcomeOnboarding({
     }
   }, [inTauri, serverDataPath]);
 
-  // Keep custom_path.txt updated for the uninstaller to read
-  useEffect(() => {
-    if (inTauri && serverDataPath) {
-      import("@tauri-apps/plugin-fs").then(async ({ writeTextFile, mkdir, exists, BaseDirectory }) => {
-        try {
-          const dirExists = await exists("", { baseDir: BaseDirectory.AppConfig });
-          if (!dirExists) {
-            await mkdir("", { baseDir: BaseDirectory.AppConfig, recursive: true });
-          }
-          await writeTextFile("custom_path.txt", serverDataPath, { baseDir: BaseDirectory.AppConfig });
-        } catch (e) {
-          console.error("Auto-syncing custom_path.txt failed:", e);
-        }
-      });
-    }
-  }, [inTauri, serverDataPath]);
-
   useEffect(() => {
     if (currentStep !== "backend") return;
 
     let active = true;
-    let pollInterval: any;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let finishTimer: ReturnType<typeof setTimeout> | undefined;
 
     const runBackendLifecycle = async () => {
       try {
@@ -409,7 +393,7 @@ function WelcomeOnboarding({
             const ok = await testConnection();
             if (ok && active) {
               setServerStatus("running");
-              setTimeout(() => {
+              finishTimer = setTimeout(() => {
                 if (active) setCurrentStep("ready");
               }, 1000);
               return true;
@@ -426,10 +410,13 @@ function WelcomeOnboarding({
           return false;
         };
 
-        const done = await checkConnection();
-        if (!done && active) {
-          pollInterval = setInterval(checkConnection, 1500);
-        }
+        const pollConnection = async () => {
+          const done = await checkConnection();
+          if (!done && active) {
+            retryTimer = setTimeout(pollConnection, 1500);
+          }
+        };
+        await pollConnection();
       } catch (err: any) {
         if (active) {
           setServerStatus("error");
@@ -442,7 +429,8 @@ function WelcomeOnboarding({
 
     return () => {
       active = false;
-      if (pollInterval) clearInterval(pollInterval);
+      if (retryTimer) clearTimeout(retryTimer);
+      if (finishTimer) clearTimeout(finishTimer);
     };
   }, [currentStep, serverDataPath]);
 

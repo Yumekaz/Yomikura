@@ -342,26 +342,7 @@ export const useSettingsStore = create<SettingsState>()(
       setCoverDensity: (density) => set({ coverDensity: density }),
       setThemeMode: (mode) => set({ themeMode: mode }),
       setMockMode: (mock: boolean) => set({ mockMode: mock }),
-      setServerDataPath: (path: string) => {
-        const trimmedPath = path.trim();
-        set({ serverDataPath: trimmedPath });
-        if (isTauri()) {
-          import("@tauri-apps/plugin-fs").then(async ({ writeTextFile, remove, exists, BaseDirectory }) => {
-            try {
-              if (trimmedPath) {
-                await writeTextFile("custom_path.txt", trimmedPath, { baseDir: BaseDirectory.AppConfig });
-              } else {
-                const fileExists = await exists("custom_path.txt", { baseDir: BaseDirectory.AppConfig });
-                if (fileExists) {
-                  await remove("custom_path.txt", { baseDir: BaseDirectory.AppConfig });
-                }
-              }
-            } catch (e) {
-              console.error("Failed to update custom_path.txt:", e);
-            }
-          });
-        }
-      },
+      setServerDataPath: (path: string) => set({ serverDataPath: path.trim() }),
       
       // Phase 2 actions implementation
       setMangaOverride: (mangaId, override) => set((state) => ({
@@ -476,18 +457,6 @@ export const useSettingsStore = create<SettingsState>()(
           portableMode: false,
         });
 
-        if (isTauri()) {
-          import("@tauri-apps/plugin-fs").then(async ({ remove, exists, BaseDirectory }) => {
-            try {
-              const fileExists = await exists("custom_path.txt", { baseDir: BaseDirectory.AppConfig });
-              if (fileExists) {
-                await remove("custom_path.txt", { baseDir: BaseDirectory.AppConfig });
-              }
-            } catch (e) {
-              console.error("Failed to delete custom_path.txt:", e);
-            }
-          });
-        }
       },
 
       getGraphqlEndpoint: () => {

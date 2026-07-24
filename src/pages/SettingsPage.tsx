@@ -1711,18 +1711,18 @@ function SettingsPage() {
                       <div>
                         <h3 className="text-sm font-medium text-red-400">Total Hard Reset</h3>
                         <p className="text-xs text-slate-400 mt-1">
-                          Wipes all settings, downloaded chapters, and local caches completely from your computer, then restarts the application.
+                          Wipes Yomikura's settings and default local cache, then restarts the application. A custom storage folder is left untouched so unrelated files are never removed.
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={async () => {
                           const confirm1 = window.confirm(
-                            "WARNING: This will delete ALL downloaded manga chapters and settings from your device. Are you sure?"
+                            "WARNING: This will delete Yomikura settings and its default local cache. A custom storage folder will not be deleted. Are you sure?"
                           );
                           if (confirm1) {
                             const confirm2 = window.confirm(
-                              "This will completely wipe your local Yomikura folder and restart. Are you absolutely sure?"
+                              "This will wipe Yomikura-managed local data and restart. Are you absolutely sure?"
                             );
                             if (confirm2) {
                               try {
