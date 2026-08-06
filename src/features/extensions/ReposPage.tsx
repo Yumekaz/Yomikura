@@ -5,7 +5,9 @@ import { ArrowLeft, Loader2, Plus, Trash2, Github } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 
-const KEIYOUSHI_URL = "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json";
+// Suwayomi 2.3 migrates the old repository setting to Mihon's extension-store
+// format. The minified legacy index now contains only compatibility notices.
+const KEIYOUSHI_URL = "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.json";
 
 export default function ReposPage() {
   const { serverBaseUrl } = useSettingsStore();
@@ -91,7 +93,7 @@ export default function ReposPage() {
         <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-3">
           <input
             type="url"
-            placeholder="https://example.com/index.min.json"
+            placeholder="https://example.com/index.json"
             value={repoUrl}
             onChange={(e) => setRepoUrl(e.target.value)}
             required

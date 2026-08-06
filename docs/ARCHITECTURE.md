@@ -19,7 +19,7 @@ Suwayomi Server (remote URL or local on desktop)
               v
 
 Extension repositories (user-added)
-  index.min.json, repo catalogs — not shipped by Yomikura
+  index.json / protobuf extension stores — not shipped by Yomikura
 ```
 
 ## Ownership Boundaries

@@ -49,15 +49,16 @@ jobs:
         shell: bash
         run: |
           mkdir -p suwayomi-server
-          curl -fsSL -o suwayomi-server/Suwayomi-Server-v2.2.2100.jar \
-            https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.2.2100/Suwayomi-Server-v2.2.2100.jar
-          test -s suwayomi-server/Suwayomi-Server-v2.2.2100.jar
+          curl -fsSL -o suwayomi-server/Suwayomi-Server-v2.3.2243.jar \
+            https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.3.2243/Suwayomi-Server-v2.3.2243.jar
+          test -s suwayomi-server/Suwayomi-Server-v2.3.2243.jar
 
       - name: Build and Publish Release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__
           releaseName: "Yomikura v__VERSION__"

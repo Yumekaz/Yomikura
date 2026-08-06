@@ -2,7 +2,7 @@
 
 This document contains notes on the Suwayomi Server GraphQL schema and API surface, discovered during Phase 3 of the Yomikura project. 
 
-Because we strictly avoid hallucinating API queries, these notes are based on direct introspection of the `v2.2.2100` Suwayomi server release.
+Because we strictly avoid hallucinating API queries, these notes are based on direct introspection of the bundled Suwayomi server API. Yomikura 1.0.9 upgrades the desktop server to `v2.3.2243`.
 
 ## Discovered Schema Information
 
@@ -70,14 +70,14 @@ ame\, \iconUrl\, and \lang\.
 - Used to toggle the \inLibrary\ status of a manga. Used when viewing a newly discovered manga in MangaDetailPage.
 
 ## Extensions Queries & Mutations
-### \settings { extensionRepos }\ query
-- Fetches the array of repository URLs currently added to the server.
+### `settings { extensionRepos }` query
+- Fetches the configured extension-store/repository URLs exposed by the server's compatibility API.
 
 ### \setSettings(input: SetSettingsInput!)\ mutation
 - Used to overwrite \extensionRepos\ when adding or deleting a repository URL.
 
-### \etchExtensions(input: FetchExtensionsInput!)\ mutation
-- Triggers the backend to pull and parse the \index.min.json\ from all added repositories.
+### `fetchExtensions(input: FetchExtensionsInput!)` mutation
+- Triggers the backend to refresh all configured extension stores. Current stores use the full `index.json` format; the older minified index may contain only compatibility notices.
 
 ### \extensions\ query
 - Fetches the compiled catalog of all available extensions. Returns \ExtensionType\ including \pkgName\, \

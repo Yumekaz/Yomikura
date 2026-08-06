@@ -17,9 +17,9 @@ struct RunningBackend {
     data_path: std::path::PathBuf,
 }
 
-const SUWAYOMI_JAR_NAME: &str = "Suwayomi-Server-v2.2.2100.jar";
+const SUWAYOMI_JAR_NAME: &str = "Suwayomi-Server-v2.3.2243.jar";
 const SUWAYOMI_JAR_URL: &str =
-    "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.2.2100/Suwayomi-Server-v2.2.2100.jar";
+    "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.3.2243/Suwayomi-Server-v2.3.2243.jar";
 const SUWAYOMI_JAR_MIN_BYTES: u64 = 50_000_000;
 
 fn jar_looks_valid(path: &std::path::Path) -> bool {

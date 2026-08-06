@@ -224,12 +224,18 @@ function SuwayomiServerUpdaterRow() {
     setError(null);
     try {
       const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-      const infoResponse = await fetch(`${cleanUrl}/api/v1/info`);
+      const infoResponse = await fetch(`${cleanUrl}/api/graphql`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          query: "query { aboutServer { version } }",
+        }),
+      });
       if (infoResponse.ok) {
         const infoData = await infoResponse.json();
-        setRunningVersion(infoData.version || "Unknown");
+        setRunningVersion(infoData.data?.aboutServer?.version || "Unknown");
       } else {
-        setRunningVersion("2.2.2100");
+        setRunningVersion("Unknown (server info endpoint unavailable)");
       }
 
       const res = await fetch("https://api.github.com/repos/Suwayomi/Suwayomi-Server/releases/latest");
