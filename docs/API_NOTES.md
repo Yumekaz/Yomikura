@@ -2,7 +2,7 @@
 
 This document contains notes on the Suwayomi Server GraphQL schema and API surface, discovered during Phase 3 of the Yomikura project. 
 
-Because we strictly avoid hallucinating API queries, these notes are based on direct introspection of the bundled Suwayomi server API. Yomikura 1.0.9 upgrades the desktop server to `v2.3.2243`.
+Because we strictly avoid hallucinating API queries, these notes are based on direct introspection of the bundled Suwayomi server API. Yomikura 1.0.10 upgrades the desktop server to `v2.3.2243` and hardens desktop storage lifecycle handling.
 
 ## Discovered Schema Information
 

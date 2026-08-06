@@ -528,7 +528,7 @@ function WelcomeOnboarding({
               Choose Storage Location
             </h2>
             <p className="mt-2 text-xs text-slate-400 text-center max-w-sm leading-relaxed">
-              Select where downloaded manga chapters, databases, and library configurations will be stored. You can select a folder on any drive (C:, D:, E: etc.) to save disk space.
+              Choose an empty folder for Yomikura, or a folder already created by Yomikura. Downloaded chapters, databases, and library settings will be stored there.
             </p>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 w-full">
@@ -562,7 +562,7 @@ function WelcomeOnboarding({
                   </div>
                   <h3 className="mt-3 text-xs font-semibold text-slate-200">Select Custom folder</h3>
                   <p className="mt-1.5 text-[10px] text-slate-500 max-w-[160px] leading-normal">
-                    Choose any folder on D:, E:, or secondary partitions.
+                    Choose an empty folder on D:, E:, or another partition.
                   </p>
                 </div>
                 <span className="mt-4 text-[10px] font-bold text-yomi-jade hover:underline">

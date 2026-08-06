@@ -3,11 +3,48 @@
   nsExec::ExecToLog 'taskkill /F /IM "Yomikura.exe"'
   nsExec::ExecToLog 'taskkill /F /IM "java.exe"'
   nsExec::ExecToLog 'taskkill /F /IM "javaw.exe"'
+  ; The generated uninstaller sets this state on the confirmation page. Read
+  ; and remove custom storage before Tauri removes the record under AppData.
+  ${If} $DeleteAppDataCheckboxState = 1
+  ${AndIf} $UpdateMode <> 1
+    !insertmacro YOMIKURA_DELETE_RECORDED_STORAGE "$APPDATA\app.yomikura\managed-storage-path.txt" appdata
+    !insertmacro YOMIKURA_DELETE_RECORDED_STORAGE "$LOCALAPPDATA\app.yomikura\managed-storage-path.txt" localdata
+  ${EndIf}
 !macroend
 
-!macro NSIS_HOOK_POSTUNINSTALL
-  ; Only remove application-owned folders. A user-selected storage folder may
-  ; contain unrelated files, so it must never be recursively removed here.
-  RMDir /r "$LOCALAPPDATA\app.yomikura"
-  RMDir /r "$APPDATA\app.yomikura"
+Var YomikuraStoragePath
+Var YomikuraStorageMarker
+Var YomikuraStorageRoot
+
+!macro YOMIKURA_DELETE_RECORDED_STORAGE RECORD_PATH LABEL_PREFIX
+  IfFileExists "${RECORD_PATH}" 0 ${LABEL_PREFIX}_done
+  FileOpen $0 "${RECORD_PATH}" r
+
+${LABEL_PREFIX}_read:
+  ClearErrors
+  FileRead $0 $YomikuraStoragePath
+  IfErrors ${LABEL_PREFIX}_close
+  StrCmp $YomikuraStoragePath "" ${LABEL_PREFIX}_read
+  IfFileExists "$YomikuraStoragePath\.yomikura-managed-storage" 0 ${LABEL_PREFIX}_read
+  FileOpen $1 "$YomikuraStoragePath\.yomikura-managed-storage" r
+  ClearErrors
+  FileRead $1 $YomikuraStorageMarker
+  FileClose $1
+  IfErrors ${LABEL_PREFIX}_read
+  StrCmp $YomikuraStorageMarker "YOMIKURA_MANAGED_STORAGE_V1" 0 ${LABEL_PREFIX}_read
+
+  ; Never recursively remove a root, app-data directory, or install folder,
+  ; even if a malformed record or marker is present there.
+  ${GetRoot} "$YomikuraStoragePath" $YomikuraStorageRoot
+  StrCmp /I "$YomikuraStoragePath" "$YomikuraStorageRoot" ${LABEL_PREFIX}_read
+  StrCmp /I "$YomikuraStoragePath" "$INSTDIR" ${LABEL_PREFIX}_read
+  StrCmp /I "$YomikuraStoragePath" "$APPDATA" ${LABEL_PREFIX}_read
+  StrCmp /I "$YomikuraStoragePath" "$LOCALAPPDATA" ${LABEL_PREFIX}_read
+  StrCmp /I "$YomikuraStoragePath" "$TEMP" ${LABEL_PREFIX}_read
+  RMDir /r "$YomikuraStoragePath"
+  Goto ${LABEL_PREFIX}_read
+
+${LABEL_PREFIX}_close:
+  FileClose $0
+${LABEL_PREFIX}_done:
 !macroend
