@@ -36,11 +36,11 @@ ${LABEL_PREFIX}_read:
   ; Never recursively remove a root, app-data directory, or install folder,
   ; even if a malformed record or marker is present there.
   ${GetRoot} "$YomikuraStoragePath" $YomikuraStorageRoot
-  StrCmp /I "$YomikuraStoragePath" "$YomikuraStorageRoot" ${LABEL_PREFIX}_read
-  StrCmp /I "$YomikuraStoragePath" "$INSTDIR" ${LABEL_PREFIX}_read
-  StrCmp /I "$YomikuraStoragePath" "$APPDATA" ${LABEL_PREFIX}_read
-  StrCmp /I "$YomikuraStoragePath" "$LOCALAPPDATA" ${LABEL_PREFIX}_read
-  StrCmp /I "$YomikuraStoragePath" "$TEMP" ${LABEL_PREFIX}_read
+  StrCmp "$YomikuraStoragePath" "$YomikuraStorageRoot" ${LABEL_PREFIX}_read
+  StrCmp "$YomikuraStoragePath" "$INSTDIR" ${LABEL_PREFIX}_read
+  StrCmp "$YomikuraStoragePath" "$APPDATA" ${LABEL_PREFIX}_read
+  StrCmp "$YomikuraStoragePath" "$LOCALAPPDATA" ${LABEL_PREFIX}_read
+  StrCmp "$YomikuraStoragePath" "$TEMP" ${LABEL_PREFIX}_read
   RMDir /r "$YomikuraStoragePath"
   Goto ${LABEL_PREFIX}_read
 
