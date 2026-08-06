@@ -21,6 +21,9 @@ const SUWAYOMI_JAR_NAME: &str = "Suwayomi-Server-v2.3.2243.jar";
 const SUWAYOMI_JAR_URL: &str =
     "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.3.2243/Suwayomi-Server-v2.3.2243.jar";
 const SUWAYOMI_JAR_MIN_BYTES: u64 = 50_000_000;
+const MANAGED_STORAGE_MARKER: &str = ".yomikura-managed-storage";
+const MANAGED_STORAGE_MARKER_CONTENT: &str = "YOMIKURA_MANAGED_STORAGE_V1";
+const MANAGED_STORAGE_RECORD: &str = "managed-storage-path.txt";
 
 fn jar_looks_valid(path: &std::path::Path) -> bool {
     let Ok(meta) = path.metadata() else {
@@ -35,6 +38,78 @@ fn jar_looks_valid(path: &std::path::Path) -> bool {
     };
     let mut header = [0u8; 4];
     std::io::Read::read_exact(&mut file, &mut header).is_ok() && header == [0x50, 0x4B, 0x03, 0x04]
+}
+
+fn storage_marker_path(data_dir: &std::path::Path) -> std::path::PathBuf {
+    data_dir.join(MANAGED_STORAGE_MARKER)
+}
+
+fn has_valid_storage_marker(data_dir: &std::path::Path) -> bool {
+    std::fs::read_to_string(storage_marker_path(data_dir))
+        .map(|content| content.trim() == MANAGED_STORAGE_MARKER_CONTENT)
+        .unwrap_or(false)
+}
+
+fn is_legacy_yomikura_storage(data_dir: &std::path::Path) -> bool {
+    data_dir.join("server.conf").is_file()
+        && (data_dir.join("database.mv.db").is_file()
+            || data_dir.join("database.mv.db.mv.db").is_file())
+}
+
+fn prepare_managed_storage(
+    app_handle: &tauri::AppHandle,
+    data_dir: &std::path::Path,
+) -> Result<(), String> {
+    if data_dir.exists() && !data_dir.is_dir() {
+        return Err(format!(
+            "Selected storage path is not a directory: {}",
+            data_dir.display()
+        ));
+    }
+
+    if data_dir.exists()
+        && !has_valid_storage_marker(data_dir)
+        && !is_legacy_yomikura_storage(data_dir)
+    {
+        let has_entries = std::fs::read_dir(data_dir)
+            .map_err(|e| format!("Failed to inspect selected storage folder: {}", e))?
+            .next()
+            .is_some();
+        if has_entries {
+            return Err(
+                "Selected storage folder is not empty. Choose an empty folder or an existing Yomikura storage folder."
+                    .to_string(),
+            );
+        }
+    }
+
+    std::fs::create_dir_all(data_dir)
+        .map_err(|e| format!("Failed to create storage directory: {}", e))?;
+
+    let marker = storage_marker_path(data_dir);
+    std::fs::write(&marker, MANAGED_STORAGE_MARKER_CONTENT)
+        .map_err(|e| format!("Failed to mark Yomikura storage directory: {}", e))?;
+
+    let config_dir = app_handle
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("Failed to resolve app config directory: {}", e))?;
+    std::fs::create_dir_all(&config_dir)
+        .map_err(|e| format!("Failed to create app config directory: {}", e))?;
+    let record_path = config_dir.join(MANAGED_STORAGE_RECORD);
+    let existing_records = std::fs::read_to_string(&record_path).unwrap_or_default();
+    let current_record = data_dir.to_string_lossy();
+    if !existing_records.lines().any(|line| line == current_record) {
+        let mut records = existing_records.trim_end().to_string();
+        if !records.is_empty() {
+            records.push('\n');
+        }
+        records.push_str(&current_record);
+        std::fs::write(&record_path, records)
+            .map_err(|e| format!("Failed to record Yomikura storage directory: {}", e))?;
+    }
+
+    Ok(())
 }
 
 fn download_file_with_curl(url: &str, dest: &std::path::Path) -> Result<(), String> {
@@ -252,7 +327,10 @@ fn check_java_installed(data_path: Option<String>) -> bool {
 }
 
 #[tauri::command]
-fn download_and_install_jre(data_path: String) -> Result<(), String> {
+fn download_and_install_jre(
+    app_handle: tauri::AppHandle,
+    data_path: String,
+) -> Result<(), String> {
     let os = if cfg!(target_os = "windows") {
         "windows"
     } else if cfg!(target_os = "macos") {
@@ -277,7 +355,7 @@ fn download_and_install_jre(data_path: String) -> Result<(), String> {
     );
 
     let data_dir = std::path::PathBuf::from(&data_path);
-    std::fs::create_dir_all(&data_dir).map_err(|e| format!("Failed to create storage directory: {}", e))?;
+    prepare_managed_storage(&app_handle, &data_dir)?;
 
     let jre_dir = data_dir.join("jre");
     
@@ -400,7 +478,7 @@ fn start_backend(
         }
     }
 
-    std::fs::create_dir_all(&data_dir).map_err(|e| format!("Failed to create data directory: {}", e))?;
+    prepare_managed_storage(&app_handle, &data_dir)?;
     let jar_path = resolve_jar_path(&app_handle, &data_dir)?;
 
     let port = get_available_port(4567);
@@ -511,9 +589,12 @@ fn wipe_all_data(app_handle: tauri::AppHandle, state: State<'_, BackendState>) -
 }
 
 #[tauri::command]
-fn download_suwayomi_jar(data_path: String) -> Result<String, String> {
+fn download_suwayomi_jar(
+    app_handle: tauri::AppHandle,
+    data_path: String,
+) -> Result<String, String> {
     let data_dir = std::path::PathBuf::from(&data_path);
-    std::fs::create_dir_all(&data_dir).map_err(|e| format!("Failed to create data dir: {}", e))?;
+    prepare_managed_storage(&app_handle, &data_dir)?;
 
     let dest = data_dir.join(SUWAYOMI_JAR_NAME);
     if jar_looks_valid(&dest) {
