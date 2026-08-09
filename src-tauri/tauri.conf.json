@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Yomikura",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "identifier": "app.yomikura",
   "build": {
     "frontendDist": "../dist",

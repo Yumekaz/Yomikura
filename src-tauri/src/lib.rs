@@ -327,7 +327,16 @@ fn check_java_installed(data_path: Option<String>) -> bool {
 }
 
 #[tauri::command]
-fn download_and_install_jre(
+async fn download_and_install_jre(
+    app_handle: tauri::AppHandle,
+    data_path: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || download_and_install_jre_sync(app_handle, data_path))
+        .await
+        .map_err(|e| format!("JRE installation task failed: {}", e))?
+}
+
+fn download_and_install_jre_sync(
     app_handle: tauri::AppHandle,
     data_path: String,
 ) -> Result<(), String> {
@@ -589,7 +598,16 @@ fn wipe_all_data(app_handle: tauri::AppHandle, state: State<'_, BackendState>) -
 }
 
 #[tauri::command]
-fn download_suwayomi_jar(
+async fn download_suwayomi_jar(
+    app_handle: tauri::AppHandle,
+    data_path: String,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || download_suwayomi_jar_sync(app_handle, data_path))
+        .await
+        .map_err(|e| format!("Suwayomi download task failed: {}", e))?
+}
+
+fn download_suwayomi_jar_sync(
     app_handle: tauri::AppHandle,
     data_path: String,
 ) -> Result<String, String> {
