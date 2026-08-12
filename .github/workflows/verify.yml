@@ -76,18 +76,27 @@ jobs:
           $install = Start-Process -FilePath $installer -ArgumentList '/S' -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw "Installer failed with exit code $($install.ExitCode)" }
 
-          $candidateDirs = @(
+          $uninstallRoots = @(
+            "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+          )
+          $installLocation = Get-ItemProperty $uninstallRoots -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -like "Yomikura*" -and $_.InstallLocation } |
+            Select-Object -First 1 -ExpandProperty InstallLocation
+          $candidateDirs = @($installLocation) + @(
             (Join-Path $env:LOCALAPPDATA "Yomikura"),
             (Join-Path $env:LOCALAPPDATA "Programs\Yomikura"),
-            (Join-Path $env:ProgramFiles "Yomikura")
-          )
+            (Join-Path $env:ProgramFiles "Yomikura"),
+            (Join-Path ${env:ProgramFiles(x86)} "Yomikura")
+          ) | Where-Object { $_ }
           $appPath = $null
-          foreach ($dir in $candidateDirs) {
+          foreach ($dir in ($candidateDirs | Select-Object -Unique)) {
             $candidate = Join-Path $dir "Yomikura.exe"
             if (Test-Path $candidate) { $appPath = $candidate; break }
           }
           if (-not $appPath) {
-            throw "Installed application was not found in the expected locations: $($candidateDirs -join ', ')"
+            throw "Installed application was not found. Checked: $($candidateDirs -join ', ')"
           }
           $installDir = Split-Path $appPath -Parent
           $uninstaller = Join-Path $installDir "uninstall.exe"
