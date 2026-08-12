@@ -297,8 +297,8 @@ function AppShell() {
 export function BrandLockup() {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-yomi-jade text-ink-950">
-        <BookOpen className="h-5 w-5" />
+      <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md bg-ink-950 border border-white/10">
+        <img src="/yomikura-logo.png" alt="Yomikura" className="h-full w-full object-cover" />
       </div>
       <div>
         <p className="text-base font-semibold text-white">Yomikura</p>
@@ -512,8 +512,8 @@ function WelcomeOnboarding({
 
       <div className="relative z-10 w-full max-w-xl rounded-2xl border border-white/10 bg-ink-900/40 p-8 md:p-10 backdrop-blur-xl shadow-2xl animate-fade-in flex flex-col items-center">
         {/* Brand Logo */}
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-yomi-jade/10 border border-yomi-jade/20 text-yomi-jade font-bold text-3xl shadow-glow">
-          <BookOpen className="h-8 w-8" />
+        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-white/10 shadow-glow">
+          <img src="/yomikura-logo.png" alt="Yomikura" className="h-full w-full object-cover" />
         </div>
 
         <h1 className="mt-6 text-3xl font-extrabold text-white tracking-tight text-center">

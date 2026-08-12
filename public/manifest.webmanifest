@@ -3,9 +3,9 @@
   "name": "Yomikura Suwayomi Client",
   "icons": [
     {
-      "src": "favicon.svg",
-      "type": "image/svg+xml",
-      "sizes": "any"
+      "src": "yomikura-logo.png",
+      "type": "image/png",
+      "sizes": "1024x1024"
     }
   ],
   "start_url": "/library",

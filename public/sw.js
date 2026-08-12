@@ -7,7 +7,7 @@ const OFFLINE_URL = "/index.html";
 const PRECACHE_ASSETS = [
   "/",
   "/index.html",
-  "/favicon.svg",
+  "/yomikura-logo.png",
   "/manifest.webmanifest"
 ];
 
