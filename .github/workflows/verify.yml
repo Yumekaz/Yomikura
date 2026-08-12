@@ -83,7 +83,8 @@ jobs:
           )
           $installLocation = Get-ItemProperty $uninstallRoots -ErrorAction SilentlyContinue |
             Where-Object { $_.DisplayName -like "Yomikura*" -and $_.InstallLocation } |
-            Select-Object -First 1 -ExpandProperty InstallLocation
+            Select-Object -First 1 -ExpandProperty InstallLocation |
+            ForEach-Object { $_.Trim().Trim('"') }
           $candidateDirs = @($installLocation) + @(
             (Join-Path $env:LOCALAPPDATA "Yomikura"),
             (Join-Path $env:LOCALAPPDATA "Programs\Yomikura"),
