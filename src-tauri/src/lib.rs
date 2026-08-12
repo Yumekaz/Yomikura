@@ -777,9 +777,14 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| match event {
-            WindowEvent::CloseRequested { api, .. } => {
-                let _ = window.hide();
-                api.prevent_close();
+            WindowEvent::CloseRequested { .. } => {
+                let state: State<'_, BackendState> = window.app_handle().state();
+                let mut lock = state.backend.lock().unwrap();
+                if let Some(mut backend) = lock.take() {
+                    let _ = backend.child.kill();
+                    let _ = backend.child.wait();
+                }
+                window.app_handle().exit(0);
             }
             _ => {}
         })
