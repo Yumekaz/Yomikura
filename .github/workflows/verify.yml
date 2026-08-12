@@ -75,6 +75,7 @@ jobs:
           $installer = (Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1).FullName
           $install = Start-Process -FilePath $installer -ArgumentList '/S' -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw "Installer failed with exit code $($install.ExitCode)" }
+          Start-Sleep -Seconds 5
 
           $uninstallRoots = @(
             "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
@@ -97,7 +98,14 @@ jobs:
             if (Test-Path $candidate) { $appPath = $candidate; break }
           }
           if (-not $appPath) {
-            throw "Installed application was not found. Checked: $($candidateDirs -join ', ')"
+            $searchRoots = @($env:LOCALAPPDATA, $env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ -and (Test-Path $_) }
+            $appPath = Get-ChildItem -Path $searchRoots -Filter "Yomikura.exe" -File -Recurse -ErrorAction SilentlyContinue |
+              Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $appPath) {
+            $visible = Get-ChildItem -Path @($env:LOCALAPPDATA, $env:ProgramFiles) -Directory -ErrorAction SilentlyContinue |
+              Select-Object -First 50 -ExpandProperty FullName
+            throw "Installed application was not found. Checked: $($candidateDirs -join ', '). Top-level install roots: $($visible -join ', ')"
           }
           $installDir = Split-Path $appPath -Parent
           $uninstaller = Join-Path $installDir "uninstall.exe"
