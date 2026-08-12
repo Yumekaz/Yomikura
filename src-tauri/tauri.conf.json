@@ -38,7 +38,8 @@
     "resources": [],
     "windows": {
       "nsis": {
-        "installerHooks": "./hooks.nsh"
+        "installerHooks": "./hooks.nsh",
+        "installMode": "currentUser"
       }
     },
     "icon": [
