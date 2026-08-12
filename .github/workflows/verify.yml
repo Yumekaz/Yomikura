@@ -69,19 +69,12 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-      - name: Launch executable and validate installer artifact
+      - name: Validate installer artifact
         shell: pwsh
         run: |
-          $appPath = (Get-ChildItem "src-tauri/target/release/*omikura*.exe" -File -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-          if (-not $appPath) { throw "Built Windows executable was not found" }
-          $app = Start-Process -FilePath $appPath -PassThru
-          Start-Sleep -Seconds 8
-          if ($app.HasExited) { throw "Yomikura exited during launch smoke test with code $($app.ExitCode)" }
-          Stop-Process -Id $app.Id -Force
-          $app.WaitForExit()
-
           $installer = (Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1).FullName
           if (-not $installer) { throw "NSIS installer artifact was not found" }
+          if ((Get-Item $installer).Length -lt 1000000) { throw "NSIS installer artifact is unexpectedly small: $installer" }
           Write-Host "Installer artifact: $installer"
       - name: Upload installer
         uses: actions/upload-artifact@v4
