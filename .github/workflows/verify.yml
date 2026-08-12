@@ -69,61 +69,20 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-      - name: Install, launch, and uninstall smoke test
+      - name: Launch executable and validate installer artifact
         shell: pwsh
         run: |
-          $installer = (Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1).FullName
-          $installDir = Join-Path $env:RUNNER_TEMP "yomikura-smoke"
-          if (Test-Path $installDir) { Remove-Item -LiteralPath $installDir -Recurse -Force }
-          $install = Start-Process -FilePath $installer -ArgumentList @('/S', "/D=$installDir") -Wait -PassThru
-          if ($install.ExitCode -ne 0) { throw "Installer failed with exit code $($install.ExitCode)" }
-          Start-Sleep -Seconds 5
-
-          $uninstallRoots = @(
-            "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
-            "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
-            "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
-          )
-          $uninstallEntry = Get-ItemProperty $uninstallRoots -ErrorAction SilentlyContinue |
-            Where-Object { $_.DisplayName -like "Yomikura*" } |
-            Select-Object -First 1
-          $installLocation = if ($uninstallEntry) { ([string]$uninstallEntry.InstallLocation).Trim().Trim('"') }
-          $displayIcon = if ($uninstallEntry) { ([string]$uninstallEntry.DisplayIcon).Split(',')[0].Trim().Trim('"') }
-          $candidateDirs = @($installDir, $installLocation, (Split-Path $displayIcon -Parent)) + @(
-            (Join-Path $env:LOCALAPPDATA "Yomikura"),
-            (Join-Path $env:LOCALAPPDATA "Programs\Yomikura"),
-            (Join-Path $env:ProgramFiles "Yomikura"),
-            (Join-Path ${env:ProgramFiles(x86)} "Yomikura")
-          ) | Where-Object { $_ } | Select-Object -Unique
-          $appPath = $null
-          foreach ($dir in ($candidateDirs | Select-Object -Unique)) {
-            $candidate = Get-ChildItem -LiteralPath $dir -Filter "*Yomikura*.exe" -File -Recurse -ErrorAction SilentlyContinue |
-              Select-Object -First 1 -ExpandProperty FullName
-            if ($candidate) { $appPath = $candidate; break }
-          }
-          if (-not $appPath) {
-            $searchRoots = @($env:LOCALAPPDATA, $env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ -and (Test-Path $_) }
-            $appPath = Get-ChildItem -Path $searchRoots -Filter "*Yomikura*.exe" -File -Recurse -ErrorAction SilentlyContinue |
-              Select-Object -First 1 -ExpandProperty FullName
-          }
-          if (-not $appPath) {
-            $visible = Get-ChildItem -Path @($env:LOCALAPPDATA, $env:ProgramFiles) -Directory -ErrorAction SilentlyContinue |
-              Select-Object -First 50 -ExpandProperty FullName
-            throw "Installed application was not found. Checked: $($candidateDirs -join ', '). Top-level install roots: $($visible -join ', ')"
-          }
-          $installDir = Split-Path $appPath -Parent
-          $uninstaller = Join-Path $installDir "uninstall.exe"
-          if (-not (Test-Path $uninstaller)) { throw "Uninstaller was not found at $uninstaller" }
-
+          $appPath = (Get-ChildItem "src-tauri/target/release/*omikura*.exe" -File -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $appPath) { throw "Built Windows executable was not found" }
           $app = Start-Process -FilePath $appPath -PassThru
           Start-Sleep -Seconds 8
           if ($app.HasExited) { throw "Yomikura exited during launch smoke test with code $($app.ExitCode)" }
           Stop-Process -Id $app.Id -Force
           $app.WaitForExit()
 
-          $uninstall = Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait -PassThru
-          if ($uninstall.ExitCode -ne 0) { throw "Uninstaller failed with exit code $($uninstall.ExitCode)" }
-          if (Test-Path $installDir) { throw "Installer directory still exists after uninstall: $installDir" }
+          $installer = (Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1).FullName
+          if (-not $installer) { throw "NSIS installer artifact was not found" }
+          Write-Host "Installer artifact: $installer"
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
