@@ -23,6 +23,19 @@ interface HistoryItem {
   };
 }
 
+function parseHistoryTimestamp(value: string): number {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "0") return 0;
+
+  const numeric = Number(trimmed);
+  if (Number.isFinite(numeric)) {
+    return numeric < 30_000_000_000 ? numeric * 1000 : numeric;
+  }
+
+  const parsed = Date.parse(trimmed);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export default function HistoryPage() {
   const { serverBaseUrl } = useSettingsStore();
   const queryClient = useQueryClient();
@@ -47,7 +60,8 @@ export default function HistoryPage() {
     queryFn: ({ pageParam }) =>
       sdk.GetHistory({
         filter: {
-          lastReadAt: { isNull: false },
+          // Suwayomi represents unread/default history metadata as "0", not null.
+          lastReadAt: { greaterThan: "0" },
         },
         order: [
           {
@@ -86,11 +100,18 @@ export default function HistoryPage() {
 
   const historyItems = useMemo(() => {
     if (!data?.pages) return [];
+    const seenChapterIds = new Set<string>();
     return data.pages.flatMap((page) => {
       if (!page?.chapters?.edges) return [];
       return page.chapters.edges
         .map((edge) => edge?.node)
-        .filter((node): node is NonNullable<typeof node> => node != null);
+        .filter((node): node is NonNullable<typeof node> => {
+          if (!node) return false;
+          const chapterId = String(node.id);
+          if (seenChapterIds.has(chapterId)) return false;
+          seenChapterIds.add(chapterId);
+          return true;
+        });
     }) as unknown as HistoryItem[];
   }, [data]);
 
@@ -99,8 +120,7 @@ export default function HistoryPage() {
     const groups: Record<string, HistoryItem[]> = {};
 
     historyItems.forEach((item) => {
-      const rawTime = parseInt(item.lastReadAt);
-      const time = !isNaN(rawTime) && rawTime < 30000000000 ? rawTime * 1000 : rawTime;
+      const time = parseHistoryTimestamp(item.lastReadAt);
       
       // Banish Unix Epoch (0 / 1970-01-01) timestamps which represent unread/default metadata states
       if (isNaN(time) || time <= 0) {
@@ -227,7 +247,7 @@ export default function HistoryPage() {
                           </span>
                           <span>•</span>
                           <span>
-                            {new Date(parseInt(item.lastReadAt) < 30000000000 ? parseInt(item.lastReadAt) * 1000 : parseInt(item.lastReadAt)).toLocaleTimeString([], {
+                            {new Date(parseHistoryTimestamp(item.lastReadAt)).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
                             })}

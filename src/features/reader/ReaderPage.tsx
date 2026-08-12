@@ -318,21 +318,26 @@ export default function ReaderPage() {
       queryClient.invalidateQueries({ queryKey: ["manga"] });
       queryClient.invalidateQueries({ queryKey: ["library"] });
       queryClient.invalidateQueries({ queryKey: ["updates"] });
+      queryClient.invalidateQueries({ queryKey: ["history"] });
     }
   });
 
   useEffect(() => {
     if (chapterId && serverBaseUrl) {
       setCurrentPage(0);
-      lastSavedPageRef.current = null;
       setIsAutoScrolling(false);
       autoScrollEndTriggered.current = false;
       if (debouncedUpdateRef.current) {
+        if (lastSavedPageRef.current !== null) {
+          updateProgress(lastSavedPageRef.current);
+        }
         clearTimeout(debouncedUpdateRef.current);
+        debouncedUpdateRef.current = null;
       }
+      lastSavedPageRef.current = null;
       fetchPages();
     }
-  }, [chapterId, serverBaseUrl, fetchPages]);
+  }, [chapterId, serverBaseUrl, fetchPages, updateProgress]);
 
   const pages = pagesData?.fetchChapterPages?.pages || [];
   const pageProblem = chapterError || pagesError ? classifySourceProblem(chapterErrorObject ?? pagesErrorObject) : null;
@@ -346,7 +351,9 @@ export default function ReaderPage() {
     if (!chapter || pages.length === 0) return;
     const savedPage = Math.min(Math.max(chapter.lastPageRead || 0, 0), pages.length - 1);
     setCurrentPage(savedPage);
-    lastSavedPageRef.current = savedPage;
+    // Let the initial reader load create a history record even if the user
+    // leaves before scrolling far enough to trigger an intersection callback.
+    lastSavedPageRef.current = null;
   }, [chapter?.id, chapter?.lastPageRead, pages.length]);
 
   useEffect(() => {
@@ -457,15 +464,26 @@ export default function ReaderPage() {
     }
 
     debouncedUpdateRef.current = setTimeout(() => {
+      debouncedUpdateRef.current = null;
       updateProgress(pageIndex);
     }, 1500);
   }, [updateProgress]);
+
+  useEffect(() => {
+    if (!chapter || pages.length === 0) return;
+    const initialPage = Math.min(Math.max(chapter.lastPageRead || 0, 0), pages.length - 1);
+    saveProgress(initialPage);
+  }, [chapter?.id, pages.length, saveProgress]);
 
   // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       if (debouncedUpdateRef.current) {
+        if (lastSavedPageRef.current !== null) {
+          updateProgress(lastSavedPageRef.current);
+        }
         clearTimeout(debouncedUpdateRef.current);
+        debouncedUpdateRef.current = null;
       }
     };
   }, []);
