@@ -1,8 +1,15 @@
 !macro NSIS_HOOK_PREUNINSTALL
-  ; Terminate any running instances of the app or spawned Java processes
+  ; Terminate the app and only the Yomikura-owned Suwayomi process.
   nsExec::ExecToLog 'taskkill /F /IM "Yomikura.exe"'
-  nsExec::ExecToLog 'taskkill /F /IM "java.exe"'
-  nsExec::ExecToLog 'taskkill /F /IM "javaw.exe"'
+  IfFileExists "$LOCALAPPDATA\app.yomikura\backend.pid" 0 yomikura_backend_done
+  FileOpen $0 "$LOCALAPPDATA\app.yomikura\backend.pid" r
+  ClearErrors
+  FileRead $0 $YomikuraBackendPid
+  FileClose $0
+  IfErrors yomikura_backend_done
+  nsExec::ExecToLog 'taskkill /F /PID "$YomikuraBackendPid"'
+  Delete "$LOCALAPPDATA\app.yomikura\backend.pid"
+yomikura_backend_done:
   ; The generated uninstaller sets this state on the confirmation page. Read
   ; and remove custom storage before Tauri removes the record under AppData.
   ${If} $DeleteAppDataCheckboxState = 1
@@ -15,6 +22,7 @@
 Var YomikuraStoragePath
 Var YomikuraStorageMarker
 Var YomikuraStorageRoot
+Var YomikuraBackendPid
 
 !macro YOMIKURA_DELETE_RECORDED_STORAGE RECORD_PATH LABEL_PREFIX
   IfFileExists "${RECORD_PATH}" 0 ${LABEL_PREFIX}_done

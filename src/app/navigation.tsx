@@ -41,11 +41,11 @@ export const routeCopy: Record<string, { title: string; detail: string }> = {
   },
   "/updates": {
     title: "Updates",
-    detail: "Recent chapter updates will appear here once update sync is wired into the app.",
+    detail: "Review recently updated chapters from your library.",
   },
   "/history": {
     title: "History",
-    detail: "Reading history stays backend-owned and will be shown here when the history flow is wired.",
+    detail: "Your reading activity is saved chronologically, whether you read online or offline.",
   },
   "/browse": {
     title: "Browse",
@@ -80,4 +80,3 @@ export const routeCopy: Record<string, { title: string; detail: string }> = {
     detail: "Monitor and manage your Suwayomi server's active downloads queue.",
   },
 };
-

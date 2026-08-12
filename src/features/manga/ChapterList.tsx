@@ -1,4 +1,4 @@
-import { Download, CheckCircle2, Circle, Loader2, Trash2 } from "lucide-react";
+import { Download, CheckCircle2, Circle, Loader2, Trash2, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useDownloadStore } from "../../stores/useDownloadStore";
 
@@ -22,7 +22,7 @@ export function ChapterList({ chapters, mangaTitle }: ChapterListProps) {
   // Sort chapters descending (highest number first)
   const sortedChapters = [...chapters].sort((a, b) => b.chapterNumber - a.chapterNumber);
 
-  const { activeDownloads, cachedChapterIds, downloadChapter, deleteChapter } = useDownloadStore();
+  const { activeDownloads, cachedChapterIds, downloadChapter, cancelDownload, deleteChapter } = useDownloadStore();
 
   const handleDownloadClick = async (e: React.MouseEvent, chapterId: number) => {
     e.preventDefault();
@@ -108,14 +108,26 @@ export function ChapterList({ chapters, mangaTitle }: ChapterListProps) {
                       <CheckCircle2 className="h-4 w-4" />
                     </button>
                   ) : isDownloading ? (
-                    <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/5 border border-white/5 text-[10px] text-yomi-jade">
+                    <div className="flex items-center gap-1 rounded-full bg-white/5 border border-white/5 text-[10px] text-yomi-jade">
                       <Loader2 className="h-3 w-3 animate-spin" />
-                      <span>
+                      <span className="px-1">
                         {download.total > 0 
                           ? `${Math.round((download.progress / download.total) * 100)}%`
                           : "Connecting"
                         }
                       </span>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          cancelDownload(chapId);
+                        }}
+                        className="flex h-6 w-6 items-center justify-center rounded-full text-slate-400 hover:bg-red-500/20 hover:text-red-400 transition"
+                        title="Cancel download"
+                        aria-label={`Cancel download of ${chapter.name}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </div>
                   ) : isError ? (
                     <button

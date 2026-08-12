@@ -24,12 +24,15 @@ interface DownloadState {
   cachedChapters: CachedChapter[];
   cachedChapterIds: Set<number>;
   activeDownloads: Record<number, DownloadProgress>;
+  downloadControllers: Record<number, AbortController>;
   storageUsage: number;
   storageQuota: number;
 
   // Actions
   loadCachedChapters: () => Promise<void>;
   downloadChapter: (chapterId: number, mangaTitle?: string) => Promise<void>;
+  cancelDownload: (chapterId: number) => void;
+  cancelAllDownloads: () => void;
   deleteChapter: (chapterId: number) => Promise<void>;
   clearAll: () => Promise<void>;
 }
@@ -38,6 +41,7 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   cachedChapters: [],
   cachedChapterIds: new Set<number>(),
   activeDownloads: {},
+  downloadControllers: {},
   storageUsage: 0,
   storageQuota: 0,
 
@@ -76,6 +80,11 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       return;
     }
 
+    const controller = new AbortController();
+    set((state) => ({
+      downloadControllers: { ...state.downloadControllers, [chapterId]: controller },
+    }));
+
     // Set initial state
     set((state) => ({
       activeDownloads: {
@@ -87,6 +96,10 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
         },
       },
     }));
+
+    let cache: Cache | undefined;
+    const cachedUrls: string[] = [];
+    const newlyCachedUrls: string[] = [];
 
     try {
       // 1. Fetch chapter details dynamically to get sourceOrder, mangaId, chapterNumber, name, etc.
@@ -121,8 +134,7 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       }));
 
       // 3. Open Cache Storage
-      const cache = await caches.open("yomikura-page-cache");
-      const cachedUrls: string[] = [];
+      cache = await caches.open("yomikura-page-cache");
       let totalSizeBytes = 0;
 
       // Resolve the fetch function. In Tauri environment, we use native tauri fetch plugin to bypass CORS/PNA restrictions.
@@ -152,7 +164,7 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
 
         // Try primary URL first
         try {
-          response = await fetchFn(pageUrl, { mode: "cors" });
+          response = await fetchFn(pageUrl, { mode: "cors", signal: controller.signal });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           
           if (typeof response.blob === "function") {
@@ -166,7 +178,7 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
           errorMsg = err instanceof Error ? err.message : String(err);
           // Try fallback URL
           try {
-            response = await fetchFn(fallbackUrl, { mode: "cors" });
+            response = await fetchFn(fallbackUrl, { mode: "cors", signal: controller.signal });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             
             if (typeof response.blob === "function") {
@@ -190,8 +202,10 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
             headers.set("content-type", blob.type || "image/jpeg");
           }
           
+          const wasAlreadyCached = await cache.match(pageUrl);
           await cache.put(pageUrl, new Response(blob, { headers }));
           cachedUrls.push(pageUrl);
+          if (!wasAlreadyCached) newlyCachedUrls.push(pageUrl);
           
           // Accumulate size
           totalSizeBytes += blob.size;
@@ -236,7 +250,9 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       set((state) => {
         const nextActive = { ...state.activeDownloads };
         delete nextActive[chapterId];
-        return { activeDownloads: nextActive };
+        const nextControllers = { ...state.downloadControllers };
+        delete nextControllers[chapterId];
+        return { activeDownloads: nextActive, downloadControllers: nextControllers };
       });
 
       // Reload
@@ -244,6 +260,22 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
 
     } catch (error: any) {
       console.error(`Failed to download chapter ${chapterId}:`, error);
+      if (cache) {
+        await Promise.all(newlyCachedUrls.map((url) => cache!.delete(url)));
+      }
+      set((state) => {
+        const nextControllers = { ...state.downloadControllers };
+        delete nextControllers[chapterId];
+        return { downloadControllers: nextControllers };
+      });
+      if (error?.name === "AbortError") {
+        set((state) => {
+          const nextActive = { ...state.activeDownloads };
+          delete nextActive[chapterId];
+          return { activeDownloads: nextActive };
+        });
+        return;
+      }
       set((state) => ({
         activeDownloads: {
           ...state.activeDownloads,
@@ -256,6 +288,14 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
         },
       }));
     }
+  },
+
+  cancelDownload: (chapterId) => {
+    get().downloadControllers[chapterId]?.abort();
+  },
+
+  cancelAllDownloads: () => {
+    Object.values(get().downloadControllers).forEach((controller) => controller.abort());
   },
 
   deleteChapter: async (chapterId) => {

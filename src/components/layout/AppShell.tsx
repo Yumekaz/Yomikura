@@ -4,6 +4,7 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { browseNav, primaryNav, type NavItem } from "../../app/navigation";
 import { useSettingsStore, isTauri } from "../../stores/useSettingsStore";
+import { useDownloadStore } from "../../stores/useDownloadStore";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { useTranslation } from "../../hooks/useTranslation";
 import { UpdateNotificationBanner } from "../UpdateNotificationBanner";
@@ -71,6 +72,10 @@ function BackendHealthBadge() {
 }
 
 function AppShell() {
+  useEffect(() => () => {
+    useDownloadStore.getState().cancelAllDownloads();
+  }, []);
+
   const { t } = useTranslation();
   const { 
     connectionStatus, 
@@ -344,6 +349,8 @@ function WelcomeOnboarding({
     if (currentStep !== "backend") return;
 
     let active = true;
+    let backendStarted = false;
+    let transitioningToReady = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let finishTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -382,6 +389,7 @@ function WelcomeOnboarding({
         await invoke<string>("download_suwayomi_jar", { dataPath: serverDataPath });
 
         const port = await invoke<number>("start_backend", { dataPath: serverDataPath });
+        backendStarted = true;
         if (!active) return;
 
         setServerBaseUrl(`http://127.0.0.1:${port}`);
@@ -394,7 +402,10 @@ function WelcomeOnboarding({
             if (ok && active) {
               setServerStatus("running");
               finishTimer = setTimeout(() => {
-                if (active) setCurrentStep("ready");
+                if (active) {
+                  transitioningToReady = true;
+                  setCurrentStep("ready");
+                }
               }, 1000);
               return true;
             }
@@ -431,6 +442,13 @@ function WelcomeOnboarding({
       active = false;
       if (retryTimer) clearTimeout(retryTimer);
       if (finishTimer) clearTimeout(finishTimer);
+      if (backendStarted && !transitioningToReady && isTauri()) {
+        void import("@tauri-apps/api/core").then(({ invoke }) => {
+          void invoke("stop_backend").catch((err) => {
+            console.warn("Failed to stop abandoned local backend:", err);
+          });
+        });
+      }
     };
   }, [currentStep, serverDataPath]);
 

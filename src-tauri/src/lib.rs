@@ -24,6 +24,29 @@ const SUWAYOMI_JAR_MIN_BYTES: u64 = 50_000_000;
 const MANAGED_STORAGE_MARKER: &str = ".yomikura-managed-storage";
 const MANAGED_STORAGE_MARKER_CONTENT: &str = "YOMIKURA_MANAGED_STORAGE_V1";
 const MANAGED_STORAGE_RECORD: &str = "managed-storage-path.txt";
+const BACKEND_PID_RECORD: &str = "backend.pid";
+
+fn backend_pid_path(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(app_handle
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| e.to_string())?
+        .join(BACKEND_PID_RECORD))
+}
+
+fn record_backend_pid(app_handle: &tauri::AppHandle, pid: u32) -> Result<(), String> {
+    let path = backend_pid_path(app_handle)?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(path, pid.to_string()).map_err(|e| e.to_string())
+}
+
+fn clear_backend_pid(app_handle: &tauri::AppHandle) {
+    if let Ok(path) = backend_pid_path(app_handle) {
+        let _ = std::fs::remove_file(path);
+    }
+}
 
 fn jar_looks_valid(path: &std::path::Path) -> bool {
     let Ok(meta) = path.metadata() else {
@@ -531,7 +554,12 @@ fn start_backend(
         .stderr(std::process::Stdio::from(log_file));
 
     match cmd.spawn() {
-        Ok(child) => {
+        Ok(mut child) => {
+            if let Err(err) = record_backend_pid(&app_handle, child.id()) {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("Failed to record Suwayomi process: {}", err));
+            }
             *lock = Some(RunningBackend {
                 child,
                 port,
@@ -544,7 +572,7 @@ fn start_backend(
 }
 
 #[tauri::command]
-fn stop_backend(state: State<'_, BackendState>) -> Result<(), String> {
+fn stop_backend(app_handle: tauri::AppHandle, state: State<'_, BackendState>) -> Result<(), String> {
     let mut lock = state.backend.lock().unwrap();
     if let Some(mut backend) = lock.take() {
         if let Ok(None) = backend.child.try_wait() {
@@ -552,6 +580,7 @@ fn stop_backend(state: State<'_, BackendState>) -> Result<(), String> {
             let _ = backend.child.wait();
         }
     }
+    clear_backend_pid(&app_handle);
     Ok(())
 }
 
@@ -736,6 +765,7 @@ pub fn run() {
                         if let Some(mut backend) = lock.take() {
                             let _ = backend.child.kill();
                         }
+                        clear_backend_pid(&app_handle);
                         app_handle.exit(0);
                     }
                     "check_updates" => {
@@ -766,6 +796,7 @@ pub fn run() {
                                 if let Some(mut backend) = lock.take() {
                                     let _ = backend.child.kill();
                                 }
+                                clear_backend_pid(app);
                                 app.exit(0);
                             }
                             _ => {}
@@ -784,6 +815,7 @@ pub fn run() {
                     let _ = backend.child.kill();
                     let _ = backend.child.wait();
                 }
+                clear_backend_pid(&window.app_handle());
                 window.app_handle().exit(0);
             }
             _ => {}
@@ -798,6 +830,7 @@ pub fn run() {
             if let Some(mut backend) = lock.take() {
                 let _ = backend.child.kill();
             }
+            clear_backend_pid(app_handle);
         }
     });
 }

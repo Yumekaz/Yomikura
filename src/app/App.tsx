@@ -70,7 +70,6 @@ function App() {
           />
           <Route path="/browse/:sourceId" element={<SourceBrowsePage />} />
           <Route path="/browse/source/:sourceId/settings" element={<SourcePrefsPage />} />
-          <Route path="/browse/search" element={<GlobalSearchPage />} />
           <Route path="/extensions/repos" element={<ReposPage />} />
           <Route
             path="/reader/:chapterId"
@@ -83,4 +82,3 @@ function App() {
 }
 
 export default App;
-
