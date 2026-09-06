@@ -485,7 +485,7 @@ function SettingsPage() {
                           </div>
                           <div className="flex flex-col min-w-0">
                             <span className="font-semibold text-sm text-slate-200 truncate">{p.name}</span>
-                            <span className="text-xs text-slate-500 truncate mt-0.5">{p.url}</span>
+                            <span className="mt-0.5 truncate text-xs text-slate-400">{p.url}</span>
                           </div>
                         </div>
 
@@ -604,7 +604,7 @@ function SettingsPage() {
                   <Activity className="h-4.5 w-4.5 text-yomi-jade animate-pulse" />
                   Test Connection: {activeProfile?.name}
                 </h3>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-slate-400">
                   Verify the reachability of the currently active Suwayomi server.
                 </p>
 
@@ -678,7 +678,7 @@ function SettingsPage() {
                   <Download className="h-4.5 w-4.5 text-yomi-jade" />
                   Portability: Backup Server Profiles
                 </h3>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-slate-400">
                   Export your Yomikura connection profiles to share them across devices, or import a previously exported backup file.
                 </p>
                 <div className="mt-4 flex flex-col sm:flex-row gap-3">

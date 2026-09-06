@@ -10,11 +10,11 @@ function detectDeviceKind(): "mobile" | "tablet" | "desktop" {
 
 /** Auto-apply a saved reader layout preset once per device class. */
 export function useDeviceProfileBootstrap() {
-  const { settingsProfiles, applySettingsProfile } = useSettingsStore();
+  const { hasHydrated, settingsProfiles, applySettingsProfile } = useSettingsStore();
   const applied = useRef(false);
 
   useEffect(() => {
-    if (applied.current || settingsProfiles.length === 0) return;
+    if (!hasHydrated || applied.current || settingsProfiles.length === 0) return;
 
     const kind = detectDeviceKind();
     const match = settingsProfiles.find((p) =>
@@ -24,5 +24,5 @@ export function useDeviceProfileBootstrap() {
       applySettingsProfile(match.id);
       applied.current = true;
     }
-  }, [settingsProfiles, applySettingsProfile]);
+  }, [hasHydrated, settingsProfiles, applySettingsProfile]);
 }

@@ -89,6 +89,7 @@ function AppShell() {
     errorMessage,
     highContrastMode,
     reducedMotion,
+    hasHydrated,
   } = useSettingsStore();
   const location = useLocation();
 
@@ -131,8 +132,12 @@ function AppShell() {
   }, [showShortcuts]);
 
   useEffect(() => {
-    testConnection();
-  }, [testConnection]);
+    // Demo mode is an explicit user choice. A healthy local server must not
+    // silently switch the application back to live data on the next load.
+    if (hasHydrated && !mockMode) {
+      void testConnection();
+    }
+  }, [hasHydrated, mockMode, testConnection]);
 
   // Effect to apply dynamic theme and accent color variables
   useEffect(() => {
@@ -170,6 +175,10 @@ function AppShell() {
 
   const isUnconnected = connectionStatus === "error" || connectionStatus === "disconnected";
   const showOnboarding = isUnconnected && !mockMode && location.pathname !== "/settings";
+
+  if (!hasHydrated) {
+    return <div className="yomi-route-loading" role="status" aria-label="Loading saved settings"><span className="yomi-skeleton h-8 w-40" /><span className="yomi-skeleton h-24 w-full" /></div>;
+  }
 
   if (showOnboarding) {
     return (

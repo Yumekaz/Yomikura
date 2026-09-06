@@ -1,4 +1,4 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Bug, CircleHelp, ShieldCheck } from "lucide-react";
 import { isTauri } from "../../stores/useSettingsStore";
 import { APP_VERSION } from "../../utils/appVersion";
 import { SuwayomiServerUpdaterRow, TauriUpdaterRow } from "./UpdatePanels";
@@ -32,7 +32,13 @@ export function AboutSettingsPanel() {
             <div className="rounded-lg bg-ink-950/30 border border-white/5 p-4"><span className="font-semibold text-slate-300 block mb-1">Architecture</span><span className="text-slate-500">Zustand, React Query, Vite, Tauri</span></div>
           </div>
 
-          <p className="text-[10px] text-slate-500 leading-relaxed">Third-party components are documented in <a href="https://github.com/Yumekaz/Yomikura/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noreferrer" className="text-yomi-jade hover:underline">THIRD_PARTY_NOTICES.md</a>.</p>
+          <div className="grid gap-3 sm:grid-cols-3" aria-label="Help and project information">
+            <a className="yomi-button yomi-button-secondary justify-center" href="https://github.com/Yumekaz/Yomikura/issues/new?template=bug_report.yml" target="_blank" rel="noreferrer"><Bug />Report a bug</a>
+            <a className="yomi-button yomi-button-secondary justify-center" href="https://github.com/Yumekaz/Yomikura/blob/main/docs/TROUBLESHOOTING.md" target="_blank" rel="noreferrer"><CircleHelp />Troubleshooting</a>
+            <a className="yomi-button yomi-button-secondary justify-center" href="https://github.com/Yumekaz/Yomikura/blob/main/PRIVACY.md" target="_blank" rel="noreferrer"><ShieldCheck />Privacy</a>
+          </div>
+
+          <p className="text-xs text-slate-500 leading-relaxed">Third-party components are documented in <a href="https://github.com/Yumekaz/Yomikura/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noreferrer" className="text-yomi-jade hover:underline">THIRD_PARTY_NOTICES.md</a>.</p>
         </div>
       </div>
     </div>

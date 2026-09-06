@@ -81,6 +81,9 @@ Explore our detailed architectural and design specifications:
 - [Roadmap & Milestones](docs/ROADMAP.md) - Shipped milestones (web, PWA, desktop) and what's next.
 - [Legal & Branding Guidelines](docs/LEGAL_AND_BRANDING.md) - Compliance policies and identity naming.
 - [Release readiness](docs/RELEASE_READINESS.md) - Validation gates for installers and public releases.
+- [Installation and system requirements](docs/SYSTEM_REQUIREMENTS.md) - Supported platforms, storage, and safe installation.
+- [Known issues](docs/KNOWN_ISSUES.md) - Current signing, first-launch, source, and platform limitations.
+- [Privacy](PRIVACY.md) - Exact local storage, network, and deletion behavior.
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Plain-language recovery steps for common problems.
 
 ---

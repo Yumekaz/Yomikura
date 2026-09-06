@@ -11,7 +11,7 @@ import {
 } from "../api/suwayomi/offlineCache";
 import { useSettingsStore, isTauri } from "./useSettingsStore";
 import { createGraphqlClient } from "../api/graphql/client";
-import { buildSuwayomiPageUrl } from "../api/suwayomi/pageUrls";
+import { buildSuwayomiPageUrl, resolveBackendUrl } from "../api/suwayomi/pageUrls";
 
 export interface DownloadProgress {
   progress: number;
@@ -151,12 +151,14 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
 
       // 4. Download pages sequentially or in small chunks
       for (let i = 0; i < pages.length; i++) {
-        const pageUrl = buildSuwayomiPageUrl({
-          serverBaseUrl,
-          mangaId: chapterDetails.mangaId,
-          chapterSourceOrder: chapterDetails.sourceOrder,
-          pageIndex: i,
-        });
+        const pageUrl = useSettingsStore.getState().mockMode
+          ? resolveBackendUrl(serverBaseUrl, pages[i])
+          : buildSuwayomiPageUrl({
+              serverBaseUrl,
+              mangaId: chapterDetails.mangaId,
+              chapterSourceOrder: chapterDetails.sourceOrder,
+              pageIndex: i,
+            });
         const response = await fetchCachedPage(pageUrl, serverBaseUrl, controller.signal);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const blob = await response.blob();

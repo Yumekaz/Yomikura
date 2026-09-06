@@ -4,7 +4,8 @@ param(
   [switch]$PreseedRuntime,
   [string]$JavaHomePath = "",
   [string]$BackendJarCachePath = "",
-  [int]$StartupTimeoutSeconds = 180
+  [int]$StartupTimeoutSeconds = 180,
+  [int]$MaxCombinedWorkingSetMb = 1536
 )
 
 $ErrorActionPreference = "Stop"
@@ -195,6 +196,7 @@ if (-not (Test-Path -LiteralPath $appPath)) { throw "Installed executable was no
 Write-Host "Launching $appPath"
 $app = $null
 $ownedProcessIds = @()
+$startupWatch = [Diagnostics.Stopwatch]::StartNew()
 try {
   $app = Start-Process -FilePath $appPath -PassThru
   $deadline = [DateTime]::UtcNow.AddSeconds($StartupTimeoutSeconds)
@@ -256,6 +258,7 @@ try {
     }
     throw "Installed application did not bring the local Suwayomi GraphQL endpoint online within $StartupTimeoutSeconds seconds"
   }
+  $startupWatch.Stop()
   if ($PreservedStoragePath) {
     # The storage contract requires a new folder to be empty before Yomikura
     # initializes and marks it. Create the sentinel only after that contract
@@ -265,6 +268,25 @@ try {
     Write-Host "Local Suwayomi GraphQL endpoint is ready on port $backendPort"
   }
   $ownedProcessIds = @(Get-DescendantProcessIds -RootProcessId $app.Id)
+  $measuredProcessIds = @($app.Id) + $ownedProcessIds | Select-Object -Unique
+  $measuredProcesses = @($measuredProcessIds | ForEach-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+  $combinedWorkingSetBytes = ($measuredProcesses | Measure-Object -Property WorkingSet64 -Sum).Sum
+  if ($null -eq $combinedWorkingSetBytes) { $combinedWorkingSetBytes = 0 }
+  $combinedWorkingSetMb = [Math]::Round($combinedWorkingSetBytes / 1MB, 1)
+  if ($combinedWorkingSetMb -gt $MaxCombinedWorkingSetMb) {
+    throw "Installed application exceeded the $MaxCombinedWorkingSetMb MB working-set baseline: $combinedWorkingSetMb MB"
+  }
+  if ($PreservedStoragePath) {
+    [ordered]@{
+      startupSeconds = [Math]::Round($startupWatch.Elapsed.TotalSeconds, 2)
+      combinedWorkingSetMb = $combinedWorkingSetMb
+      measuredProcessCount = $measuredProcesses.Count
+      backendPort = $backendPort
+      startupLimitSeconds = $StartupTimeoutSeconds
+      workingSetLimitMb = $MaxCombinedWorkingSetMb
+    } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $PreservedStoragePath "smoke-metrics.json") -Encoding UTF8
+  }
+  Write-Host "Performance baseline: startup $([Math]::Round($startupWatch.Elapsed.TotalSeconds, 2))s; combined working set $combinedWorkingSetMb MB across $($measuredProcesses.Count) processes"
   Write-Host "Application and local engine stayed alive through the launch smoke window (PID $($app.Id))"
 } finally {
   if ($app) {

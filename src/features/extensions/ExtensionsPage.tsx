@@ -291,6 +291,7 @@ export default function ExtensionsPage() {
             </div>
             <div className="flex items-center gap-3">
               <select 
+                aria-label="Filter extensions by language"
                 value={langFilter}
                 onChange={(e) => setLangFilter(e.target.value)}
                 className="yomi-field w-auto px-3 py-2"

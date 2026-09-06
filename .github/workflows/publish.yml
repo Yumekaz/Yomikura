@@ -164,6 +164,10 @@ jobs:
           if (Test-Path -LiteralPath $sentinel) {
             Copy-Item -LiteralPath $sentinel -Destination (Join-Path $diagnostics "smoke-sentinel.txt") -Force
           }
+          $metrics = Join-Path $userStorage "smoke-metrics.json"
+          if (Test-Path -LiteralPath $metrics) {
+            Copy-Item -LiteralPath $metrics -Destination (Join-Path $diagnostics "smoke-metrics.json") -Force
+          }
           $configDirectory = Join-Path $env:APPDATA "app.yomikura"
           $settingsFile = Join-Path $configDirectory "yomikura-settings.json"
           if (Test-Path -LiteralPath $settingsFile) {

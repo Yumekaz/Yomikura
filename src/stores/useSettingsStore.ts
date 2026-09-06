@@ -107,6 +107,7 @@ export interface SettingsProfile {
 }
 
 interface SettingsState {
+  hasHydrated: boolean;
   serverBaseUrl: string;
   connectionStatus: ConnectionStatus;
   errorMessage: string;
@@ -143,6 +144,7 @@ interface SettingsState {
   portableMode: boolean;
   
   // Actions
+  setHasHydrated: (hydrated: boolean) => void;
   setServerBaseUrl: (url: string) => void;
   testConnection: () => Promise<boolean>;
   setReaderMode: (mode: ReaderMode) => void;
@@ -191,6 +193,7 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
+      hasHydrated: false,
       serverBaseUrl: DEFAULT_SERVER_BASE_URL,
       connectionStatus: "disconnected",
       errorMessage: "",
@@ -233,6 +236,8 @@ export const useSettingsStore = create<SettingsState>()(
       infiniteChapterReading: true,
       coverDynamicTheme: false,
       portableMode: false,
+
+      setHasHydrated: (hydrated: boolean) => set({ hasHydrated: hydrated }),
 
       setServerBaseUrl: (url: string) => {
         set((state) => {
@@ -546,6 +551,9 @@ export const useSettingsStore = create<SettingsState>()(
           coverDynamicTheme: persisted?.coverDynamicTheme ?? currentState.coverDynamicTheme,
           portableMode: persisted?.portableMode ?? currentState.portableMode,
         };
+      },
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
       },
     }
   )

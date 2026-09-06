@@ -1,58 +1,19 @@
-# Privacy Policy
+# Privacy
 
-**Last Updated:** June 2026
+Yomikura contains no project analytics, advertising SDK, account system, or telemetry endpoint.
 
-Yomikura is a free, open-source manga/comic **client** available as **web, PWA, and native desktop app** (Windows, macOS, Linux). We value your privacy and are committed to protecting it. Yomikura does **not** operate central servers, collect personal data, or track your reading habits.
+## Data stored locally
 
----
+- Interface preferences and configured server profiles.
+- Reading progress and offline chapter metadata cached by the client.
+- In desktop local-engine mode: the Suwayomi database, extensions, covers, downloads, logs, and optional private Java runtime in the selected storage folder.
 
-## 1. Information Collection & Processing
+## Network activity
 
-- **No Personal Data Collection:** Yomikura does not collect, request, or store personal information such as names, email addresses, phone numbers, or user accounts.
-- **No Telemetry or Analytics:** We do not use telemetry, analytics trackers, or crash-reporting services owned by the Yomikura project. No usage data is transmitted to project maintainers.
-- **Local Connection Data:** Server URL and data-directory preferences are stored **only on your device** (browser storage or desktop app settings). They are never sent to Yomikura maintainers.
+Yomikura connects to the Suwayomi server selected by the user. Local-engine setup downloads pinned Java and Suwayomi releases from their official GitHub release locations. Suwayomi and user-installed extensions may contact extension repositories, trackers, and content sources configured by the user. Those services have their own policies and are outside Yomikura's control.
 
----
+## Deletion and uninstall
 
-## 2. Data Storage (Local-First)
+Uninstalling the desktop application removes the application but preserves a user-selected storage folder. Users can remove cached chapters or explicitly wipe managed local data from Settings. Yomikura does not receive a remote copy that must be deleted from a project server.
 
-All application data, preferences, and cached content stay on your device:
-
-| Platform | Where data lives |
-|----------|------------------|
-| **Web / PWA** | Browser `localStorage`, IndexedDB, Cache Storage |
-| **Desktop (Tauri)** | User-chosen folder (e.g. AppData or portable path) for Suwayomi databases, extensions, downloads, logs, and optional auto-downloaded JRE |
-
-- **Client preferences:** Theme, reader settings, server profiles.
-- **Chapter cache:** Offline pages stored locally for reading without network.
-- **Suwayomi backend data:** When desktop mode runs a local Suwayomi instance, library and extension data are stored in your selected data directory—not on Yomikura servers (we have none).
-
-**Deletion:** Clear browser site data (web mode) or use Settings → reset / wipe options (desktop mode).
-
----
-
-## 3. Third-Party Downloads (Desktop Only)
-
-Desktop onboarding may download, with your consent by choosing storage location:
-
-1. **Suwayomi Server JAR** — from the official Suwayomi GitHub releases.
-2. **Java runtime (Temurin JRE)** — from Eclipse Adoptium, if Java is not already present.
-
-These downloads go **directly from those providers to your machine**. Yomikura maintainers do not proxy or log them.
-
----
-
-## 4. Third-Party Endpoints You Configure
-
-When you use Yomikura, your client communicates with endpoints **you** choose:
-
-1. **Suwayomi Server** — local (`127.0.0.1`) or remote URL you enter.
-2. **Extension repositories** — optional catalog URLs (e.g. community index JSON) for your Suwayomi instance.
-
-Those services have their own privacy policies. Yomikura does not control them.
-
----
-
-## 5. Updates & Contact
-
-Policy updates are committed to this repository. Questions: open a GitHub Issue in the project repository.
+Do not include passwords, access tokens, private server addresses, or personal files in bug reports.

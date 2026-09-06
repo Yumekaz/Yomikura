@@ -22,6 +22,7 @@ On a clean Windows runner, the verification workflow must prove:
 4. The installed executable and its owned backend remain alive through the launch smoke window, then close cleanly.
 5. Uninstallation removes the application executable.
 6. The user-selected storage folder outside the install directory survives uninstall.
+7. Local-engine startup stays under three minutes and the combined application/backend working set stays below 1.5 GB on the clean runner.
 
 The test does not delete arbitrary user folders. It uses a temporary runner folder and an explicit sentinel file.
 The lifecycle gate pre-stages its runtime so a slow third-party download cannot be mistaken for an installer or startup regression. Clean-machine first-run downloads remain part of the manual beta matrix below.
@@ -48,6 +49,7 @@ Record the result and the exact user-facing recovery message. A passing build is
 - Keep the commit SHA and workflow run URL with the release notes.
 - Verify that every release has the expected installer assets before announcing it.
 - The publish workflow creates a SHA-256 checksum file for each platform and attaches it to the GitHub release.
+- The security workflow runs CodeQL, dependency review, secret scanning, and produces an SPDX JSON SBOM artifact. Dependabot tracks npm, Cargo, and workflow-action updates.
 - Mark artifacts as unsigned until platform signing and notarization are configured.
 - Keep the version in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, and `src-tauri/tauri.conf.json` synchronized.
 
