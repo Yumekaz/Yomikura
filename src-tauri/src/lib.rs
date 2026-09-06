@@ -8,6 +8,12 @@ use tauri::Emitter;
 use tauri::WindowEvent;
 use tauri::{Manager, State};
 
+#[derive(serde::Serialize)]
+struct DownloadedPage {
+    bytes: Vec<u8>,
+    content_type: String,
+}
+
 struct BackendState {
     backend: Mutex<Option<RunningBackend>>,
 }
@@ -28,6 +34,47 @@ const MANAGED_STORAGE_MARKER: &str = ".yomikura-managed-storage";
 const MANAGED_STORAGE_MARKER_CONTENT: &str = "YOMIKURA_MANAGED_STORAGE_V1";
 const MANAGED_STORAGE_RECORD: &str = "managed-storage-path.txt";
 const BACKEND_PID_RECORD: &str = "backend.pid";
+const MAX_PAGE_DOWNLOAD_BYTES: u64 = 32 * 1024 * 1024;
+
+#[tauri::command]
+async fn fetch_local_page(url: String, server_base_url: String) -> Result<DownloadedPage, String> {
+    let requested = reqwest::Url::parse(&url)
+        .map_err(|_| "The requested page URL is invalid.".to_string())?;
+    let server = reqwest::Url::parse(&server_base_url)
+        .map_err(|_| "The configured Suwayomi server URL is invalid.".to_string())?;
+
+    if !matches!(requested.scheme(), "http" | "https")
+        || !requested.username().is_empty()
+        || requested.password().is_some()
+        || requested.origin() != server.origin()
+    {
+        return Err("Offline pages may only be fetched from the configured Suwayomi server.".to_string());
+    }
+
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|err| format!("Could not initialize the local page client: {err}"))?;
+    let response = client.get(requested).send().await
+        .map_err(|err| format!("Could not fetch the page from Suwayomi: {err}"))?;
+    if !response.status().is_success() {
+        return Err(format!("Suwayomi returned HTTP {} while fetching a page.", response.status()));
+    }
+    if response.content_length().is_some_and(|size| size > MAX_PAGE_DOWNLOAD_BYTES) {
+        return Err("A page exceeds Yomikura's 32 MB safety limit.".to_string());
+    }
+    let content_type = response.headers().get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("image/jpeg")
+        .to_string();
+    let bytes = response.bytes().await
+        .map_err(|err| format!("Could not read the downloaded page: {err}"))?;
+    if bytes.len() as u64 > MAX_PAGE_DOWNLOAD_BYTES {
+        return Err("A page exceeds Yomikura's 32 MB safety limit.".to_string());
+    }
+    Ok(DownloadedPage { bytes: bytes.to_vec(), content_type })
+}
 
 fn backend_pid_path(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
     Ok(app_handle
@@ -806,7 +853,6 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(BackendState {
@@ -822,13 +868,20 @@ pub fn run() {
             download_and_install_jre,
             download_suwayomi_jar,
             get_portable_data_path,
-            open_logs_folder
+            open_logs_folder,
+            fetch_local_page
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
                         .level(log::LevelFilter::Info)
+                        // Development logging must not make the desktop app depend on a
+                        // writable per-user log directory. This is especially important
+                        // when testing an installed build and a debug build side by side.
+                        .targets([tauri_plugin_log::Target::new(
+                            tauri_plugin_log::TargetKind::Stderr,
+                        )])
                         .build(),
                 )?;
             }

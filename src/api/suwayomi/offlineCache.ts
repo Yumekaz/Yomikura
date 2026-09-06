@@ -28,6 +28,8 @@ export interface ReadingHistoryEvent {
   lastPageRead: number;
   pageCount: number;
   isRead: boolean;
+  /** Demo Sandbox activity is intentionally kept separate from a live library. */
+  isDemo?: boolean;
   readAt: number;
 }
 

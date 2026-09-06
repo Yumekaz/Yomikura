@@ -264,6 +264,10 @@ export const useSettingsStore = create<SettingsState>()(
             set({ connectionStatus: "connected", errorMessage: "", mockMode: false });
             return true;
           }
+          set({
+            connectionStatus: "error",
+            errorMessage: "The server did not respond. Check that Suwayomi is running, then retry.",
+          });
           return false;
         } catch (error: any) {
           set({ connectionStatus: "error", errorMessage: error.message || "Connection failed" });

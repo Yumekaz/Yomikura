@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localDateKey, parseHistoryTimestamp } from "./HistoryPage";
+import { localDateKey, parseHistoryTimestamp, shouldShowReadingEvent } from "./HistoryPage";
 import { getChapterCacheKey, getReadingHistoryKey, normalizeCacheServerUrl } from "../../api/suwayomi/offlineCache";
 
 describe("history timestamps", () => {
@@ -24,5 +24,14 @@ describe("offline identity", () => {
     expect(normalizeCacheServerUrl(" http://127.0.0.1:4567/// ")).toBe("http://127.0.0.1:4567");
     expect(getChapterCacheKey("http://127.0.0.1:4567/", 42)).toBe("http://127.0.0.1:4567::42");
     expect(getReadingHistoryKey("http://127.0.0.1:4567/", 42)).toBe("http://127.0.0.1:4567::42");
+  });
+});
+
+describe("demo history isolation", () => {
+  it("never presents sandbox chapters as live-server activity", () => {
+    expect(shouldShowReadingEvent({ mangaTitle: "[Demo] Pepper & Carrot" }, false)).toBe(false);
+    expect(shouldShowReadingEvent({ mangaTitle: "A real library chapter", isDemo: true }, false)).toBe(false);
+    expect(shouldShowReadingEvent({ mangaTitle: "A real library chapter" }, false)).toBe(true);
+    expect(shouldShowReadingEvent({ mangaTitle: "[Demo] Pepper & Carrot" }, true)).toBe(true);
   });
 });

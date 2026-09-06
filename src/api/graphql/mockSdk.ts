@@ -1,6 +1,11 @@
 import { Sdk } from "./generated/graphql";
 
 // A high-fidelity mock implementation of the Suwayomi SDK
+// Keep sample activity believable whenever Demo Sandbox Mode is opened. A fixed
+// calendar date made an otherwise healthy history view look as if it were using
+// stale server time.
+const recentDemoTimestamp = () => new Date(Date.now() - 13 * 60_000).toISOString();
+
 const mockImpl: any = {
   async ConnectionTest() {
     return { __typename: "Query" };
@@ -270,7 +275,7 @@ const mockImpl: any = {
               chapterNumber: 1,
               isRead: true,
               lastPageRead: 1,
-              lastReadAt: "2026-06-08T10:00:00Z",
+              lastReadAt: recentDemoTimestamp(),
               scanlator: "Yomikura",
               mangaId: 10002,
               manga: {

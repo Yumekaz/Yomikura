@@ -185,6 +185,7 @@ function AppShell() {
 
   return (
     <div className="yomi-app-shell text-slate-100">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-ink-950">Skip to content</a>
       <aside className="yomi-sidebar">
         <BrandLockup />
         <BackendHealthBadge />
@@ -212,7 +213,7 @@ function AppShell() {
           <p>Private by default. Your library stays on this device.</p>
         </div>
       </aside>
-      <main className="yomi-main">
+      <main id="main-content" className="yomi-main" tabIndex={-1}>
         <div className="px-4 pt-2 lg:px-0">
           <UpdateNotificationBanner />
         </div>
@@ -343,6 +344,23 @@ function WelcomeOnboarding({
 
   const inTauri = isTauri();
 
+  const friendlyStartupError = (error: string) => {
+    const normalized = error.toLowerCase();
+    if (normalized.includes("access is denied") || normalized.includes("permission denied") || normalized.includes("not writable")) {
+      return "Yomikura cannot write to the selected storage folder. Choose a different folder that belongs to your Windows account, then try again.";
+    }
+    if (normalized.includes("java") || normalized.includes("jre")) {
+      return "Yomikura could not start its private Java runtime. Retry once; if that does not help, choose a different storage folder so it can set up a fresh runtime.";
+    }
+    if (normalized.includes("did not open port") || normalized.includes("did not answer")) {
+      return "The local reading engine took too long to start. Retry once. If it happens again, choose a different storage folder so Yomikura can rebuild its local engine safely.";
+    }
+    if (normalized.includes("download")) {
+      return "Yomikura could not download a required local component. Check your connection, then retry. Your library and downloaded chapters are safe.";
+    }
+    return "The local reading engine could not start. Retry once; if it continues, choose a different storage folder. Your existing library data will not be changed.";
+  };
+
   useEffect(() => {
     if (!inTauri) {
       setCurrentStep("ready");
@@ -460,6 +478,7 @@ function WelcomeOnboarding({
 
   const handleSelectCustomFolder = async () => {
     try {
+      setLocalError("");
       setPortableMode(false);
       const { invoke } = await import("@tauri-apps/api/core");
       const path = await invoke<string | null>("select_directory");
@@ -474,6 +493,7 @@ function WelcomeOnboarding({
 
   const handleSelectDefaultFolder = async () => {
     try {
+      setLocalError("");
       setPortableMode(false);
       const { localDataDir } = await import("@tauri-apps/api/path");
       const localData = await localDataDir();
@@ -489,6 +509,7 @@ function WelcomeOnboarding({
 
   const handleSelectPortableFolder = async () => {
     try {
+      setLocalError("");
       const { invoke } = await import("@tauri-apps/api/core");
       const path = await invoke<string>("get_portable_data_path");
       setPortableMode(true);
@@ -522,10 +543,29 @@ function WelcomeOnboarding({
   };
 
   const triggerRetry = () => {
+    setLocalError("");
+    setJavaStatus("checking");
+    setServerStatus("idle");
     setCurrentStep("storage");
     setTimeout(() => {
       setCurrentStep("backend");
     }, 50);
+  };
+
+  const chooseAnotherStorage = () => {
+    setLocalError("");
+    setJavaStatus("checking");
+    setServerStatus("idle");
+    setCurrentStep("storage");
+  };
+
+  const openDiagnosticLogs = async () => {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("open_logs_folder", { dataPath: serverDataPath });
+    } catch (error) {
+      console.warn("Could not open local diagnostics:", error);
+    }
   };
 
   return (
@@ -720,7 +760,7 @@ function WelcomeOnboarding({
                 </div>
                 <h3 className="text-sm font-semibold text-slate-200">Failed to Start Backend Server</h3>
                 <p className="text-xs text-slate-400 mt-2 max-w-sm leading-relaxed">
-                  {localError}
+                  {friendlyStartupError(localError)}
                 </p>
 
                 <div className="mt-6 w-full space-y-2">
@@ -733,12 +773,34 @@ function WelcomeOnboarding({
                   </button>
 
                   <button
+                    onClick={chooseAnotherStorage}
+                    className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-2 px-3 text-xs font-semibold text-slate-200 hover:bg-white/10 transition-[background-color,border-color] duration-150"
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    <span>Choose a Different Folder</span>
+                  </button>
+
+                  <button
+                    onClick={openDiagnosticLogs}
+                    className="w-full py-1 text-xs text-slate-500 hover:text-slate-300 transition-colors duration-150"
+                  >
+                    Open diagnostic logs for support
+                  </button>
+
+                  <button
                     onClick={() => setMockMode(true)}
                     className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-white/5 border border-white/10 py-2 px-3 text-xs font-semibold text-slate-200 hover:bg-white/10 transition"
                   >
                     <span>Run in Demo Sandbox Mode</span>
                   </button>
                 </div>
+
+                {localError && (
+                  <details className="mt-4 w-full rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-left">
+                    <summary className="cursor-pointer text-xs text-slate-500">Technical details</summary>
+                    <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-relaxed text-slate-500">{localError}</pre>
+                  </details>
+                )}
               </div>
             )}
           </div>

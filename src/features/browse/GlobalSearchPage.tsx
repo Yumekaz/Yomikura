@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowLeft, Globe, Loader2, Search } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { FetchSourceMangaType } from "../../api/graphql/generated/graphql";
-import { getErrorMessage } from "../../api/suwayomi/errors";
+import { classifySourceProblem, getErrorMessage } from "../../api/suwayomi/errors";
 
 const GLOBAL_SEARCH_CONCURRENCY = 6;
 
@@ -295,6 +295,7 @@ export default function GlobalSearchPage() {
   const resultOutcomes = processedOutcomes.filter((outcome) => outcome.mangas.length > 0);
   const failedOutcomes = processedOutcomes.filter((outcome) => outcome.error);
   const emptyOutcomes = processedOutcomes.filter((outcome) => !outcome.error && outcome.mangas.length === 0);
+  const failedReasons = failedOutcomes.slice(0, 5).map((outcome) => `${outcome.source.name}: ${classifySourceProblem(outcome.error).title}`);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -530,7 +531,7 @@ export default function GlobalSearchPage() {
                       Source/network failures are normal with extension-backed catalogs. Try results from working sources first.
                     </p>
                     <p className="mt-2 text-xs text-amber-100/70">
-                      Failed: {failedOutcomes.slice(0, 5).map((outcome) => outcome.source.name).join(", ")}
+                      Failed: {failedReasons.join(", ")}
                       {failedOutcomes.length > 5 ? `, and ${failedOutcomes.length - 5} more` : ""}
                     </p>
                   </div>

@@ -11,7 +11,7 @@ import {
 } from "../api/suwayomi/offlineCache";
 import { useSettingsStore, isTauri } from "./useSettingsStore";
 import { createGraphqlClient } from "../api/graphql/client";
-import { buildSuwayomiPageUrl, resolveBackendUrl } from "../api/suwayomi/pageUrls";
+import { buildSuwayomiPageUrl } from "../api/suwayomi/pageUrls";
 
 export interface DownloadProgress {
   progress: number;
@@ -35,6 +35,18 @@ interface DownloadState {
   cancelAllDownloads: () => void;
   deleteChapter: (chapterId: number) => Promise<void>;
   clearAll: () => Promise<void>;
+}
+
+type NativePageResponse = { bytes: number[]; contentType: string };
+
+async function fetchCachedPage(pageUrl: string, serverBaseUrl: string, signal: AbortSignal): Promise<Response> {
+  if (signal.aborted) throw new DOMException("Download cancelled", "AbortError");
+  if (!isTauri()) return fetch(pageUrl, { mode: "cors", signal });
+
+  const { invoke } = await import("@tauri-apps/api/core");
+  const page = await invoke<NativePageResponse>("fetch_local_page", { url: pageUrl, serverBaseUrl });
+  if (signal.aborted) throw new DOMException("Download cancelled", "AbortError");
+  return new Response(new Uint8Array(page.bytes), { headers: { "content-type": page.contentType } });
 }
 
 export const useDownloadStore = create<DownloadState>((set, get) => ({
@@ -137,17 +149,6 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       cache = await caches.open("yomikura-page-cache");
       let totalSizeBytes = 0;
 
-      // Resolve the fetch function. In Tauri environment, we use native tauri fetch plugin to bypass CORS/PNA restrictions.
-      let fetchFn: typeof fetch = fetch;
-      if (isTauri()) {
-        try {
-          const { fetch: tauriFetch } = await import("@tauri-apps/plugin-http");
-          fetchFn = tauriFetch as any;
-        } catch (err) {
-          console.warn("Failed to load @tauri-apps/plugin-http fetch, falling back to browser fetch", err);
-        }
-      }
-
       // 4. Download pages sequentially or in small chunks
       for (let i = 0; i < pages.length; i++) {
         const pageUrl = buildSuwayomiPageUrl({
@@ -156,43 +157,9 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
           chapterSourceOrder: chapterDetails.sourceOrder,
           pageIndex: i,
         });
-        const fallbackUrl = resolveBackendUrl(serverBaseUrl, pages[i]);
-
-        let response: Response | null = null;
-        let blob: Blob | null = null;
-        let errorMsg = "";
-
-        // Try primary URL first
-        try {
-          response = await fetchFn(pageUrl, { mode: "cors", signal: controller.signal });
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          
-          if (typeof response.blob === "function") {
-            blob = await response.blob();
-          } else {
-            const buffer = await response.arrayBuffer();
-            const contentType = response.headers.get("content-type") || "image/jpeg";
-            blob = new Blob([buffer], { type: contentType });
-          }
-        } catch (err: any) {
-          errorMsg = err instanceof Error ? err.message : String(err);
-          // Try fallback URL
-          try {
-            response = await fetchFn(fallbackUrl, { mode: "cors", signal: controller.signal });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            
-            if (typeof response.blob === "function") {
-              blob = await response.blob();
-            } else {
-              const buffer = await response.arrayBuffer();
-              const contentType = response.headers.get("content-type") || "image/jpeg";
-              blob = new Blob([buffer], { type: contentType });
-            }
-          } catch (fallbackErr: any) {
-            const fallbackMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
-            throw new Error(`Failed to download page ${i + 1}. Primary: ${errorMsg}, Fallback: ${fallbackMsg}`);
-          }
-        }
+        const response = await fetchCachedPage(pageUrl, serverBaseUrl, controller.signal);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blob = await response.blob();
 
         if (blob && response) {
           // Cache the response file

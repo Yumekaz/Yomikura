@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
 async function enterDemo(page: import("@playwright/test").Page) {
+  // Keep UI journeys deterministic when a developer has a local Suwayomi
+  // engine running. These tests exercise the sandbox, not a personal library.
+  await page.route("**/api/graphql", (route) => route.abort());
   await page.goto("/library");
   const demoButton = page.getByRole("button", { name: "Explore Demo Library" });
   await expect(demoButton).toBeVisible({ timeout: 15_000 });
@@ -59,4 +62,20 @@ test("dangerous settings actions use an accessible, cancellable dialog", async (
   await expect(dialog.getByRole("button", { name: "Cancel" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
+});
+
+test("extension setup explains the first source step", async ({ page }) => {
+  await enterDemo(page);
+  await page.goto("/extensions/repos");
+  await expect(page.getByRole("heading", { name: "Repositories", exact: true })).toBeVisible();
+  await expect(page.getByText("Choose where Yomikura discovers sources", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Use this repository", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Extension repository URL")).toBeVisible();
+});
+
+test("reader opens a demo chapter and exposes a usable page", async ({ page }) => {
+  await enterDemo(page);
+  await page.goto("/reader/20002");
+  await expect(page.getByText("Chapter 1: The Journey Begins", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("img").first()).toBeVisible({ timeout: 15_000 });
 });

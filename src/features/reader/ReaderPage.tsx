@@ -99,6 +99,7 @@ export default function ReaderPage() {
   // Settings store global values & setters
   const { 
     serverBaseUrl, 
+    mockMode,
     readerMode: globalReaderMode, 
     setReaderMode: setGlobalReaderMode, 
     fitMode: globalFitMode, 
@@ -292,6 +293,7 @@ export default function ReaderPage() {
         lastPageRead: progress.pageIndex,
         pageCount: progress.pageCount,
         isRead,
+        isDemo: mockMode,
       });
 
       try {

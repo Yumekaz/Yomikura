@@ -4,7 +4,7 @@ export type SourceProblem = {
   title: string;
   detail: string;
   owner: "source" | "network" | "server" | "app";
-  kind: "dns" | "cloudflare" | "source-down" | "browser-runtime" | "app-network" | "unknown";
+  kind: "dns" | "cloudflare" | "source-down" | "rate-limit" | "not-found" | "certificate" | "timeout" | "browser-runtime" | "app-network" | "unknown";
 };
 
 export function getErrorMessage(error: unknown): string {
@@ -27,6 +27,42 @@ export function getErrorMessage(error: unknown): string {
 export function classifySourceProblem(error: unknown): SourceProblem {
   const message = getErrorMessage(error);
   const lower = message.toLowerCase();
+
+  if (lower.includes("certificate") || lower.includes("pkix") || lower.includes("ssl") || lower.includes("tls") || lower.includes("handshake")) {
+    return {
+      title: "The source certificate could not be verified",
+      detail: `${message}. Suwayomi could not establish a trusted connection to this source.`,
+      owner: "source",
+      kind: "certificate",
+    };
+  }
+
+  if (lower.includes("timeout") || lower.includes("timed out") || lower.includes("etimedout") || lower.includes("deadline exceeded")) {
+    return {
+      title: "The source took too long to respond",
+      detail: `${message}. The source may be slow, rate-limiting requests, or temporarily unavailable.`,
+      owner: "network",
+      kind: "timeout",
+    };
+  }
+
+  if (lower.includes("429") || lower.includes("too many requests") || lower.includes("rate limit")) {
+    return {
+      title: "The source is rate-limiting requests",
+      detail: `${message}. Wait a little before retrying, or use another source for now.`,
+      owner: "source",
+      kind: "rate-limit",
+    };
+  }
+
+  if (lower.includes("404") || lower.includes("not found") || lower.includes("no longer exists")) {
+    return {
+      title: "This source page was not found",
+      detail: `${message}. The source may have changed its URL or removed this title.`,
+      owner: "source",
+      kind: "not-found",
+    };
+  }
 
   if (lower.includes("no such host") || lower.includes("dns") || lower.includes("unknownhost")) {
     return {
@@ -99,6 +135,26 @@ export function getSourceRecoveryHints(problem?: SourceProblem | null): string[]
       return [
         "Try another installed source first; many Cloudflare-protected sites are unstable from server clients.",
         "For this source specifically, enable a FlareSolverr or Byparr service in Suwayomi.",
+      ];
+    case "certificate":
+      return [
+        "Try another installed source first; the source certificate may be broken or blocked by the server runtime.",
+        "If every source fails, check the system date and Suwayomi logs before changing certificate settings.",
+      ];
+    case "timeout":
+      return [
+        "Retry once after a few seconds, then try another source for the same title.",
+        "If this repeats across sources, check the server connection and network firewall.",
+      ];
+    case "rate-limit":
+      return [
+        "Wait briefly before retrying so the source can recover.",
+        "Use another installed source instead of repeatedly refreshing the blocked source.",
+      ];
+    case "not-found":
+      return [
+        "Search the title again or try another installed source.",
+        "The source may have changed its URL or removed the chapter.",
       ];
     case "browser-runtime":
       return [

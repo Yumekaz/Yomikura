@@ -35,6 +35,14 @@ export function localDateKey(timestamp: number): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
+export function shouldShowReadingEvent(
+  event: { isDemo?: boolean; mangaTitle: string },
+  mockMode: boolean,
+): boolean {
+  const isDemoEvent = event.isDemo === true || event.mangaTitle.startsWith("[Demo]");
+  return mockMode ? isDemoEvent : !isDemoEvent;
+}
+
 function dateLabel(timestamp: number): string {
   const today = new Date();
   const target = new Date(timestamp);
@@ -48,7 +56,7 @@ function dateLabel(timestamp: number): string {
 
 export default function HistoryPage() {
   const { confirm } = useFeedback();
-  const { serverBaseUrl } = useSettingsStore();
+  const { serverBaseUrl, mockMode } = useSettingsStore();
   const queryClient = useQueryClient();
   const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`), [serverBaseUrl]);
 
@@ -90,6 +98,9 @@ export default function HistoryPage() {
       }
     }
     for (const event of localHistory.data ?? []) {
+      // Demo Sandbox content has no matching chapter on a live Suwayomi server.
+      // Keep legacy sample events out of a real library as well.
+      if (!shouldShowReadingEvent(event, mockMode)) continue;
       const key = String(event.chapterId);
       const existing = merged.get(key);
       if (!existing || event.readAt >= existing.readAt) {
@@ -102,7 +113,7 @@ export default function HistoryPage() {
       }
     }
     return [...merged.values()].sort((a, b) => b.readAt - a.readAt);
-  }, [localHistory.data, serverHistory.data]);
+  }, [localHistory.data, mockMode, serverHistory.data]);
 
   const groups = useMemo(() => {
     const result = new Map<string, { timestamp: number; items: HistoryItem[] }>();

@@ -167,16 +167,10 @@ export default function DownloadsPage() {
         <span className={`yomi-chip ${downloaderState === "STARTED" ? "is-live" : ""}`}>{downloaderState}</span>
       </div>
 
-      {/* Queue List */}
+      <section className="space-y-3" aria-labelledby="server-queue-title">
+        <div className="flex items-end justify-between gap-4"><div><span className="yomi-eyebrow">Suwayomi engine</span><h2 id="server-queue-title" className="text-lg font-semibold text-slate-100">Server queue</h2></div><span className="text-sm text-slate-400">{queue.length} active item{queue.length === 1 ? "" : "s"}</span></div>
       {queue.length === 0 ? (
-        <div className="yomi-route-empty"><div>
-          <CheckCircle2 />
-          <div>
-            <h2>All downloads completed</h2>
-            <p>Start a chapter download from a manga’s chapter list. It will remain available from your library when you are offline.</p>
-          </div>
-        </div>
-        </div>
+        <div className="yomi-surface p-5"><div className="flex items-center gap-4"><div className="yomi-catalog-icon"><CheckCircle2 /></div><div><h3 className="text-sm font-semibold text-slate-100">No queued chapters</h3><p className="mt-1 text-sm text-slate-400">Server-managed chapter downloads will appear here. Locally saved chapters stay above.</p></div></div></div>
       ) : (
         <div className="yomi-surface">
           {queue.map((item) => {
@@ -246,7 +240,7 @@ export default function DownloadsPage() {
             );
           })}
         </div>
-      )}
+      )}</section>
     </div>
   );
 }

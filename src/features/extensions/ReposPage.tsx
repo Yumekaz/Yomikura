@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Plus, Trash2, Github } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, Plus, Trash2, Github, AlertCircle } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
@@ -15,6 +15,7 @@ export default function ReposPage() {
   const { serverBaseUrl } = useSettingsStore();
   const queryClient = useQueryClient();
   const [repoUrl, setRepoUrl] = useState("");
+  const [statusMessage, setStatusMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
@@ -40,13 +41,20 @@ export default function ReposPage() {
         }
       });
       // Trigger a fetch so Suwayomi syncs the new catalog
-      await sdk.FetchExtensionCatalog({ input: {} });
+      const result = await sdk.FetchExtensionCatalog({ input: {} });
+      return result.fetchExtensions?.extensions?.length ?? 0;
     },
-    onSuccess: () => {
+    onSuccess: (syncedCount) => {
       queryClient.invalidateQueries({ queryKey: ["repos"] });
       queryClient.invalidateQueries({ queryKey: ["extensions"] });
       setRepoUrl("");
-    }
+      setStatusMessage(syncedCount > 0
+        ? { kind: "success", text: `Repository saved. Suwayomi discovered ${syncedCount.toLocaleString()} extensions.` }
+        : { kind: "error", text: "Repository saved, but Suwayomi returned no extensions. Check the server logs for certificate, network, or repository-format errors, then retry the catalogue refresh." });
+    },
+    onError: (error) => {
+      setStatusMessage({ kind: "error", text: `Could not save this repository: ${error instanceof Error ? error.message : String(error)}` });
+    },
   });
 
   const handleAdd = (e: React.FormEvent) => {
@@ -72,6 +80,15 @@ export default function ReposPage() {
       </div>
 
       <div className="max-w-3xl mx-auto p-6 sm:p-10 space-y-8">
+        <div className="yomi-commandbar flex-col items-start gap-2">
+          <span className="yomi-eyebrow">First-time setup</span>
+          <h2 className="text-xl font-semibold text-slate-100">Choose where Yomikura discovers sources</h2>
+          <p className="max-w-2xl text-sm leading-6 text-slate-400">Yomikura does not bundle third-party manga sources. Add a trusted extension repository below, then return to Extensions to install the sources you want.</p>
+        </div>
+        {statusMessage && <div role={statusMessage.kind === "error" ? "alert" : "status"} className={`yomi-alert ${statusMessage.kind === "error" ? "border-red-500/25 bg-red-500/10 text-red-100" : "border-yomi-jade/25 bg-yomi-jade/10 text-yomi-jade"}`}>
+          {statusMessage.kind === "error" ? <AlertCircle className="h-5 w-5 shrink-0" /> : <CheckCircle2 className="h-5 w-5 shrink-0" />}
+          <span>{statusMessage.text}</span>
+        </div>}
         {/* Preset Button */}
         {!repos.includes(KEIYOUSHI_URL) && (
           <div className="yomi-commandbar p-5 flex-col sm:flex-row">
@@ -87,7 +104,7 @@ export default function ReposPage() {
               disabled={updating}
               className="yomi-button yomi-button-primary whitespace-nowrap disabled:opacity-50"
             >
-              Add Preset
+              Use this repository
             </button>
           </div>
         )}
@@ -96,6 +113,7 @@ export default function ReposPage() {
         <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-3">
           <input
             type="url"
+            aria-label="Extension repository URL"
             placeholder="https://example.com/index.json"
             value={repoUrl}
             onChange={(e) => setRepoUrl(e.target.value)}
@@ -120,7 +138,7 @@ export default function ReposPage() {
               <Loader2 className="h-6 w-6 animate-spin text-yomi-jade" />
             </div>
           ) : repos.length === 0 ? (
-            <div className="yomi-route-empty"><div><Github /><h2>No repositories yet</h2><p>Add a repository to discover extension catalogues.</p></div></div>
+            <div className="yomi-route-empty"><div><Github /><h2>No repositories yet</h2><p>Add the recommended community repository above or enter a trusted repository URL.</p></div></div>
           ) : (
             <div className="yomi-surface">
               {repos.map(url => (
@@ -131,6 +149,7 @@ export default function ReposPage() {
                     disabled={updating}
                     className="yomi-utility-button danger"
                     title="Remove Repository"
+                    aria-label={`Remove repository ${url}`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
