@@ -136,40 +136,24 @@ fn jar_looks_valid(path: &std::path::Path) -> bool {
 }
 
 fn sha256_file(path: &std::path::Path) -> Result<String, String> {
-    #[cfg(windows)]
-    use std::os::windows::process::CommandExt;
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
 
-    let mut command = if cfg!(windows) {
-        let mut command = Command::new("certutil");
-        command.arg("-hashfile").arg(path).arg("SHA256");
-        #[cfg(windows)]
-        command.creation_flags(0x08000000);
-        command
-    } else if cfg!(target_os = "macos") {
-        let mut command = Command::new("shasum");
-        command.arg("-a").arg("256").arg(path);
-        command
-    } else {
-        let mut command = Command::new("sha256sum");
-        command.arg(path);
-        command
-    };
-    let output = command
-        .output()
-        .map_err(|e| format!("Failed to calculate SHA-256: {e}"))?;
-    if !output.status.success() {
-        return Err(format!(
-            "SHA-256 verification command failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
+    let file = std::fs::File::open(path)
+        .map_err(|e| format!("Failed to open file for SHA-256 verification: {e}"))?;
+    let mut reader = std::io::BufReader::with_capacity(1024 * 1024, file);
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0_u8; 1024 * 1024];
+    loop {
+        let bytes_read = reader
+            .read(&mut buffer)
+            .map_err(|e| format!("Failed to read file for SHA-256 verification: {e}"))?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes_read]);
     }
-    String::from_utf8_lossy(&output.stdout)
-        .split_whitespace()
-        .map(|value| value.trim().to_ascii_lowercase())
-        .find(|value| {
-            value.len() == 64 && value.chars().all(|character| character.is_ascii_hexdigit())
-        })
-        .ok_or_else(|| "SHA-256 verification returned an unreadable digest.".to_string())
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 fn verify_sha256(path: &std::path::Path, expected: &str) -> Result<(), String> {
@@ -1015,4 +999,30 @@ pub fn run() {
             clear_backend_pid(app_handle);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sha256_file;
+
+    #[test]
+    fn sha256_file_matches_known_digest() {
+        let path = std::env::temp_dir().join(format!(
+            "yomikura-sha256-{}-{}.txt",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after Unix epoch")
+                .as_nanos()
+        ));
+        std::fs::write(&path, b"abc").expect("test file should be writable");
+
+        let digest = sha256_file(&path).expect("digest should be calculated");
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(
+            digest,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
 }
