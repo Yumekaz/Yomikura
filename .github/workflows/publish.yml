@@ -126,6 +126,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+      - name: Cache pinned smoke backend
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/yomikura-smoke-deps
+          key: suwayomi-smoke-v2.3.2243-821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5
       - uses: dtolnay/rust-toolchain@stable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -142,7 +147,8 @@ jobs:
           $installer = (Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1).FullName
           if (-not $installer) { throw "NSIS installer artifact was not found" }
           $userStorage = Join-Path $env:RUNNER_TEMP "yomikura-release-user-storage"
-          ./scripts/smoke-test-installer.ps1 -InstallerPath $installer -PreservedStoragePath $userStorage -StartupTimeoutSeconds 1200
+          $backendJarCache = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.3.2243.jar"
+          ./scripts/smoke-test-installer.ps1 -InstallerPath $installer -PreservedStoragePath $userStorage -PreseedRuntime -JavaHomePath $env:JAVA_HOME -BackendJarCachePath $backendJarCache -StartupTimeoutSeconds 180
       - name: Collect installer smoke diagnostics
         if: always()
         shell: pwsh

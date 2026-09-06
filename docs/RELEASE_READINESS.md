@@ -18,12 +18,13 @@ On a clean Windows runner, the verification workflow must prove:
 
 1. The NSIS installer exists and is a realistic size.
 2. Installation registers Yomikura correctly.
-3. A seeded user-selected storage folder lets the installed app start its local Suwayomi engine and answer a real GraphQL health request.
+3. A seeded user-selected storage folder, using the same pinned and SHA-256-verified Suwayomi build plus Java 21, lets the installed app start its local engine and answer a real GraphQL health request.
 4. The installed executable and its owned backend remain alive through the launch smoke window, then close cleanly.
 5. Uninstallation removes the application executable.
 6. The user-selected storage folder outside the install directory survives uninstall.
 
 The test does not delete arbitrary user folders. It uses a temporary runner folder and an explicit sentinel file.
+The lifecycle gate pre-stages its runtime so a slow third-party download cannot be mistaken for an installer or startup regression. Clean-machine first-run downloads remain part of the manual beta matrix below.
 
 ## Manual beta matrix
 

@@ -1,14 +1,21 @@
 param(
   [Parameter(Mandatory = $true)][string]$InstallerPath,
   [string]$PreservedStoragePath = "",
-  # First launch may download the verified Suwayomi JAR before Java starts.
-  # Keep this aligned with the native downloader's 20-minute network ceiling.
-  [int]$StartupTimeoutSeconds = 1200
+  [switch]$PreseedRuntime,
+  [string]$JavaHomePath = "",
+  [string]$BackendJarCachePath = "",
+  [int]$StartupTimeoutSeconds = 180
 )
 
 $ErrorActionPreference = "Stop"
 $installer = (Resolve-Path -LiteralPath $InstallerPath).Path
 if ((Get-Item -LiteralPath $installer).Length -lt 1MB) { throw "Installer is unexpectedly small: $installer" }
+
+$backendJarName = "Suwayomi-Server-v2.3.2243.jar"
+$backendJarUrl = "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.3.2243/Suwayomi-Server-v2.3.2243.jar"
+$backendJarSha256 = "821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5"
+$managedStorageMarker = ".yomikura-managed-storage"
+$managedStorageMarkerContent = "YOMIKURA_MANAGED_STORAGE_V1"
 
 function Get-DescendantProcessIds {
   param([Parameter(Mandatory = $true)][int]$RootProcessId)
@@ -94,6 +101,65 @@ function Write-TestSettings {
   Set-Content -LiteralPath (Join-Path $configDirectory "yomikura-settings.json") -Value $settings -Encoding UTF8
 }
 
+function Initialize-SmokeRuntime {
+  param(
+    [Parameter(Mandatory = $true)][string]$StoragePath,
+    [Parameter(Mandatory = $true)][string]$JavaHome,
+    [Parameter(Mandatory = $true)][string]$JarCachePath
+  )
+
+  $resolvedJavaHome = (Resolve-Path -LiteralPath $JavaHome).Path
+  $javaBinary = Join-Path $resolvedJavaHome "bin\java.exe"
+  if (-not (Test-Path -LiteralPath $javaBinary -PathType Leaf)) {
+    throw "Java 21 runtime was not found at $javaBinary"
+  }
+
+  $javaVersion = & $javaBinary -version 2>&1 | Out-String
+  if ($LASTEXITCODE -ne 0 -or $javaVersion -notmatch 'version "(?:1\.)?(2[1-9]|[3-9][0-9])') {
+    throw "The smoke test requires Java 21 or newer. Detected: $($javaVersion.Trim())"
+  }
+
+  New-Item -ItemType Directory -Path $StoragePath -Force | Out-Null
+  Set-Content -LiteralPath (Join-Path $StoragePath $managedStorageMarker) -Value $managedStorageMarkerContent -NoNewline
+
+  $runtimeRoot = Join-Path $StoragePath "jre"
+  $runtimeLink = Join-Path $runtimeRoot "ci-java"
+  New-Item -ItemType Directory -Path $runtimeRoot -Force | Out-Null
+  if (-not (Test-Path -LiteralPath $runtimeLink)) {
+    New-Item -ItemType Junction -Path $runtimeLink -Target $resolvedJavaHome | Out-Null
+  }
+
+  $cacheDirectory = Split-Path -Parent $JarCachePath
+  New-Item -ItemType Directory -Path $cacheDirectory -Force | Out-Null
+  $cacheIsValid = (Test-Path -LiteralPath $JarCachePath -PathType Leaf) -and
+    ((Get-FileHash -LiteralPath $JarCachePath -Algorithm SHA256).Hash.ToLowerInvariant() -eq $backendJarSha256)
+  if (-not $cacheIsValid) {
+    if (Test-Path -LiteralPath $JarCachePath) {
+      Remove-Item -LiteralPath $JarCachePath -Force
+    }
+    $partialJar = "$JarCachePath.part"
+    if (Test-Path -LiteralPath $partialJar) {
+      Remove-Item -LiteralPath $partialJar -Force
+    }
+    Write-Host "Fetching pinned Suwayomi backend for the deterministic installer smoke test"
+    & curl.exe -fL --retry 2 --retry-max-time 600 --connect-timeout 30 --max-time 300 -o $partialJar $backendJarUrl
+    if ($LASTEXITCODE -ne 0) {
+      Remove-Item -LiteralPath $partialJar -Force -ErrorAction SilentlyContinue
+      throw "Could not fetch the pinned Suwayomi backend (curl exit code $LASTEXITCODE)"
+    }
+    $downloadedHash = (Get-FileHash -LiteralPath $partialJar -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($downloadedHash -ne $backendJarSha256) {
+      Remove-Item -LiteralPath $partialJar -Force
+      throw "Pinned Suwayomi backend checksum mismatch: expected $backendJarSha256, got $downloadedHash"
+    }
+    Move-Item -LiteralPath $partialJar -Destination $JarCachePath -Force
+  }
+
+  $storageJar = Join-Path $StoragePath $backendJarName
+  Copy-Item -LiteralPath $JarCachePath -Destination $storageJar -Force
+  Write-Host "Prepared verified Java 21 and Suwayomi runtime for installed-app validation"
+}
+
 Write-Host "Installing $installer"
 $installProcess = Start-Process -FilePath $installer -ArgumentList "/S" -Wait -PassThru
 if ($installProcess.ExitCode -ne 0) { throw "Installer exited with code $($installProcess.ExitCode)" }
@@ -101,6 +167,11 @@ if ($installProcess.ExitCode -ne 0) { throw "Installer exited with code $($insta
 if ($PreservedStoragePath) {
   $PreservedStoragePath = [IO.Path]::GetFullPath($PreservedStoragePath)
   New-Item -ItemType Directory -Path $PreservedStoragePath -Force | Out-Null
+  if ($PreseedRuntime) {
+    if (-not $JavaHomePath) { throw "JavaHomePath is required when PreseedRuntime is enabled" }
+    if (-not $BackendJarCachePath) { throw "BackendJarCachePath is required when PreseedRuntime is enabled" }
+    Initialize-SmokeRuntime -StoragePath $PreservedStoragePath -JavaHome $JavaHomePath -JarCachePath $BackendJarCachePath
+  }
   Write-TestSettings -StoragePath $PreservedStoragePath
 }
 
