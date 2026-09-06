@@ -442,6 +442,31 @@ fn find_java_binary(dir: &std::path::Path) -> Option<std::path::PathBuf> {
 
     let target_name = if cfg!(windows) { "java.exe" } else { "java" };
 
+    // Check the layouts produced by the pinned Temurin archives before doing
+    // any recursive walk. In CI the JDK is exposed through a directory
+    // junction; recursively traversing that junction can take minutes.
+    let direct_candidate = dir.join("bin").join(target_name);
+    if direct_candidate.is_file() {
+        return Some(direct_candidate);
+    }
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let entry_path = entry.path();
+            let child_candidate = entry_path.join("bin").join(target_name);
+            if child_candidate.is_file() {
+                return Some(child_candidate);
+            }
+            let macos_candidate = entry_path
+                .join("Contents")
+                .join("Home")
+                .join("bin")
+                .join(target_name);
+            if macos_candidate.is_file() {
+                return Some(macos_candidate);
+            }
+        }
+    }
+
     let mut stack = vec![dir.to_path_buf()];
     while let Some(path) = stack.pop() {
         if let Ok(entries) = std::fs::read_dir(path) {
