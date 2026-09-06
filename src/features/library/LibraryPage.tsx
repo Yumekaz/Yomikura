@@ -216,7 +216,7 @@ export default function LibraryPage() {
                 id: parseInt(String(ch.id)),
                 patch: {
                   isRead,
-                  lastPageRead: isRead ? 999 : 0
+                  lastPageRead: isRead ? Math.max(0, (ch.pageCount || 1) - 1) : 0
                 }
               }
             })
@@ -278,7 +278,14 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="flex h-full w-full flex-col bg-transparent relative">
+    <div className="flex min-h-screen w-full flex-col bg-transparent relative px-4 py-7 lg:px-10 lg:py-10">
+      <header className="mb-6 flex items-end justify-between gap-6">
+        <div>
+          <span className="yomi-eyebrow">Your collection</span>
+          <h1 className="mt-1 text-3xl font-semibold tracking-[-0.04em] text-white lg:text-4xl">Library</h1>
+          <p className="mt-2 text-sm text-slate-500">{mangas.length} title{mangas.length === 1 ? "" : "s"} ready to read</p>
+        </div>
+      </header>
       {/* Filters Bar */}
       <LibraryFilters
         categories={categories}
@@ -294,7 +301,7 @@ export default function LibraryPage() {
       />
 
       {/* Main Grid Area */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-visible">
         {isOfflineMode && (
           <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center text-xs font-medium text-amber-200 animate-fade-in flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
             <span>Offline Mode — Showing cached titles</span>

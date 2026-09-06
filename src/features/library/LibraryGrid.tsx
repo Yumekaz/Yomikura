@@ -1,7 +1,17 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Check } from "lucide-react";
+import { BookOpen, Check, Compass } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+
+function findScrollParent(element: HTMLElement): HTMLElement | Window {
+  let current = element.parentElement;
+  while (current) {
+    const style = window.getComputedStyle(current);
+    if (/(auto|scroll)/.test(`${style.overflowY}${style.overflow}`)) return current;
+    current = current.parentElement;
+  }
+  return window;
+}
 
 export interface LibraryManga {
   id: string | number;
@@ -55,23 +65,24 @@ export function LibraryGrid({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const parent = el.parentElement;
-    if (!parent) return;
+    const parent = findScrollParent(el);
 
     const handleScroll = () => {
-      setScrollTop(parent.scrollTop);
+      const viewportTop = parent instanceof Window ? 0 : parent.getBoundingClientRect().top;
+      setScrollTop(Math.max(0, viewportTop - el.getBoundingClientRect().top));
     };
 
     const handleResize = () => {
-      setContainerHeight(parent.clientHeight);
+      setContainerHeight(parent instanceof Window ? window.innerHeight : parent.clientHeight);
+      handleScroll();
     };
 
     parent.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("resize", handleResize);
     
     // Measure initially
-    setScrollTop(parent.scrollTop);
-    setContainerHeight(parent.clientHeight);
+    handleScroll();
+    handleResize();
 
     return () => {
       parent.removeEventListener("scroll", handleScroll);
@@ -116,14 +127,13 @@ export function LibraryGrid({
 
   if (mangas.length === 0) {
     return (
-      <div className="flex min-h-[400px] flex-col items-center justify-center text-center px-6">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-ink-850 mb-4 text-slate-400">
-          <BookOpen className="h-8 w-8" />
+      <div className="yomi-route-empty">
+        <div>
+          <BookOpen />
+          <h2>Your library is empty</h2>
+          <p>Build a local collection by adding a title from one of your installed sources.</p>
+          <Link to="/browse" className="yomi-button yomi-button-primary mt-5"><Compass />Browse sources</Link>
         </div>
-        <h3 className="text-xl font-medium text-slate-200">Your library is empty</h3>
-        <p className="mt-2 max-w-md text-sm text-slate-500">
-          Add manga to your library from the Browse tab or your Suwayomi server interface.
-        </p>
       </div>
     );
   }

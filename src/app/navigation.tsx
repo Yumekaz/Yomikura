@@ -21,9 +21,6 @@ export const primaryNav: NavItem[] = [
   { label: "Library", path: "/library", icon: Library },
   { label: "Updates", path: "/updates", icon: Clock3 },
   { label: "History", path: "/history", icon: History },
-  { label: "Browse", path: "/browse", icon: Compass },
-  { label: "Extensions", path: "/extensions", icon: Puzzle },
-  { label: "Settings", path: "/settings", icon: Settings },
 ];
 
 export const browseNav: NavItem[] = [
@@ -32,6 +29,10 @@ export const browseNav: NavItem[] = [
   { label: "Extensions", path: "/browse/extensions", icon: Puzzle },
   { label: "Repos", path: "/browse/extension-repos", icon: RadioTower },
   { label: "Downloads", path: "/downloads", icon: Download },
+];
+
+export const utilityNav: NavItem[] = [
+  { label: "Settings", path: "/settings", icon: Settings },
 ];
 
 export const routeCopy: Record<string, { title: string; detail: string }> = {

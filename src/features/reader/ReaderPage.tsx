@@ -11,9 +11,11 @@ import { SourceRecoveryPanel } from "../../components/source/SourceRecoveryPanel
 import { useTranslation } from "../../hooks/useTranslation";
 import { ReaderImage } from "./ReaderImage";
 import { ReaderOverlay } from "./ReaderOverlay";
+import { createProgressSnapshot, type ProgressSnapshot } from "./readerProgress";
 import { 
   getCachedChapter, 
   getCachedChaptersForManga, 
+  recordReadingActivity,
   updateCachedChapterProgress 
 } from "../../api/suwayomi/offlineCache";
 
@@ -122,8 +124,8 @@ export default function ReaderPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isAutoScrolling, setIsAutoScrolling] = useState(false);
-  const lastSavedPageRef = useRef<number | null>(null);
-  const debouncedUpdateRef = useRef<any>(null);
+  const lastSavedPagesRef = useRef(new Map<number, number>());
+  const debouncedUpdatesRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
   const scrollRef = useRef<number | null>(null);
   const autoScrollEndTriggered = useRef(false);
   const bingeLoadingRef = useRef(false);
@@ -131,10 +133,13 @@ export default function ReaderPage() {
   type StreamChapter = {
     id: number;
     name: string;
+    chapterNumber: number;
     mangaId: number;
     sourceOrder: number;
     pages: string[];
   };
+  const streamChaptersRef = useRef<StreamChapter[]>([]);
+  const mangaTitleRef = useRef("Unknown Manga");
   const [streamChapters, setStreamChapters] = useState<StreamChapter[]>([]);
 
   const sdk = useMemo(() => {
@@ -275,11 +280,22 @@ export default function ReaderPage() {
 
   // Update progress mutation
   const { mutate: updateProgress } = useMutation({
-    mutationFn: async (pageIndex: number) => {
-      const isRead = pages && pageIndex >= pages.length - 1;
+    mutationFn: async (progress: ProgressSnapshot) => {
+      const isRead = progress.pageCount > 0 && progress.pageIndex >= progress.pageCount - 1;
+
+      await recordReadingActivity(serverBaseUrl, {
+        chapterId: progress.chapterId,
+        chapterName: progress.chapterName,
+        chapterNumber: progress.chapterNumber,
+        mangaId: progress.mangaId,
+        mangaTitle: progress.mangaTitle,
+        lastPageRead: progress.pageIndex,
+        pageCount: progress.pageCount,
+        isRead,
+      });
 
       try {
-        await updateCachedChapterProgress(serverBaseUrl, parseInt(chapterId!), pageIndex, !!isRead);
+        await updateCachedChapterProgress(serverBaseUrl, progress.chapterId, progress.pageIndex, isRead);
       } catch (err) {
         console.error("Failed to update offline progress cache:", err);
       }
@@ -287,9 +303,9 @@ export default function ReaderPage() {
       try {
         const result = await sdk.UpdateChapterProgress({ 
           input: { 
-            id: parseInt(chapterId!),
+            id: progress.chapterId,
             patch: { 
-              lastPageRead: pageIndex, 
+              lastPageRead: progress.pageIndex,
               isRead 
             } 
           } 
@@ -299,7 +315,7 @@ export default function ReaderPage() {
           try {
             await sdk.DeleteDownloadedChapter({
               input: {
-                id: parseInt(chapterId!)
+                id: progress.chapterId
               }
             });
           } catch (deleteErr) {
@@ -327,14 +343,9 @@ export default function ReaderPage() {
       setCurrentPage(0);
       setIsAutoScrolling(false);
       autoScrollEndTriggered.current = false;
-      if (debouncedUpdateRef.current) {
-        if (lastSavedPageRef.current !== null) {
-          updateProgress(lastSavedPageRef.current);
-        }
-        clearTimeout(debouncedUpdateRef.current);
-        debouncedUpdateRef.current = null;
-      }
-      lastSavedPageRef.current = null;
+      for (const timer of debouncedUpdatesRef.current.values()) clearTimeout(timer);
+      debouncedUpdatesRef.current.clear();
+      lastSavedPagesRef.current.clear();
       fetchPages();
     }
   }, [chapterId, serverBaseUrl, fetchPages, updateProgress]);
@@ -353,7 +364,7 @@ export default function ReaderPage() {
     setCurrentPage(savedPage);
     // Let the initial reader load create a history record even if the user
     // leaves before scrolling far enough to trigger an intersection callback.
-    lastSavedPageRef.current = null;
+    lastSavedPagesRef.current.delete(chapter.id);
   }, [chapter?.id, chapter?.lastPageRead, pages.length]);
 
   useEffect(() => {
@@ -362,6 +373,7 @@ export default function ReaderPage() {
       {
         id: chapter.id,
         name: chapter.name,
+        chapterNumber: chapter.chapterNumber,
         mangaId: chapter.mangaId,
         sourceOrder: chapter.sourceOrder,
         pages,
@@ -441,6 +453,7 @@ export default function ReaderPage() {
         {
           id: nextId,
           name: chRes.chapter.name,
+          chapterNumber: chRes.chapter.chapterNumber,
           mangaId: chRes.chapter.mangaId,
           sourceOrder: chRes.chapter.sourceOrder,
           pages: newPages,
@@ -455,42 +468,51 @@ export default function ReaderPage() {
   }, [streamChapters, getNextSiblingId, sdk]);
 
   // Debounced progress saver
-  const saveProgress = useCallback((pageIndex: number) => {
-    if (lastSavedPageRef.current === pageIndex) return;
-    lastSavedPageRef.current = pageIndex;
+  const saveProgress = useCallback((streamChapter: StreamChapter, pageIndex: number) => {
+    if (lastSavedPagesRef.current.get(streamChapter.id) === pageIndex) return;
+    lastSavedPagesRef.current.set(streamChapter.id, pageIndex);
 
-    if (debouncedUpdateRef.current) {
-      clearTimeout(debouncedUpdateRef.current);
-    }
+    const existingTimer = debouncedUpdatesRef.current.get(streamChapter.id);
+    if (existingTimer) clearTimeout(existingTimer);
 
-    debouncedUpdateRef.current = setTimeout(() => {
-      debouncedUpdateRef.current = null;
-      updateProgress(pageIndex);
-    }, 1500);
-  }, [updateProgress]);
+    const progress = createProgressSnapshot(streamChapter, chapter?.manga?.title || "Unknown Manga", pageIndex);
+    const timer = setTimeout(() => {
+      debouncedUpdatesRef.current.delete(streamChapter.id);
+      updateProgress(progress);
+    }, 750);
+    debouncedUpdatesRef.current.set(streamChapter.id, timer);
+  }, [chapter?.manga?.title, updateProgress]);
+
+  useEffect(() => {
+    streamChaptersRef.current = streamChapters;
+    mangaTitleRef.current = chapter?.manga?.title || "Unknown Manga";
+  }, [chapter?.manga?.title, streamChapters]);
 
   useEffect(() => {
     if (!chapter || pages.length === 0) return;
     const initialPage = Math.min(Math.max(chapter.lastPageRead || 0, 0), pages.length - 1);
-    saveProgress(initialPage);
-  }, [chapter?.id, pages.length, saveProgress]);
+    const initialChapter = streamChapters.find((item) => item.id === chapter.id);
+    if (initialChapter) saveProgress(initialChapter, initialPage);
+  }, [chapter?.id, pages.length, saveProgress, streamChapters]);
 
   // Cleanup timers on unmount
   useEffect(() => {
     return () => {
-      if (debouncedUpdateRef.current) {
-        if (lastSavedPageRef.current !== null) {
-          updateProgress(lastSavedPageRef.current);
+      for (const [streamChapterId, timer] of debouncedUpdatesRef.current) {
+        clearTimeout(timer);
+        const streamChapter = streamChaptersRef.current.find((item) => item.id === streamChapterId);
+        const pageIndex = lastSavedPagesRef.current.get(streamChapterId);
+        if (streamChapter && pageIndex !== undefined) {
+          updateProgress(createProgressSnapshot(streamChapter, mangaTitleRef.current, pageIndex));
         }
-        clearTimeout(debouncedUpdateRef.current);
-        debouncedUpdateRef.current = null;
       }
+      debouncedUpdatesRef.current.clear();
     };
-  }, []);
+  }, [updateProgress]);
 
-  const handleIntersect = useCallback((pageIndex: number) => {
+  const handleIntersect = useCallback((streamChapter: StreamChapter, pageIndex: number) => {
     setCurrentPage(pageIndex);
-    saveProgress(pageIndex);
+    saveProgress(streamChapter, pageIndex);
   }, [saveProgress]);
 
   // Page Transitions Engine
@@ -532,8 +554,9 @@ export default function ReaderPage() {
   useEffect(() => {
     if (readerMode === "WEBTOON" || pages.length === 0) return;
     const activePage = idxB !== null && idxB < pages.length ? idxB : idxA;
-    saveProgress(activePage);
-  }, [idxA, idxB, readerMode, pages.length, saveProgress]);
+    const initialChapter = streamChapters[0];
+    if (initialChapter) saveProgress(initialChapter, activePage);
+  }, [idxA, idxB, readerMode, pages.length, saveProgress, streamChapters]);
 
   // Navigation Logic
   const navigatePage = useCallback((dir: number) => {
@@ -913,7 +936,7 @@ export default function ReaderPage() {
                       })}
                       fallbackUrl={resolveBackendUrl(serverBaseUrl, url)}
                       pageNumber={i}
-                      onIntersect={handleIntersect}
+                      onIntersect={(pageIndex) => handleIntersect(streamCh, pageIndex)}
                       imageFilters={effectiveImageFilters}
                       cropBorders={effectiveCropBorders}
                     />

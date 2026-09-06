@@ -226,12 +226,12 @@ export default function MangaDetailPage() {
   };
 
   return (
-    <div className="min-h-screen bg-transparent pb-20 lg:pb-0">
+    <div className="yomi-manga-detail min-h-screen pb-20 lg:pb-0">
       {/* Top Banner & Metadata Area */}
       <div className="relative">
         {/* Blurred background */}
         <div
-          className="absolute inset-0 z-0 h-full w-full bg-cover bg-center opacity-20 blur-xl saturate-150 [mask-image:linear-gradient(to_bottom,white_40%,transparent)]"
+          className="yomi-manga-backdrop absolute inset-0 z-0 h-full w-full bg-cover bg-center"
           style={{ backgroundImage: `url(${imageUrl})` }}
         />
 
@@ -239,23 +239,24 @@ export default function MangaDetailPage() {
         <div className="relative z-20 flex items-center gap-4 p-4 lg:p-6">
           <Link
             to="/library"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white border border-white/5 backdrop-blur-md transition-all duration-200 hover:bg-black/60 hover:border-white/20 hover:scale-105"
+            className="yomi-icon-button"
+            aria-label="Back to library"
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
         </div>
 
         {/* Content Container */}
-        <div className="relative z-10 mx-auto max-w-5xl px-6 pb-8 pt-4 lg:px-12 lg:pt-12">
+        <div className="relative z-10 mx-auto max-w-6xl px-6 pb-10 pt-4 lg:px-12 lg:pt-10">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
             {/* Cover Image */}
-            <div className="relative mx-auto w-48 aspect-[2/3] shrink-0 overflow-hidden rounded-xl border border-white/10 hover:border-yomi-jade/30 transition-all duration-300 shadow-2xl sm:mx-0 sm:w-56 md:w-64 group/cover shadow-glow-hover">
-              <img src={imageUrl} alt={manga.title} className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover/cover:scale-105" />
+            <div className="yomi-manga-cover relative mx-auto w-48 aspect-[2/3] shrink-0 overflow-hidden sm:mx-0 sm:w-56 md:w-64">
+              <img src={imageUrl} alt={manga.title} className="absolute inset-0 h-full w-full object-cover" />
             </div>
 
             {/* Manga Info */}
             <div className="flex flex-col justify-end">
-              <h1 className="text-2xl font-bold text-white sm:text-3xl lg:text-4xl">
+              <h1 className="max-w-3xl text-3xl font-semibold tracking-[-0.035em] text-white sm:text-4xl lg:text-5xl">
                 {manga.title}
               </h1>
 
@@ -284,7 +285,7 @@ export default function MangaDetailPage() {
                 ) : firstUnreadChapter ? (
                   <Link
                     to={`/reader/${firstUnreadChapter.id}`}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-yomi-jade px-6 py-3 font-semibold text-ink-950 transition-all duration-300 hover:bg-yomi-jade/90 hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-glow sm:flex-none"
+                    className="yomi-button yomi-button-primary flex-1 sm:flex-none"
                   >
                     <Play className="h-4 w-4 fill-current" />
                     Resume
@@ -300,10 +301,10 @@ export default function MangaDetailPage() {
                 <button 
                   onClick={handleLibraryClick}
                   disabled={togglingLibrary}
-                  className={`flex flex-1 items-center justify-center rounded-xl border px-6 py-3 font-semibold transition-all duration-300 sm:flex-none hover:scale-[1.02] active:scale-[0.98] ${
-                    manga.inLibrary 
-                      ? "border-white/10 bg-ink-900/50 text-slate-200 hover:bg-white/5 hover:border-white/20" 
-                      : "border-yomi-jade/30 bg-ink-900 text-yomi-jade hover:bg-ink-800 hover:border-yomi-jade/60 hover:shadow-glow-hover"
+                  className={`yomi-button flex-1 sm:flex-none ${
+                    manga.inLibrary
+                      ? "yomi-button-secondary"
+                      : "yomi-button-secondary text-yomi-jade"
                   }`}
                 >
                   {togglingLibrary ? <Loader2 className="h-5 w-5 animate-spin" /> : manga.inLibrary ? "In Library" : "Add to Library"}
@@ -311,7 +312,7 @@ export default function MangaDetailPage() {
                 {manga.inLibrary && !isOfflineMode && (
                   <button
                     onClick={() => setIsMigrationOpen(true)}
-                    className="flex flex-1 items-center justify-center rounded-xl border border-white/10 bg-ink-900/50 px-6 py-3 font-semibold text-slate-300 hover:bg-white/5 hover:border-white/20 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] sm:flex-none"
+                    className="yomi-button yomi-button-secondary flex-1 sm:flex-none"
                   >
                     Migrate Source
                   </button>
@@ -345,7 +346,7 @@ export default function MangaDetailPage() {
 
       {/* Chapters Section */}
       <div className="mx-auto max-w-5xl pb-12">
-        <div className="rounded-t-2xl bg-ink-900/50 backdrop-blur-md shadow-panel lg:rounded-2xl lg:border lg:border-white/5">
+        <div className="yomi-content-surface rounded-t-2xl lg:rounded-2xl">
           {isChaptersLoading ? (
             <div className="flex min-h-48 items-center justify-center text-slate-400">
               <Loader2 className="mr-3 h-5 w-5 animate-spin text-yomi-jade" />

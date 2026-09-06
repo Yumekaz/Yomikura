@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Clock3, Play, BookOpen } from "lucide-react";
+import { Loader2, Clock3, Play, BookOpen, RefreshCw } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
@@ -92,16 +92,19 @@ export default function UpdatesPage() {
 
   if (!serverBaseUrl) {
     return (
-      <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400">
-        <Clock3 className="mb-4 h-12 w-12 opacity-50" />
-        <p>{t("no_server")}</p>
+      <div className="yomi-workspace">
+        <div className="yomi-route-empty"><div>
+          <Clock3 />
+          <h2>Updates need a local engine</h2>
+          <p>{t("no_server")}</p>
+        </div></div>
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
+      <div className="yomi-workspace flex min-h-[50vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-yomi-jade" />
       </div>
     );
@@ -109,47 +112,45 @@ export default function UpdatesPage() {
 
   if (isError) {
     return (
-      <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400 text-center max-w-md mx-auto p-4">
-        <p className="text-red-400 font-semibold mb-2">Failed to load updates</p>
-        <p className="text-sm mb-4">{getErrorMessage(error)}</p>
-        <button
-          onClick={() => refetch()}
-          className="rounded-lg bg-yomi-jade px-4 py-2 font-medium text-ink-950 hover:bg-yomi-jade/90"
-        >
-          {t("retry")}
-        </button>
-      </div>
+      <div className="yomi-workspace"><div className="yomi-route-empty"><div>
+        <Clock3 />
+        <h2>Updates could not load</h2>
+        <p>{getErrorMessage(error)}</p>
+        <button onClick={() => refetch()} className="yomi-button yomi-button-primary mt-5"><RefreshCw />{t("retry")}</button>
+      </div></div></div>
     );
   }
 
   if (updates.length === 0) {
     return (
-      <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400">
-        <Clock3 className="mb-4 h-12 w-12 opacity-50" />
-        <p className="text-lg text-slate-300">{t("no_updates")}</p>
-        <p className="text-sm mt-1">Updates for manga in your library will appear here.</p>
-      </div>
+      <div className="yomi-workspace"><div className="yomi-route-empty"><div>
+        <Clock3 />
+        <h2>{t("no_updates")}</h2>
+        <p>When a source publishes a new chapter for a title in your library, it will appear here.</p>
+      </div></div></div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 pb-24 max-w-3xl mx-auto space-y-8">
-      <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-        <Clock3 className="h-6 w-6 text-yomi-jade" />
-        {t("updates")}
-      </h1>
+    <div className="yomi-workspace">
+      <div className="yomi-workspace-head">
+        <div>
+          <span className="yomi-eyebrow">Library activity</span>
+          <h1 className="yomi-workspace-title"><Clock3 />{t("updates")}</h1>
+          <p className="yomi-workspace-subtitle">New chapters from titles you follow, arranged by when they reached your library.</p>
+        </div>
+        <span className="yomi-status-chip"><span className="yomi-status-dot" />{updates.length} recent chapters</span>
+      </div>
 
-      <div className="space-y-8">
+      <div className="space-y-9">
         {[t("today"), t("yesterday"), "This Week", "Older"].map((groupName) => {
           const groupItems = groupedUpdates[groupName] || [];
           if (groupItems.length === 0) return null;
 
           return (
-            <div key={groupName} className="space-y-4">
-              <h2 className="text-xs font-semibold text-yomi-jade uppercase tracking-wider border-b border-white/5 pb-2">
-                {groupName}
-              </h2>
-              <div className="flex flex-col gap-3">
+            <section key={groupName}>
+              <h2 className="yomi-section-label">{groupName}</h2>
+              <div className="yomi-surface">
                 {groupItems.map((item) => {
                   let coverUrl = "/placeholder-cover.svg";
                   if (item.manga.thumbnailUrl) {
@@ -161,49 +162,38 @@ export default function UpdatesPage() {
                   return (
                     <div
                       key={item.id}
-                      className="flex items-center gap-4 rounded-xl border border-white/5 bg-ink-900 p-3 sm:p-4 hover:border-white/10 transition"
+                      className="yomi-surface-row"
                     >
                       <Link
                         to={`/manga/${item.manga.id}`}
-                        className="h-16 w-12 flex-shrink-0 overflow-hidden rounded-md bg-ink-950"
+                        className="yomi-cover-sm"
                       >
                         <img src={coverUrl} alt={item.manga.title} className="h-full w-full object-cover" />
                       </Link>
 
-                      <div className="flex flex-col flex-1 min-w-0">
+                      <div className="yomi-row-copy">
+                        <div className="yomi-row-overline"><strong>New chapter</strong><span>{item.scanlator || "Library update"}</span></div>
                         <Link
                           to={`/manga/${item.manga.id}`}
-                          className="font-medium text-slate-200 hover:text-yomi-jade transition truncate text-sm sm:text-base"
+                          className="yomi-row-title"
                         >
                           {item.manga.title}
                         </Link>
-                        <span className="text-xs sm:text-sm text-slate-300 truncate mt-0.5">
-                          {item.name}
-                        </span>
-                        <div className="flex items-center gap-2 text-[10px] sm:text-xs text-slate-500 mt-1">
-                          <span>
-                            {new Date(parseInt(item.uploadDate) < 30000000000 ? parseInt(item.uploadDate) * 1000 : parseInt(item.uploadDate)).toLocaleDateString()}
-                          </span>
-                          {item.scanlator && (
-                            <>
-                              <span>•</span>
-                              <span className="truncate">{item.scanlator}</span>
-                            </>
-                          )}
-                        </div>
+                        <p>{item.name}</p>
+                        <small>{new Date(parseInt(item.uploadDate) < 30000000000 ? parseInt(item.uploadDate) * 1000 : parseInt(item.uploadDate)).toLocaleDateString()}</small>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="yomi-row-actions">
                         <Link
                           to={`/reader/${item.id}`}
-                          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-slate-300 hover:bg-yomi-jade hover:text-ink-950 transition"
+                          className="yomi-icon-button"
                           title="Read Chapter"
                         >
                           <Play className="h-4 w-4 fill-current ml-0.5" />
                         </Link>
                         <Link
                           to={`/manga/${item.manga.id}`}
-                          className="hidden sm:flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-slate-300 hover:bg-white/10 transition"
+                          className="yomi-icon-button hidden sm:inline-grid"
                           title="Manga Details"
                         >
                           <BookOpen className="h-4 w-4" />
@@ -213,7 +203,7 @@ export default function UpdatesPage() {
                   );
                 })}
               </div>
-            </div>
+            </section>
           );
         })}
       </div>

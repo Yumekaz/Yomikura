@@ -652,30 +652,30 @@ function SettingsPage() {
   };
 
   return (
-    <section className="min-h-screen px-5 py-6 sm:px-8 lg:px-10">
-      <header className="flex flex-col gap-4 border-b border-white/10 pb-5">
+    <section className="yomi-page yomi-settings">
+      <header className="yomi-page-header !items-start !mb-0">
         <div>
-          <p className="text-sm font-semibold text-yomi-jade">Settings</p>
-          <h1 className="mt-2 text-3xl font-semibold text-white">Application Settings</h1>
+          <p className="yomi-eyebrow">Workspace</p>
+          <h1>Settings</h1>
+          <p>Reader preferences, storage, and server controls.</p>
         </div>
+      </header>
 
-        {/* Tabs Bar */}
-        <div className="flex gap-2 border-b border-white/5 pb-px overflow-x-auto">
+        <div className="yomi-settings-tabs">
           {(["connection", "appearance", "reader", "backup", "offline", "advanced", "about"] as SettingsTab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`pb-2 px-1 text-sm font-medium border-b-2 transition ${
+              className={` ${
                 activeTab === tab
-                  ? "border-yomi-jade text-yomi-jade"
-                  : "border-transparent text-slate-400 hover:text-slate-200"
-              } capitalize`}
+                  ? "is-active"
+                  : ""
+              }`}
             >
               {tab === "appearance" ? t("theme") : tab === "offline" ? t("offline") : tab}
             </button>
           ))}
         </div>
-      </header>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         {/* Main Content Area based on active tab */}
@@ -979,7 +979,7 @@ function SettingsPage() {
                     </label>
                     <div className="flex flex-wrap gap-4">
                       {[
-                        { name: "jade", class: "bg-emerald-500", label: "Jade" },
+                        { name: "jade", class: "bg-[#efeae2]", label: "Ivory" },
                         { name: "mint", class: "bg-teal-400", label: "Mint" },
                         { name: "gold", class: "bg-amber-500", label: "Gold" },
                         { name: "plum", class: "bg-fuchsia-600", label: "Plum" },
@@ -1546,7 +1546,7 @@ function SettingsPage() {
                       </span>
                       <p className="text-xs text-slate-400 leading-relaxed max-w-lg">
                         Enables a simulation mode loaded with mockup catalogs and offline readers. 
-                        Useful for previewing Yomikura's premium interfaces when a Suwayomi server backend is unavailable.
+                        Useful for previewing Yomikura's interface when a Suwayomi server backend is unavailable.
                       </p>
                     </div>
                     <button

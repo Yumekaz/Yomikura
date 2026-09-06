@@ -11,14 +11,23 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Default Jade accent */
-  --yomi-accent: 125, 216, 189;
+  /* Brand palette: warm paper, ink, and a restrained bookmark red. */
+  --yomi-accent: 239, 234, 226;
+  --yomi-signature: 229, 72, 63;
 
   /* Theme variables - default dark */
   --ink-950: #090a0c;
-  --ink-900: #0e1116;
-  --ink-850: #151922;
-  --ink-800: #1c2230;
+  --ink-900: #101318;
+  --ink-850: #171b22;
+  --ink-800: #222832;
+  --surface-rgb: 16, 19, 24;
+  --line: rgba(255, 255, 255, 0.075);
+  --line-strong: rgba(255, 255, 255, 0.13);
+  --text-strong: #f5f7fa;
+  --text: #c5ccd6;
+  --text-muted: #7f8998;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 :root.light-theme {
@@ -29,6 +38,12 @@
   --ink-900: #f1f5f9;
   --ink-850: #e2e8f0;
   --ink-800: #cbd5e1;
+  --surface-rgb: 241, 245, 249;
+  --line: rgba(15, 23, 42, 0.1);
+  --line-strong: rgba(15, 23, 42, 0.16);
+  --text-strong: #0f172a;
+  --text: #334155;
+  --text-muted: #64748b;
 }
 
 * {
@@ -45,18 +60,12 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 15% 15%, rgba(var(--yomi-accent), 0.18), transparent 32rem),
-    radial-gradient(circle at 85% 85%, rgba(var(--yomi-accent), 0.08), transparent 28rem),
-    linear-gradient(135deg, var(--ink-950) 0%, var(--ink-900) 50%, var(--ink-950) 100%);
+  background: var(--ink-950);
   transition: background 0.2s ease, color 0.2s ease;
 }
 
 .light-theme body {
-  background:
-    radial-gradient(circle at 15% 15%, rgba(var(--yomi-accent), 0.12), transparent 32rem),
-    radial-gradient(circle at 85% 85%, rgba(var(--yomi-accent), 0.05), transparent 28rem),
-    linear-gradient(135deg, var(--ink-950) 0%, var(--ink-900) 50%, var(--ink-950) 100%);
+  background: var(--ink-950);
 }
 
 button,
@@ -125,7 +134,7 @@ a {
 
 /* Glassmorphism & Depth */
 .bg-glass {
-  background: rgba(var(--ink-900), 0.6) !important;
+  background: rgba(var(--surface-rgb), 0.88) !important;
   backdrop-filter: blur(16px) saturate(130%) !important;
   -webkit-backdrop-filter: blur(16px) saturate(130%) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -138,18 +147,17 @@ a {
   border: 1px solid rgba(0, 0, 0, 0.08) !important;
 }
 
-/* Premium Card Lifts & Shadows */
+/* Restrained card elevation */
 .card-lift {
-  transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), 
-              box-shadow 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), 
-              border-color 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+  transition: transform 180ms var(--ease-out), box-shadow 180ms ease, border-color 180ms ease !important;
 }
 
-.card-lift:hover {
-  transform: translateY(-6px) !important;
-  box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.5), 
-              0 0 16px -2px rgba(var(--yomi-accent), 0.3) !important;
-  border-color: rgba(var(--yomi-accent), 0.4) !important;
+@media (hover: hover) and (pointer: fine) {
+  .card-lift:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 14px 28px -18px rgba(0, 0, 0, 0.85) !important;
+    border-color: var(--line-strong) !important;
+  }
 }
 
 /* Custom glows */
@@ -255,3 +263,185 @@ html.reduce-motion *::after {
   }
 }
 
+/* Desktop product system -------------------------------------------------- */
+.yomi-app-shell {
+  min-height: 100vh;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px) 0 0 / 64px 64px,
+    var(--ink-950);
+}
+
+.yomi-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 30;
+  display: none;
+  width: 232px;
+  overflow-y: auto;
+  padding: 24px 16px 18px;
+  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--ink-900) 94%, transparent);
+}
+
+.yomi-main {
+  min-height: 100vh;
+  padding-bottom: 96px;
+}
+
+.yomi-brand { display: flex; align-items: center; gap: 12px; padding: 0 8px; }
+.yomi-brand-mark { width: 38px; height: 38px; overflow: hidden; border-radius: 11px; border: 1px solid var(--line-strong); box-shadow: 0 8px 20px -12px #000; }
+.yomi-brand p { margin: 0; color: var(--text-strong); font-size: 15px; font-weight: 720; letter-spacing: -0.02em; }
+.yomi-brand span { display: block; margin-top: 1px; color: var(--text-muted); font-size: 11px; }
+.yomi-engine-status { display: flex; align-items: center; gap: 8px; margin: 14px 8px 0; color: var(--text-muted); font-size: 11px; font-weight: 600; }
+.yomi-nav-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.yomi-nav-label { margin: 0 0 8px; padding: 0 11px; color: var(--text-muted); font-size: 10px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+.yomi-nav-link { display: flex; min-height: 38px; align-items: center; gap: 11px; border-radius: 10px; padding: 0 11px; color: var(--text-muted); font-size: 13px; font-weight: 560; transition: color 140ms ease, background-color 140ms ease, transform 120ms var(--ease-out); }
+.yomi-nav-link.is-active { color: var(--text-strong); background: rgba(var(--yomi-accent), .07); box-shadow: inset 2px 0 rgba(var(--yomi-signature), .95); }
+.yomi-nav-link:active { transform: scale(.98); }
+.yomi-sidebar-footer { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+.yomi-sidebar-footer > p { margin: 14px 11px 0; color: var(--text-muted); font-size: 10px; line-height: 1.55; }
+
+@media (hover: hover) and (pointer: fine) {
+  .yomi-nav-link:hover { color: var(--text); background: rgba(255, 255, 255, .035); }
+}
+
+@media (min-width: 1024px) {
+  .yomi-sidebar { display: block; }
+  .yomi-main { padding-left: 232px; padding-bottom: 24px; }
+}
+
+.yomi-page { width: min(100%, 1120px); margin: 0 auto; padding: 44px clamp(24px, 4vw, 56px) 80px; }
+.yomi-page-header { display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-bottom: 34px; }
+.yomi-page-header h1, .yomi-empty-state h1 { margin: 6px 0 0; color: var(--text-strong); font-size: clamp(30px, 3vw, 42px); font-weight: 720; letter-spacing: -.04em; line-height: 1.05; }
+.yomi-page-header p, .yomi-empty-state p { margin: 10px 0 0; color: var(--text-muted); font-size: 14px; line-height: 1.55; }
+.yomi-eyebrow { color: rgba(var(--yomi-signature), .95); font-size: 10px; font-weight: 760; letter-spacing: .16em; text-transform: uppercase; }
+.yomi-status-chip { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; border: 1px solid var(--line); border-radius: 999px; padding: 8px 11px; color: var(--text-muted); font-size: 11px; }
+.yomi-status-dot { width: 7px; height: 7px; border-radius: 999px; background: rgb(var(--yomi-accent)); box-shadow: 0 0 0 3px rgba(var(--yomi-accent), .1); }
+.yomi-status-dot.is-warning { background: #f2c879; box-shadow: 0 0 0 3px rgba(242, 200, 121, .1); }
+
+.yomi-timeline { display: grid; gap: 34px; }
+.yomi-timeline-group { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 24px; }
+.yomi-timeline-date { position: sticky; top: 24px; display: flex; height: fit-content; align-items: center; gap: 8px; padding-top: 15px; color: var(--text-muted); font-size: 12px; font-weight: 650; }
+.yomi-timeline-date svg { width: 15px; height: 15px; color: rgb(var(--yomi-signature)); }
+.yomi-timeline-list { overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--ink-900); box-shadow: 0 20px 70px -45px rgba(0, 0, 0, .85); }
+.yomi-history-row { position: relative; display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; gap: 16px; align-items: center; min-height: 104px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.yomi-history-row:last-child { border-bottom: 0; }
+.yomi-history-cover { position: relative; width: 54px; height: 76px; overflow: hidden; border-radius: 8px; background: var(--ink-850); box-shadow: 0 10px 24px -14px #000; }
+.yomi-history-cover img { width: 100%; height: 100%; object-fit: cover; }
+.yomi-history-cover > span { position: absolute; inset: 0; display: grid; place-items: center; color: white; background: rgba(0,0,0,.45); opacity: 0; transition: opacity 140ms ease; }
+.yomi-history-cover svg { width: 20px; height: 20px; }
+.yomi-history-copy { min-width: 0; }
+.yomi-history-meta { display: flex; gap: 9px; align-items: center; margin-bottom: 5px; color: var(--text-muted); font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .08em; }
+.yomi-history-meta span { color: rgba(var(--yomi-accent), .8); }
+.yomi-history-title { display: block; overflow: hidden; color: var(--text-strong); font-size: 15px; font-weight: 650; letter-spacing: -.015em; text-overflow: ellipsis; white-space: nowrap; }
+.yomi-history-copy p { overflow: hidden; margin: 3px 0 9px; color: var(--text-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.yomi-history-copy small { display: block; margin-top: 5px; color: var(--text-muted); font-size: 10px; }
+.yomi-progress-line { width: min(240px, 70%); height: 3px; overflow: hidden; border-radius: 99px; background: var(--ink-800); }
+.yomi-progress-line span { display: block; height: 100%; border-radius: inherit; background: rgb(var(--yomi-signature)); }
+.yomi-history-actions { display: flex; gap: 6px; }
+.yomi-icon-button { display: inline-grid; width: 36px; height: 36px; place-items: center; border: 1px solid var(--line); border-radius: 10px; color: var(--text-muted); background: transparent; transition: color 140ms ease, background-color 140ms ease, transform 120ms var(--ease-out); }
+.yomi-icon-button svg { width: 16px; height: 16px; }
+.yomi-icon-button:active, .yomi-button:active { transform: scale(.97); }
+.yomi-icon-button.danger { color: #d98f8f; }
+
+.yomi-button { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; padding: 0 15px; font-size: 12px; font-weight: 680; transition: transform 120ms var(--ease-out), background-color 140ms ease, border-color 140ms ease; }
+.yomi-button svg { width: 15px; height: 15px; }
+.yomi-button-primary { color: #07110e; background: rgb(var(--yomi-accent)); }
+.yomi-button-secondary { border: 1px solid var(--line); color: var(--text); background: var(--ink-900); }
+.yomi-empty-state { display: flex; min-height: 70vh; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; text-align: center; }
+.yomi-empty-state p { max-width: 430px; margin-bottom: 22px; }
+.yomi-empty-icon { display: grid; width: 64px; height: 64px; place-items: center; margin-bottom: 22px; border: 1px solid var(--line); border-radius: 20px; color: rgb(var(--yomi-accent)); background: var(--ink-900); box-shadow: 0 18px 50px -35px rgba(var(--yomi-accent), .8); }
+.yomi-empty-icon svg { width: 27px; height: 27px; }
+.yomi-settings-tabs { display: flex; gap: 4px; margin-top: 26px; padding: 4px; overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--ink-900); }
+.yomi-settings-tabs button { min-height: 34px; border-radius: 8px; padding: 0 12px; color: var(--text-muted); font-size: 12px; font-weight: 620; text-transform: capitalize; transition: color 140ms ease, background-color 140ms ease, transform 120ms var(--ease-out); }
+.yomi-settings-tabs button.is-active { color: var(--text-strong); background: var(--ink-800); box-shadow: 0 1px 0 rgba(255,255,255,.04); }
+.yomi-settings-tabs button:active { transform: scale(.97); }
+.yomi-settings > .grid > div > div > div.rounded-md { border-color: var(--line); border-radius: 16px; background: var(--ink-900); box-shadow: 0 20px 60px -48px rgba(0,0,0,.9); }
+.yomi-skeleton { display: block; min-height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--ink-850), var(--ink-800), var(--ink-850)); background-size: 200% 100%; animation: yomi-skeleton 1.2s linear infinite; }
+.yomi-route-loading { display: grid; gap: 24px; width: min(100%, 1120px); margin: 0 auto; padding: 44px clamp(24px, 4vw, 56px); }
+@keyframes yomi-skeleton { to { background-position: -200% 0; } }
+
+.yomi-manga-detail { background: var(--ink-950); }
+.yomi-manga-backdrop { opacity: .13; filter: saturate(.72) blur(32px); transform: scale(1.04); mask-image: linear-gradient(to bottom, black 12%, transparent 88%); }
+.yomi-manga-cover { border: 1px solid var(--line-strong); border-radius: 18px; box-shadow: 0 24px 64px rgba(0,0,0,.42), 0 2px 8px rgba(0,0,0,.34); }
+.yomi-content-surface { border: 1px solid var(--line); background: var(--ink-900); box-shadow: 0 18px 45px rgba(0,0,0,.2); }
+.yomi-reader-top, .yomi-reader-bottom { border-color: var(--line); background: rgba(9,10,12,.9); box-shadow: 0 12px 36px rgba(0,0,0,.3); backdrop-filter: blur(18px) saturate(1.15); }
+.yomi-reader-top { border-bottom-width: 1px; }
+.yomi-reader-bottom { border-top-width: 1px; }
+.yomi-reader-panel { border: 1px solid var(--line-strong); border-radius: 16px; background: var(--ink-850); box-shadow: 0 18px 52px rgba(0,0,0,.34); }
+
+@media (hover: hover) and (pointer: fine) {
+  .yomi-history-row:hover { background: rgba(255,255,255,.018); }
+  .yomi-history-cover:hover > span { opacity: 1; }
+  .yomi-icon-button:hover { color: var(--text-strong); background: rgba(255,255,255,.045); }
+  .yomi-icon-button.danger:hover { color: #ffaaaa; background: rgba(239, 68, 68, .08); }
+}
+
+@media (max-width: 720px) {
+  .yomi-page { padding: 28px 16px 92px; }
+  .yomi-timeline-group { grid-template-columns: 1fr; gap: 10px; }
+  .yomi-timeline-date { position: static; padding: 0 2px; }
+  .yomi-history-row { grid-template-columns: 54px minmax(0, 1fr); padding: 12px; }
+  .yomi-history-cover { width: 48px; height: 68px; }
+  .yomi-history-actions { display: none; }
+}
+
+/* Product surfaces used by operational desktop routes ------------------- */
+.yomi-workspace { width: min(100%, 1120px); margin: 0 auto; padding: 44px clamp(24px, 4vw, 56px) 80px; }
+.yomi-workspace-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 30px; }
+.yomi-workspace-title { display: flex; align-items: center; gap: 11px; margin: 0; color: var(--text-strong); font-size: clamp(28px, 3vw, 38px); font-weight: 720; letter-spacing: -.04em; line-height: 1.05; }
+.yomi-workspace-title > svg { width: 25px; height: 25px; color: rgb(var(--yomi-signature)); }
+.yomi-workspace-subtitle { max-width: 610px; margin: 9px 0 0; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
+.yomi-section-label { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; color: var(--text-muted); font-size: 10px; font-weight: 740; letter-spacing: .15em; text-transform: uppercase; }
+.yomi-section-label::after { height: 1px; flex: 1; content: ""; background: var(--line); }
+.yomi-surface { overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--ink-900); box-shadow: 0 22px 70px -54px rgba(0, 0, 0, .95); }
+.yomi-surface-row { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; align-items: center; gap: 16px; min-height: 102px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.yomi-surface-row:last-child { border-bottom: 0; }
+.yomi-cover-sm { display: block; width: 54px; height: 74px; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--ink-850); box-shadow: 0 10px 24px -16px #000; }
+.yomi-cover-sm img { width: 100%; height: 100%; object-fit: cover; }
+.yomi-row-copy { min-width: 0; }
+.yomi-row-overline { display: flex; gap: 8px; align-items: center; margin-bottom: 5px; color: var(--text-muted); font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.yomi-row-overline strong { color: rgb(var(--yomi-signature)); font-weight: 760; }
+.yomi-row-title { display: block; overflow: hidden; color: var(--text-strong); font-size: 15px; font-weight: 660; letter-spacing: -.015em; text-overflow: ellipsis; white-space: nowrap; }
+.yomi-row-copy > p { overflow: hidden; margin: 4px 0 0; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.yomi-row-copy > small { display: block; margin-top: 7px; color: var(--text-muted); font-size: 10px; }
+.yomi-row-actions { display: flex; align-items: center; gap: 7px; }
+.yomi-commandbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--ink-900); }
+.yomi-commandbar-copy { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--text-muted); font-size: 11px; }
+.yomi-commandbar-copy strong { display: block; color: var(--text-strong); font-size: 12px; }
+.yomi-commandbar-copy span { display: block; margin-top: 2px; }
+.yomi-commandbar-copy .status { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: rgb(var(--yomi-signature)); }
+.yomi-commandbar-copy .status.is-idle { background: #8190a3; }
+.yomi-chip { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px; color: var(--text-muted); font-size: 10px; font-weight: 660; line-height: 1.2; }
+.yomi-chip.is-live { border-color: rgba(var(--yomi-signature), .38); color: #f0b5af; background: rgba(var(--yomi-signature), .09); }
+.yomi-field { width: 100%; min-height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; color: var(--text); background: var(--ink-900); font-size: 12px; outline: none; transition: border-color 140ms ease, box-shadow 140ms ease; }
+.yomi-field:focus { border-color: rgba(var(--yomi-signature), .72); box-shadow: 0 0 0 3px rgba(var(--yomi-signature), .12); }
+.yomi-catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(235px, 1fr)); gap: 10px; }
+.yomi-catalog-item { display: flex; min-height: 88px; align-items: center; gap: 12px; padding: 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--ink-900); transition: transform 120ms var(--ease-out), border-color 140ms ease, background-color 140ms ease; }
+.yomi-catalog-item:active { transform: scale(.98); }
+.yomi-catalog-item:hover { border-color: var(--line-strong); background: var(--ink-850); }
+.yomi-catalog-icon { display: grid; width: 42px; height: 42px; flex: 0 0 auto; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--ink-850); }
+.yomi-catalog-icon img { width: 100%; height: 100%; object-fit: cover; }
+.yomi-catalog-copy { min-width: 0; flex: 1; }
+.yomi-catalog-copy strong { display: block; overflow: hidden; color: var(--text-strong); font-size: 13px; font-weight: 660; text-overflow: ellipsis; white-space: nowrap; }
+.yomi-catalog-copy small { display: block; overflow: hidden; margin-top: 4px; color: var(--text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.yomi-utility-button { display: inline-grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border: 1px solid var(--line); border-radius: 9px; color: var(--text-muted); background: transparent; transition: color 140ms ease, background-color 140ms ease, transform 120ms var(--ease-out); }
+.yomi-utility-button:hover { color: var(--text-strong); background: rgba(255,255,255,.05); }
+.yomi-utility-button.danger:hover { color: #ffaaa3; background: rgba(var(--yomi-signature), .1); }
+.yomi-utility-button:active { transform: scale(.97); }
+.yomi-alert { display: flex; gap: 10px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--text); background: var(--ink-900); font-size: 12px; }
+.yomi-alert.is-error { border-color: rgba(229,72,63,.28); background: rgba(229,72,63,.07); }
+.yomi-alert.is-success { border-color: rgba(239,234,226,.18); background: rgba(239,234,226,.045); }
+.yomi-route-empty { display: grid; min-height: 360px; place-items: center; padding: 40px 22px; border: 1px dashed var(--line-strong); border-radius: 18px; text-align: center; }
+.yomi-route-empty > div { max-width: 370px; }
+.yomi-route-empty svg { width: 34px; height: 34px; margin: 0 auto 16px; color: rgb(var(--yomi-signature)); }
+.yomi-route-empty h2 { margin: 0; color: var(--text-strong); font-size: 18px; font-weight: 680; letter-spacing: -.02em; }
+.yomi-route-empty p { margin: 8px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+
+@media (max-width: 720px) {
+  .yomi-workspace { padding: 28px 16px 96px; }
+  .yomi-workspace-head { align-items: flex-start; flex-direction: column; gap: 17px; margin-bottom: 23px; }
+  .yomi-surface-row { grid-template-columns: 54px minmax(0, 1fr) auto; padding: 12px; }
+  .yomi-cover-sm { width: 48px; height: 68px; }
+  .yomi-commandbar { align-items: stretch; flex-direction: column; }
+}

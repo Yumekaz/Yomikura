@@ -17,7 +17,7 @@
         { "url": "http://127.0.0.1:*" }
       ]
     },
-    "process:default",
+    "process:allow-restart",
     {
       "identifier": "fs:scope-appdata-recursive",
       "allow": [

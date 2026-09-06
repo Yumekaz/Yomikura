@@ -13,7 +13,7 @@ export default {
         },
         yomi: {
           jade: "rgba(var(--yomi-accent), <alpha-value>)",
-          mint: "#a9f2d4",
+          mint: "#efeae2",
           gold: "#f2c879",
           plum: "#b69bff",
           coral: "#ef8a7a",

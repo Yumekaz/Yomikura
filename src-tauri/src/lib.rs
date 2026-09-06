@@ -1,11 +1,12 @@
 use std::process::{Child, Command};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
+use tauri::menu::{MenuBuilder, MenuItem};
 use tauri::path::BaseDirectory;
-use tauri::{Manager, State};
-use tauri::menu::{MenuBuilder, MenuItem, SubmenuBuilder};
-use tauri::Emitter;
 use tauri::tray::TrayIconBuilder;
+use tauri::Emitter;
 use tauri::WindowEvent;
+use tauri::{Manager, State};
 
 struct BackendState {
     backend: Mutex<Option<RunningBackend>>,
@@ -21,6 +22,8 @@ const SUWAYOMI_JAR_NAME: &str = "Suwayomi-Server-v2.3.2243.jar";
 const SUWAYOMI_JAR_URL: &str =
     "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.3.2243/Suwayomi-Server-v2.3.2243.jar";
 const SUWAYOMI_JAR_MIN_BYTES: u64 = 50_000_000;
+const SUWAYOMI_JAR_SHA256: &str =
+    "821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5";
 const MANAGED_STORAGE_MARKER: &str = ".yomikura-managed-storage";
 const MANAGED_STORAGE_MARKER_CONTENT: &str = "YOMIKURA_MANAGED_STORAGE_V1";
 const MANAGED_STORAGE_RECORD: &str = "managed-storage-path.txt";
@@ -60,7 +63,68 @@ fn jar_looks_valid(path: &std::path::Path) -> bool {
         return false;
     };
     let mut header = [0u8; 4];
-    std::io::Read::read_exact(&mut file, &mut header).is_ok() && header == [0x50, 0x4B, 0x03, 0x04]
+    std::io::Read::read_exact(&mut file, &mut header).is_ok()
+        && header == [0x50, 0x4B, 0x03, 0x04]
+        && sha256_file(path)
+            .map(|hash| hash == SUWAYOMI_JAR_SHA256)
+            .unwrap_or(false)
+}
+
+fn sha256_file(path: &std::path::Path) -> Result<String, String> {
+    #[cfg(windows)]
+    use std::os::windows::process::CommandExt;
+
+    let mut command = if cfg!(windows) {
+        let mut command = Command::new("certutil");
+        command.arg("-hashfile").arg(path).arg("SHA256");
+        #[cfg(windows)]
+        command.creation_flags(0x08000000);
+        command
+    } else if cfg!(target_os = "macos") {
+        let mut command = Command::new("shasum");
+        command.arg("-a").arg("256").arg(path);
+        command
+    } else {
+        let mut command = Command::new("sha256sum");
+        command.arg(path);
+        command
+    };
+    let output = command
+        .output()
+        .map_err(|e| format!("Failed to calculate SHA-256: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "SHA-256 verification command failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .split_whitespace()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .find(|value| {
+            value.len() == 64 && value.chars().all(|character| character.is_ascii_hexdigit())
+        })
+        .ok_or_else(|| "SHA-256 verification returned an unreadable digest.".to_string())
+}
+
+fn verify_sha256(path: &std::path::Path, expected: &str) -> Result<(), String> {
+    let actual = sha256_file(path)?;
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(format!(
+            "Download integrity check failed. Expected {expected}, received {actual}."
+        ))
+    }
+}
+
+fn log_tail(path: &std::path::Path, max_lines: usize) -> String {
+    std::fs::read_to_string(path)
+        .map(|contents| {
+            let lines: Vec<_> = contents.lines().collect();
+            lines[lines.len().saturating_sub(max_lines)..].join("\n")
+        })
+        .unwrap_or_else(|_| "No backend log output was written.".to_string())
 }
 
 fn storage_marker_path(data_dir: &std::path::Path) -> std::path::PathBuf {
@@ -135,7 +199,11 @@ fn prepare_managed_storage(
     Ok(())
 }
 
-fn download_file_with_curl(url: &str, dest: &std::path::Path) -> Result<(), String> {
+fn download_file_with_curl(
+    url: &str,
+    dest: &std::path::Path,
+    expected_sha256: &str,
+) -> Result<(), String> {
     let part_path = dest.with_extension("part");
     if part_path.exists() {
         let _ = std::fs::remove_file(&part_path);
@@ -173,9 +241,9 @@ fn download_file_with_curl(url: &str, dest: &std::path::Path) -> Result<(), Stri
         return Err(format!("curl download failed: {}", stderr.trim()));
     }
 
-    if !jar_looks_valid(&part_path) {
+    if let Err(error) = verify_sha256(&part_path, expected_sha256) {
         let _ = std::fs::remove_file(&part_path);
-        return Err("Downloaded file is not a valid Suwayomi JAR.".to_string());
+        return Err(error);
     }
 
     if dest.exists() {
@@ -183,10 +251,13 @@ fn download_file_with_curl(url: &str, dest: &std::path::Path) -> Result<(), Stri
     }
 
     std::fs::rename(&part_path, dest)
-        .map_err(|e| format!("Failed to finalize Suwayomi JAR download: {}", e))
+        .map_err(|e| format!("Failed to finalize verified download: {}", e))
 }
 
-fn resolve_jar_path(app_handle: &tauri::AppHandle, data_dir: &std::path::Path) -> Result<std::path::PathBuf, String> {
+fn resolve_jar_path(
+    app_handle: &tauri::AppHandle,
+    data_dir: &std::path::Path,
+) -> Result<std::path::PathBuf, String> {
     let local_jar = data_dir.join(SUWAYOMI_JAR_NAME);
     if jar_looks_valid(&local_jar) {
         return Ok(local_jar);
@@ -303,7 +374,7 @@ fn find_java_binary(dir: &std::path::Path) -> Option<std::path::PathBuf> {
     if !dir.exists() || !dir.is_dir() {
         return None;
     }
-    
+
     let target_name = if cfg!(windows) { "java.exe" } else { "java" };
 
     let mut stack = vec![dir.to_path_buf()];
@@ -354,43 +425,46 @@ async fn download_and_install_jre(
     app_handle: tauri::AppHandle,
     data_path: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || download_and_install_jre_sync(app_handle, data_path))
-        .await
-        .map_err(|e| format!("JRE installation task failed: {}", e))?
+    tauri::async_runtime::spawn_blocking(move || {
+        download_and_install_jre_sync(app_handle, data_path)
+    })
+    .await
+    .map_err(|e| format!("JRE installation task failed: {}", e))?
 }
 
 fn download_and_install_jre_sync(
     app_handle: tauri::AppHandle,
     data_path: String,
 ) -> Result<(), String> {
-    let os = if cfg!(target_os = "windows") {
-        "windows"
-    } else if cfg!(target_os = "macos") {
-        "mac"
-    } else if cfg!(target_os = "linux") {
-        "linux"
-    } else {
-        return Err("Unsupported OS".to_string());
+    let (url, expected_sha256) = match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("windows", "x86_64") => (
+            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jre_x64_windows_hotspot_17.0.20.1_1.zip",
+            "bc21a93923103cdaac93ee337b0ae4365e739fde36df823dd456bc67c8a9d352",
+        ),
+        ("linux", "x86_64") => (
+            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jre_x64_linux_hotspot_17.0.20.1_1.tar.gz",
+            "0b2b640e3046b64c8ec504de0ab9d91bb5610182bda21fad454681ce54d45a62",
+        ),
+        ("linux", "aarch64") => (
+            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jre_aarch64_linux_hotspot_17.0.20.1_1.tar.gz",
+            "b8efcd5acc9109fe8d35bed132499643048a257b4f6042906ece37d03c839d77",
+        ),
+        ("macos", "x86_64") => (
+            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jre_x64_mac_hotspot_17.0.20.1_1.tar.gz",
+            "333cb81123c36568586646c73c8fa2326dab8badc43f5ea388a90fff59c9df27",
+        ),
+        ("macos", "aarch64") => (
+            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jre_aarch64_mac_hotspot_17.0.20.1_1.tar.gz",
+            "190480874ccceb358cbc840393207f77ac3e63a4c5f8129d0e23e9518b96ad05",
+        ),
+        (os, arch) => return Err(format!("No verified Java runtime is available for {os}/{arch}. Install Java 17 or newer manually.")),
     };
-
-    let arch = if cfg!(target_arch = "x86_64") {
-        "x64"
-    } else if cfg!(target_arch = "aarch64") {
-        "aarch64"
-    } else {
-        return Err("Unsupported architecture".to_string());
-    };
-
-    let url = format!(
-        "https://api.adoptium.net/v3/binary/latest/17/ga/{}/{}/jre/hotspot/normal/eclipse",
-        os, arch
-    );
 
     let data_dir = std::path::PathBuf::from(&data_path);
     prepare_managed_storage(&app_handle, &data_dir)?;
 
     let jre_dir = data_dir.join("jre");
-    
+
     if jre_dir.exists() {
         if let Some(java_bin) = find_java_binary(&jre_dir) {
             if java_bin.exists() {
@@ -400,89 +474,57 @@ fn download_and_install_jre_sync(
         let _ = std::fs::remove_dir_all(&jre_dir);
     }
 
+    std::fs::create_dir_all(&jre_dir)
+        .map_err(|e| format!("Failed to create JRE directory: {e}"))?;
+
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
-        
-        let zip_path = data_dir.join("jre.zip");
-        let zip_str = zip_path.to_string_lossy().replace("\\", "/");
-        let jre_str = jre_dir.to_string_lossy().replace("\\", "/");
-
-        // Download JRE zip
-        let download_script = format!(
-            "[System.Net.ServicePointManager]::CheckCertificateRevocationList = $false; $webclient = New-Object System.Net.WebClient; $webclient.DownloadFile('{}', '{}')",
-            url, zip_str
-        );
-        let download_output = Command::new("powershell")
+        let archive_path = data_dir.join("jre.zip");
+        download_file_with_curl(url, &archive_path, expected_sha256)?;
+        let output = Command::new("powershell")
             .arg("-NoProfile")
             .arg("-Command")
-            .arg(&download_script)
+            .arg("Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force")
+            .arg(&archive_path)
+            .arg(&jre_dir)
             .creation_flags(0x08000000)
             .output()
-            .map_err(|e| format!("Failed to download JRE: {}", e))?;
-
-        if !download_output.status.success() {
-            let stderr = String::from_utf8_lossy(&download_output.stderr);
-            return Err(format!("PowerShell JRE download failed: {}", stderr));
+            .map_err(|e| format!("Failed to extract verified JRE archive: {e}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "Failed to extract verified JRE archive: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
         }
-
-        // Unzip
-        let unzip_script = format!(
-            "Expand-Archive -Path '{}' -DestinationPath '{}' -Force",
-            zip_str, jre_str
-        );
-        let unzip_output = Command::new("powershell")
-            .arg("-NoProfile")
-            .arg("-Command")
-            .arg(&unzip_script)
-            .creation_flags(0x08000000)
-            .output()
-            .map_err(|e| format!("Failed to unzip JRE: {}", e))?;
-
-        let _ = std::fs::remove_file(&zip_path);
-
-        if !unzip_output.status.success() {
-            let stderr = String::from_utf8_lossy(&unzip_output.stderr);
-            return Err(format!("PowerShell JRE unzip failed: {}", stderr));
-        }
+        let _ = std::fs::remove_file(&archive_path);
     }
 
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
-        let tar_path = data_dir.join("jre.tar.gz");
-        let tar_str = tar_path.to_string_lossy().to_string();
-        let jre_str = jre_dir.to_string_lossy().to_string();
-
-        std::fs::create_dir_all(&jre_dir).map_err(|e| format!("Failed to create JRE directory: {}", e))?;
-
-        let download_output = Command::new("curl")
-            .arg("-L")
-            .arg("-o")
-            .arg(&tar_str)
-            .arg(&url)
-            .output()
-            .map_err(|e| format!("Failed to download JRE via curl: {}", e))?;
-
-        if !download_output.status.success() {
-            return Err("curl JRE download failed".to_string());
-        }
-
-        let extract_output = Command::new("tar")
+        let archive_path = data_dir.join("jre.tar.gz");
+        download_file_with_curl(url, &archive_path, expected_sha256)?;
+        let output = Command::new("tar")
             .arg("-xzf")
-            .arg(&tar_str)
+            .arg(&archive_path)
             .arg("-C")
-            .arg(&jre_str)
+            .arg(&jre_dir)
             .output()
-            .map_err(|e| format!("Failed to extract JRE via tar: {}", e))?;
-
-        let _ = std::fs::remove_file(&tar_path);
-
-        if !extract_output.status.success() {
-            return Err("tar JRE extraction failed".to_string());
+            .map_err(|e| format!("Failed to extract verified JRE archive: {e}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "Failed to extract verified JRE archive: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
         }
+        let _ = std::fs::remove_file(&archive_path);
     }
 
-    Ok(())
+    if find_java_binary(&jre_dir).is_some() {
+        Ok(())
+    } else {
+        Err("The verified Java archive did not contain a runnable Java binary.".to_string())
+    }
 }
 
 #[tauri::command]
@@ -509,6 +551,7 @@ fn start_backend(
             }
         }
     }
+    drop(lock);
 
     prepare_managed_storage(&app_handle, &data_dir)?;
     let jar_path = resolve_jar_path(&app_handle, &data_dir)?;
@@ -533,50 +576,94 @@ fn start_backend(
     #[cfg(windows)]
     cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
 
-    #[cfg(target_os = "windows")]
-    {
-        cmd.arg("-Djavax.net.ssl.trustStore=NONE")
-            .arg("-Djavax.net.ssl.trustStoreType=Windows-ROOT")
-            .arg("-Dcom.sun.net.ssl.checkRevocation=false")
-            .arg("-Dcom.sun.security.enableCRLDP=false")
-            .arg("-Docsp.enable=false");
+    cmd.arg(format!(
+        "-Dsuwayomi.tachidesk.config.server.rootDir={}",
+        data_dir.to_string_lossy()
+    ))
+    .arg(format!("-Dsuwayomi.tachidesk.config.server.port={}", port))
+    .arg("-jar")
+    .arg(jar_path)
+    .stdout(std::process::Stdio::from(log_file.try_clone().unwrap()))
+    .stderr(std::process::Stdio::from(log_file));
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to start Suwayomi process: {}", e))?;
+    if let Err(err) = record_backend_pid(&app_handle, child.id()) {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(format!("Failed to record Suwayomi process: {}", err));
     }
-    #[cfg(target_os = "macos")]
     {
-        cmd.arg("-Djavax.net.ssl.trustStoreType=KeychainStore");
+        let mut backend = state.backend.lock().unwrap();
+        *backend = Some(RunningBackend {
+            child,
+            port,
+            data_path: data_dir,
+        });
     }
 
-    cmd.arg(format!("-Dsuwayomi.tachidesk.config.server.rootDir={}", data_dir.to_string_lossy()))
-        .arg(format!("-Dsuwayomi.tachidesk.config.server.port={}", port))
-        .arg("-jar")
-        .arg(jar_path)
-        .stdout(std::process::Stdio::from(log_file.try_clone().unwrap()))
-        .stderr(std::process::Stdio::from(log_file));
-
-    match cmd.spawn() {
-        Ok(mut child) => {
-            if let Err(err) = record_backend_pid(&app_handle, child.id()) {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(format!("Failed to record Suwayomi process: {}", err));
+    let deadline = Instant::now() + Duration::from_secs(75);
+    loop {
+        let process_status = {
+            let mut backend = state.backend.lock().unwrap();
+            match backend.as_mut() {
+                Some(running) => running.child.try_wait(),
+                None => return Err("Suwayomi startup was cancelled.".to_string()),
             }
-            *lock = Some(RunningBackend {
-                child,
-                port,
-                data_path: data_dir,
-            });
-            Ok(port)
+        };
+        match process_status {
+            Ok(Some(status)) => {
+                *state.backend.lock().unwrap() = None;
+                clear_backend_pid(&app_handle);
+                return Err(format!(
+                    "Suwayomi exited before it became ready ({status}).\n\nRecent log output:\n{}",
+                    log_tail(&log_path, 18)
+                ));
+            }
+            Err(err) => {
+                clear_backend_pid(&app_handle);
+                return Err(format!("Could not monitor Suwayomi startup: {err}"));
+            }
+            Ok(None) => {}
         }
-        Err(e) => Err(format!("Failed to start Suwayomi process: {}", e)),
+
+        if std::net::TcpStream::connect_timeout(
+            &std::net::SocketAddr::from(([127, 0, 0, 1], port)),
+            Duration::from_millis(250),
+        )
+        .is_ok()
+        {
+            return Ok(port);
+        }
+
+        if Instant::now() >= deadline {
+            if let Some(mut running) = state.backend.lock().unwrap().take() {
+                let _ = running.child.kill();
+                let _ = running.child.wait();
+            }
+            clear_backend_pid(&app_handle);
+            return Err(format!(
+                "Suwayomi did not open port {port} within 75 seconds.\n\nRecent log output:\n{}",
+                log_tail(&log_path, 18)
+            ));
+        }
+        std::thread::sleep(Duration::from_millis(250));
     }
 }
 
 #[tauri::command]
-fn stop_backend(app_handle: tauri::AppHandle, state: State<'_, BackendState>) -> Result<(), String> {
+fn stop_backend(
+    app_handle: tauri::AppHandle,
+    state: State<'_, BackendState>,
+) -> Result<(), String> {
     let mut lock = state.backend.lock().unwrap();
     if let Some(mut backend) = lock.take() {
         if let Ok(None) = backend.child.try_wait() {
-            backend.child.kill().map_err(|e| format!("Failed to stop backend process: {}", e))?;
+            backend
+                .child
+                .kill()
+                .map_err(|e| format!("Failed to stop backend process: {}", e))?;
             let _ = backend.child.wait();
         }
     }
@@ -605,15 +692,24 @@ fn get_backend_status(state: State<'_, BackendState>) -> String {
 }
 
 #[tauri::command]
-fn wipe_all_data(app_handle: tauri::AppHandle, state: State<'_, BackendState>) -> Result<(), String> {
+fn wipe_all_data(
+    app_handle: tauri::AppHandle,
+    state: State<'_, BackendState>,
+) -> Result<(), String> {
     let mut lock = state.backend.lock().unwrap();
     if let Some(mut backend) = lock.take() {
         let _ = backend.child.kill();
         std::thread::sleep(std::time::Duration::from_millis(500));
     }
 
-    let config_dir = app_handle.path().app_config_dir().map_err(|e| e.to_string())?;
-    let data_dir = app_handle.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    let config_dir = app_handle
+        .path()
+        .app_config_dir()
+        .map_err(|e| e.to_string())?;
+    let data_dir = app_handle
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| e.to_string())?;
 
     if config_dir.exists() {
         std::fs::remove_dir_all(&config_dir).map_err(|e| e.to_string())?;
@@ -651,14 +747,15 @@ fn download_suwayomi_jar_sync(
         let _ = std::fs::remove_file(&dest);
     }
 
-    download_file_with_curl(SUWAYOMI_JAR_URL, &dest)?;
+    download_file_with_curl(SUWAYOMI_JAR_URL, &dest, SUWAYOMI_JAR_SHA256)?;
 
     Ok(dest.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 fn get_portable_data_path() -> Result<String, String> {
-    let exe = std::env::current_exe().map_err(|e| format!("Failed to resolve executable: {}", e))?;
+    let exe =
+        std::env::current_exe().map_err(|e| format!("Failed to resolve executable: {}", e))?;
     let parent = exe
         .parent()
         .ok_or_else(|| "Executable has no parent directory.".to_string())?;
@@ -740,41 +837,29 @@ pub fn run() {
             // Set up System Tray Menu
             let show_i = MenuItem::with_id(app, "show", "Show Yomikura", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit Yomikura", true, None::<&str>)?;
-            
+
             let menu = MenuBuilder::new(app)
                 .item(&show_i)
                 .separator()
                 .item(&quit_i)
                 .build()?;
 
-            // Native window menu (File / Help)
-            let quit_menu = MenuItem::with_id(app, "quit_menu", "Quit Yomikura", true, None::<&str>)?;
-            let check_updates = MenuItem::with_id(app, "check_updates", "Check for Updates", true, None::<&str>)?;
-            let file_sub = SubmenuBuilder::new(app, "File").item(&quit_menu).build()?;
-            let help_sub = SubmenuBuilder::new(app, "Help").item(&check_updates).build()?;
-            let window_menu = MenuBuilder::new(app).items(&[&file_sub, &help_sub]).build()?;
-            if let Some(main_window) = app.get_webview_window("main") {
-                main_window.set_menu(window_menu)?;
-            }
-
-            app.on_menu_event(|app_handle, event| {
-                match event.id().as_ref() {
-                    "quit_menu" => {
-                        let state: State<'_, BackendState> = app_handle.state();
-                        let mut lock = state.backend.lock().unwrap();
-                        if let Some(mut backend) = lock.take() {
-                            let _ = backend.child.kill();
-                        }
-                        clear_backend_pid(&app_handle);
-                        app_handle.exit(0);
+            app.on_menu_event(|app_handle, event| match event.id().as_ref() {
+                "quit_menu" => {
+                    let state: State<'_, BackendState> = app_handle.state();
+                    let mut lock = state.backend.lock().unwrap();
+                    if let Some(mut backend) = lock.take() {
+                        let _ = backend.child.kill();
                     }
-                    "check_updates" => {
-                        if let Some(window) = app_handle.get_webview_window("main") {
-                            let _ = window.emit("menu-check-updates", ());
-                        }
-                    }
-                    _ => {}
+                    clear_backend_pid(&app_handle);
+                    app_handle.exit(0);
                 }
+                "check_updates" => {
+                    if let Some(window) = app_handle.get_webview_window("main") {
+                        let _ = window.emit("menu-check-updates", ());
+                    }
+                }
+                _ => {}
             });
 
             if let Some(icon) = app.default_window_icon() {
@@ -782,25 +867,23 @@ pub fn run() {
                     .icon(icon.clone())
                     .menu(&menu)
                     .show_menu_on_left_click(false)
-                    .on_menu_event(|app, event| {
-                        match event.id().as_ref() {
-                            "show" => {
-                                if let Some(window) = app.get_webview_window("main") {
-                                    let _ = window.show();
-                                    let _ = window.set_focus();
-                                }
+                    .on_menu_event(|app, event| match event.id().as_ref() {
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
                             }
-                            "quit" => {
-                                let state: State<'_, BackendState> = app.state();
-                                let mut lock = state.backend.lock().unwrap();
-                                if let Some(mut backend) = lock.take() {
-                                    let _ = backend.child.kill();
-                                }
-                                clear_backend_pid(app);
-                                app.exit(0);
-                            }
-                            _ => {}
                         }
+                        "quit" => {
+                            let state: State<'_, BackendState> = app.state();
+                            let mut lock = state.backend.lock().unwrap();
+                            if let Some(mut backend) = lock.take() {
+                                let _ = backend.child.kill();
+                            }
+                            clear_backend_pid(app);
+                            app.exit(0);
+                        }
+                        _ => {}
                     })
                     .build(app)?;
             }

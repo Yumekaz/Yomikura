@@ -226,20 +226,17 @@ export default function ExtensionsPage() {
   return (
     <div className="min-h-screen bg-transparent pb-24">
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-ink-950/40 backdrop-blur-xl border-b border-white/5 px-4 py-4 sm:px-6 mb-6">
-        <div className="max-w-5xl mx-auto flex flex-col gap-4">
+      <div className="sticky top-0 z-20 border-b border-white/5 bg-ink-950/95 px-4 py-4 backdrop-blur-xl sm:px-6">
+        <div className="max-w-6xl mx-auto flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              <Box className="h-6 w-6 text-yomi-jade" />
-              Extensions
-            </h1>
+            <div><span className="yomi-eyebrow">Discover</span><h1 className="yomi-workspace-title mt-1"><Box />Extensions</h1></div>
             <div className="flex items-center gap-2">
               {outdatedExtensions.length > 0 && (
                 <button
                   type="button"
                   onClick={() => updateAllExtensions()}
                   disabled={updatingAll || !serverBaseUrl}
-                  className="flex items-center gap-2 rounded-lg border border-yomi-jade/30 bg-yomi-jade/10 px-3 py-1.5 text-sm font-semibold text-yomi-jade hover:bg-yomi-jade/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="yomi-button yomi-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
                   title="Update all outdated extensions without losing library data"
                 >
                   {updatingAll ? (
@@ -258,7 +255,7 @@ export default function ExtensionsPage() {
                 onClick={() => refreshCatalog()}
                 disabled={refreshingCatalog || !serverBaseUrl}
                 aria-label="Refresh catalog"
-                className="flex items-center gap-2 rounded-lg bg-yomi-jade px-3 py-1.5 text-sm font-semibold text-ink-950 hover:bg-yomi-jade/90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="yomi-button yomi-button-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {refreshingCatalog ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -271,7 +268,7 @@ export default function ExtensionsPage() {
               <Link
                 to="/extensions/repos"
                 aria-label="Open extension repositories"
-                className="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-white/10"
+                className="yomi-button yomi-button-secondary"
               >
                 <Settings className="h-4 w-4" />
                 <span className="hidden sm:inline">Repositories</span>
@@ -287,14 +284,14 @@ export default function ExtensionsPage() {
                 placeholder="Search extensions..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                className="w-full rounded-lg bg-ink-900 py-2 pl-10 pr-4 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-yomi-jade/50 border border-white/5"
+                className="yomi-field py-2 pl-10 pr-4"
               />
             </div>
             <div className="flex items-center gap-3">
               <select 
                 value={langFilter}
                 onChange={(e) => setLangFilter(e.target.value)}
-                className="rounded-lg bg-ink-900 px-3 py-2 text-sm text-slate-300 border border-white/5 focus:outline-none focus:ring-2 focus:ring-yomi-jade/50"
+                className="yomi-field w-auto px-3 py-2"
               >
                 {languages.map(lang => (
                   <option key={lang} value={lang}>{lang === ALL_LANG_FILTER ? "All Languages" : lang.toUpperCase()}</option>
@@ -337,11 +334,11 @@ export default function ExtensionsPage() {
       </div>
 
       {/* Content */}
-      <div className="max-w-5xl mx-auto p-4 sm:p-6">
+      <div className="max-w-6xl mx-auto p-4 sm:p-6">
         {statusMessage && (
           <div
             role={statusMessage.kind === "error" ? "alert" : "status"}
-            className={`mb-4 flex gap-3 rounded-xl border p-4 ${
+            className={`yomi-alert mb-4 ${
               statusMessage.kind === "error"
                 ? "border-red-500/25 bg-red-500/10 text-red-100"
                 : "border-yomi-jade/25 bg-yomi-jade/10 text-yomi-jade"
@@ -393,13 +390,13 @@ export default function ExtensionsPage() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="yomi-catalog">
             {filteredExtensions.map(ext => {
               const isCardBusy = activeExtensionPkgs.has(ext.pkgName);
 
               return (
-                <div key={ext.pkgName} className="flex items-center gap-4 rounded-xl border border-white/5 bg-ink-900 p-4">
-                  <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-md bg-ink-950 flex items-center justify-center">
+                <div key={ext.pkgName} className="yomi-catalog-item">
+                  <div className="yomi-catalog-icon">
                     {ext.iconUrl ? (
                       <img
                         src={ext.iconUrl.startsWith("http") ? ext.iconUrl : `${serverBaseUrl.replace(/\/$/, "")}${ext.iconUrl}`}
@@ -411,7 +408,7 @@ export default function ExtensionsPage() {
                       <Box className="h-6 w-6 text-slate-500" />
                     )}
                   </div>
-                  <div className="flex flex-col flex-1 overflow-hidden">
+                  <div className="yomi-catalog-copy">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-slate-200 truncate">{ext.name}</span>
                       {ext.isNsfw && (
@@ -431,7 +428,7 @@ export default function ExtensionsPage() {
                     <button
                       onClick={() => toggleInstall({ pkgName: ext.pkgName, name: ext.name, action: "update" })}
                       disabled={isCardBusy}
-                      className="flex h-8 px-2.5 items-center justify-center gap-1 rounded-lg bg-yomi-jade/10 border border-yomi-jade/30 text-yomi-jade hover:bg-yomi-jade/20 text-xs font-semibold transition flex-shrink-0 disabled:opacity-60"
+                      className="yomi-button yomi-button-secondary min-h-8 px-2.5 disabled:opacity-60"
                       title="Update Extension"
                     >
                       {isCardBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
@@ -445,10 +442,10 @@ export default function ExtensionsPage() {
                       action: ext.isInstalled ? "uninstall" : "install" 
                     })}
                     disabled={isCardBusy}
-                    className={`flex h-8 w-8 items-center justify-center rounded-lg transition flex-shrink-0 ${
+                    className={`yomi-utility-button ${
                       ext.isInstalled
-                        ? "text-red-400 hover:bg-red-400/10"
-                        : "bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white"
+                        ? "danger"
+                        : ""
                     } disabled:cursor-not-allowed disabled:opacity-60`}
                     title={ext.isInstalled ? "Uninstall" : "Install"}
                     aria-label={ext.isInstalled ? `Uninstall ${ext.name}` : `Install ${ext.name}`}

@@ -26,8 +26,14 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Typecheck
         run: pnpm run typecheck
+      - name: Unit tests
+        run: pnpm test
       - name: Build frontend
         run: pnpm run build
+      - name: Install browser for interaction tests
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Desktop interaction tests
+        run: pnpm run test:e2e
 
   desktop-windows:
     name: Desktop (Windows)

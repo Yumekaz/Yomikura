@@ -1,27 +1,30 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import AppShell from "../components/layout/AppShell";
-import SettingsPage from "../pages/SettingsPage";
-import RouteShell from "../pages/RouteShell";
-import LibraryPage from "../features/library/LibraryPage";
-import MangaDetailPage from "../features/manga/MangaDetailPage";
-import ReaderPage from "../features/reader/ReaderPage";
-import SourcesPage from "../features/browse/SourcesPage";
-import SourceBrowsePage from "../features/browse/SourceBrowsePage";
-import SourcePrefsPage from "../features/browse/SourcePrefsPage";
-import GlobalSearchPage from "../features/browse/GlobalSearchPage";
-import ExtensionsPage from "../features/extensions/ExtensionsPage";
-import ReposPage from "../features/extensions/ReposPage";
-import UpdatesPage from "../features/updates/UpdatesPage";
-import HistoryPage from "../features/history/HistoryPage";
-import DownloadsPage from "../features/downloads/DownloadsPage";
+import { lazy, Suspense } from "react";
 import { routeCopy } from "./navigation";
+
+const AppShell = lazy(() => import("../components/layout/AppShell"));
+const SettingsPage = lazy(() => import("../pages/SettingsPage"));
+const RouteShell = lazy(() => import("../pages/RouteShell"));
+const LibraryPage = lazy(() => import("../features/library/LibraryPage"));
+const MangaDetailPage = lazy(() => import("../features/manga/MangaDetailPage"));
+const ReaderPage = lazy(() => import("../features/reader/ReaderPage"));
+const SourcesPage = lazy(() => import("../features/browse/SourcesPage"));
+const SourceBrowsePage = lazy(() => import("../features/browse/SourceBrowsePage"));
+const SourcePrefsPage = lazy(() => import("../features/browse/SourcePrefsPage"));
+const GlobalSearchPage = lazy(() => import("../features/browse/GlobalSearchPage"));
+const ExtensionsPage = lazy(() => import("../features/extensions/ExtensionsPage"));
+const ReposPage = lazy(() => import("../features/extensions/ReposPage"));
+const UpdatesPage = lazy(() => import("../features/updates/UpdatesPage"));
+const HistoryPage = lazy(() => import("../features/history/HistoryPage"));
+const DownloadsPage = lazy(() => import("../features/downloads/DownloadsPage"));
 
 const queryClient = new QueryClient();
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <Suspense fallback={<div className="yomi-route-loading"><span className="yomi-skeleton h-8 w-40" /><span className="yomi-skeleton h-24 w-full" /></div>}>
       <Routes>
         <Route path="/" element={<Navigate to="/library" replace />} />
         <Route element={<AppShell />}>
@@ -77,6 +80,7 @@ function App() {
           />
         </Route>
       </Routes>
+      </Suspense>
     </QueryClientProvider>
   );
 }

@@ -1,307 +1,178 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, History, Play, RotateCcw } from "lucide-react";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { BookOpen, ChevronRight, Clock3, History, Loader2, RotateCcw } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
+import { deleteReadingHistoryItem, getReadingHistory } from "../../api/suwayomi/offlineCache";
 import { ChapterOrderBy, SortOrder } from "../../api/graphql/generated/graphql";
-import { useTranslation } from "../../hooks/useTranslation";
 
 interface HistoryItem {
   id: string;
   name: string;
   chapterNumber: number;
   lastPageRead: number;
-  lastReadAt: string;
-  scanlator?: string | null;
+  pageCount?: number;
+  readAt: number;
   mangaId: number;
-  manga: {
-    id: number;
-    title: string;
-    thumbnailUrl?: string | null;
-  };
+  isLocal: boolean;
+  manga: { id: number; title: string; thumbnailUrl?: string | null };
 }
 
-function parseHistoryTimestamp(value: string): number {
-  const trimmed = value.trim();
+export function parseHistoryTimestamp(value: unknown): number {
+  const trimmed = String(value ?? "").trim();
   if (!trimmed || trimmed === "0") return 0;
-
   const numeric = Number(trimmed);
-  if (Number.isFinite(numeric)) {
-    return numeric < 30_000_000_000 ? numeric * 1000 : numeric;
-  }
-
+  if (Number.isFinite(numeric)) return numeric < 30_000_000_000 ? numeric * 1000 : numeric;
   const parsed = Date.parse(trimmed);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function localDateKey(timestamp: number): string {
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function dateLabel(timestamp: number): string {
+  const today = new Date();
+  const target = new Date(timestamp);
+  const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const startTarget = new Date(target.getFullYear(), target.getMonth(), target.getDate()).getTime();
+  const daysAgo = Math.round((startToday - startTarget) / 86_400_000);
+  if (daysAgo === 0) return "Today";
+  if (daysAgo === 1) return "Yesterday";
+  return target.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 }
 
 export default function HistoryPage() {
   const { serverBaseUrl } = useSettingsStore();
   const queryClient = useQueryClient();
-  const { t } = useTranslation();
+  const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`), [serverBaseUrl]);
 
-  const sdk = useMemo(() => {
-    const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-    return createGraphqlClient(`${cleanUrl}/api/graphql`);
-  }, [serverBaseUrl]);
-
-  const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useInfiniteQuery({
-    queryKey: ["history", serverBaseUrl],
-    queryFn: ({ pageParam }) =>
-      sdk.GetHistory({
-        filter: {
-          // Suwayomi represents unread/default history metadata as "0", not null.
-          lastReadAt: { greaterThan: "0" },
-        },
-        order: [
-          {
-            by: ChapterOrderBy.LastReadAt,
-            byType: SortOrder.Desc,
-          },
-        ],
-        first: 30,
-        after: pageParam,
-      }),
+  const serverHistory = useInfiniteQuery({
+    queryKey: ["history", "server", serverBaseUrl],
+    queryFn: ({ pageParam }) => sdk.GetHistory({
+      filter: { lastReadAt: { greaterThan: "0" } },
+      order: [{ by: ChapterOrderBy.LastReadAt, byType: SortOrder.Desc }],
+      first: 40,
+      after: pageParam,
+    }),
     initialPageParam: undefined as any,
     getNextPageParam: (lastPage) => {
-      const pageInfo = lastPage.chapters?.pageInfo;
-      return pageInfo?.hasNextPage ? pageInfo.endCursor : undefined;
+      const info = lastPage.chapters?.pageInfo;
+      return info?.hasNextPage ? info.endCursor : undefined;
     },
+    enabled: !!serverBaseUrl,
+    retry: 1,
+  });
+
+  const localHistory = useQuery({
+    queryKey: ["history", "local", serverBaseUrl],
+    queryFn: () => getReadingHistory(serverBaseUrl),
     enabled: !!serverBaseUrl,
   });
 
-  // Suwayomi exposes progress reset here, not a true delete-history action.
-  const { mutate: clearItemProgress } = useMutation({
-    mutationFn: (chapterId: string) =>
-      sdk.UpdateChapterProgress({
-        input: {
-          id: parseInt(chapterId),
-          patch: {
-            lastPageRead: 0,
-            isRead: false,
-          },
-        },
-      }),
+  const items = useMemo(() => {
+    const merged = new Map<string, HistoryItem>();
+    for (const page of serverHistory.data?.pages ?? []) {
+      for (const edge of page.chapters?.edges ?? []) {
+        const node = edge?.node;
+        if (!node) continue;
+        const readAt = parseHistoryTimestamp(node.lastReadAt);
+        if (readAt <= 0) continue;
+        merged.set(String(node.id), {
+          id: String(node.id), name: node.name, chapterNumber: node.chapterNumber,
+          lastPageRead: node.lastPageRead, readAt, mangaId: node.mangaId, isLocal: false, manga: node.manga,
+        });
+      }
+    }
+    for (const event of localHistory.data ?? []) {
+      const key = String(event.chapterId);
+      const existing = merged.get(key);
+      if (!existing || event.readAt >= existing.readAt) {
+        merged.set(key, {
+          id: key, name: event.chapterName, chapterNumber: event.chapterNumber,
+          lastPageRead: event.lastPageRead, pageCount: event.pageCount, readAt: event.readAt,
+          mangaId: event.mangaId, isLocal: true,
+          manga: { id: event.mangaId, title: event.mangaTitle, thumbnailUrl: event.thumbnailUrl },
+        });
+      }
+    }
+    return [...merged.values()].sort((a, b) => b.readAt - a.readAt);
+  }, [localHistory.data, serverHistory.data]);
+
+  const groups = useMemo(() => {
+    const result = new Map<string, { timestamp: number; items: HistoryItem[] }>();
+    for (const item of items) {
+      const key = localDateKey(item.readAt);
+      const group = result.get(key) ?? { timestamp: item.readAt, items: [] };
+      group.items.push(item);
+      result.set(key, group);
+    }
+    return [...result.values()].sort((a, b) => b.timestamp - a.timestamp);
+  }, [items]);
+
+  const resetProgress = useMutation({
+    mutationFn: async (item: HistoryItem) => {
+      await deleteReadingHistoryItem(serverBaseUrl, Number(item.id));
+      await sdk.UpdateChapterProgress({ input: { id: Number(item.id), patch: { lastPageRead: 0, isRead: false } } }).catch(() => null);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["history"] });
       queryClient.invalidateQueries({ queryKey: ["chapter"] });
     },
   });
 
-  const historyItems = useMemo(() => {
-    if (!data?.pages) return [];
-    const seenChapterIds = new Set<string>();
-    return data.pages.flatMap((page) => {
-      if (!page?.chapters?.edges) return [];
-      return page.chapters.edges
-        .map((edge) => edge?.node)
-        .filter((node): node is NonNullable<typeof node> => {
-          if (!node) return false;
-          const chapterId = String(node.id);
-          if (seenChapterIds.has(chapterId)) return false;
-          seenChapterIds.add(chapterId);
-          return true;
-        });
-    }) as unknown as HistoryItem[];
-  }, [data]);
-
-  // Group history items by read date
-  const groupedHistory = useMemo(() => {
-    const groups: Record<string, HistoryItem[]> = {};
-
-    historyItems.forEach((item) => {
-      const time = parseHistoryTimestamp(item.lastReadAt);
-      
-      // Banish Unix Epoch (0 / 1970-01-01) timestamps which represent unread/default metadata states
-      if (isNaN(time) || time <= 0) {
-        return;
-      }
-
-      const dateStr = new Date(time).toLocaleDateString(undefined, {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-
-      if (!groups[dateStr]) groups[dateStr] = [];
-      groups[dateStr].push(item);
-    });
-
-    return groups;
-  }, [historyItems]);
-
-  const sortedGroupKeys = useMemo(() => {
-    return Object.keys(groupedHistory).sort((a, b) => {
-      if (a === "Unknown Date") return 1;
-      if (b === "Unknown Date") return -1;
-      
-      const timeA = new Date(a).getTime();
-      const timeB = new Date(b).getTime();
-      return timeB - timeA; // Descending order
-    });
-  }, [groupedHistory]);
-
-  if (!serverBaseUrl) {
-    return (
-      <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400">
-        <History className="mb-4 h-12 w-12 opacity-50" />
-        <p>{t("no_server")}</p>
-      </div>
-    );
+  if (!serverBaseUrl) return <EmptyHistory title="Connect your library" detail="Reading activity appears after Yomikura connects to Suwayomi." />;
+  if ((serverHistory.isLoading || localHistory.isLoading) && items.length === 0) return <HistorySkeleton />;
+  if (items.length === 0 && serverHistory.isError) {
+    return <EmptyHistory title="History is unavailable" detail={getErrorMessage(serverHistory.error)} action={<button className="yomi-button yomi-button-primary" onClick={() => serverHistory.refetch()}>Try again</button>} />;
   }
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-yomi-jade" />
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400 text-center max-w-md mx-auto p-4">
-        <p className="text-red-400 font-semibold mb-2">Failed to load history</p>
-        <p className="text-sm mb-4">{getErrorMessage(error)}</p>
-        <button
-          onClick={() => refetch()}
-          className="rounded-lg bg-yomi-jade px-4 py-2 font-medium text-ink-950 hover:bg-yomi-jade/90"
-        >
-          {t("retry")}
-        </button>
-      </div>
-    );
-  }
-
-  if (Object.keys(groupedHistory).length === 0) {
-    return (
-      <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400">
-        <History className="mb-4 h-12 w-12 opacity-50" />
-        <p className="text-lg text-slate-300">{t("no_history")}</p>
-        <p className="text-sm mt-1">Chapters you start reading will appear here.</p>
-      </div>
-    );
-  }
+  if (items.length === 0) return <EmptyHistory title="No reading history yet" detail="Open any chapter. Online and downloaded reading will collect here automatically." />;
 
   return (
-    <div className="p-4 sm:p-6 pb-24 max-w-3xl mx-auto space-y-8">
-      <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-        <History className="h-6 w-6 text-yomi-jade" />
-        {t("history")}
-      </h1>
+    <section className="yomi-page yomi-history">
+      <header className="yomi-page-header">
+        <div><span className="yomi-eyebrow">Reading activity</span><h1>History</h1><p>{items.length} chapter{items.length === 1 ? "" : "s"} in your recent timeline</p></div>
+        {serverHistory.isError && <div className="yomi-status-chip" title={getErrorMessage(serverHistory.error)}><span className="yomi-status-dot is-warning" /> Local history shown</div>}
+      </header>
 
-      <div className="space-y-8">
-        {sortedGroupKeys.map((groupDate) => {
-          const groupItems = groupedHistory[groupDate] || [];
-
-          return (
-            <div key={groupDate} className="space-y-4">
-              <h2 className="text-xs font-semibold text-yomi-jade uppercase tracking-wider border-b border-white/5 pb-2">
-                {groupDate}
-              </h2>
-              <div className="flex flex-col gap-3">
-                {groupItems.map((item) => {
-                  let coverUrl = "/placeholder-cover.svg";
-                  if (item.manga.thumbnailUrl) {
-                    coverUrl = item.manga.thumbnailUrl.startsWith("http")
-                      ? item.manga.thumbnailUrl
-                      : `${serverBaseUrl.replace(/\/$/, "")}${item.manga.thumbnailUrl}`;
-                  }
-
-                  return (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-4 rounded-xl border border-white/5 bg-ink-900 p-3 sm:p-4 hover:border-white/10 transition"
-                    >
-                      <Link
-                        to={`/manga/${item.manga.id}`}
-                        className="h-16 w-12 flex-shrink-0 overflow-hidden rounded-md bg-ink-950"
-                      >
-                        <img src={coverUrl} alt={item.manga.title} className="h-full w-full object-cover" />
-                      </Link>
-
-                      <div className="flex flex-col flex-1 min-w-0">
-                        <Link
-                          to={`/manga/${item.manga.id}`}
-                          className="font-medium text-slate-200 hover:text-yomi-jade transition truncate text-sm sm:text-base"
-                        >
-                          {item.manga.title}
-                        </Link>
-                        <span className="text-xs sm:text-sm text-slate-300 truncate mt-0.5">
-                          {item.name}
-                        </span>
-                        <div className="flex items-center gap-2 text-[10px] sm:text-xs text-slate-500 mt-1">
-                          <span>
-                            Last read page: {item.lastPageRead + 1}
-                          </span>
-                          <span>•</span>
-                          <span>
-                            {new Date(parseHistoryTimestamp(item.lastReadAt)).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Link
-                          to={`/reader/${item.id}`}
-                          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-slate-300 hover:bg-yomi-jade hover:text-ink-950 transition"
-                          title="Resume Reading"
-                        >
-                          <Play className="h-4 w-4 fill-current ml-0.5" />
-                        </Link>
-                        <button
-                          onClick={() => {
-                            if (window.confirm("Reset progress for this chapter? Suwayomi may keep it in history until the backend clears last-read metadata.")) {
-                              clearItemProgress(item.id);
-                            }
-                          }}
-                          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-red-400 hover:bg-red-500/10 transition"
-                          title="Reset progress"
-                        >
-                          <RotateCcw className="h-4 w-4" />
-                        </button>
-                      </div>
+      <div className="yomi-timeline">
+        {groups.map((group) => (
+          <section key={localDateKey(group.timestamp)} className="yomi-timeline-group">
+            <div className="yomi-timeline-date"><Clock3 aria-hidden="true" /><span>{dateLabel(group.timestamp)}</span></div>
+            <div className="yomi-timeline-list">
+              {group.items.map((item) => {
+                const cover = item.manga.thumbnailUrl ? (item.manga.thumbnailUrl.startsWith("http") ? item.manga.thumbnailUrl : `${serverBaseUrl.replace(/\/$/, "")}${item.manga.thumbnailUrl}`) : "/placeholder-cover.svg";
+                const percentage = item.pageCount && item.pageCount > 0 ? Math.min(100, Math.round(((item.lastPageRead + 1) / item.pageCount) * 100)) : undefined;
+                return (
+                  <article key={item.id} className="yomi-history-row">
+                    <Link to={`/reader/${item.id}`} className="yomi-history-cover" aria-label={`Continue ${item.manga.title}`}><img src={cover} alt="" /><span><BookOpen /></span></Link>
+                    <div className="yomi-history-copy">
+                      <div className="yomi-history-meta"><time dateTime={new Date(item.readAt).toISOString()}>{new Date(item.readAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>{item.isLocal && <span>saved locally</span>}</div>
+                      <Link to={`/manga/${item.manga.id}`} className="yomi-history-title">{item.manga.title}</Link>
+                      <p>{item.name || `Chapter ${item.chapterNumber}`}</p>
+                      <div className="yomi-progress-line"><span style={{ width: `${percentage ?? 4}%` }} /></div>
+                      <small>{percentage !== undefined ? `${percentage}% read` : `Last page ${item.lastPageRead + 1}`}</small>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="yomi-history-actions"><Link to={`/reader/${item.id}`} className="yomi-icon-button" title="Continue reading"><ChevronRight /></Link><button className="yomi-icon-button danger" title="Reset chapter progress" onClick={() => resetProgress.mutate(item)}><RotateCcw /></button></div>
+                  </article>
+                );
+              })}
             </div>
-          );
-        })}
+          </section>
+        ))}
       </div>
-
-      {hasNextPage && (
-        <div className="flex justify-center pt-4">
-          <button
-            onClick={() => fetchNextPage()}
-            disabled={isFetchingNextPage}
-            className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 px-6 py-2.5 text-xs font-bold text-slate-200 transition disabled:opacity-50"
-          >
-            {isFetchingNextPage ? (
-              <>
-                <Loader2 className="h-4.5 w-4.5 animate-spin text-yomi-jade" />
-                Loading...
-              </>
-            ) : (
-              "Load More"
-            )}
-          </button>
-        </div>
-      )}
-    </div>
+      {serverHistory.hasNextPage && <button className="yomi-button yomi-button-secondary mx-auto" disabled={serverHistory.isFetchingNextPage} onClick={() => serverHistory.fetchNextPage()}>{serverHistory.isFetchingNextPage ? <Loader2 className="animate-spin" /> : null} Load older activity</button>}
+    </section>
   );
+}
+
+function EmptyHistory({ title, detail, action }: { title: string; detail: string; action?: React.ReactNode }) {
+  return <div className="yomi-empty-state"><div className="yomi-empty-icon"><History /></div><span className="yomi-eyebrow">Reading timeline</span><h1>{title}</h1><p>{detail}</p>{action}</div>;
+}
+
+function HistorySkeleton() {
+  return <div className="yomi-page" aria-label="Loading reading history"><div className="yomi-page-header"><div><span className="yomi-skeleton w-24" /><span className="yomi-skeleton mt-3 h-10 w-48" /></div></div><div className="space-y-3">{[0, 1, 2, 3].map((item) => <div key={item} className="yomi-skeleton h-24 w-full rounded-2xl" />)}</div></div>;
 }

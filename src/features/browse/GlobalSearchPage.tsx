@@ -311,19 +311,19 @@ export default function GlobalSearchPage() {
   return (
     <div className="min-h-screen bg-transparent pb-24 text-slate-100">
       {/* Top Sticky Header */}
-      <div className="sticky top-0 z-20 bg-ink-950/40 backdrop-blur-xl border-b border-white/5 px-4 py-4 sm:px-6 mb-6">
+      <div className="sticky top-0 z-20 border-b border-white/5 bg-ink-950/95 px-4 py-4 backdrop-blur-xl sm:px-6">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate("/browse")}
-              className="rounded-full p-2 hover:bg-white/10 text-slate-300 transition"
+              className="yomi-utility-button"
               title="Back"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
             <div>
-              <h1 className="text-xl font-bold text-white">Global Search</h1>
-              <p className="text-xs text-slate-400 mt-0.5">Search across all installed extensions</p>
+              <span className="yomi-eyebrow">Discover</span>
+              <h1 className="yomi-workspace-title mt-1">Global search</h1>
             </div>
           </div>
 
@@ -334,13 +334,13 @@ export default function GlobalSearchPage() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search manga title globally..."
-                className="w-full rounded-xl bg-ink-900 border border-white/10 focus:border-yomi-jade/50 focus:shadow-glow py-2 pl-10 pr-4 text-xs text-slate-200 placeholder-slate-500 focus:outline-none transition-all duration-300"
+                className="yomi-field py-2 pl-10 pr-4"
               />
               <Search className="absolute left-3.5 top-2.5 h-4.5 w-4.5 text-slate-500" />
             </div>
             <button
               type="submit"
-              className="rounded-xl bg-yomi-jade px-4 py-2 text-xs font-bold text-ink-950 hover:bg-yomi-jade/90 hover:scale-[1.02] active:scale-[0.98] transition shadow-md hover:shadow-glow"
+              className="yomi-button yomi-button-primary px-4"
             >
               Search
             </button>
@@ -467,15 +467,9 @@ export default function GlobalSearchPage() {
       </div>
 
       {/* Main Results Container */}
-      <div className="max-w-5xl mx-auto p-4 sm:p-6">
+      <div className="max-w-5xl mx-auto p-6 sm:p-10">
         {!activeQuery && (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-            <Search className="h-12 w-12 stroke-[1.5] text-slate-600 mb-4 animate-pulse" />
-            <p className="font-semibold text-sm text-slate-400">Search for titles globally</p>
-            <p className="text-xs text-slate-600 mt-1.5 max-w-sm text-center">
-              Enter a search query above. Yomikura searches installed sources in controlled batches.
-            </p>
-          </div>
+          <div className="yomi-route-empty"><div><Search /><h2>Search your installed sources</h2><p>Searches run in measured batches so one source does not overwhelm the rest.</p></div></div>
         )}
 
         {activeQuery && loadingSources && (

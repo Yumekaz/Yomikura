@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { BookOpen, Server, Play, ShieldCheck, ArrowRight, Loader2, Sparkles, ChevronDown, ChevronUp, FolderOpen, HardDrive, RefreshCw, AlertTriangle } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { browseNav, primaryNav, type NavItem } from "../../app/navigation";
+import { browseNav, primaryNav, utilityNav, type NavItem } from "../../app/navigation";
 import { useSettingsStore, isTauri } from "../../stores/useSettingsStore";
 import { useDownloadStore } from "../../stores/useDownloadStore";
 import { ErrorBoundary } from "../ErrorBoundary";
@@ -64,7 +64,7 @@ function BackendHealthBadge() {
   }
 
   return (
-    <div className="mt-2.5 px-2.5 py-1.5 rounded-lg bg-ink-950/40 border border-white/5 flex items-center gap-2 text-[10px] font-semibold tracking-wide select-none">
+    <div className="yomi-engine-status">
       <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
       <span className={textColor}>{statusText}</span>
     </div>
@@ -150,7 +150,9 @@ function AppShell() {
 
     // 2. Accent color application (RGB values)
     const accents: Record<string, string> = {
-      jade: "125, 216, 189",
+      // Keep the persisted key for backwards compatibility; it is now the
+      // branded warm-paper default rather than the old green accent.
+      jade: "239, 234, 226",
       mint: "169, 242, 212",
       gold: "242, 200, 121",
       plum: "182, 155, 255",
@@ -182,8 +184,8 @@ function AppShell() {
   }
 
   return (
-    <div className="min-h-screen bg-transparent text-slate-100">
-      <aside className="fixed left-4 top-4 bottom-4 hidden w-64 rounded-2xl border border-white/10 bg-ink-900/30 backdrop-blur-2xl px-4 py-5 lg:block overflow-y-auto scrollbar-none shadow-2xl z-30">
+    <div className="yomi-app-shell text-slate-100">
+      <aside className="yomi-sidebar">
         <BrandLockup />
         <BackendHealthBadge />
         
@@ -197,16 +199,20 @@ function AppShell() {
             <ShellNavLink key={item.path} item={item} />
           ))}
         </nav>
-        <div className="mt-8 border-t border-white/5 pt-5 pb-6">
-          <p className="px-3 text-xs font-semibold uppercase text-slate-500">{t("browse")}</p>
+        <div className="yomi-nav-section">
+          <p className="yomi-nav-label">Discover</p>
           <nav className="mt-2 space-y-1" aria-label="Browse navigation">
             {browseNav.map((item) => (
               <ShellNavLink key={item.path} item={item} />
             ))}
           </nav>
         </div>
+        <div className="yomi-sidebar-footer">
+          {utilityNav.map((item) => <ShellNavLink key={item.path} item={item} />)}
+          <p>Private by default. Your library stays on this device.</p>
+        </div>
       </aside>
-      <main className="min-h-screen pb-24 lg:pl-[18.5rem] lg:pr-6 lg:pt-4">
+      <main className="yomi-main">
         <div className="px-4 pt-2 lg:px-0">
           <UpdateNotificationBanner />
         </div>
@@ -301,13 +307,13 @@ function AppShell() {
 
 export function BrandLockup() {
   return (
-    <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md bg-ink-950 border border-white/10">
+    <div className="yomi-brand">
+      <div className="yomi-brand-mark">
         <img src="/yomikura-logo.png" alt="Yomikura" className="h-full w-full object-cover" />
       </div>
       <div>
-        <p className="text-base font-semibold text-white">Yomikura</p>
-        <p className="text-xs text-slate-500">Suwayomi web reader</p>
+        <p>Yomikura</p>
+        <span>Desktop reader</span>
       </div>
     </div>
   );
@@ -349,7 +355,7 @@ function WelcomeOnboarding({
     if (currentStep !== "backend") return;
 
     let active = true;
-    let backendStarted = false;
+    let backendLaunchRequested = false;
     let transitioningToReady = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let finishTimer: ReturnType<typeof setTimeout> | undefined;
@@ -388,8 +394,8 @@ function WelcomeOnboarding({
 
         await invoke<string>("download_suwayomi_jar", { dataPath: serverDataPath });
 
+        backendLaunchRequested = true;
         const port = await invoke<number>("start_backend", { dataPath: serverDataPath });
-        backendStarted = true;
         if (!active) return;
 
         setServerBaseUrl(`http://127.0.0.1:${port}`);
@@ -413,9 +419,9 @@ function WelcomeOnboarding({
             // silent retry
           }
 
-          if (attempts > 30 && active) {
+          if (attempts > 12 && active) {
             setServerStatus("error");
-            setLocalError("Local manga server startup timed out. Check suwayomi.log in AppData folder.");
+            setLocalError("Suwayomi opened its local port but did not answer the application health check. Retry once, then open the logs from Settings if it continues.");
             return true;
           }
           return false;
@@ -424,7 +430,7 @@ function WelcomeOnboarding({
         const pollConnection = async () => {
           const done = await checkConnection();
           if (!done && active) {
-            retryTimer = setTimeout(pollConnection, 1500);
+            retryTimer = setTimeout(pollConnection, 1000);
           }
         };
         await pollConnection();
@@ -442,7 +448,7 @@ function WelcomeOnboarding({
       active = false;
       if (retryTimer) clearTimeout(retryTimer);
       if (finishTimer) clearTimeout(finishTimer);
-      if (backendStarted && !transitioningToReady && isTauri()) {
+      if (backendLaunchRequested && !transitioningToReady && isTauri()) {
         void import("@tauri-apps/api/core").then(({ invoke }) => {
           void invoke("stop_backend").catch((err) => {
             console.warn("Failed to stop abandoned local backend:", err);
@@ -651,7 +657,7 @@ function WelcomeOnboarding({
                   <AlertTriangle className="h-6 w-6" />
                 </div>
                 <h3 className="text-base font-bold text-slate-200">Java OpenJDK 17 Required</h3>
-                <p className="text-xs text-slate-400 mt-2 max-w-sm leading-relaxed">
+                <p className="max-h-48 max-w-lg overflow-auto whitespace-pre-wrap rounded-xl border border-white/5 bg-black/20 p-3 text-left font-mono text-[11px] leading-relaxed text-slate-400 mt-3">
                   Yomikura's local backend requires **Java OpenJDK 17** (or newer) to run. Don't worry—it takes less than a minute to install and runs quietly in the background.
                 </p>
 
@@ -742,7 +748,7 @@ function WelcomeOnboarding({
         {currentStep === "ready" && (
           <div className="w-full flex flex-col items-center animate-fade-in">
             <p className="mt-2 text-sm text-slate-400 text-center max-w-sm">
-              A premium, Mihon-inspired web manga reader frontend. Clean, fast, and completely local.
+              A focused desktop manga reader. Quiet, fast, and completely local.
             </p>
 
             {/* Feature List */}
@@ -778,7 +784,7 @@ function WelcomeOnboarding({
                 <div>
                   <h3 className="text-sm font-semibold text-slate-200">Tailored UI Theme System</h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Switch instantly between light and dark themes with curated accents (Jade, Mint, Gold, Plum, Coral).
+                    Start with Yomikura's ivory-and-ink identity, or choose an optional personal accent.
                   </p>
                 </div>
               </div>
@@ -878,21 +884,13 @@ function ShellNavLink({ item }: { item: NavItem }) {
   return (
     <NavLink
       className={({ isActive }) =>
-        `group relative flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm transition-all duration-300 ${
-          isActive
-            ? "bg-yomi-jade/15 text-yomi-mint font-semibold shadow-glow scale-[1.02]"
-            : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100 hover:scale-[1.01]"
-        }`
+        `yomi-nav-link group ${isActive ? "is-active" : ""}`
       }
       to={item.path}
     >
       {({ isActive }) => (
         <>
-          {/* Left active line indicator */}
-          {isActive && (
-            <div className="absolute left-0 top-2.5 bottom-2.5 w-1 rounded-r-full bg-yomi-jade shadow-glow" />
-          )}
-          <Icon className={`h-4 w-4 transition-transform duration-200 group-hover:scale-110 ${isActive ? "text-yomi-jade" : "text-slate-400 group-hover:text-slate-200"}`} />
+          <Icon className="h-[18px] w-[18px]" />
           <span>{label}</span>
         </>
       )}

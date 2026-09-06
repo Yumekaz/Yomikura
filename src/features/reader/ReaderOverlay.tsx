@@ -68,7 +68,7 @@ export function ReaderOverlay({
   return (
     <div className="fixed inset-0 z-50 pointer-events-none flex flex-col justify-between select-none">
       {/* Top Nav */}
-      <div className="pointer-events-auto flex items-center justify-between bg-ink-950/90 px-4 py-3 shadow-md backdrop-blur-md transition-transform duration-300 translate-y-0 border-b border-white/5">
+      <div className="yomi-reader-top pointer-events-auto flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-4">
           <Link
             to={mangaId ? `/manga/${mangaId}` : "/library"}
@@ -84,11 +84,11 @@ export function ReaderOverlay({
       </div>
 
       {/* Bottom Nav */}
-      <div className="pointer-events-auto flex flex-col gap-3 bg-ink-950/90 p-4 shadow-md backdrop-blur-md transition-transform duration-300 translate-y-0 pb-safe border-t border-white/5">
+      <div className="yomi-reader-bottom pointer-events-auto flex flex-col gap-3 p-4 pb-safe">
         
         {/* Sub-tab panels */}
         {activeSubTab !== "none" && (
-          <div className="rounded-xl bg-ink-900/80 p-4 border border-white/5 backdrop-blur-md mb-2 flex flex-col gap-4 animate-fade-in">
+          <div className="yomi-reader-panel mb-2 flex flex-col gap-4 p-4 animate-fade-in">
             
             {/* 1. LAYOUT CONTROLS */}
             {activeSubTab === "layout" && (
@@ -355,9 +355,9 @@ export function ReaderOverlay({
                   <button
                     key={idx}
                     onClick={() => onJumpToPage(idx)}
-                    className={`relative h-14 w-10 flex-shrink-0 overflow-hidden rounded border transition-all duration-200 ${
+                    className={`relative h-14 w-10 flex-shrink-0 overflow-hidden rounded border transition-[border-color,opacity,transform] duration-150 ${
                       isCurrent
-                        ? "border-yomi-jade ring-1 ring-yomi-jade scale-105"
+                        ? "border-yomi-jade opacity-100"
                         : "border-white/5 opacity-60 hover:opacity-100"
                     }`}
                   >

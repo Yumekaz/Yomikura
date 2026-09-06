@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Download, Play, Pause, Trash2, CheckCircle2 } from "lucide-react";
+import { Loader2, Download, Play, Pause, Trash2, CheckCircle2, RefreshCw } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
@@ -80,37 +80,32 @@ export default function DownloadsPage() {
 
   if (!serverBaseUrl) {
     return (
-      <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400">
-        <Download className="mb-4 h-12 w-12 opacity-50" />
-        <p>Server not configured.</p>
-      </div>
+      <div className="yomi-workspace"><div className="yomi-route-empty"><div>
+        <Download /><h2>Downloads need a local engine</h2><p>Server not configured.</p>
+      </div></div></div>
     );
   }
 
   if (isUnconnected) {
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center bg-transparent p-6 text-center text-slate-300 min-h-[50vh] animate-fade-in">
-        <Download className="mb-4 h-12 w-12 text-slate-600" />
-        <h2 className="text-lg font-semibold text-white">Downloads queue offline</h2>
-        <p className="mt-2 max-w-md text-sm text-slate-500 leading-relaxed">
-          The downloads queue is only available when online. Start your Suwayomi server or restore connection settings to view live downloads.
-        </p>
-        <div className="mt-6 border border-white/5 bg-ink-900 p-5 rounded-xl text-left text-xs max-w-md space-y-3">
-          <p className="font-semibold text-yomi-jade uppercase tracking-wider text-[10px]">How to read completed downloads offline:</p>
+      <div className="yomi-workspace"><div className="yomi-route-empty"><div>
+        <Download /><h2>Downloads queue offline</h2>
+        <p>The live queue returns when Suwayomi is connected. Your completed local chapters stay available from the library.</p>
+        <div className="mt-6 rounded-xl border border-white/5 bg-ink-900 p-5 text-left text-xs space-y-3">
+          <p className="font-semibold text-slate-200 uppercase tracking-wider text-[10px]">Reading completed downloads</p>
           <ul className="list-disc list-inside text-slate-400 space-y-1.5 leading-relaxed">
             <li>Go to the <strong className="text-slate-300">Library</strong> tab in the sidebar.</li>
             <li>Click on any downloaded manga card in the grid (e.g. Chainsaw Man or Solo Leveling).</li>
             <li>Click on the chapter you saved (marked with a green cached badge).</li>
             <li>View all offline chapters registry under <strong className="text-slate-300">Settings &rarr; Offline</strong>.</li>
           </ul>
-        </div>
-      </div>
+        </div></div></div></div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
+      <div className="yomi-workspace flex min-h-[50vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-yomi-jade" />
       </div>
     );
@@ -118,39 +113,27 @@ export default function DownloadsPage() {
 
   if (isError) {
     return (
-      <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400 text-center max-w-md mx-auto p-4">
-        <p className="text-red-400 font-semibold mb-2">Failed to load downloads</p>
-        <p className="text-sm mb-4">{getErrorMessage(error)}</p>
-        <button
-          onClick={() => refetch()}
-          className="rounded-lg bg-yomi-jade px-4 py-2 font-medium text-ink-950 hover:bg-yomi-jade/90"
-        >
-          Retry
-        </button>
-      </div>
+      <div className="yomi-workspace"><div className="yomi-route-empty"><div>
+        <Download /><h2>Downloads could not load</h2><p>{getErrorMessage(error)}</p>
+        <button onClick={() => refetch()} className="yomi-button yomi-button-primary mt-5"><RefreshCw />Retry</button>
+      </div></div></div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 pb-24 max-w-3xl mx-auto space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
+    <div className="yomi-workspace space-y-7">
+      <div className="yomi-workspace-head">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Download className="h-6 w-6 text-yomi-jade" />
-            Download Queue
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Expose and manage the Suwayomi server downloader status.
-          </p>
+          <span className="yomi-eyebrow">Offline reading</span>
+          <h1 className="yomi-workspace-title"><Download />Download queue</h1>
+          <p className="yomi-workspace-subtitle">Keep the local reader ready. This queue is owned by your Suwayomi engine.</p>
         </div>
-
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {downloaderState === "STARTED" ? (
             <button
               onClick={() => stopDownloader()}
               disabled={isActionPending}
-              className="flex items-center gap-2 rounded-lg bg-red-500/20 border border-red-500/30 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-500/30 transition disabled:opacity-50"
+              className="yomi-button yomi-button-secondary text-red-200 disabled:opacity-50"
             >
               <Pause className="h-4 w-4" />
               Pause Downloader
@@ -159,7 +142,7 @@ export default function DownloadsPage() {
             <button
               onClick={() => startDownloader()}
               disabled={isActionPending}
-              className="flex items-center gap-2 rounded-lg bg-yomi-jade px-4 py-2 text-sm font-semibold text-ink-950 hover:bg-yomi-jade/90 transition disabled:opacity-50"
+              className="yomi-button yomi-button-primary disabled:opacity-50"
             >
               <Play className="h-4 w-4 fill-current" />
               Resume Downloader
@@ -169,7 +152,7 @@ export default function DownloadsPage() {
           <button
             onClick={() => clearDownloader()}
             disabled={isActionPending || queue.length === 0}
-            className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-white/10 hover:text-white transition disabled:opacity-50"
+            className="yomi-button yomi-button-secondary disabled:opacity-50"
             title="Clear Queue"
           >
             Clear Completed
@@ -177,30 +160,25 @@ export default function DownloadsPage() {
         </div>
       </div>
 
-      {/* Downloader State Banner */}
-      <div className={`rounded-xl border p-4 flex items-center justify-between ${
-        downloaderState === "STARTED" 
-          ? "border-yomi-jade/20 bg-yomi-jade/5 text-yomi-mint" 
-          : "border-slate-500/20 bg-white/[0.02] text-slate-400"
-      }`}>
-        <div className="flex items-center gap-2 text-sm">
-          <div className={`h-2.5 w-2.5 rounded-full ${downloaderState === "STARTED" ? "bg-yomi-jade animate-pulse" : "bg-slate-500"}`} />
-          <span>Downloader Status: <strong className="font-semibold uppercase">{downloaderState}</strong></span>
+      <div className="yomi-commandbar">
+        <div className="yomi-commandbar-copy"><span className={`status ${downloaderState === "STARTED" ? "" : "is-idle"}`} />
+          <div><strong>{downloaderState === "STARTED" ? "Downloader is working" : "Downloader is paused"}</strong><span>Suwayomi queue · {queue.length} item{queue.length === 1 ? "" : "s"}</span></div>
         </div>
-        <span className="text-xs">{queue.length} items in queue</span>
+        <span className={`yomi-chip ${downloaderState === "STARTED" ? "is-live" : ""}`}>{downloaderState}</span>
       </div>
 
       {/* Queue List */}
       {queue.length === 0 ? (
-        <div className="rounded-xl border border-white/5 bg-ink-900/50 p-12 text-center text-slate-400 space-y-4">
-          <CheckCircle2 className="h-12 w-12 text-yomi-jade/60 mx-auto" />
+        <div className="yomi-route-empty"><div>
+          <CheckCircle2 />
           <div>
-            <p className="text-lg text-slate-300">All downloads completed</p>
-            <p className="text-sm mt-1">Trigger chapter downloads from Manga Detail Pages.</p>
+            <h2>All downloads completed</h2>
+            <p>Start a chapter download from a manga’s chapter list. It will remain available from your library when you are offline.</p>
           </div>
         </div>
+        </div>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="yomi-surface">
           {queue.map((item) => {
             let coverUrl = "/placeholder-cover.svg";
             if (item.manga.thumbnailUrl) {
@@ -212,42 +190,36 @@ export default function DownloadsPage() {
             return (
               <div
                 key={item.chapter.id}
-                className="flex items-center gap-4 rounded-xl border border-white/5 bg-ink-900 p-3 sm:p-4 transition"
+                className="yomi-surface-row"
               >
                 {/* Cover */}
                 <Link
                   to={`/manga/${item.manga.id}`}
-                  className="h-16 w-12 flex-shrink-0 overflow-hidden rounded-md bg-ink-950"
+                  className="yomi-cover-sm"
                 >
                   <img src={coverUrl} alt={item.manga.title} className="h-full w-full object-cover" />
                 </Link>
 
                 {/* Info & Progress */}
-                <div className="flex flex-col flex-1 min-w-0">
+                <div className="yomi-row-copy">
                   <div className="flex items-center justify-between gap-4">
                     <Link
                       to={`/manga/${item.manga.id}`}
-                      className="font-medium text-slate-200 hover:text-yomi-jade transition truncate text-sm sm:text-base"
+                      className="yomi-row-title"
                     >
                       {item.manga.title}
                     </Link>
-                    <span className={`text-xs font-semibold rounded px-1.5 py-0.5 ${
-                      item.state === "DOWNLOADING" ? "bg-yomi-jade/20 text-yomi-jade" :
-                      item.state === "ERROR" ? "bg-red-500/20 text-red-400" :
-                      "bg-white/5 text-slate-400"
-                    }`}>
+                    <span className={`yomi-chip ${item.state === "DOWNLOADING" ? "is-live" : ""}`}>
                       {item.state}
                     </span>
                   </div>
 
-                  <span className="text-xs sm:text-sm text-slate-300 truncate mt-0.5">
-                    {item.chapter.name}
-                  </span>
+                  <p>{item.chapter.name}</p>
 
                   {/* Progress Bar */}
-                  <div className="w-full bg-white/5 rounded-full h-1.5 mt-3 overflow-hidden">
+                  <div className="yomi-progress-line mt-3 w-full">
                     <div
-                      className="bg-yomi-jade h-full rounded-full transition-all duration-300"
+                      className="bg-[rgb(var(--yomi-signature))] h-full rounded-full transition-[width] duration-300"
                       style={{ width: `${item.progress}%` }}
                     />
                   </div>
@@ -263,7 +235,7 @@ export default function DownloadsPage() {
                 <button
                   onClick={() => dequeueChapter(item.chapter.id)}
                   disabled={isActionPending}
-                  className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg transition disabled:opacity-50 shrink-0"
+                  className="yomi-utility-button danger disabled:opacity-50"
                   title="Remove from Queue"
                 >
                   <Trash2 className="h-5 w-5" />
