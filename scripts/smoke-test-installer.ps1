@@ -38,6 +38,15 @@ function Get-BackendPort {
     if ($match.Success) { return [int]$match.Groups[1].Value }
   }
 
+  $ownedListenPort = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+    Where-Object {
+      $OwnedProcessIds -contains [int]$_.OwningProcess -and
+      [int]$_.LocalPort -ge 4567 -and
+      [int]$_.LocalPort -le 65535
+    } |
+    Select-Object -First 1 -ExpandProperty LocalPort
+  if ($ownedListenPort) { return [int]$ownedListenPort }
+
   return $null
 }
 
@@ -113,6 +122,18 @@ try {
     }
   } while (-not $backendReady -and [DateTime]::UtcNow -lt $deadline)
   if (-not $backendReady) {
+    $settingsFile = Join-Path $env:APPDATA "app.yomikura\yomikura-settings.json"
+    if (Test-Path -LiteralPath $settingsFile) {
+      Write-Host "Persisted test settings:"
+      Get-Content -LiteralPath $settingsFile | Write-Host
+    }
+    if ($PreservedStoragePath) {
+      $backendLog = Join-Path $PreservedStoragePath "suwayomi.log"
+      if (Test-Path -LiteralPath $backendLog) {
+        Write-Host "Recent Suwayomi log output:"
+        Get-Content -LiteralPath $backendLog -Tail 40 | Write-Host
+      }
+    }
     throw "Installed application did not bring the local Suwayomi GraphQL endpoint online within $StartupTimeoutSeconds seconds"
   }
   if ($PreservedStoragePath) {

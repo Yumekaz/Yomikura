@@ -34,7 +34,7 @@ jobs:
         run: pnpm run test:e2e
 
   publish-tauri:
-    needs: release-preflight
+    needs: [release-preflight, release-installer-windows]
     permissions:
       contents: write
     strategy:
@@ -47,6 +47,11 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v5
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -64,11 +69,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.1.2
 
       - name: Install Frontend Dependencies
         run: pnpm install --frozen-lockfile
@@ -106,6 +106,43 @@ jobs:
           name: release-checksum-${{ matrix.platform }}
           path: SHA256SUMS-${{ matrix.platform }}.txt
           if-no-files-found: error
+
+  release-installer-windows:
+    name: Release installer smoke (Windows)
+    needs: release-preflight
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check release version synchronization
+        run: pnpm run check:version
+      - name: Build NSIS installer
+        run: pnpm tauri build --bundles nsis
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Install, launch, and uninstall smoke test
+        shell: pwsh
+        run: |
+          $installer = (Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1).FullName
+          if (-not $installer) { throw "NSIS installer artifact was not found" }
+          $userStorage = Join-Path $env:RUNNER_TEMP "yomikura-release-user-storage"
+          ./scripts/smoke-test-installer.ps1 -InstallerPath $installer -PreservedStoragePath $userStorage
 
   release-checksums:
     name: Verify and publish release checksums
