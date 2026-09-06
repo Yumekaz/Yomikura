@@ -80,7 +80,6 @@ if ($installProcess.ExitCode -ne 0) { throw "Installer exited with code $($insta
 if ($PreservedStoragePath) {
   $PreservedStoragePath = [IO.Path]::GetFullPath($PreservedStoragePath)
   New-Item -ItemType Directory -Path $PreservedStoragePath -Force | Out-Null
-  Set-Content -LiteralPath (Join-Path $PreservedStoragePath "smoke-sentinel.txt") -Value "Yomikura user data must survive an application uninstall." -NoNewline
   Write-TestSettings -StoragePath $PreservedStoragePath
 }
 
@@ -143,6 +142,11 @@ try {
     throw "Installed application did not bring the local Suwayomi GraphQL endpoint online within $StartupTimeoutSeconds seconds"
   }
   if ($PreservedStoragePath) {
+    # The storage contract requires a new folder to be empty before Yomikura
+    # initializes and marks it. Create the sentinel only after that contract
+    # has been satisfied so this test verifies uninstall preservation rather
+    # than accidentally testing rejection of a non-empty folder.
+    Set-Content -LiteralPath (Join-Path $PreservedStoragePath "smoke-sentinel.txt") -Value "Yomikura user data must survive an application uninstall." -NoNewline
     Write-Host "Local Suwayomi GraphQL endpoint is ready on port $backendPort"
   }
   $ownedProcessIds = @(Get-DescendantProcessIds -RootProcessId $app.Id)
