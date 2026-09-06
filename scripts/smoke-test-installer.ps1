@@ -31,7 +31,13 @@ function Get-DescendantProcessIds {
 }
 
 function Get-BackendPort {
-  param([Parameter(Mandatory = $true)][int[]]$OwnedProcessIds)
+  param(
+    [Parameter(Mandatory = $true)]
+    [AllowEmptyCollection()]
+    [int[]]$OwnedProcessIds
+  )
+
+  if (-not $OwnedProcessIds -or $OwnedProcessIds.Count -eq 0) { return $null }
 
   foreach ($process in (Get-CimInstance Win32_Process | Where-Object { $OwnedProcessIds -contains [int]$_.ProcessId })) {
     $match = [regex]::Match([string]$process.CommandLine, 'server\.port=(\d+)')
