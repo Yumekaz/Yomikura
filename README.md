@@ -39,6 +39,8 @@ Inspired by the design and feel of Mihon.
 2. Launch Yomikura — onboarding will guide you through storage location, optional JRE + Suwayomi download, and first connection.
 3. Add extension repositories and sources in **Extensions** / **Browse** (user-configured; nothing bundled).
 
+Yomikura is an independent open-source project applying to the [SignPath Foundation](https://signpath.org/) for free Windows code signing. Until that application is approved and the workflow is enabled, release installers are unsigned.
+
 ### Web / PWA
 
 Host the built `dist/` folder or run locally. You need a Suwayomi server URL (your own instance or LAN). Default:
@@ -78,6 +80,8 @@ Explore our detailed architectural and design specifications:
 - [Security & Trust](docs/SECURITY.md) - Local data storage rules and CORS policies.
 - [Roadmap & Milestones](docs/ROADMAP.md) - Shipped milestones (web, PWA, desktop) and what's next.
 - [Legal & Branding Guidelines](docs/LEGAL_AND_BRANDING.md) - Compliance policies and identity naming.
+- [Release readiness](docs/RELEASE_READINESS.md) - Validation gates for installers and public releases.
+- [Troubleshooting](docs/TROUBLESHOOTING.md) - Plain-language recovery steps for common problems.
 
 ---
 

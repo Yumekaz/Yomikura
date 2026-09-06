@@ -32,6 +32,15 @@ test("desktop shell keeps one clear navigation hierarchy", async ({ page }) => {
   expect(layout.bodyBackground).toBe("rgb(9, 10, 12)");
 });
 
+test("keyboard users can skip directly to the main content", async ({ page }) => {
+  await enterDemo(page);
+  const skipLink = page.getByRole("link", { name: "Skip to content" });
+  await page.keyboard.press("Tab");
+  await expect(skipLink).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#main-content")).toBeFocused();
+});
+
 test("history and settings remain usable through real navigation", async ({ page }) => {
   await enterDemo(page);
   await page.getByRole("link", { name: "Continue", exact: true }).click();

@@ -7,6 +7,8 @@ describe("classifySourceProblem", () => {
     ["HTTP 404 not found", "not-found"],
     ["PKIX path building failed: certificate_unknown", "certificate"],
     ["request timed out after 30 seconds", "timeout"],
+    ["HTTP 403 forbidden", "access-denied"],
+    ["HTTP 500 internal server error", "source-down"],
     ["HTTP 503 service unavailable", "source-down"],
   ])("maps %s to %s", (message, kind) => {
     expect(classifySourceProblem(new Error(message)).kind).toBe(kind);

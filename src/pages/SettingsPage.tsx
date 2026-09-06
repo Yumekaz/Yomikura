@@ -14,7 +14,6 @@ import {
   Trash2,
   Edit2,
   Server,
-  HardDrive,
   AlertCircle,
   Palette,
   Sliders,
@@ -35,18 +34,11 @@ import { OpdsPanel } from "../components/settings/OpdsPanel";
 import { TrackerSettingsPanel } from "../components/settings/TrackerSettingsPanel";
 import { AboutSettingsPanel } from "../components/settings/AboutSettingsPanel";
 import { SettingsStatusPanel } from "../components/settings/SettingsStatusPanel";
+import { OfflineSettingsPanel } from "../components/settings/OfflineSettingsPanel";
+import { BackupSettingsPanel } from "../components/settings/BackupSettingsPanel";
 import { useFeedback } from "../components/ui/FeedbackProvider";
 
 type SettingsTab = "connection" | "appearance" | "reader" | "backup" | "offline" | "advanced" | "about";
-
-function formatBytes(bytes: number, decimals = 2) {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
-}
 
 const RESTORE_BACKUP_UPLOAD_QUERY = `
   mutation RestoreBackup($input: RestoreBackupInput!) {
@@ -1149,160 +1141,24 @@ function SettingsPage() {
           )}
 
           {activeTab === "backup" && (
-            <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel space-y-6">
-              <div>
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <Layout className="h-5 w-5 text-yomi-jade" />
-                  Backup & Restore
-                </h2>
-                <p className="mt-2 text-sm text-slate-400">
-                  Export your library metadata, history, and categories from Suwayomi, or restore an
-                  existing backup file.
-                </p>
-              </div>
-
-              {backupMessage && (
-                <div className={`flex items-start gap-3 rounded-md border p-4 text-sm ${
-                  backupMessage.kind === "success" 
-                    ? "border-yomi-jade/20 bg-yomi-jade/10 text-yomi-jade" 
-                    : "border-red-500/20 bg-red-500/10 text-red-400"
-                }`}>
-                  <div>
-                    <p className="font-medium">{backupMessage.kind === "success" ? "Success" : "Failed"}</p>
-                    <p className="mt-1">{backupMessage.text}</p>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex flex-col sm:flex-row gap-4">
-                {/* Create Backup */}
-                <button
-                  onClick={() => createBackup()}
-                  disabled={creatingBackup || restoringBackup}
-                  className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-yomi-jade px-4 py-3 font-semibold text-ink-950 hover:bg-yomi-jade/90 disabled:opacity-50 transition"
-                >
-                  {creatingBackup ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Download className="h-5 w-5" />
-                  )}
-                  Create & Download Backup
-                </button>
-
-                {/* Restore Backup */}
-                <label className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 font-semibold text-slate-300 hover:bg-white/10 hover:text-white cursor-pointer transition disabled:opacity-50">
-                  {restoringBackup ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Upload className="h-5 w-5" />
-                  )}
-                  Upload & Restore Backup
-                  <input
-                    type="file"
-                    accept=".zip,.tachibk,.json"
-                    onChange={handleFileChange}
-                    className="hidden"
-                    disabled={creatingBackup || restoringBackup}
-                  />
-                </label>
-              </div>
-            </div>
+            <BackupSettingsPanel
+              backupMessage={backupMessage}
+              creatingBackup={creatingBackup}
+              restoringBackup={restoringBackup}
+              createBackup={() => createBackup()}
+              handleFileChange={handleFileChange}
+            />
           )}
 
           {activeTab === "offline" && (
-            <div className="space-y-6">
-              {/* Storage Quota Card */}
-              <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <HardDrive className="h-5 w-5 text-yomi-jade" />
-                  Offline Storage Space
-                </h2>
-                <p className="mt-2 text-sm text-slate-400">
-                  Manage browser space allocated for cached chapters and reader images.
-                </p>
-
-                {/* Quota Progress Bar */}
-                <div className="mt-6">
-                  <div className="flex justify-between items-center text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                    <span>Space Used</span>
-                    <span>{formatBytes(storageUsage)} / {formatBytes(storageQuota || 10 * 1024 * 1024 * 1024)}</span>
-                  </div>
-                  <div className="w-full bg-ink-950 rounded-full h-3.5 border border-white/5 p-0.5 overflow-hidden">
-                    <div 
-                      className="bg-yomi-jade h-full rounded-full transition-[width] duration-200 ease-out"
-                      style={{ 
-                        width: `${Math.min(100, Math.max(1, storageQuota ? (storageUsage / storageQuota) * 100 : 0))}%` 
-                      }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-[10px] text-slate-500 mt-1.5 font-medium">
-                    <span>Used: {storageQuota ? ((storageUsage / storageQuota) * 100).toFixed(2) : "0"}%</span>
-                    <span>Capacity: {formatBytes(storageQuota)}</span>
-                  </div>
-                </div>
-
-                <div className="mt-6 border-t border-white/5 pt-5 flex justify-end">
-                  <button
-                    onClick={async () => {
-                      if (await confirm({ title: "Clear every saved chapter?", detail: "All locally cached chapter pages will be removed from this device. Your library and server data remain intact.", confirmLabel: "Clear saved chapters", danger: true })) {
-                        await clearAll();
-                      }
-                    }}
-                    disabled={cachedChapters.length === 0}
-                    className="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/20 hover:text-red-300 transition disabled:opacity-30 disabled:pointer-events-none"
-                  >
-                    Clear Offline Cache
-                  </button>
-                </div>
-              </div>
-
-              {/* Cached Chapters Registry Card */}
-              <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
-                <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                  <CheckCircle2 className="h-4.5 w-4.5 text-yomi-jade" />
-                  Cached Chapters ({cachedChapters.length})
-                </h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  Chapters currently saved inside browser memory for offline reading.
-                </p>
-
-                {cachedChapters.length === 0 ? (
-                  <div className="mt-8 rounded-xl border border-dashed border-white/5 bg-ink-950/20 py-12 text-center text-slate-500 text-sm">
-                    No chapters cached yet. Use the download buttons on the manga details pages to save files.
-                  </div>
-                ) : (
-                  <div className="mt-6 divide-y divide-white/5 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                    {cachedChapters.map((c) => (
-                      <div key={c.id} className="flex items-center justify-between py-3.5 gap-4">
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-sm font-semibold text-slate-200 truncate">{c.mangaTitle}</h4>
-                          <p className="text-xs text-slate-400 truncate mt-0.5">{c.name}</p>
-                          <div className="flex gap-2 text-[10px] text-slate-500 mt-1 font-medium">
-                            <span>{c.pageCount} Pages</span>
-                            <span>•</span>
-                            <span>{formatBytes(c.totalSizeBytes)}</span>
-                            <span>•</span>
-                            <span>Saved {new Date(c.cachedAt).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                        <button
-                          onClick={async () => {
-                            if (await confirm({ title: "Remove saved chapter?", detail: `Delete the offline pages for “${c.name}”? Reading progress and server data remain intact.`, confirmLabel: "Remove download", danger: true })) {
-                              await deleteChapter(c.id);
-                            }
-                          }}
-                          className="p-2 rounded-lg bg-white/5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition shrink-0"
-                          title="Delete Cache"
-                          aria-label={`Remove offline download ${c.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            <OfflineSettingsPanel
+              cachedChapters={cachedChapters}
+              storageUsage={storageUsage}
+              storageQuota={storageQuota}
+              clearAll={clearAll}
+              deleteChapter={deleteChapter}
+              confirm={confirm}
+            />
           )}
 
           {activeTab === "advanced" && (

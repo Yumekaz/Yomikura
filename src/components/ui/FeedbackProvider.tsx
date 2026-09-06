@@ -95,7 +95,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     const activeDialog = request ? "[data-yomi-confirm]" : "[data-yomi-text-request]";
     const closeActiveDialog = request ? () => closeConfirm(false) : () => closeTextRequest(null);
     if (request) cancelRef.current?.focus();
-    else document.querySelector<HTMLButtonElement>(`${activeDialog} button[type=button]`)?.focus();
+    else document.querySelector<HTMLInputElement>(`${activeDialog} input`)?.focus();
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -105,7 +105,11 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       }
       if (event.key !== "Tab") return;
       const dialog = document.querySelector<HTMLElement>(activeDialog);
-      const controls = Array.from(dialog?.querySelectorAll<HTMLElement>("button:not([disabled])") ?? []);
+      const controls = Array.from(
+        dialog?.querySelectorAll<HTMLElement>(
+          "button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex='-1'])",
+        ) ?? [],
+      ).filter((element) => !element.hidden);
       if (controls.length === 0) return;
       const first = controls[0];
       const last = controls[controls.length - 1];
@@ -165,11 +169,11 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       )}
       {textRequest && (
         <div className="yomi-dialog-backdrop" onMouseDown={(event) => event.target === event.currentTarget && closeTextRequest(null)}>
-          <form className="yomi-dialog" data-yomi-text-request role="dialog" aria-modal="true" aria-labelledby={`${dialogTitleId}-text`} onSubmit={(event) => { event.preventDefault(); closeTextRequest(textValue.trim() || null); }}>
+          <form className="yomi-dialog" data-yomi-text-request role="dialog" aria-modal="true" aria-labelledby={`${dialogTitleId}-text`} aria-describedby={`${dialogDetailId}-text`} onSubmit={(event) => { event.preventDefault(); closeTextRequest(textValue.trim() || null); }}>
             <div className="yomi-dialog-copy">
               <h2 id={`${dialogTitleId}-text`}>{textRequest.title}</h2>
-              <p>{textRequest.detail}</p>
-              <input autoFocus className="yomi-dialog-input" value={textValue} onChange={(event) => setTextValue(event.target.value)} />
+              <p id={`${dialogDetailId}-text`}>{textRequest.detail}</p>
+              <input aria-label={textRequest.title} className="yomi-dialog-input" value={textValue} onChange={(event) => setTextValue(event.target.value)} />
             </div>
             <div className="yomi-dialog-actions">
               <button type="button" className="yomi-button yomi-button-secondary" onClick={() => closeTextRequest(null)}>Cancel</button>

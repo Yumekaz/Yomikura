@@ -12,7 +12,7 @@ The Yomikura UI does not execute extension APKs or scrape content providers dire
 
 ## Connection Security
 
-- Accepts `http://localhost`, LAN IPs, or HTTPS for Suwayomi URLs. Blocks unsafe schemes (`javascript:`, `file:`, etc.).
+- Accepts `http://localhost`, LAN IPs, or HTTPS for Suwayomi URLs. Explicitly rejects unsupported schemes, embedded credentials, query strings, and fragments before connection testing.
 - CORS guidance for web mode when the UI and server origins differ.
 - NSFW metadata filtering based on extension index flags.
 

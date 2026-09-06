@@ -4,6 +4,7 @@ agent-tools/
 scratch/
 terminals/
 node_modules/
+.pnpm-store/
 dist/
 .vite/
 *.local

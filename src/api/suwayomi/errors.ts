@@ -4,7 +4,7 @@ export type SourceProblem = {
   title: string;
   detail: string;
   owner: "source" | "network" | "server" | "app";
-  kind: "dns" | "cloudflare" | "source-down" | "rate-limit" | "not-found" | "certificate" | "timeout" | "browser-runtime" | "app-network" | "unknown";
+  kind: "dns" | "cloudflare" | "source-down" | "access-denied" | "rate-limit" | "not-found" | "certificate" | "timeout" | "browser-runtime" | "app-network" | "unknown";
 };
 
 export function getErrorMessage(error: unknown): string {
@@ -82,6 +82,15 @@ export function classifySourceProblem(error: unknown): SourceProblem {
     };
   }
 
+  if (lower.includes("401") || lower.includes("403") || lower.includes("451") || lower.includes("forbidden") || lower.includes("unauthorized")) {
+    return {
+      title: "The source denied this request",
+      detail: `${message}. The source may require a browser, authentication, or a different network path.`,
+      owner: "source",
+      kind: "access-denied",
+    };
+  }
+
   if (lower.includes("glprofile") || lower.includes("gluegen") || lower.includes("kcef")) {
     return {
       title: "Embedded browser runtime issue",
@@ -91,7 +100,7 @@ export function classifySourceProblem(error: unknown): SourceProblem {
     };
   }
 
-  if (lower.includes("502") || lower.includes("503") || lower.includes("504")) {
+  if (lower.includes("500") || lower.includes("502") || lower.includes("503") || lower.includes("504")) {
     return {
       title: "Source website is failing",
       detail: `${message}. Retry later or try another source for the same manga.`,
@@ -135,6 +144,11 @@ export function getSourceRecoveryHints(problem?: SourceProblem | null): string[]
       return [
         "Try another installed source first; many Cloudflare-protected sites are unstable from server clients.",
         "For this source specifically, enable a FlareSolverr or Byparr service in Suwayomi.",
+      ];
+    case "access-denied":
+      return [
+        "Try another installed source first; this source is refusing the current request.",
+        "If it fails everywhere, check the extension's authentication, browser-runtime, or network configuration in Suwayomi.",
       ];
     case "certificate":
       return [

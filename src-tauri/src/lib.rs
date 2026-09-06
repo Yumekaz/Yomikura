@@ -38,8 +38,8 @@ const MAX_PAGE_DOWNLOAD_BYTES: u64 = 32 * 1024 * 1024;
 
 #[tauri::command]
 async fn fetch_local_page(url: String, server_base_url: String) -> Result<DownloadedPage, String> {
-    let requested = reqwest::Url::parse(&url)
-        .map_err(|_| "The requested page URL is invalid.".to_string())?;
+    let requested =
+        reqwest::Url::parse(&url).map_err(|_| "The requested page URL is invalid.".to_string())?;
     let server = reqwest::Url::parse(&server_base_url)
         .map_err(|_| "The configured Suwayomi server URL is invalid.".to_string())?;
 
@@ -48,7 +48,9 @@ async fn fetch_local_page(url: String, server_base_url: String) -> Result<Downlo
         || requested.password().is_some()
         || requested.origin() != server.origin()
     {
-        return Err("Offline pages may only be fetched from the configured Suwayomi server.".to_string());
+        return Err(
+            "Offline pages may only be fetched from the configured Suwayomi server.".to_string(),
+        );
     }
 
     let client = reqwest::Client::builder()
@@ -56,24 +58,40 @@ async fn fetch_local_page(url: String, server_base_url: String) -> Result<Downlo
         .timeout(Duration::from_secs(30))
         .build()
         .map_err(|err| format!("Could not initialize the local page client: {err}"))?;
-    let response = client.get(requested).send().await
+    let response = client
+        .get(requested)
+        .send()
+        .await
         .map_err(|err| format!("Could not fetch the page from Suwayomi: {err}"))?;
     if !response.status().is_success() {
-        return Err(format!("Suwayomi returned HTTP {} while fetching a page.", response.status()));
+        return Err(format!(
+            "Suwayomi returned HTTP {} while fetching a page.",
+            response.status()
+        ));
     }
-    if response.content_length().is_some_and(|size| size > MAX_PAGE_DOWNLOAD_BYTES) {
+    if response
+        .content_length()
+        .is_some_and(|size| size > MAX_PAGE_DOWNLOAD_BYTES)
+    {
         return Err("A page exceeds Yomikura's 32 MB safety limit.".to_string());
     }
-    let content_type = response.headers().get(reqwest::header::CONTENT_TYPE)
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
         .and_then(|value| value.to_str().ok())
         .unwrap_or("image/jpeg")
         .to_string();
-    let bytes = response.bytes().await
+    let bytes = response
+        .bytes()
+        .await
         .map_err(|err| format!("Could not read the downloaded page: {err}"))?;
     if bytes.len() as u64 > MAX_PAGE_DOWNLOAD_BYTES {
         return Err("A page exceeds Yomikura's 32 MB safety limit.".to_string());
     }
-    Ok(DownloadedPage { bytes: bytes.to_vec(), content_type })
+    Ok(DownloadedPage {
+        bytes: bytes.to_vec(),
+        content_type,
+    })
 }
 
 fn backend_pid_path(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
@@ -321,7 +339,7 @@ fn resolve_jar_path(
         )
         .map_err(|e| format!("Failed to resolve bundled JAR: {}", e))?;
 
-    if bundled_jar.exists() {
+    if jar_looks_valid(&bundled_jar) {
         return Ok(bundled_jar);
     }
 
@@ -903,7 +921,7 @@ pub fn run() {
                     if let Some(mut backend) = lock.take() {
                         let _ = backend.child.kill();
                     }
-                    clear_backend_pid(&app_handle);
+                    clear_backend_pid(app_handle);
                     app_handle.exit(0);
                 }
                 "check_updates" => {
@@ -942,18 +960,17 @@ pub fn run() {
 
             Ok(())
         })
-        .on_window_event(|window, event| match event {
-            WindowEvent::CloseRequested { .. } => {
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { .. } = event {
                 let state: State<'_, BackendState> = window.app_handle().state();
                 let mut lock = state.backend.lock().unwrap();
                 if let Some(mut backend) = lock.take() {
                     let _ = backend.child.kill();
                     let _ = backend.child.wait();
                 }
-                clear_backend_pid(&window.app_handle());
+                clear_backend_pid(window.app_handle());
                 window.app_handle().exit(0);
             }
-            _ => {}
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

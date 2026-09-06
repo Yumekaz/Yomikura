@@ -64,7 +64,7 @@ function BackendHealthBadge() {
   }
 
   return (
-    <div className="yomi-engine-status">
+    <div className="yomi-engine-status" role="status" aria-live="polite">
       <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
       <span className={textColor}>{statusText}</span>
     </div>

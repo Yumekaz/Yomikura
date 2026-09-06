@@ -1,0 +1,60 @@
+name: Bug report
+description: Report a reproducible problem with Yomikura.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please remove passwords, tokens, private server URLs, and personal files before submitting.
+  - type: input
+    id: version
+    attributes:
+      label: Yomikura version
+      placeholder: "1.0.13"
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: "Windows 11 24H2"
+    validations:
+      required: true
+  - type: dropdown
+    id: server
+    attributes:
+      label: Suwayomi server
+      options:
+        - Local backend started by Yomikura
+        - Local backend started separately
+        - Remote server
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Tell us exactly what you clicked or entered.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and error text
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Paste relevant non-sensitive logs or attach a screenshot.
+    validations:
+      required: false

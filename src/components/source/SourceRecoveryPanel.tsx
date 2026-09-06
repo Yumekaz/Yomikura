@@ -33,6 +33,8 @@ export function SourceRecoveryPanel({
   return (
     <section
       className={`mx-auto flex w-full max-w-2xl flex-col items-center rounded-lg border border-white/10 bg-ink-900/70 p-5 text-center shadow-panel ${className}`}
+      role="alert"
+      aria-live="polite"
     >
       <div className="flex h-11 w-11 items-center justify-center rounded-md bg-amber-400/10 text-amber-300">
         <AlertTriangle className="h-5 w-5" />

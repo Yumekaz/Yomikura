@@ -13,3 +13,7 @@ macOS distribution requires an Apple Developer signing identity plus notarizatio
 ## Current boundary
 
 The release workflow can build and publish unsigned platform artifacts, and the Windows verification workflow now installs, launches, and uninstalls the NSIS package. Do not advertise the artifacts as platform-trusted until the credentials above are configured and a release run confirms SmartScreen/Gatekeeper behavior on clean machines.
+
+## SignPath Foundation application
+
+Yomikura is an independent open-source project applying to the SignPath Foundation for free code signing. If the application is accepted, qualifying Windows releases will be signed through that program and the release notes will identify the signing status. Until approval and workflow confirmation, Windows installers remain unsigned.

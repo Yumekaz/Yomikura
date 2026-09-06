@@ -1,4 +1,5 @@
 import { createGraphqlClient } from "../graphql/client";
+import { validateServerBaseUrl } from "../../config/server";
 
 export class SuwayomiConnectionError extends Error {
   constructor(message: string) {
@@ -8,8 +9,12 @@ export class SuwayomiConnectionError extends Error {
 }
 
 export async function testServerConnection(baseUrl: string): Promise<boolean> {
-  // Trim trailing slash just in case
-  const cleanUrl = baseUrl.replace(/\/$/, "");
+  const validation = validateServerBaseUrl(baseUrl);
+  if (!validation.valid) {
+    throw new SuwayomiConnectionError(validation.message);
+  }
+
+  const cleanUrl = validation.normalizedUrl;
   const endpoint = `${cleanUrl}/api/graphql`;
 
   try {

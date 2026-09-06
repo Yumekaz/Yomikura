@@ -1,11 +1,62 @@
 param(
   [Parameter(Mandatory = $true)][string]$InstallerPath,
-  [string]$PreservedStoragePath = ""
+  [string]$PreservedStoragePath = "",
+  [int]$StartupTimeoutSeconds = 180
 )
 
 $ErrorActionPreference = "Stop"
 $installer = (Resolve-Path -LiteralPath $InstallerPath).Path
 if ((Get-Item -LiteralPath $installer).Length -lt 1MB) { throw "Installer is unexpectedly small: $installer" }
+
+function Get-DescendantProcessIds {
+  param([Parameter(Mandatory = $true)][int]$RootProcessId)
+
+  $processes = @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId)
+  $pending = [Collections.Generic.Queue[int]]::new()
+  $descendants = [Collections.Generic.List[int]]::new()
+  $pending.Enqueue($RootProcessId)
+
+  while ($pending.Count -gt 0) {
+    $parentId = $pending.Dequeue()
+    foreach ($process in ($processes | Where-Object { $_.ParentProcessId -eq $parentId })) {
+      $childId = [int]$process.ProcessId
+      if (-not $descendants.Contains($childId)) {
+        $descendants.Add($childId)
+        $pending.Enqueue($childId)
+      }
+    }
+  }
+
+  return $descendants.ToArray()
+}
+
+function Get-BackendPort {
+  param([Parameter(Mandatory = $true)][int[]]$OwnedProcessIds)
+
+  foreach ($process in (Get-CimInstance Win32_Process | Where-Object { $OwnedProcessIds -contains [int]$_.ProcessId })) {
+    $match = [regex]::Match([string]$process.CommandLine, 'server\.port=(\d+)')
+    if ($match.Success) { return [int]$match.Groups[1].Value }
+  }
+
+  return $null
+}
+
+function Write-TestSettings {
+  param([Parameter(Mandatory = $true)][string]$StoragePath)
+
+  $configDirectory = Join-Path $env:APPDATA "app.yomikura"
+  New-Item -ItemType Directory -Path $configDirectory -Force | Out-Null
+  $settings = [ordered]@{
+    state = [ordered]@{
+      serverDataPath = $StoragePath
+      serverBaseUrl = "http://127.0.0.1:4567"
+      mockMode = $false
+      portableMode = $false
+    }
+    version = 0
+  } | ConvertTo-Json -Depth 5
+  Set-Content -LiteralPath (Join-Path $configDirectory "yomikura-settings.json") -Value $settings -Encoding UTF8
+}
 
 Write-Host "Installing $installer"
 $installProcess = Start-Process -FilePath $installer -ArgumentList "/S" -Wait -PassThru
@@ -15,6 +66,7 @@ if ($PreservedStoragePath) {
   $PreservedStoragePath = [IO.Path]::GetFullPath($PreservedStoragePath)
   New-Item -ItemType Directory -Path $PreservedStoragePath -Force | Out-Null
   Set-Content -LiteralPath (Join-Path $PreservedStoragePath "smoke-sentinel.txt") -Value "Yomikura user data must survive an application uninstall." -NoNewline
+  Write-TestSettings -StoragePath $PreservedStoragePath
 }
 
 $uninstallRoots = @(
@@ -36,17 +88,59 @@ if (-not (Test-Path -LiteralPath $appPath)) { throw "Installed executable was no
 
 Write-Host "Launching $appPath"
 $app = $null
+$ownedProcessIds = @()
 try {
   $app = Start-Process -FilePath $appPath -PassThru
-  $deadline = [DateTime]::UtcNow.AddSeconds(20)
+  $deadline = [DateTime]::UtcNow.AddSeconds($StartupTimeoutSeconds)
+  $backendReady = $false
   do {
     Start-Sleep -Seconds 2
     $app.Refresh()
     if ($app.HasExited) { throw "Installed application exited during launch smoke test (code $($app.ExitCode))" }
-  } while ([DateTime]::UtcNow -lt $deadline)
-  Write-Host "Application stayed alive for the launch smoke window (PID $($app.Id))"
+    if ($PreservedStoragePath) {
+      $ownedNow = @(Get-DescendantProcessIds -RootProcessId $app.Id)
+      $backendPort = Get-BackendPort -OwnedProcessIds $ownedNow
+      if ($backendPort) {
+        try {
+          $health = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$backendPort/api/graphql" -Method Post -ContentType "application/json" -Body '{"query":"{ __typename }"}' -TimeoutSec 5
+          if ($health.StatusCode -ge 200 -and $health.StatusCode -lt 300) { $backendReady = $true }
+        } catch {
+          # The Java process can bind before the GraphQL endpoint is ready.
+        }
+      }
+    } else {
+      $backendReady = $true
+    }
+  } while (-not $backendReady -and [DateTime]::UtcNow -lt $deadline)
+  if (-not $backendReady) {
+    throw "Installed application did not bring the local Suwayomi GraphQL endpoint online within $StartupTimeoutSeconds seconds"
+  }
+  if ($PreservedStoragePath) {
+    Write-Host "Local Suwayomi GraphQL endpoint is ready on port $backendPort"
+  }
+  $ownedProcessIds = @(Get-DescendantProcessIds -RootProcessId $app.Id)
+  Write-Host "Application and local engine stayed alive through the launch smoke window (PID $($app.Id))"
 } finally {
-  if ($app -and -not $app.HasExited) { Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue }
+  if ($app) {
+    $app.Refresh()
+    if (-not $app.HasExited) {
+      Write-Host "Requesting a graceful application close"
+      $null = $app.CloseMainWindow()
+      if (-not $app.WaitForExit(15000)) {
+        Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
+        throw "Installed application did not close gracefully within 15 seconds"
+      }
+    }
+
+    $remaining = @($ownedProcessIds | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+    if ($remaining.Count -gt 0) {
+      foreach ($processId in $remaining) {
+        Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
+      }
+      throw "Owned child processes remained after application close: $($remaining -join ', ')"
+    }
+    Write-Host "Application and owned child processes exited cleanly"
+  }
 }
 
 $uninstallCommand = $entry.QuietUninstallString

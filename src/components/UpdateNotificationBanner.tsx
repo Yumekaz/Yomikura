@@ -13,6 +13,20 @@ export function UpdateNotificationBanner() {
   const [serverUpdate, setServerUpdate] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [installError, setInstallError] = useState<string | null>(null);
+
+  const installAppUpdate = async () => {
+    if (!appUpdate) return;
+    setInstalling(true);
+    setInstallError(null);
+    try {
+      await appUpdate.download();
+    } catch (error) {
+      setInstallError(error instanceof Error ? error.message : "The update could not be installed.");
+    } finally {
+      setInstalling(false);
+    }
+  };
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -26,7 +40,6 @@ export function UpdateNotificationBanner() {
           setAppUpdate({
             version: update.version,
             download: async () => {
-              setInstalling(true);
               await update.downloadAndInstall();
               const { relaunch } = await import("@tauri-apps/plugin-process");
               await relaunch();
@@ -84,7 +97,6 @@ export function UpdateNotificationBanner() {
               setAppUpdate({
                 version: update.version,
                 download: async () => {
-                  setInstalling(true);
                   await update.downloadAndInstall();
                   const { relaunch } = await import("@tauri-apps/plugin-process");
                   await relaunch();
@@ -116,7 +128,7 @@ export function UpdateNotificationBanner() {
             <button
               type="button"
               disabled={installing}
-              onClick={() => appUpdate.download()}
+              onClick={() => void installAppUpdate()}
               className="inline-flex items-center gap-1 rounded-lg bg-yomi-jade px-3 py-1 font-bold text-ink-950 disabled:opacity-50"
             >
               <Download className="h-3.5 w-3.5" />
@@ -127,6 +139,11 @@ export function UpdateNotificationBanner() {
             </button>
           </div>
         </div>
+      )}
+      {installError && (
+        <p className="text-xs text-red-300" role="alert">
+          Update failed: {installError}. You can download the latest release manually from Settings.
+        </p>
       )}
       {serverUpdate && (
         <div className="flex items-center justify-between gap-3 border-t border-yomi-jade/15 pt-2">

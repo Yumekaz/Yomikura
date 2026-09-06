@@ -6,7 +6,35 @@ on:
       - "v*"
 
 jobs:
+  release-preflight:
+    name: Release preflight
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check release tag and version
+        run: pnpm run check:tag "${{ github.ref_name }}"
+      - name: Run release verification
+        run: pnpm run verify:release
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
+      - name: Install browser for interaction tests
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run desktop interaction tests
+        run: pnpm run test:e2e
+
   publish-tauri:
+    needs: release-preflight
     permissions:
       contents: write
     strategy:
@@ -18,10 +46,10 @@ jobs:
           - platform: "windows-latest"
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: lts/*
 
@@ -43,15 +71,12 @@ jobs:
           version: 11.1.2
 
       - name: Install Frontend Dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
-      - name: Download Suwayomi Server JAR
-        shell: bash
-        run: |
-          mkdir -p suwayomi-server
-          curl -fsSL -o suwayomi-server/Suwayomi-Server-v2.3.2243.jar \
-            https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.3.2243/Suwayomi-Server-v2.3.2243.jar
-          test -s suwayomi-server/Suwayomi-Server-v2.3.2243.jar
+      - name: Check release version synchronization
+        run: pnpm run check:version
+      - name: Check release tag and version
+        run: pnpm run check:tag "${{ github.ref_name }}"
 
       - name: Build and Publish Release
         uses: tauri-apps/tauri-action@v0
@@ -62,7 +87,56 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: "Yomikura v__VERSION__"
-          releaseBody: "See the assets below to download and install this version of Yomikura."
+          releaseBody: |
+            See the assets below to download and install this version of Yomikura.
+
+            Yomikura is an independent open-source project applying to the SignPath Foundation for free Windows code signing. Until approval and workflow confirmation, installers are unsigned.
+
+            See the [release readiness checklist](https://github.com/Yumekaz/Yomikura/blob/main/docs/RELEASE_READINESS.md) for validation boundaries.
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.platform == 'windows-latest' && '--bundles nsis' || '' }}
+
+      - name: Create release checksums
+        run: node scripts/write-artifact-checksums.mjs "src-tauri/target/release/bundle" "SHA256SUMS-${{ matrix.platform }}.txt"
+
+      - name: Preserve platform checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-checksum-${{ matrix.platform }}
+          path: SHA256SUMS-${{ matrix.platform }}.txt
+          if-no-files-found: error
+
+  release-checksums:
+    name: Verify and publish release checksums
+    needs: publish-tauri
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download platform checksums
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-checksum-*
+          path: checksums
+          merge-multiple: true
+
+      - name: Upload checksums and verify release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" checksums/SHA256SUMS-*.txt --clobber
+          assets="$(gh release view "${{ github.ref_name }}" --json assets --jq '.assets[].name')"
+          for checksum in \
+            "SHA256SUMS-macos-latest.txt" \
+            "SHA256SUMS-ubuntu-22.04.txt" \
+            "SHA256SUMS-windows-latest.txt"; do
+            grep -Fx "$checksum" <<< "$assets" > /dev/null || {
+              echo "Missing release checksum asset: $checksum"
+              exit 1
+            }
+          done
+          grep -E '\.(exe|dmg|AppImage|deb|rpm)$' <<< "$assets" > /dev/null || {
+            echo "No platform installer artifact was found in the release"
+            exit 1
+          }
