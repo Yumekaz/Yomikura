@@ -36,19 +36,27 @@ function Get-BackendPort {
   param(
     [Parameter(Mandatory = $true)]
     [AllowEmptyCollection()]
-    [int[]]$OwnedProcessIds
+    [int[]]$OwnedProcessIds,
+    [string]$DataPath = ""
   )
 
-  if (-not $OwnedProcessIds -or $OwnedProcessIds.Count -eq 0) { return $null }
+  $processes = @(Get-CimInstance Win32_Process | Where-Object {
+    $processId = [int]$_.ProcessId
+    $commandLine = [string]$_.CommandLine
+    $owned = $OwnedProcessIds -and ($OwnedProcessIds -contains $processId)
+    $matchesStorage = $DataPath -and $commandLine -and
+      $commandLine.IndexOf($DataPath, [StringComparison]::OrdinalIgnoreCase) -ge 0
+    $owned -or $matchesStorage
+  })
 
-  foreach ($process in (Get-CimInstance Win32_Process | Where-Object { $OwnedProcessIds -contains [int]$_.ProcessId })) {
+  foreach ($process in $processes) {
     $match = [regex]::Match([string]$process.CommandLine, 'server\.port=(\d+)')
     if ($match.Success) { return [int]$match.Groups[1].Value }
   }
 
   $ownedListenPort = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
     Where-Object {
-      $OwnedProcessIds -contains [int]$_.OwningProcess -and
+      ($OwnedProcessIds -and $OwnedProcessIds -contains [int]$_.OwningProcess) -and
       [int]$_.LocalPort -ge 4567 -and
       [int]$_.LocalPort -le 65535
     } |
@@ -56,6 +64,17 @@ function Get-BackendPort {
   if ($ownedListenPort) { return [int]$ownedListenPort }
 
   return $null
+}
+
+function Test-GraphqlEndpoint {
+  param([Parameter(Mandatory = $true)][int]$Port)
+
+  try {
+    $health = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/graphql" -Method Post -ContentType "application/json" -Body '{"query":"{ __typename }"}' -TimeoutSec 5
+    return $health.StatusCode -ge 200 -and $health.StatusCode -lt 300
+  } catch {
+    return $false
+  }
 }
 
 function Write-TestSettings {
@@ -115,13 +134,28 @@ try {
     if ($app.HasExited) { throw "Installed application exited during launch smoke test (code $($app.ExitCode))" }
     if ($PreservedStoragePath) {
       $ownedNow = @(Get-DescendantProcessIds -RootProcessId $app.Id)
-      $backendPort = Get-BackendPort -OwnedProcessIds $ownedNow
+      # A Windows child process can outlive the GUI process tree when the
+      # packaged runtime starts Java. Prefer the explicit Suwayomi command
+      # line and use the owned socket as a fallback instead of assuming the
+      # Java PID is always a direct descendant of Yomikura.
+      $backendPort = Get-BackendPort -OwnedProcessIds $ownedNow -DataPath $PreservedStoragePath
       if ($backendPort) {
-        try {
-          $health = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$backendPort/api/graphql" -Method Post -ContentType "application/json" -Body '{"query":"{ __typename }"}' -TimeoutSec 5
-          if ($health.StatusCode -ge 200 -and $health.StatusCode -lt 300) { $backendReady = $true }
-        } catch {
-          # The Java process can bind before the GraphQL endpoint is ready.
+        $backendReady = Test-GraphqlEndpoint -Port $backendPort
+      }
+      if (-not $backendReady) {
+        # If process ancestry and command-line inspection are unavailable,
+        # probe only local listening ports. This keeps the test reliable on
+        # runners where Java is re-parented while still validating GraphQL,
+        # rather than treating an arbitrary open TCP socket as readiness.
+        $candidatePorts = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+          Where-Object { [int]$_.LocalPort -ge 4567 -and [int]$_.LocalPort -le 65535 } |
+          Select-Object -ExpandProperty LocalPort -Unique)
+        foreach ($candidatePort in $candidatePorts) {
+          if (Test-GraphqlEndpoint -Port ([int]$candidatePort)) {
+            $backendPort = [int]$candidatePort
+            $backendReady = $true
+            break
+          }
         }
       }
     } else {

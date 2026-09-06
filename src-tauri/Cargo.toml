@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "1.0.19"
+version = "1.0.20"
 description = "A polished, independent desktop reader for Suwayomi libraries"
 authors = ["Yomikura Contributors"]
 license = "MIT"
