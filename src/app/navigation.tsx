@@ -2,11 +2,8 @@ import type { ComponentType } from "react";
 import {
   Clock3,
   Compass,
-  History,
   Library,
-  Puzzle,
-  RadioTower,
-  Search,
+  BookOpen,
   Settings,
   Download,
 } from "lucide-react";
@@ -19,15 +16,12 @@ export type NavItem = {
 
 export const primaryNav: NavItem[] = [
   { label: "Library", path: "/library", icon: Library },
+  { label: "Continue", path: "/history", icon: BookOpen },
   { label: "Updates", path: "/updates", icon: Clock3 },
-  { label: "History", path: "/history", icon: History },
 ];
 
 export const browseNav: NavItem[] = [
-  { label: "Sources", path: "/browse/sources", icon: Compass },
-  { label: "Global Search", path: "/browse/search", icon: Search },
-  { label: "Extensions", path: "/browse/extensions", icon: Puzzle },
-  { label: "Repos", path: "/browse/extension-repos", icon: RadioTower },
+  { label: "Browse", path: "/browse/sources", icon: Compass },
   { label: "Downloads", path: "/downloads", icon: Download },
 ];
 
@@ -78,6 +72,6 @@ export const routeCopy: Record<string, { title: string; detail: string }> = {
   },
   "/downloads": {
     title: "Downloads",
-    detail: "Monitor and manage your Suwayomi server's active downloads queue.",
+    detail: "Manage locally saved chapters and the Suwayomi download queue in one place.",
   },
 };

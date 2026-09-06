@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Globe, Settings, Pin, X, Compass } from "lucide-react";
+import { Loader2, Globe, Settings, Pin, X, Compass, Puzzle, RadioTower, Search } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 
@@ -94,7 +94,7 @@ export default function SourcesPage() {
 
   if (sources.length === 0) {
     return (
-      <div className="yomi-workspace"><div className="yomi-route-empty"><div><Compass /><h2>No sources installed</h2><p>Install an extension first. It will appear here as a source you can browse or search.</p><Link to="/extensions" className="yomi-button yomi-button-primary mt-5">Open extensions</Link></div></div></div>
+      <div className="yomi-workspace"><div className="yomi-route-empty"><div><Compass /><h2>No sources installed</h2><p>Install an extension first. It will appear here as a source you can browse or search.</p><Link to="/browse/extensions" className="yomi-button yomi-button-primary mt-5">Open extensions</Link></div></div></div>
     );
   }
 
@@ -102,7 +102,11 @@ export default function SourcesPage() {
     <div className="yomi-workspace space-y-9 select-none">
       <div className="yomi-workspace-head">
         <div><span className="yomi-eyebrow">Discover</span><h1 className="yomi-workspace-title"><Compass />Sources</h1><p className="yomi-workspace-subtitle">Choose where to discover your next series. Installed sources remain local to this device and server.</p></div>
-        <span className="yomi-status-chip"><span className="yomi-status-dot" />{sources.length} available</span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Link to="/browse/search" className="yomi-button yomi-button-primary"><Search />Search all</Link>
+          <Link to="/browse/extensions" className="yomi-button yomi-button-secondary"><Puzzle />Extensions</Link>
+          <Link to="/browse/extension-repos" className="yomi-icon-button" aria-label="Manage extension repositories" title="Extension repositories"><RadioTower /></Link>
+        </div>
       </div>
 
       {/* Pinned Catalog Searches Section */}

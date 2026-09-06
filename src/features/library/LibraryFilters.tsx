@@ -38,7 +38,7 @@ export function LibraryFilters({
 
   if (isSelectMode) {
     return (
-      <div className="flex items-center justify-between rounded-2xl border border-yomi-jade/30 bg-yomi-jade/10 backdrop-blur-xl shadow-glow-hover px-5 py-3 mx-4 lg:mx-0 mt-2 lg:mt-0 mb-6 animate-fade-in transition-all duration-300">
+      <div className="flex items-center justify-between rounded-2xl border border-yomi-jade/30 bg-yomi-jade/10 px-5 py-3 mx-4 lg:mx-0 mt-2 lg:mt-0 mb-6 animate-fade-in transition-[border-color,background-color] duration-150">
         <div className="flex items-center gap-3">
           <button
             onClick={onCancelSelect}

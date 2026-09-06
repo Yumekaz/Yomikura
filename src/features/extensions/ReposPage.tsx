@@ -4,12 +4,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Plus, Trash2, Github } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
+import { useFeedback } from "../../components/ui/FeedbackProvider";
 
 // Suwayomi 2.3 migrates the old repository setting to Mihon's extension-store
 // format. The minified legacy index now contains only compatibility notices.
 const KEIYOUSHI_URL = "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.json";
 
 export default function ReposPage() {
+  const { confirm } = useFeedback();
   const { serverBaseUrl } = useSettingsStore();
   const queryClient = useQueryClient();
   const [repoUrl, setRepoUrl] = useState("");
@@ -53,7 +55,8 @@ export default function ReposPage() {
     updateRepos([...repos, repoUrl.trim()]);
   };
 
-  const handleRemove = (urlToRemove: string) => {
+  const handleRemove = async (urlToRemove: string) => {
+    if (!(await confirm({ title: "Remove extension repository?", detail: "The catalogue will no longer receive extensions from this address. Installed extensions remain available.", confirmLabel: "Remove repository", danger: true }))) return;
     updateRepos(repos.filter(url => url !== urlToRemove));
   };
 

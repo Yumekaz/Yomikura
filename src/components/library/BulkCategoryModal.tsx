@@ -4,6 +4,7 @@ import { X, Loader2, Save } from "lucide-react";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { getErrorMessage } from "../../api/suwayomi/errors";
+import { useFeedback } from "../ui/FeedbackProvider";
 
 interface BulkCategoryModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ export function BulkCategoryModal({
   onClose,
   mangaIds,
 }: BulkCategoryModalProps) {
+  const { confirm } = useFeedback();
   const { serverBaseUrl } = useSettingsStore();
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -116,15 +118,16 @@ export function BulkCategoryModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm select-none">
-      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-panel">
+      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-panel" role="dialog" aria-modal="true" aria-labelledby="bulk-category-title">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/5 pb-4">
           <div className="flex flex-col">
-            <h2 className="text-lg font-semibold text-white">Bulk Categories</h2>
+            <h2 id="bulk-category-title" className="text-lg font-semibold text-white">Bulk Categories</h2>
             <p className="text-[10px] text-slate-500">Applying to {mangaIds.length} titles</p>
           </div>
           <button
             onClick={onClose}
+            aria-label="Close bulk category editor"
             className="rounded-full p-1.5 hover:bg-white/10 text-slate-400 hover:text-white transition"
           >
             <X className="h-5 w-5" />
@@ -165,10 +168,8 @@ export function BulkCategoryModal({
         {/* Actions */}
         <div className="mt-6 flex items-center justify-between gap-3 border-t border-white/5 pt-4">
           <button
-            onClick={() => {
-              if (window.confirm(`Remove all ${mangaIds.length} selected titles from your library?`)) {
-                removeFromLibrary();
-              }
+            onClick={async () => {
+              if (await confirm({ title: `Remove ${mangaIds.length} titles?`, detail: "The selected titles leave your library. Reading progress on the server is not deleted.", confirmLabel: "Remove titles", danger: true })) removeFromLibrary();
             }}
             disabled={removing || saving}
             className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/20 transition disabled:opacity-50"

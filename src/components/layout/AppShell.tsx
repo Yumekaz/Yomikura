@@ -17,7 +17,7 @@ function ProfileSwitcher() {
   if (profiles.length <= 1) return null;
 
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-ink-950/60 border border-white/5 hover:border-yomi-jade/30 px-2.5 py-1.5 text-xs text-slate-400 transition-all duration-300 shadow-sm hover:shadow-glow-hover">
+    <div className="flex items-center gap-2 rounded-lg bg-ink-950/60 border border-white/5 hover:border-yomi-jade/30 px-2.5 py-1.5 text-xs text-slate-400 transition-[border-color,background-color] duration-150 shadow-sm">
       <Server className="h-3.5 w-3.5 text-yomi-jade shrink-0" />
       <select
         value={activeProfileId}
@@ -200,7 +200,7 @@ function AppShell() {
           ))}
         </nav>
         <div className="yomi-nav-section">
-          <p className="yomi-nav-label">Discover</p>
+          <p className="yomi-nav-label">Reading</p>
           <nav className="mt-2 space-y-1" aria-label="Browse navigation">
             {browseNav.map((item) => (
               <ShellNavLink key={item.path} item={item} />
@@ -817,7 +817,7 @@ function WelcomeOnboarding({
 
               {/* Collapsible Content */}
               <div
-                className={`transition-all duration-300 overflow-hidden ${
+                className={`transition-[max-height,opacity] duration-200 overflow-hidden ${
                   showAdvanced ? "max-h-[220px] mt-4 opacity-100" : "max-h-0 opacity-0 pointer-events-none"
                 }`}
               >
@@ -914,7 +914,7 @@ function MobileNav() {
             <NavLink
               key={item.path}
               className={({ isActive }) =>
-                `group flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-medium transition-all duration-200 ${
+                `group flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-xs font-medium transition-[color,background-color,transform] duration-150 active:scale-[.97] ${
                   isActive ? "bg-yomi-jade/15 text-yomi-mint scale-[1.03]" : "text-slate-500 hover:text-slate-300"
                 }`
               }

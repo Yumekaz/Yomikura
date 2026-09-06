@@ -5,6 +5,7 @@ import { BookOpen, ChevronRight, Clock3, History, Loader2, RotateCcw } from "luc
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
+import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { deleteReadingHistoryItem, getReadingHistory } from "../../api/suwayomi/offlineCache";
 import { ChapterOrderBy, SortOrder } from "../../api/graphql/generated/graphql";
 
@@ -46,6 +47,7 @@ function dateLabel(timestamp: number): string {
 }
 
 export default function HistoryPage() {
+  const { confirm } = useFeedback();
   const { serverBaseUrl } = useSettingsStore();
   const queryClient = useQueryClient();
   const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`), [serverBaseUrl]);
@@ -156,7 +158,7 @@ export default function HistoryPage() {
                       <div className="yomi-progress-line"><span style={{ width: `${percentage ?? 4}%` }} /></div>
                       <small>{percentage !== undefined ? `${percentage}% read` : `Last page ${item.lastPageRead + 1}`}</small>
                     </div>
-                    <div className="yomi-history-actions"><Link to={`/reader/${item.id}`} className="yomi-icon-button" title="Continue reading"><ChevronRight /></Link><button className="yomi-icon-button danger" title="Reset chapter progress" onClick={() => resetProgress.mutate(item)}><RotateCcw /></button></div>
+                    <div className="yomi-history-actions"><Link to={`/reader/${item.id}`} className="yomi-icon-button" title="Continue reading" aria-label={`Continue ${item.manga.title}`}><ChevronRight /></Link><button className="yomi-icon-button danger" title="Reset chapter progress" aria-label={`Reset progress for ${item.name}`} onClick={async () => { if (await confirm({ title: "Reset reading progress?", detail: `This removes “${item.name}” from your recent activity and resets its saved position.`, confirmLabel: "Reset progress", danger: true })) resetProgress.mutate(item); }}><RotateCcw /></button></div>
                   </article>
                 );
               })}

@@ -214,7 +214,7 @@ export function LibraryGrid({
                 <img
                   src={imageUrl}
                   alt={manga.title}
-                  className={`h-full w-full object-cover transition-all duration-500 group-hover:scale-105 ${
+                  className={`h-full w-full object-cover transition-[transform,filter] duration-200 group-hover:scale-[1.02] ${
                     isCaughtUp ? "opacity-45 grayscale-[0.4] saturate-50" : ""
                   }`}
                   onError={(e) => {
@@ -226,7 +226,7 @@ export function LibraryGrid({
 
               {/* Selection Checkbox Badge */}
               {isSelectMode && (
-                <div className={`absolute left-2.5 top-2.5 z-25 flex h-5.5 w-5.5 items-center justify-center rounded-full border shadow backdrop-blur-md transition-all duration-200 ${
+                <div className={`absolute left-2.5 top-2.5 z-25 flex h-5.5 w-5.5 items-center justify-center rounded-full border shadow backdrop-blur-md transition-[border-color,background-color,color] duration-150 ${
                   isSelected 
                     ? "bg-yomi-jade border-yomi-jade text-ink-950 scale-110" 
                     : "bg-black/45 border-white/20 text-transparent"

@@ -75,13 +75,12 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-      - name: Validate installer artifact
+      - name: Install, launch, and uninstall smoke test
         shell: pwsh
         run: |
           $installer = (Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1).FullName
           if (-not $installer) { throw "NSIS installer artifact was not found" }
-          if ((Get-Item $installer).Length -lt 1000000) { throw "NSIS installer artifact is unexpectedly small: $installer" }
-          Write-Host "Installer artifact: $installer"
+          ./scripts/smoke-test-installer.ps1 -InstallerPath $installer
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:

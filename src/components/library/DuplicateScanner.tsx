@@ -3,8 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, AlertTriangle, CheckCircle, RefreshCw, Layers } from "lucide-react";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { useFeedback } from "../ui/FeedbackProvider";
 
 export function DuplicateScanner() {
+  const { confirm } = useFeedback();
   const { serverBaseUrl } = useSettingsStore();
   const queryClient = useQueryClient();
   const [mergeStatus, setMergeStatus] = useState<"idle" | "merging" | "success" | "error">("idle");
@@ -193,10 +195,8 @@ export function DuplicateScanner() {
                         {others.map((oth) => (
                           <button
                             key={oth.id}
-                            onClick={() => {
-                              if (window.confirm(`Merge progress of manga ID ${m.id} into manga ID ${oth.id} and delete ID ${m.id} from library?`)) {
-                                mergeDuplicates({ keepId: parseInt(String(oth.id)), removeId: parseInt(String(m.id)) });
-                              }
+                            onClick={async () => {
+                              if (await confirm({ title: "Merge duplicate titles?", detail: `Progress from manga ${m.id} will be merged into ${oth.id}, then ${m.id} will leave the library.`, confirmLabel: "Merge titles", danger: true })) mergeDuplicates({ keepId: parseInt(String(oth.id)), removeId: parseInt(String(m.id)) });
                             }}
                             className="rounded bg-yomi-jade/10 border border-yomi-jade/20 px-2.5 py-1 text-[9px] font-bold text-yomi-mint hover:bg-yomi-jade/20 transition shrink-0"
                           >

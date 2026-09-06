@@ -1,10 +1,13 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Download, Play, Pause, Trash2, CheckCircle2, RefreshCw } from "lucide-react";
+import { Loader2, Download, Play, Pause, Trash2, CheckCircle2, RefreshCw, BookOpen, X } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
+import { useFeedback } from "../../components/ui/FeedbackProvider";
+import { useDownloadStore } from "../../stores/useDownloadStore";
+import type { CachedChapter } from "../../api/suwayomi/offlineCache";
 
 interface DownloadItem {
   position: number;
@@ -24,9 +27,13 @@ interface DownloadItem {
 }
 
 export default function DownloadsPage() {
+  const { confirm } = useFeedback();
+  const { cachedChapters, activeDownloads, loadCachedChapters, deleteChapter, cancelDownload, storageUsage } = useDownloadStore();
   const { serverBaseUrl, connectionStatus, mockMode } = useSettingsStore();
   const queryClient = useQueryClient();
   const isUnconnected = (connectionStatus === "error" || connectionStatus === "disconnected") && !mockMode;
+
+  useEffect(() => { void loadCachedChapters(); }, [loadCachedChapters, serverBaseUrl]);
 
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
@@ -88,18 +95,11 @@ export default function DownloadsPage() {
 
   if (isUnconnected) {
     return (
-      <div className="yomi-workspace"><div className="yomi-route-empty"><div>
-        <Download /><h2>Downloads queue offline</h2>
-        <p>The live queue returns when Suwayomi is connected. Your completed local chapters stay available from the library.</p>
-        <div className="mt-6 rounded-xl border border-white/5 bg-ink-900 p-5 text-left text-xs space-y-3">
-          <p className="font-semibold text-slate-200 uppercase tracking-wider text-[10px]">Reading completed downloads</p>
-          <ul className="list-disc list-inside text-slate-400 space-y-1.5 leading-relaxed">
-            <li>Go to the <strong className="text-slate-300">Library</strong> tab in the sidebar.</li>
-            <li>Click on any downloaded manga card in the grid (e.g. Chainsaw Man or Solo Leveling).</li>
-            <li>Click on the chapter you saved (marked with a green cached badge).</li>
-            <li>View all offline chapters registry under <strong className="text-slate-300">Settings &rarr; Offline</strong>.</li>
-          </ul>
-        </div></div></div></div>
+      <div className="yomi-workspace space-y-7">
+        <DownloadsHeader savedCount={cachedChapters.length} storageUsage={storageUsage} />
+        <SavedDownloads chapters={cachedChapters} activeDownloads={activeDownloads} onCancel={cancelDownload} onDelete={async (chapter) => { if (await confirm({ title: "Remove saved chapter?", detail: `Delete the offline pages for “${chapter.name}”?`, confirmLabel: "Remove download", danger: true })) await deleteChapter(chapter.id); }} />
+        <div className="yomi-commandbar"><div className="yomi-commandbar-copy"><span className="status is-idle" /><div><strong>Server queue unavailable</strong><span>Reconnect Suwayomi to resume queued downloads. Saved chapters remain readable.</span></div></div></div>
+      </div>
     );
   }
 
@@ -123,11 +123,7 @@ export default function DownloadsPage() {
   return (
     <div className="yomi-workspace space-y-7">
       <div className="yomi-workspace-head">
-        <div>
-          <span className="yomi-eyebrow">Offline reading</span>
-          <h1 className="yomi-workspace-title"><Download />Download queue</h1>
-          <p className="yomi-workspace-subtitle">Keep the local reader ready. This queue is owned by your Suwayomi engine.</p>
-        </div>
+        <div><span className="yomi-eyebrow">Offline reading</span><h1 className="yomi-workspace-title"><Download />Downloads</h1><p className="yomi-workspace-subtitle">Saved chapters and server activity, together in one workspace.</p></div>
         <div className="flex items-center gap-2 shrink-0">
           {downloaderState === "STARTED" ? (
             <button
@@ -150,15 +146,19 @@ export default function DownloadsPage() {
           )}
 
           <button
-            onClick={() => clearDownloader()}
+            onClick={async () => {
+              if (await confirm({ title: "Clear the server queue?", detail: "This asks Suwayomi to remove every item from its active download queue, including unfinished items.", confirmLabel: "Clear queue", danger: true })) clearDownloader();
+            }}
             disabled={isActionPending || queue.length === 0}
             className="yomi-button yomi-button-secondary disabled:opacity-50"
-            title="Clear Queue"
+            title="Clear server queue"
           >
-            Clear Completed
+            Clear queue
           </button>
         </div>
       </div>
+
+      <SavedDownloads chapters={cachedChapters} activeDownloads={activeDownloads} onCancel={cancelDownload} onDelete={async (chapter) => { if (await confirm({ title: "Remove saved chapter?", detail: `Delete the offline pages for “${chapter.name}”?`, confirmLabel: "Remove download", danger: true })) await deleteChapter(chapter.id); }} />
 
       <div className="yomi-commandbar">
         <div className="yomi-commandbar-copy"><span className={`status ${downloaderState === "STARTED" ? "" : "is-idle"}`} />
@@ -233,7 +233,9 @@ export default function DownloadsPage() {
 
                 {/* Dequeue Button */}
                 <button
-                  onClick={() => dequeueChapter(item.chapter.id)}
+                  onClick={async () => {
+                    if (await confirm({ title: "Remove this download?", detail: `Remove “${item.chapter.name}” from the server queue?`, confirmLabel: "Remove", danger: true })) dequeueChapter(item.chapter.id);
+                  }}
                   disabled={isActionPending}
                   className="yomi-utility-button danger disabled:opacity-50"
                   title="Remove from Queue"
@@ -247,4 +249,24 @@ export default function DownloadsPage() {
       )}
     </div>
   );
+}
+
+function DownloadsHeader({ savedCount, storageUsage }: { savedCount: number; storageUsage: number }) {
+  return <div className="yomi-workspace-head"><div><span className="yomi-eyebrow">Offline reading</span><h1 className="yomi-workspace-title"><Download />Downloads</h1><p className="yomi-workspace-subtitle">Saved chapters stay readable even when the local engine is unavailable.</p></div><span className="yomi-status-chip">{savedCount} saved · {formatBytes(storageUsage)}</span></div>;
+}
+
+function SavedDownloads({ chapters, activeDownloads, onCancel, onDelete }: { chapters: CachedChapter[]; activeDownloads: ReturnType<typeof useDownloadStore.getState>["activeDownloads"]; onCancel: (id: number) => void; onDelete: (chapter: CachedChapter) => Promise<void> }) {
+  const active = Object.entries(activeDownloads);
+  return <section className="space-y-3" aria-labelledby="saved-downloads-title">
+    <div className="flex items-end justify-between gap-4"><div><span className="yomi-eyebrow">On this device</span><h2 id="saved-downloads-title" className="text-lg font-semibold text-slate-100">Saved chapters</h2></div><span className="text-sm text-slate-400">{chapters.length} available offline</span></div>
+    {active.map(([id, progress]) => <div key={id} className="yomi-commandbar"><div className="yomi-commandbar-copy"><span className="status" /><div><strong>Saving chapter {id}</strong><span>{progress.total ? `${progress.progress} of ${progress.total} pages` : "Preparing pages"}{progress.error ? ` · ${progress.error}` : ""}</span></div></div><button className="yomi-icon-button danger" aria-label={`Cancel chapter ${id} download`} onClick={() => onCancel(Number(id))}><X /></button></div>)}
+    {chapters.length === 0 && active.length === 0 ? <div className="yomi-route-empty"><div><BookOpen /><h2>No saved chapters yet</h2><p>Use the download action beside any chapter. Finished chapters will appear here and remain available offline.</p></div></div> : chapters.length > 0 && <div className="yomi-surface">{chapters.map((chapter) => <div className="yomi-surface-row" key={chapter.cacheKey}><div className="yomi-catalog-icon"><BookOpen /></div><div className="yomi-row-copy"><Link className="yomi-row-title" to={`/manga/${chapter.mangaId}`}>{chapter.mangaTitle}</Link><p>{chapter.name} · {chapter.pageCount} pages · {formatBytes(chapter.totalSizeBytes)}</p></div><Link className="yomi-button yomi-button-secondary" to={`/reader/${chapter.id}`}>Read</Link><button className="yomi-icon-button danger" aria-label={`Remove offline download ${chapter.name}`} onClick={() => void onDelete(chapter)}><Trash2 /></button></div>)}</div>}
+  </section>;
+}
+
+function formatBytes(bytes: number) {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }

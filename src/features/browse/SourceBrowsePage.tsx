@@ -7,6 +7,7 @@ import { createGraphqlClient } from "../../api/graphql/client";
 import { FetchSourceMangaType } from "../../api/graphql/generated/graphql";
 import { classifySourceProblem } from "../../api/suwayomi/errors";
 import { SourceRecoveryPanel } from "../../components/source/SourceRecoveryPanel";
+import { useFeedback } from "../../components/ui/FeedbackProvider";
 
 interface MangaCardProps {
   manga: any;
@@ -42,6 +43,7 @@ function MangaCard({ manga, serverBaseUrl }: MangaCardProps) {
 }
 
 export default function SourceBrowsePage() {
+  const { notify, requestText } = useFeedback();
   const { sourceId } = useParams<{ sourceId: string }>();
   const [searchParams] = useSearchParams();
   const urlQuery = searchParams.get("query") || "";
@@ -124,14 +126,14 @@ export default function SourceBrowsePage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handlePinSearch = useCallback(() => {
+  const handlePinSearch = useCallback(async () => {
     if (!currentQuery.trim() || !sourceId) return;
-    const name = window.prompt("Enter a label for this saved search:", `${sourceName} - "${currentQuery}"`);
+    const name = await requestText({ title: "Save this search", detail: "Give this source search a short, recognizable name.", initialValue: `${sourceName} — ${currentQuery}`, confirmLabel: "Save search" });
     if (name && name.trim()) {
       addSavedSearch(name, sourceId, currentQuery, "{}");
-      alert("Search pinned successfully!");
+      notify("Search pinned to Browse.", "success");
     }
-  }, [currentQuery, sourceId, sourceName, addSavedSearch]);
+  }, [currentQuery, sourceId, sourceName, addSavedSearch, notify, requestText]);
 
   const payload = mangaData?.fetchSourceManga;
   const mangas = payload?.mangas || [];
@@ -180,7 +182,7 @@ export default function SourceBrowsePage() {
               placeholder="Search manga in source..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full rounded-xl bg-ink-900 border border-white/10 py-2 pl-10 pr-4 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-yomi-jade/50 focus:shadow-glow transition-all duration-300"
+              className="w-full rounded-xl bg-ink-900 border border-white/10 py-2 pl-10 pr-4 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-yomi-jade/50 transition-[border-color,box-shadow] duration-150"
             />
           </form>
 

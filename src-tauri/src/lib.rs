@@ -718,8 +718,7 @@ fn wipe_all_data(
         std::fs::remove_dir_all(&data_dir).map_err(|e| e.to_string())?;
     }
 
-    app_handle.restart();
-    Ok(())
+    app_handle.restart()
 }
 
 #[tauri::command]

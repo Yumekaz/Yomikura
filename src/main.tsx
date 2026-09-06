@@ -33,7 +33,7 @@ if ("serviceWorker" in navigator && runningInTauri) {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+    <BrowserRouter>
       <App />
     </BrowserRouter>
   </React.StrictMode>,

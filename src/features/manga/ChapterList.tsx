@@ -1,6 +1,7 @@
 import { Download, CheckCircle2, Circle, Loader2, Trash2, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useDownloadStore } from "../../stores/useDownloadStore";
+import { useFeedback } from "../../components/ui/FeedbackProvider";
 
 export interface Chapter {
   id: string | number;
@@ -19,6 +20,7 @@ interface ChapterListProps {
 }
 
 export function ChapterList({ chapters, mangaTitle }: ChapterListProps) {
+  const { confirm } = useFeedback();
   // Sort chapters descending (highest number first)
   const sortedChapters = [...chapters].sort((a, b) => b.chapterNumber - a.chapterNumber);
 
@@ -33,7 +35,7 @@ export function ChapterList({ chapters, mangaTitle }: ChapterListProps) {
   const handleDeleteClick = async (e: React.MouseEvent, chapterId: number, chapterName: string) => {
     e.preventDefault();
     e.stopPropagation();
-    if (window.confirm(`Remove offline cache for "${chapterName}"?`)) {
+    if (await confirm({ title: "Remove offline chapter?", detail: `Delete the saved pages for “${chapterName}” from this device?`, confirmLabel: "Remove download", danger: true })) {
       await deleteChapter(chapterId);
     }
   };
@@ -104,6 +106,7 @@ export function ChapterList({ chapters, mangaTitle }: ChapterListProps) {
                       onClick={(e) => handleDeleteClick(e, chapId, chapter.name)}
                       className="flex h-8 w-8 items-center justify-center rounded-full bg-yomi-jade/10 text-yomi-jade hover:bg-red-500/20 hover:text-red-400 transition"
                       title="Cached offline. Click to remove."
+                      aria-label={`Remove offline download of ${chapter.name}`}
                     >
                       <CheckCircle2 className="h-4 w-4" />
                     </button>
@@ -134,6 +137,7 @@ export function ChapterList({ chapters, mangaTitle }: ChapterListProps) {
                       onClick={(e) => handleDownloadClick(e, chapId)}
                       className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500/10 text-red-400 hover:bg-red-500/20 transition"
                       title={`Download failed: ${download.error || "Retry"}. Click to retry.`}
+                      aria-label={`Retry download of ${chapter.name}`}
                     >
                       <Download className="h-4 w-4" />
                     </button>
@@ -142,6 +146,7 @@ export function ChapterList({ chapters, mangaTitle }: ChapterListProps) {
                       onClick={(e) => handleDownloadClick(e, chapId)}
                       className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5 border border-white/10 text-slate-300 hover:bg-yomi-jade hover:text-ink-950 hover:border-yomi-jade transition"
                       title="Save for offline"
+                      aria-label={`Save ${chapter.name} for offline reading`}
                     >
                       <Download className="h-4 w-4" />
                     </button>

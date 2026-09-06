@@ -16,6 +16,7 @@ import {
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
+import { useFeedback } from "../../components/ui/FeedbackProvider";
 
 type ExtensionAction = {
   pkgName: string;
@@ -32,6 +33,7 @@ type StatusMessage = {
 const ALL_LANG_FILTER = "__all__";
 
 export default function ExtensionsPage() {
+  const { confirm } = useFeedback();
   const { serverBaseUrl, showNsfw, setShowNsfw } = useSettingsStore();
   const queryClient = useQueryClient();
   const [searchInput, setSearchInput] = useState("");
@@ -436,11 +438,10 @@ export default function ExtensionsPage() {
                     </button>
                   )}
                   <button
-                    onClick={() => toggleInstall({ 
-                      pkgName: ext.pkgName, 
-                      name: ext.name, 
-                      action: ext.isInstalled ? "uninstall" : "install" 
-                    })}
+                    onClick={async () => {
+                      if (ext.isInstalled && !(await confirm({ title: `Uninstall ${ext.name}?`, detail: "The source will disappear from Browse. Titles already in your library remain, but the source cannot refresh until reinstalled.", confirmLabel: "Uninstall", danger: true }))) return;
+                      toggleInstall({ pkgName: ext.pkgName, name: ext.name, action: ext.isInstalled ? "uninstall" : "install" });
+                    }}
                     disabled={isCardBusy}
                     className={`yomi-utility-button ${
                       ext.isInstalled

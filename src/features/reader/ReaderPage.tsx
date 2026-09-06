@@ -871,7 +871,7 @@ export default function ReaderPage() {
   };
 
   // Determine transition animations
-  let transitionClass = "transition-all duration-150";
+  let transitionClass = "transition-[opacity,transform] duration-150";
   if (isTransitioning) {
     if (pageTransition === "fade") transitionClass += " opacity-0";
     else if (pageTransition === "slide") transitionClass += " transform translate-x-8 opacity-0";
@@ -955,7 +955,7 @@ export default function ReaderPage() {
                     e.stopPropagation();
                     navigate(`/reader/${nextChapterId}`);
                   }}
-                  className="rounded-xl border border-yomi-jade/20 bg-yomi-jade/10 px-6 py-3 text-sm font-semibold text-yomi-mint transition-all duration-300 hover:bg-yomi-jade/20"
+                  className="rounded-xl border border-yomi-jade/20 bg-yomi-jade/10 px-6 py-3 text-sm font-semibold text-yomi-mint transition-[background-color,transform] duration-150 hover:bg-yomi-jade/20 active:scale-[.97]"
                 >
                   {t("load_next_chapter")}
                 </button>

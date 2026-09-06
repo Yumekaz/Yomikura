@@ -4,6 +4,7 @@ import { X, Plus, Trash2, Edit2, Loader2, Save } from "lucide-react";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { getErrorMessage } from "../../api/suwayomi/errors";
+import { useFeedback } from "../../components/ui/FeedbackProvider";
 
 interface Category {
   id: string | number;
@@ -17,6 +18,7 @@ interface CategoryDialogProps {
 }
 
 export function CategoryDialog({ isOpen, onClose, categories }: CategoryDialogProps) {
+  const { confirm } = useFeedback();
   const { serverBaseUrl } = useSettingsStore();
   const queryClient = useQueryClient();
   const [newCatName, setNewCatName] = useState("");
@@ -103,12 +105,13 @@ export function CategoryDialog({ isOpen, onClose, categories }: CategoryDialogPr
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-panel">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-panel" role="dialog" aria-modal="true" aria-labelledby="category-dialog-title">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/5 pb-4">
-          <h2 className="text-lg font-semibold text-white">Manage Categories</h2>
+          <h2 id="category-dialog-title" className="text-lg font-semibold text-white">Manage Categories</h2>
           <button
             onClick={onClose}
+            aria-label="Close category manager"
             className="rounded-full p-1.5 hover:bg-white/10 text-slate-400 hover:text-white transition"
           >
             <X className="h-5 w-5" />
@@ -161,11 +164,10 @@ export function CategoryDialog({ isOpen, onClose, categories }: CategoryDialogPr
                   </button>
                 )}
                 <button
-                  onClick={() => {
-                    if (window.confirm(`Delete category "${cat.name}"?`)) {
-                      deleteCat(parseInt(String(cat.id)));
-                    }
+                  onClick={async () => {
+                    if (await confirm({ title: `Delete “${cat.name}”?`, detail: "The category will be removed. Manga inside it stay in your library.", confirmLabel: "Delete category", danger: true })) deleteCat(parseInt(String(cat.id)));
                   }}
+                  aria-label={`Delete category ${cat.name}`}
                   className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition"
                   title="Delete"
                 >

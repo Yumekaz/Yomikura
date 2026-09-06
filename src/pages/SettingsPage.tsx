@@ -35,6 +35,7 @@ import { APP_VERSION } from "../utils/appVersion";
 import { ExtensionHealthPanel } from "../components/ExtensionHealthPanel";
 import { OpdsPanel } from "../components/settings/OpdsPanel";
 import { TrackerSettingsPanel } from "../components/settings/TrackerSettingsPanel";
+import { useFeedback } from "../components/ui/FeedbackProvider";
 
 type SettingsTab = "connection" | "appearance" | "reader" | "backup" | "offline" | "advanced" | "about";
 
@@ -306,6 +307,7 @@ function SuwayomiServerUpdaterRow() {
 
 function SettingsPage() {
   const { t } = useTranslation();
+  const { confirm, notify } = useFeedback();
   const {
     serverBaseUrl,
     setServerBaseUrl,
@@ -552,13 +554,11 @@ function SettingsPage() {
     },
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const confirmRestore = window.confirm(
-      "Warning: Restoring a backup is a destructive action that will overwrite your library, history, and categories. Do you want to proceed?"
-    );
+    const confirmRestore = await confirm({ title: "Restore this backup?", detail: "Your current library, history, and categories will be overwritten. This cannot be undone.", confirmLabel: "Restore backup", danger: true });
 
     if (confirmRestore) {
       restoreBackup(file);
@@ -579,7 +579,7 @@ function SettingsPage() {
       linkElement.setAttribute('download', exportFileDefaultName);
       linkElement.click();
     } catch (err) {
-      alert("Failed to export profiles: " + err);
+      notify("Failed to export profiles: " + err, "error");
     }
   };
 
@@ -588,7 +588,7 @@ function SettingsPage() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const text = event.target?.result;
         if (typeof text !== "string") return;
@@ -612,9 +612,7 @@ function SettingsPage() {
           throw new Error("No valid server profiles found in the backup file.");
         }
 
-        const confirmMerge = window.confirm(
-          `Found ${validProfiles.length} profiles. Do you want to merge them with your existing profiles? (Cancel will overwrite them entirely)`
-        );
+        const confirmMerge = await confirm({ title: "Import server profiles", detail: `Found ${validProfiles.length} valid profiles. Merge them with your existing profiles?`, confirmLabel: "Merge profiles", cancelLabel: "Review overwrite" });
 
         let finalProfiles = [...profiles];
         if (confirmMerge) {
@@ -625,9 +623,7 @@ function SettingsPage() {
             }
           }
         } else {
-          const confirmOverwrite = window.confirm(
-            "Are you sure you want to overwrite all your existing server profiles? This cannot be undone."
-          );
+          const confirmOverwrite = await confirm({ title: "Overwrite every profile?", detail: "All existing server profiles will be replaced by this file. This cannot be undone.", confirmLabel: "Overwrite profiles", danger: true });
           if (!confirmOverwrite) {
             e.target.value = "";
             return;
@@ -642,9 +638,9 @@ function SettingsPage() {
           setActiveProfileId(finalProfiles[0].id);
         }
 
-        alert("Server profiles imported successfully!");
+        notify("Server profiles imported successfully.", "success");
       } catch (err: any) {
-        alert("Failed to import profiles: " + err.message);
+        notify("Failed to import profiles: " + err.message, "error");
       }
     };
     reader.readAsText(file);
@@ -736,14 +732,13 @@ function SettingsPage() {
                             <Edit2 className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => {
-                              if (window.confirm(`Delete profile "${p.name}"?`)) {
-                                deleteProfile(p.id);
-                              }
+                            onClick={async () => {
+                              if (await confirm({ title: "Delete server profile?", detail: `“${p.name}” will be removed. The server itself and its files are not changed.`, confirmLabel: "Delete profile", danger: true })) deleteProfile(p.id);
                             }}
                             disabled={profiles.length <= 1}
                             className="p-1.5 rounded hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition disabled:opacity-30 disabled:pointer-events-none"
                             title="Delete Profile"
+                            aria-label={`Delete ${p.name} profile`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -1448,7 +1443,7 @@ function SettingsPage() {
                   </div>
                   <div className="w-full bg-ink-950 rounded-full h-3.5 border border-white/5 p-0.5 overflow-hidden">
                     <div 
-                      className="bg-yomi-jade h-full rounded-full transition-all duration-500 ease-out"
+                      className="bg-yomi-jade h-full rounded-full transition-[width] duration-200 ease-out"
                       style={{ 
                         width: `${Math.min(100, Math.max(1, storageQuota ? (storageUsage / storageQuota) * 100 : 0))}%` 
                       }}
@@ -1463,7 +1458,7 @@ function SettingsPage() {
                 <div className="mt-6 border-t border-white/5 pt-5 flex justify-end">
                   <button
                     onClick={async () => {
-                      if (window.confirm("Are you sure you want to clear all offline cached chapters? This will purge all browser storage.")) {
+                      if (await confirm({ title: "Clear every saved chapter?", detail: "All locally cached chapter pages will be removed from this device. Your library and server data remain intact.", confirmLabel: "Clear saved chapters", danger: true })) {
                         await clearAll();
                       }
                     }}
@@ -1506,12 +1501,13 @@ function SettingsPage() {
                         </div>
                         <button
                           onClick={async () => {
-                            if (window.confirm(`Delete cached files for "${c.name}"?`)) {
+                            if (await confirm({ title: "Remove saved chapter?", detail: `Delete the offline pages for “${c.name}”? Reading progress and server data remain intact.`, confirmLabel: "Remove download", danger: true })) {
                               await deleteChapter(c.id);
                             }
                           }}
                           className="p-2 rounded-lg bg-white/5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition shrink-0"
                           title="Delete Cache"
+                          aria-label={`Remove offline download ${c.name}`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -1583,7 +1579,7 @@ function SettingsPage() {
                             await invoke("open_logs_folder", { dataPath: serverDataPath });
                           } catch (err: any) {
                             console.error("Failed to open storage directory:", err);
-                            alert("Failed to open directory: " + (err.message || String(err)));
+                            notify("Failed to open directory: " + (err.message || String(err)), "error");
                           }
                         }}
                         className="rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 px-4 py-2 text-xs font-semibold text-slate-300 transition shrink-0"
@@ -1660,10 +1656,8 @@ function SettingsPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        const confirmReset = window.confirm(
-                          "Are you sure you want to reset the setup wizard? This will disconnect your active server profile and run onboarding on next launch."
-                        );
+                      onClick={async () => {
+                        const confirmReset = await confirm({ title: "Run setup again?", detail: "Yomikura will disconnect the active profile and show onboarding after reload. Your library and downloads are not deleted.", confirmLabel: "Reset setup", danger: true });
                         if (confirmReset) {
                           useSettingsStore.setState({
                             connectionStatus: "disconnected",
@@ -1671,7 +1665,7 @@ function SettingsPage() {
                             activeProfileId: "",
                             serverDataPath: "",
                           });
-                          alert("Setup wizard has been reset. Please restart the app or reload.");
+                          notify("Setup was reset. Reloading Yomikura…", "success");
                           window.location.reload();
                         }
                       }}
@@ -1691,17 +1685,13 @@ function SettingsPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        const confirmFirst = window.confirm(
-                          "Are you sure you want to reset all Yomikura settings? This will clear all configured server profiles."
-                        );
+                      onClick={async () => {
+                        const confirmFirst = await confirm({ title: "Reset all settings?", detail: "Server profiles, appearance, reader preferences, and browse options will return to defaults.", confirmLabel: "Continue", danger: true });
                         if (confirmFirst) {
-                          const confirmSecond = window.confirm(
-                            "This action cannot be undone. Are you absolutely sure?"
-                          );
+                          const confirmSecond = await confirm({ title: "Final confirmation", detail: "This settings reset cannot be undone. Offline chapter files are not affected.", confirmLabel: "Reset settings", danger: true });
                           if (confirmSecond) {
                             resetAllSettings();
-                            alert("All settings have been successfully reset.");
+                            notify("All settings were reset.", "success");
                           }
                         }
                       }}
@@ -1723,19 +1713,15 @@ function SettingsPage() {
                       <button
                         type="button"
                         onClick={async () => {
-                          const confirm1 = window.confirm(
-                            "WARNING: This will delete Yomikura settings and its default local cache. A custom storage folder will not be deleted. Are you sure?"
-                          );
+                          const confirm1 = await confirm({ title: "Wipe Yomikura-managed data?", detail: "Settings and the default local cache will be deleted. A custom storage folder is deliberately left untouched.", confirmLabel: "Continue", danger: true });
                           if (confirm1) {
-                            const confirm2 = window.confirm(
-                              "This will wipe Yomikura-managed local data and restart. Are you absolutely sure?"
-                            );
+                            const confirm2 = await confirm({ title: "Wipe and restart?", detail: "This is the final confirmation. Yomikura-managed local data cannot be restored afterward.", confirmLabel: "Wipe and restart", danger: true });
                             if (confirm2) {
                               try {
                                 const { invoke } = await import("@tauri-apps/api/core");
                                 await invoke("wipe_all_data");
                               } catch (err) {
-                                alert("Failed to execute hard reset: " + err);
+                                notify("Hard reset failed: " + err, "error");
                               }
                             }
                           }
