@@ -1,7 +1,9 @@
 param(
   [Parameter(Mandatory = $true)][string]$InstallerPath,
   [string]$PreservedStoragePath = "",
-  [int]$StartupTimeoutSeconds = 180
+  # First launch may download the verified Suwayomi JAR before Java starts.
+  # Keep this aligned with the native downloader's 20-minute network ceiling.
+  [int]$StartupTimeoutSeconds = 1200
 )
 
 $ErrorActionPreference = "Stop"
