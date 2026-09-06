@@ -646,6 +646,11 @@ fn start_backend(
         data_dir.to_string_lossy()
     ))
     .arg(format!("-Dsuwayomi.tachidesk.config.server.port={}", port))
+    // Yomikura supplies its own WebView UI. Suwayomi's optional KCEF provider
+    // downloads a separate ~260 MB Chromium runtime on first launch and can
+    // hold backend readiness behind that download. Sources which require an
+    // interactive WebView are not supported by the local-engine integration.
+    .arg("-Dsuwayomi.tachidesk.config.server.kcefEnabled=false")
     .arg("-jar")
     .arg(jar_path)
     .stdout(std::process::Stdio::from(log_file.try_clone().unwrap()))

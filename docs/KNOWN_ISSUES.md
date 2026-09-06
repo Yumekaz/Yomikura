@@ -12,6 +12,8 @@ Local desktop mode downloads pinned Java 21 and Suwayomi components from their o
 
 Yomikura does not control extension repositories or source websites. A source may fail because its site changed, rate-limited the server, rejected its certificate, or enabled anti-bot protection. Try another source and preserve the exact diagnostic message when reporting a repeated failure.
 
+The local engine disables Suwayomi's optional KCEF browser provider so first launch does not silently download a separate Chromium runtime. Sources that require an interactive embedded browser challenge are therefore not supported in local-engine mode.
+
 ## Platform coverage
 
 Windows receives the automated install, local-engine readiness, shutdown, uninstall, and storage-preservation test. macOS and Linux are compiled and packaged in CI, but their installed packages do not yet receive the same native lifecycle automation.
