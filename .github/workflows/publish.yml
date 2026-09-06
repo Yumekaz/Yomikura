@@ -12,11 +12,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with:
           version: 11.1.2
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -46,15 +46,15 @@ jobs:
           - platform: "windows-latest"
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 11.1.2
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: lts/*
 
@@ -79,7 +79,7 @@ jobs:
         run: pnpm run check:tag "${{ github.ref_name }}"
 
       - name: Build and Publish Release
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -101,7 +101,7 @@ jobs:
         run: node scripts/write-artifact-checksums.mjs "src-tauri/target/release/bundle" "SHA256SUMS-${{ matrix.platform }}.txt"
 
       - name: Preserve platform checksums
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-checksum-${{ matrix.platform }}
           path: SHA256SUMS-${{ matrix.platform }}.txt
@@ -114,20 +114,20 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with:
           version: 11.1.2
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
       - name: Cache pinned smoke backend
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/yomikura-smoke-deps
           key: suwayomi-smoke-v2.3.2243-821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5
@@ -182,7 +182,7 @@ jobs:
             Out-File -FilePath (Join-Path $diagnostics "listening-ports.txt")
       - name: Upload installer smoke diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: installer-smoke-diagnostics
           path: ${{ runner.temp }}/yomikura-smoke-diagnostics
@@ -196,7 +196,7 @@ jobs:
       contents: write
     steps:
       - name: Download platform checksums
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: release-checksum-*
           path: checksums
