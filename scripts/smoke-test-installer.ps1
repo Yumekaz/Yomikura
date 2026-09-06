@@ -144,12 +144,20 @@ try {
       }
       if (-not $backendReady) {
         # If process ancestry and command-line inspection are unavailable,
-        # probe only local listening ports. This keeps the test reliable on
-        # runners where Java is re-parented while still validating GraphQL,
-        # rather than treating an arbitrary open TCP socket as readiness.
+        # restrict the fallback to ports owned by Java. The runner has many
+        # unrelated listeners; probing every local port can consume the full
+        # startup timeout without ever testing Suwayomi.
+        $javaProcessIds = @(Get-CimInstance Win32_Process |
+          Where-Object { [string]$_.Name -match '^(java|javaw)\.exe$' } |
+          Select-Object -ExpandProperty ProcessId)
         $candidatePorts = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
-          Where-Object { [int]$_.LocalPort -ge 4567 -and [int]$_.LocalPort -le 65535 } |
+          Where-Object {
+            $javaProcessIds -contains [int]$_.OwningProcess -and
+            [int]$_.LocalPort -ge 4567 -and
+            [int]$_.LocalPort -le 65535
+          } |
           Select-Object -ExpandProperty LocalPort -Unique)
+        if ($candidatePorts.Count -eq 0) { $candidatePorts = @(4567) }
         foreach ($candidatePort in $candidatePorts) {
           if (Test-GraphqlEndpoint -Port ([int]$candidatePort)) {
             $backendPort = [int]$candidatePort

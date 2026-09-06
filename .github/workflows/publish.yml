@@ -150,12 +150,18 @@ jobs:
           $diagnostics = Join-Path $env:RUNNER_TEMP "yomikura-smoke-diagnostics"
           New-Item -ItemType Directory -Path $diagnostics -Force | Out-Null
           $userStorage = Join-Path $env:RUNNER_TEMP "yomikura-release-user-storage"
-          if (Test-Path -LiteralPath $userStorage) {
-            Copy-Item -LiteralPath $userStorage -Destination (Join-Path $diagnostics "user-storage") -Recurse -Force
+          $backendLog = Join-Path $userStorage "suwayomi.log"
+          if (Test-Path -LiteralPath $backendLog) {
+            Copy-Item -LiteralPath $backendLog -Destination (Join-Path $diagnostics "suwayomi.log") -Force
+          }
+          $sentinel = Join-Path $userStorage "smoke-sentinel.txt"
+          if (Test-Path -LiteralPath $sentinel) {
+            Copy-Item -LiteralPath $sentinel -Destination (Join-Path $diagnostics "smoke-sentinel.txt") -Force
           }
           $configDirectory = Join-Path $env:APPDATA "app.yomikura"
-          if (Test-Path -LiteralPath $configDirectory) {
-            Copy-Item -LiteralPath $configDirectory -Destination (Join-Path $diagnostics "app-config") -Recurse -Force
+          $settingsFile = Join-Path $configDirectory "yomikura-settings.json"
+          if (Test-Path -LiteralPath $settingsFile) {
+            Copy-Item -LiteralPath $settingsFile -Destination (Join-Path $diagnostics "yomikura-settings.json") -Force
           }
           Get-Process -Name "Yomikura", "java", "javaw" -ErrorAction SilentlyContinue |
             Select-Object Id, ProcessName, CPU, StartTime, Path |
