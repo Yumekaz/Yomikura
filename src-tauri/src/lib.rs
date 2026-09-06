@@ -503,26 +503,26 @@ fn download_and_install_jre_sync(
 ) -> Result<(), String> {
     let (url, expected_sha256) = match (std::env::consts::OS, std::env::consts::ARCH) {
         ("windows", "x86_64") => (
-            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jre_x64_windows_hotspot_17.0.20.1_1.zip",
-            "bc21a93923103cdaac93ee337b0ae4365e739fde36df823dd456bc67c8a9d352",
+            "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_x64_windows_hotspot_21.0.12.1_1.zip",
+            "d35f31e712f0fcf6ac5a093edc90204fbff22f720ba3950bd09d331d5e621636",
         ),
         ("linux", "x86_64") => (
-            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jre_x64_linux_hotspot_17.0.20.1_1.tar.gz",
-            "0b2b640e3046b64c8ec504de0ab9d91bb5610182bda21fad454681ce54d45a62",
+            "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_x64_linux_hotspot_21.0.12.1_1.tar.gz",
+            "2413149700df0f7d440500a84a8f764c535f21e5a5e87d38328b64eec2c5b500",
         ),
         ("linux", "aarch64") => (
-            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jre_aarch64_linux_hotspot_17.0.20.1_1.tar.gz",
-            "b8efcd5acc9109fe8d35bed132499643048a257b4f6042906ece37d03c839d77",
+            "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_aarch64_linux_hotspot_21.0.12.1_1.tar.gz",
+            "14be1f35ebdbd1f6e8d57eb911a3ffb74d6d9aa255abc5daf2b1302002cf2cf2",
         ),
         ("macos", "x86_64") => (
-            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jre_x64_mac_hotspot_17.0.20.1_1.tar.gz",
-            "333cb81123c36568586646c73c8fa2326dab8badc43f5ea388a90fff59c9df27",
+            "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_x64_mac_hotspot_21.0.12.1_1.tar.gz",
+            "6717ec641fd9ce0bb209ca083ee23b42202ac68cb6fcc5753496e0e4a0f41989",
         ),
         ("macos", "aarch64") => (
-            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jre_aarch64_mac_hotspot_17.0.20.1_1.tar.gz",
-            "190480874ccceb358cbc840393207f77ac3e63a4c5f8129d0e23e9518b96ad05",
+            "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_aarch64_mac_hotspot_21.0.12.1_1.tar.gz",
+            "dec50fc6f9fcd4fe3ae8cabf5a5fa68f6afc48841f7698e468e9aa5d54beed84",
         ),
-        (os, arch) => return Err(format!("No verified Java runtime is available for {os}/{arch}. Install Java 17 or newer manually.")),
+        (os, arch) => return Err(format!("No verified Java runtime is available for {os}/{arch}. Install Java 21 or newer manually.")),
     };
 
     let data_dir = std::path::PathBuf::from(&data_path);

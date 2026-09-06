@@ -34,7 +34,7 @@ try {
 # Java (needed for local Suwayomi backend when running Tauri)
 try {
   $javaVer = (java -version 2>&1 | Select-Object -First 1)
-  if ($javaVer -match "version") { Pass "Java: $javaVer" } else { Warn "Java not found — Tauri backend needs Java 17+ (CI bundles JRE for releases)" }
+  if ($javaVer -match "version") { Pass "Java: $javaVer" } else { Warn "Java not found — Tauri backend needs Java 21+ (CI bundles JRE for releases)" }
 } catch { Warn "Java not found — install Temurin 21 for local Tauri dev" }
 
 # Rust (optional locally — CI builds Tauri)

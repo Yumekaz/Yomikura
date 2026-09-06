@@ -681,12 +681,12 @@ function WelcomeOnboarding({
                 <Loader2 className="h-10 w-10 animate-spin text-yomi-jade mb-3" />
                 <h3 className="text-sm font-semibold text-slate-200">Setting up Java Runtime...</h3>
                 <p className="text-[11px] text-slate-400 mt-2 max-w-xs leading-relaxed">
-                  Yomikura is automatically downloading and configuring a private OpenJDK 17 runtime inside your local data directory. This removes setup friction and won't affect any system-wide Java settings.
+                  Yomikura is automatically downloading and configuring a private OpenJDK 21 runtime inside your local data directory. This removes setup friction and won't affect any system-wide Java settings.
                 </p>
                 <div className="mt-5 w-full bg-white/5 rounded-full h-1.5 overflow-hidden border border-white/5">
                   <div className="bg-yomi-jade h-full w-2/3 animate-pulse rounded-full" style={{ animationDuration: '2s' }} />
                 </div>
-                <span className="text-[10px] text-slate-500 mt-3">Downloading Eclipse Temurin JRE 17 ~ 40MB</span>
+                <span className="text-[10px] text-slate-500 mt-3">Downloading Eclipse Temurin JRE 21 ~ 40MB</span>
               </div>
             )}
 
@@ -696,19 +696,19 @@ function WelcomeOnboarding({
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 border border-red-500/20 text-red-400 mb-4 animate-pulse">
                   <AlertTriangle className="h-6 w-6" />
                 </div>
-                <h3 className="text-base font-bold text-slate-200">Java OpenJDK 17 Required</h3>
+                <h3 className="text-base font-bold text-slate-200">Java OpenJDK 21 Required</h3>
                 <p className="max-h-48 max-w-lg overflow-auto whitespace-pre-wrap rounded-xl border border-white/5 bg-black/20 p-3 text-left font-mono text-[11px] leading-relaxed text-slate-400 mt-3">
-                  Yomikura's local backend requires **Java OpenJDK 17** (or newer) to run. Don't worry—it takes less than a minute to install and runs quietly in the background.
+                  Yomikura's local backend requires **Java OpenJDK 21** (or newer) to run. Don't worry—it takes less than a minute to install and runs quietly in the background.
                 </p>
 
                 <div className="mt-6 w-full space-y-3">
                   <a
-                    href="https://adoptium.net/temurin/releases/?variant=openjdk17&jvmImpl=hotspot"
+                    href="https://adoptium.net/temurin/releases/?version=21&package=jre&variant=openjdk21&jvmImpl=hotspot"
                     target="_blank"
                     rel="noreferrer"
                     className="w-full flex items-center justify-center gap-2 rounded-xl bg-yomi-jade py-3 px-4 text-xs font-bold text-ink-950 hover:bg-yomi-jade/90 hover:scale-[1.01] active:scale-[0.99] transition shadow-md"
                   >
-                    <span>Download OpenJDK 17 Installer</span>
+                    <span>Download OpenJDK 21 Installer</span>
                     <ArrowRight className="h-3.5 w-3.5" />
                   </a>
 
