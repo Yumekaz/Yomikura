@@ -40,37 +40,19 @@ function Get-DescendantProcessIds {
   return $descendants.ToArray()
 }
 
-function Get-BackendPort {
-  param(
-    [Parameter(Mandatory = $true)]
-    [AllowEmptyCollection()]
-    [int[]]$OwnedProcessIds,
-    [string]$DataPath = ""
-  )
+function Get-RecordedBackendPort {
+  param([Parameter(Mandatory = $true)][string]$PidRecordPath)
 
-  $processes = @(Get-CimInstance Win32_Process | Where-Object {
-    $processId = [int]$_.ProcessId
-    $commandLine = [string]$_.CommandLine
-    $owned = $OwnedProcessIds -and ($OwnedProcessIds -contains $processId)
-    $matchesStorage = $DataPath -and $commandLine -and
-      $commandLine.IndexOf($DataPath, [StringComparison]::OrdinalIgnoreCase) -ge 0
-    $owned -or $matchesStorage
-  })
-
-  foreach ($process in $processes) {
-    $match = [regex]::Match([string]$process.CommandLine, 'server\.port=(\d+)')
-    if ($match.Success) { return [int]$match.Groups[1].Value }
+  if (-not (Test-Path -LiteralPath $PidRecordPath -PathType Leaf)) { return $null }
+  $recordedPid = 0
+  if (-not [int]::TryParse((Get-Content -LiteralPath $PidRecordPath -Raw).Trim(), [ref]$recordedPid)) {
+    return $null
   }
 
-  $ownedListenPort = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
-    Where-Object {
-      ($OwnedProcessIds -and $OwnedProcessIds -contains [int]$_.OwningProcess) -and
-      [int]$_.LocalPort -ge 4567 -and
-      [int]$_.LocalPort -le 65535
-    } |
-    Select-Object -First 1 -ExpandProperty LocalPort
-  if ($ownedListenPort) { return [int]$ownedListenPort }
-
+  $process = Get-CimInstance Win32_Process -Filter "ProcessId = $recordedPid" -ErrorAction SilentlyContinue
+  if (-not $process) { return $null }
+  $match = [regex]::Match([string]$process.CommandLine, 'server\.port=(\d+)')
+  if ($match.Success) { return [int]$match.Groups[1].Value }
   return $null
 }
 
@@ -201,42 +183,25 @@ try {
   $app = Start-Process -FilePath $appPath -PassThru
   $deadline = [DateTime]::UtcNow.AddSeconds($StartupTimeoutSeconds)
   $backendReady = $false
+  $backendPort = 4567
+  $backendPidRecord = Join-Path $env:LOCALAPPDATA "app.yomikura\backend.pid"
+  $pollCount = 0
   do {
     Start-Sleep -Seconds 2
+    $pollCount++
     $app.Refresh()
     if ($app.HasExited) { throw "Installed application exited during launch smoke test (code $($app.ExitCode))" }
     if ($PreservedStoragePath) {
-      $ownedNow = @(Get-DescendantProcessIds -RootProcessId $app.Id)
-      # A Windows child process can outlive the GUI process tree when the
-      # packaged runtime starts Java. Prefer the explicit Suwayomi command
-      # line and use the owned socket as a fallback instead of assuming the
-      # Java PID is always a direct descendant of Yomikura.
-      $backendPort = Get-BackendPort -OwnedProcessIds $ownedNow -DataPath $PreservedStoragePath
-      if ($backendPort) {
-        $backendReady = Test-GraphqlEndpoint -Port $backendPort
-      }
-      if (-not $backendReady) {
-        # If process ancestry and command-line inspection are unavailable,
-        # restrict the fallback to ports owned by Java. The runner has many
-        # unrelated listeners; probing every local port can consume the full
-        # startup timeout without ever testing Suwayomi.
-        $javaProcessIds = @(Get-CimInstance Win32_Process |
-          Where-Object { [string]$_.Name -match '^(java|javaw)\.exe$' } |
-          Select-Object -ExpandProperty ProcessId)
-        $candidatePorts = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
-          Where-Object {
-            $javaProcessIds -contains [int]$_.OwningProcess -and
-            [int]$_.LocalPort -ge 4567 -and
-            [int]$_.LocalPort -le 65535
-          } |
-          Select-Object -ExpandProperty LocalPort -Unique)
-        if ($candidatePorts.Count -eq 0) { $candidatePorts = @(4567) }
-        foreach ($candidatePort in $candidatePorts) {
-          if (Test-GraphqlEndpoint -Port ([int]$candidatePort)) {
-            $backendPort = [int]$candidatePort
-            $backendReady = $true
-            break
-          }
+      # A clean runner normally uses 4567, so probe it directly. The previous
+      # implementation enumerated every Windows process and listening socket
+      # every two seconds; those global CIM/network scans could starve the app
+      # being measured and made readiness coincide with the test deadline.
+      $backendReady = Test-GraphqlEndpoint -Port $backendPort
+      if (-not $backendReady -and ($pollCount % 5 -eq 0)) {
+        $recordedPort = Get-RecordedBackendPort -PidRecordPath $backendPidRecord
+        if ($recordedPort) {
+          $backendPort = $recordedPort
+          $backendReady = Test-GraphqlEndpoint -Port $backendPort
         }
       }
     } else {
