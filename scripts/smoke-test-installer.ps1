@@ -106,13 +106,21 @@ function Initialize-SmokeRuntime {
   Set-Content -LiteralPath (Join-Path $StoragePath $managedStorageMarker) -Value $managedStorageMarkerContent -NoNewline
 
   $runtimeRoot = Join-Path $StoragePath "jre"
+  $runtimeHome = Join-Path $runtimeRoot "ci-java"
   if (Test-Path -LiteralPath $runtimeRoot) {
     throw "Smoke-test Java runtime path unexpectedly exists: $runtimeRoot"
   }
-  # Mount JAVA_HOME as the runtime root so Yomikura can resolve
-  # jre\bin\java.exe directly. A nested junction forced recursive traversal of
-  # the full hosted JDK and delayed Java startup until the smoke-test deadline.
-  New-Item -ItemType Junction -Path $runtimeRoot -Target $resolvedJavaHome | Out-Null
+  New-Item -ItemType Directory -Path $runtimeHome -Force | Out-Null
+  # Use real runtime files rather than a directory junction. Executing the
+  # hosted JDK through a junction breaks Suwayomi's runtime classpath scan on
+  # GitHub's Windows image and leaves the GraphQL schema empty.
+  & robocopy.exe $resolvedJavaHome $runtimeHome /E /NFL /NDL /NJH /NJS /NC /NS /NP
+  if ($LASTEXITCODE -gt 7) {
+    throw "Could not prepare the isolated Java runtime (robocopy exit code $LASTEXITCODE)"
+  }
+  if (-not (Test-Path -LiteralPath (Join-Path $runtimeHome "bin\java.exe") -PathType Leaf)) {
+    throw "Copied Java runtime is incomplete: $runtimeHome"
+  }
 
   $cacheDirectory = Split-Path -Parent $JarCachePath
   New-Item -ItemType Directory -Path $cacheDirectory -Force | Out-Null
@@ -187,6 +195,7 @@ try {
   $backendReady = $false
   $backendPort = 4567
   $backendPidRecord = Join-Path $env:LOCALAPPDATA "app.yomikura\backend.pid"
+  $backendLog = if ($PreservedStoragePath) { Join-Path $PreservedStoragePath "suwayomi.log" } else { "" }
   $pollCount = 0
   do {
     Start-Sleep -Seconds 2
@@ -200,6 +209,14 @@ try {
       # being measured and made readiness coincide with the test deadline.
       $backendReady = Test-GraphqlEndpoint -Port $backendPort
       if (-not $backendReady -and ($pollCount % 5 -eq 0)) {
+        if ($backendLog -and (Test-Path -LiteralPath $backendLog -PathType Leaf)) {
+          $fatalStartup = Select-String -LiteralPath $backendLog -Pattern 'InvalidPackagesException|MigrationsRunFailure|Shutting Down Suwayomi-Server' -Quiet
+          if ($fatalStartup) {
+            Write-Host "Fatal Suwayomi startup output:"
+            Get-Content -LiteralPath $backendLog -Tail 60 | Write-Host
+            throw "Suwayomi reported a fatal startup error before GraphQL became ready"
+          }
+        }
         $recordedPort = Get-RecordedBackendPort -PidRecordPath $backendPidRecord
         if ($recordedPort) {
           $backendPort = $recordedPort
@@ -217,7 +234,6 @@ try {
       Get-Content -LiteralPath $settingsFile | Write-Host
     }
     if ($PreservedStoragePath) {
-      $backendLog = Join-Path $PreservedStoragePath "suwayomi.log"
       if (Test-Path -LiteralPath $backendLog) {
         Write-Host "Recent Suwayomi log output:"
         Get-Content -LiteralPath $backendLog -Tail 40 | Write-Host
