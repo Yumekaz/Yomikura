@@ -115,9 +115,13 @@ function Initialize-SmokeRuntime {
   # hosted JDK through a junction breaks Suwayomi's runtime classpath scan on
   # GitHub's Windows image and leaves the GraphQL schema empty.
   & robocopy.exe $resolvedJavaHome $runtimeHome /E /NFL /NDL /NJH /NJS /NC /NS /NP
-  if ($LASTEXITCODE -gt 7) {
-    throw "Could not prepare the isolated Java runtime (robocopy exit code $LASTEXITCODE)"
+  $robocopyExitCode = $LASTEXITCODE
+  if ($robocopyExitCode -gt 7) {
+    throw "Could not prepare the isolated Java runtime (robocopy exit code $robocopyExitCode)"
   }
+  # Robocopy codes 0-7 are successful outcomes. Do not leak its common
+  # "files copied" code (1) as this script's final process exit code.
+  $global:LASTEXITCODE = 0
   if (-not (Test-Path -LiteralPath (Join-Path $runtimeHome "bin\java.exe") -PathType Leaf)) {
     throw "Copied Java runtime is incomplete: $runtimeHome"
   }
@@ -335,3 +339,4 @@ if ($PreservedStoragePath -and -not (Test-Path -LiteralPath (Join-Path $Preserve
   throw "User-selected storage was removed during uninstall: $PreservedStoragePath"
 }
 Write-Host "Installer lifecycle smoke test passed"
+exit 0

@@ -1,7 +1,7 @@
 {
   "name": "yomikura",
   "private": true,
-  "version": "1.0.23",
+  "version": "1.0.24",
   "type": "module",
   "packageManager": "pnpm@11.1.2",
   "scripts": {
