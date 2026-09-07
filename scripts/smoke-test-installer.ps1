@@ -106,11 +106,13 @@ function Initialize-SmokeRuntime {
   Set-Content -LiteralPath (Join-Path $StoragePath $managedStorageMarker) -Value $managedStorageMarkerContent -NoNewline
 
   $runtimeRoot = Join-Path $StoragePath "jre"
-  $runtimeLink = Join-Path $runtimeRoot "ci-java"
-  New-Item -ItemType Directory -Path $runtimeRoot -Force | Out-Null
-  if (-not (Test-Path -LiteralPath $runtimeLink)) {
-    New-Item -ItemType Junction -Path $runtimeLink -Target $resolvedJavaHome | Out-Null
+  if (Test-Path -LiteralPath $runtimeRoot) {
+    throw "Smoke-test Java runtime path unexpectedly exists: $runtimeRoot"
   }
+  # Mount JAVA_HOME as the runtime root so Yomikura can resolve
+  # jre\bin\java.exe directly. A nested junction forced recursive traversal of
+  # the full hosted JDK and delayed Java startup until the smoke-test deadline.
+  New-Item -ItemType Junction -Path $runtimeRoot -Target $resolvedJavaHome | Out-Null
 
   $cacheDirectory = Split-Path -Parent $JarCachePath
   New-Item -ItemType Directory -Path $cacheDirectory -Force | Out-Null
