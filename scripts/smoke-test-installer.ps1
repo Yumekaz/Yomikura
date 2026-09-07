@@ -4,7 +4,7 @@ param(
   [switch]$PreseedRuntime,
   [string]$JavaHomePath = "",
   [string]$BackendJarCachePath = "",
-  [int]$StartupTimeoutSeconds = 180,
+  [int]$StartupTimeoutSeconds = 240,
   [int]$MaxCombinedWorkingSetMb = 1536
 )
 
