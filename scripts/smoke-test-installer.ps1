@@ -190,7 +190,14 @@ $app = $null
 $ownedProcessIds = @()
 $startupWatch = [Diagnostics.Stopwatch]::StartNew()
 try {
-  $app = Start-Process -FilePath $appPath -PassThru
+  if ($PreservedStoragePath) {
+    $env:YOMIKURA_SMOKE_AUTOSTART_DATA_PATH = $PreservedStoragePath
+  }
+  try {
+    $app = Start-Process -FilePath $appPath -PassThru
+  } finally {
+    Remove-Item Env:YOMIKURA_SMOKE_AUTOSTART_DATA_PATH -ErrorAction SilentlyContinue
+  }
   $deadline = [DateTime]::UtcNow.AddSeconds($StartupTimeoutSeconds)
   $backendReady = $false
   $backendPort = 4567
@@ -209,6 +216,11 @@ try {
       # being measured and made readiness coincide with the test deadline.
       $backendReady = Test-GraphqlEndpoint -Port $backendPort
       if (-not $backendReady -and ($pollCount % 5 -eq 0)) {
+        $nativeStartupError = Join-Path $PreservedStoragePath "yomikura-smoke-startup-error.log"
+        if (Test-Path -LiteralPath $nativeStartupError -PathType Leaf) {
+          $nativeError = Get-Content -LiteralPath $nativeStartupError -Raw
+          throw "Yomikura native smoke startup failed: $nativeError"
+        }
         if ($backendLog -and (Test-Path -LiteralPath $backendLog -PathType Leaf)) {
           $fatalStartup = Select-String -LiteralPath $backendLog -Pattern 'InvalidPackagesException|MigrationsRunFailure|Shutting Down Suwayomi-Server' -Quiet
           if ($fatalStartup) {

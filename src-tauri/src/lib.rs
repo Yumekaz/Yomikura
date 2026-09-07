@@ -875,6 +875,15 @@ fn download_suwayomi_jar_sync(
     Ok(dest.to_string_lossy().to_string())
 }
 
+fn start_ci_smoke_backend(app_handle: tauri::AppHandle, data_path: String) -> Result<u16, String> {
+    let jar_path = download_suwayomi_jar_sync(app_handle.clone(), data_path.clone())?;
+    let fingerprint = verified_jar(std::path::Path::new(&jar_path))
+        .ok_or_else(|| "Verified Suwayomi JAR disappeared before startup.".to_string())?;
+    let state: State<'_, BackendState> = app_handle.state();
+    *state.verified_jar.lock().unwrap() = Some(fingerprint);
+    start_backend(app_handle.clone(), state, data_path)
+}
+
 #[tauri::command]
 fn get_portable_data_path() -> Result<String, String> {
     let exe =
@@ -962,6 +971,25 @@ pub fn run() {
                         )])
                         .build(),
                 )?;
+            }
+
+            // GitHub's Windows workers do not provide a reliable interactive
+            // WebView session. Start the same verified native backend path
+            // directly for the installed-app lifecycle test; browser journeys
+            // remain covered separately by Playwright.
+            if std::env::var("CI").is_ok_and(|value| value.eq_ignore_ascii_case("true")) {
+                if let Ok(data_path) = std::env::var("YOMIKURA_SMOKE_AUTOSTART_DATA_PATH") {
+                    let app_handle = app.handle().clone();
+                    tauri::async_runtime::spawn_blocking(move || {
+                        if let Err(error) = start_ci_smoke_backend(app_handle, data_path.clone()) {
+                            let _ = std::fs::write(
+                                std::path::Path::new(&data_path)
+                                    .join("yomikura-smoke-startup-error.log"),
+                                error,
+                            );
+                        }
+                    });
+                }
             }
 
             // Set up System Tray Menu
