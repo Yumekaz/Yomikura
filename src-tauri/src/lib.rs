@@ -44,6 +44,11 @@ const MANAGED_STORAGE_RECORD: &str = "managed-storage-path.txt";
 const BACKEND_PID_RECORD: &str = "backend.pid";
 const MAX_PAGE_DOWNLOAD_BYTES: u64 = 32 * 1024 * 1024;
 
+fn ci_smoke_autostart_enabled() -> bool {
+    std::env::var("CI").is_ok_and(|value| value.eq_ignore_ascii_case("true"))
+        && std::env::var_os("YOMIKURA_SMOKE_AUTOSTART_DATA_PATH").is_some()
+}
+
 #[tauri::command]
 async fn fetch_local_page(url: String, server_base_url: String) -> Result<DownloadedPage, String> {
     let requested =
@@ -774,6 +779,12 @@ fn stop_backend(
     app_handle: tauri::AppHandle,
     state: State<'_, BackendState>,
 ) -> Result<(), String> {
+    // React may mount and clean up its startup effect more than once in a
+    // headless WebView. During the installer smoke test, the native bootstrap
+    // owns this backend; window shutdown still performs the real cleanup.
+    if ci_smoke_autostart_enabled() {
+        return Ok(());
+    }
     let mut lock = state.backend.lock().unwrap();
     if let Some(mut backend) = lock.take() {
         if let Ok(None) = backend.child.try_wait() {
@@ -977,7 +988,7 @@ pub fn run() {
             // WebView session. Start the same verified native backend path
             // directly for the installed-app lifecycle test; browser journeys
             // remain covered separately by Playwright.
-            if std::env::var("CI").is_ok_and(|value| value.eq_ignore_ascii_case("true")) {
+            if ci_smoke_autostart_enabled() {
                 if let Ok(data_path) = std::env::var("YOMIKURA_SMOKE_AUTOSTART_DATA_PATH") {
                     let app_handle = app.handle().clone();
                     tauri::async_runtime::spawn_blocking(move || {
