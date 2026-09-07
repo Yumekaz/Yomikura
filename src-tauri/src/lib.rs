@@ -16,6 +16,14 @@ struct DownloadedPage {
 
 struct BackendState {
     backend: Mutex<Option<RunningBackend>>,
+    verified_jar: Mutex<Option<VerifiedJar>>,
+}
+
+#[derive(Clone)]
+struct VerifiedJar {
+    path: std::path::PathBuf,
+    len: u64,
+    modified: Option<std::time::SystemTime>,
 }
 
 struct RunningBackend {
@@ -133,6 +141,27 @@ fn jar_looks_valid(path: &std::path::Path) -> bool {
         && sha256_file(path)
             .map(|hash| hash == SUWAYOMI_JAR_SHA256)
             .unwrap_or(false)
+}
+
+fn verified_jar(path: &std::path::Path) -> Option<VerifiedJar> {
+    let metadata = path.metadata().ok()?;
+    Some(VerifiedJar {
+        path: path.to_path_buf(),
+        len: metadata.len(),
+        modified: metadata.modified().ok(),
+    })
+}
+
+fn verified_jar_is_unchanged(verified: &VerifiedJar, expected_path: &std::path::Path) -> bool {
+    if verified.path != expected_path {
+        return false;
+    }
+    expected_path
+        .metadata()
+        .map(|metadata| {
+            metadata.len() == verified.len && metadata.modified().ok() == verified.modified
+        })
+        .unwrap_or(false)
 }
 
 fn sha256_file(path: &std::path::Path) -> Result<String, String> {
@@ -628,7 +657,16 @@ fn start_backend(
     drop(lock);
 
     prepare_managed_storage(&app_handle, &data_dir)?;
-    let jar_path = resolve_jar_path(&app_handle, &data_dir)?;
+    let local_jar = data_dir.join(SUWAYOMI_JAR_NAME);
+    let jar_path = state
+        .verified_jar
+        .lock()
+        .unwrap()
+        .as_ref()
+        .filter(|verified| verified_jar_is_unchanged(verified, &local_jar))
+        .map(|verified| verified.path.clone())
+        .map(Ok)
+        .unwrap_or_else(|| resolve_jar_path(&app_handle, &data_dir))?;
 
     let port = get_available_port(4567);
 
@@ -803,11 +841,18 @@ fn wipe_all_data(
 #[tauri::command]
 async fn download_suwayomi_jar(
     app_handle: tauri::AppHandle,
+    state: State<'_, BackendState>,
     data_path: String,
 ) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || download_suwayomi_jar_sync(app_handle, data_path))
-        .await
-        .map_err(|e| format!("Suwayomi download task failed: {}", e))?
+    let path = tauri::async_runtime::spawn_blocking(move || {
+        download_suwayomi_jar_sync(app_handle, data_path)
+    })
+    .await
+    .map_err(|e| format!("Suwayomi download task failed: {}", e))??;
+    let fingerprint = verified_jar(std::path::Path::new(&path))
+        .ok_or_else(|| "Verified Suwayomi JAR disappeared before startup.".to_string())?;
+    *state.verified_jar.lock().unwrap() = Some(fingerprint);
+    Ok(path)
 }
 
 fn download_suwayomi_jar_sync(
@@ -889,6 +934,7 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(BackendState {
             backend: Mutex::new(None),
+            verified_jar: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             wipe_all_data,
@@ -1003,7 +1049,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::sha256_file;
+    use super::{sha256_file, verified_jar, verified_jar_is_unchanged};
 
     #[test]
     fn sha256_file_matches_known_digest() {
@@ -1024,5 +1070,24 @@ mod tests {
             digest,
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
+    }
+
+    #[test]
+    fn verified_jar_fingerprint_rejects_a_changed_file() {
+        let path = std::env::temp_dir().join(format!(
+            "yomikura-verified-jar-{}-{}.jar",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after Unix epoch")
+                .as_nanos()
+        ));
+        std::fs::write(&path, b"first").expect("test file should be writable");
+        let fingerprint = verified_jar(&path).expect("fingerprint should be captured");
+        assert!(verified_jar_is_unchanged(&fingerprint, &path));
+
+        std::fs::write(&path, b"changed-length").expect("test file should be replaceable");
+        assert!(!verified_jar_is_unchanged(&fingerprint, &path));
+        let _ = std::fs::remove_file(path);
     }
 }
