@@ -295,12 +295,25 @@ try {
       }
     }
 
-    $remaining = @($ownedProcessIds | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+    # The main window can exit before WebView2 has finished draining its child
+    # processes. Give every process that belonged to this app a short bounded
+    # grace period; this still fails if anything genuinely remains resident.
+    $childExitDeadline = [DateTime]::UtcNow.AddSeconds(15)
+    do {
+      $remaining = @($ownedProcessIds | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+      if ($remaining.Count -eq 0) { break }
+      Start-Sleep -Milliseconds 500
+    } while ([DateTime]::UtcNow -lt $childExitDeadline)
+
     if ($remaining.Count -gt 0) {
+      $remainingDetails = @($remaining | ForEach-Object {
+        $process = Get-Process -Id $_ -ErrorAction SilentlyContinue
+        if ($process) { "$($process.Id):$($process.ProcessName)" } else { "$_`:unknown" }
+      })
       foreach ($processId in $remaining) {
         Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
       }
-      throw "Owned child processes remained after application close: $($remaining -join ', ')"
+      throw "Owned child processes remained 15 seconds after application close: $($remainingDetails -join ', ')"
     }
     Write-Host "Application and owned child processes exited cleanly"
   }
