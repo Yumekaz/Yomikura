@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { compareSuwayomiVersions } from "../../api/suwayomi/version";
 import { APP_VERSION } from "../../utils/appVersion";
 
 export function TauriUpdaterRow() {
@@ -82,13 +83,19 @@ export function TauriUpdaterRow() {
 }
 
 export function SuwayomiServerUpdaterRow() {
-  const { serverBaseUrl } = useSettingsStore();
+  const { serverBaseUrl, mockMode } = useSettingsStore();
   const [checking, setChecking] = useState(false);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
   const [runningVersion, setRunningVersion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const checkServerUpdate = async () => {
+    if (mockMode) {
+      setRunningVersion("Demo sandbox");
+      setLatestVersion(null);
+      setError(null);
+      return;
+    }
     setChecking(true);
     setError(null);
     try {
@@ -110,12 +117,15 @@ export function SuwayomiServerUpdaterRow() {
     }
   };
 
-  useEffect(() => { void checkServerUpdate(); }, [serverBaseUrl]);
-  const hasUpdate = useMemo(() => Boolean(latestVersion && runningVersion && latestVersion !== runningVersion && !runningVersion.includes("dev")), [latestVersion, runningVersion]);
+  useEffect(() => { void checkServerUpdate(); }, [serverBaseUrl, mockMode]);
+  const versionComparison = useMemo(() => compareSuwayomiVersions(latestVersion, runningVersion), [latestVersion, runningVersion]);
+  const hasUpdate = versionComparison === 1;
+  const runningPreview = versionComparison === -1;
 
   return <div className="flex flex-col gap-3 rounded-xl border border-white/5 bg-ink-950/30 p-5">
-    <div className="flex items-center justify-between"><div><span className="font-semibold text-sm text-slate-200">Suwayomi Server Engine</span><p className="text-xs text-slate-500 mt-1">Running: {runningVersion || "Checking..."} | Latest: {latestVersion || "Checking..."}</p></div><button onClick={() => void checkServerUpdate()} disabled={checking} className="rounded-lg bg-yomi-jade/10 border border-yomi-jade/20 hover:bg-yomi-jade/20 px-3 py-1.5 text-xs font-semibold text-yomi-jade transition disabled:opacity-50">{checking ? "Checking..." : "Check"}</button></div>
+    <div className="flex items-center justify-between gap-4"><div><span className="font-semibold text-sm text-slate-200">Suwayomi Server Engine</span><p className="text-xs text-slate-500 mt-1">{mockMode ? "No live server is contacted in Demo Sandbox." : `Running: ${runningVersion || "Checking..."} · Latest stable: ${latestVersion || "Checking..."}`}</p></div>{!mockMode && <button onClick={() => void checkServerUpdate()} disabled={checking} className="rounded-lg bg-yomi-jade/10 border border-yomi-jade/20 hover:bg-yomi-jade/20 px-3 py-1.5 text-xs font-semibold text-yomi-jade transition disabled:opacity-50">{checking ? "Checking..." : "Check"}</button>}</div>
     {hasUpdate && <div className="rounded-lg bg-yomi-jade/10 border border-yomi-jade/20 p-3 flex flex-col sm:flex-row items-center justify-between gap-3 animate-pulse"><span className="text-xs text-yomi-mint font-semibold">Update available! Version {latestVersion} is out.</span><a href="https://github.com/Suwayomi/Suwayomi-Server/releases/latest" target="_blank" rel="noreferrer" className="rounded bg-yomi-jade text-ink-950 px-3 py-1 text-xs font-bold hover:bg-yomi-jade/90 transition shrink-0">Download Release</a></div>}
+    {runningPreview && <p className="text-xs text-amber-300">This server is newer than the latest stable release. Treat it as a preview build and create a backup before upgrading again.</p>}
     {error && <span className="text-xs text-red-400" role="alert">Failed to check server updates: {error}</span>}
   </div>;
 }

@@ -7,6 +7,7 @@ import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
 import { ChapterOrderBy, SortOrder } from "../../api/graphql/generated/graphql";
 import { useTranslation } from "../../hooks/useTranslation";
+import { formatChapterDate, parseChapterTimestamp } from "../manga/chapterDate";
 
 interface UpdateItem {
   id: string;
@@ -65,9 +66,8 @@ export default function UpdatesPage() {
     const startOfWeek = startOfToday - 7 * 24 * 60 * 60 * 1000;
 
     updates.forEach((item) => {
-      const rawTime = parseInt(item.uploadDate);
-      const time = !isNaN(rawTime) && rawTime < 30000000000 ? rawTime * 1000 : rawTime;
-      if (isNaN(time)) {
+      const time = parseChapterTimestamp(item.uploadDate);
+      if (time === null) {
         const key = "Unknown Date";
         if (!groups[key]) groups[key] = [];
         groups[key].push(item);
@@ -180,7 +180,7 @@ export default function UpdatesPage() {
                           {item.manga.title}
                         </Link>
                         <p>{item.name}</p>
-                        <small>{new Date(parseInt(item.uploadDate) < 30000000000 ? parseInt(item.uploadDate) * 1000 : parseInt(item.uploadDate)).toLocaleDateString()}</small>
+                        <small>{formatChapterDate(item.uploadDate)}</small>
                       </div>
 
                       <div className="yomi-row-actions">

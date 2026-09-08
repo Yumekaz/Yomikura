@@ -66,7 +66,7 @@ test("downloads combines offline files and server activity", async ({ page }) =>
   await page.getByRole("link", { name: "Downloads", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Downloads", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Saved chapters", exact: true })).toBeVisible();
-  await expect(page.getByText(/Downloader is (working|paused)/i)).toBeVisible();
+  await expect(page.getByText(/Server queue is clear|Downloader is (working|paused)/i)).toBeVisible();
 });
 
 test("dangerous settings actions use an accessible, cancellable dialog", async ({ page }) => {
@@ -106,6 +106,14 @@ test("manga details renders valid dates without horizontal overflow", async ({ p
   await expect(page.getByText("1/1/1970", { exact: true })).toHaveCount(0);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test("updates accepts ISO chapter dates without showing 1970", async ({ page }) => {
+  await enterDemo(page);
+  await page.goto("/updates");
+  await expect(page.getByRole("heading", { name: "Updates" })).toBeVisible();
+  await expect(page.getByText("1/1/1970")).toHaveCount(0);
+  await expect(page.getByText("Chapter 1: The Journey Begins")).toBeVisible();
 });
 
 test("settings search opens an addressable section", async ({ page }) => {

@@ -358,6 +358,13 @@ html.reduce-motion *::after {
 .yomi-settings-tabs button.is-active { color: var(--text-strong); background: var(--ink-800); box-shadow: 0 1px 0 rgba(255,255,255,.04); }
 .yomi-settings-tabs button:active { transform: scale(.97); }
 .yomi-settings > .grid > div > div > div.rounded-md { border-color: var(--line); border-radius: 16px; background: var(--ink-900); box-shadow: 0 20px 60px -48px rgba(0,0,0,.9); }
+.yomi-settings-status { display: grid; grid-template-columns: auto repeat(3, minmax(0, 1fr)); align-items: center; gap: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; color: var(--text); background: rgba(var(--surface-rgb), .72); }
+.yomi-settings-status-title, .yomi-settings-status-item { min-width: 0; padding: 11px 14px; }
+.yomi-settings-status-title { display: flex; align-items: center; gap: 8px; color: var(--text-strong); font-size: 12px; font-weight: 700; }
+.yomi-settings-status-title svg { color: rgb(var(--yomi-signature)); }
+.yomi-settings-status-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-left: 1px solid var(--line); font-size: 12px; }
+.yomi-settings-status-item > span { color: var(--text-muted); }
+.yomi-settings-status-item > strong { min-width: 0; color: var(--text-strong); font-weight: 650; }
 .yomi-skeleton { display: block; min-height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--ink-850), var(--ink-800), var(--ink-850)); background-size: 200% 100%; animation: yomi-skeleton 1.2s linear infinite; }
 .yomi-route-loading { display: grid; gap: 24px; width: min(100%, 1120px); margin: 0 auto; padding: 44px clamp(24px, 4vw, 56px); }
 @keyframes yomi-skeleton { to { background-position: -200% 0; } }
@@ -406,6 +413,11 @@ html.reduce-motion *::after {
   .yomi-history-row { grid-template-columns: 54px minmax(0, 1fr); padding: 12px; }
   .yomi-history-cover { width: 48px; height: 68px; }
   .yomi-history-actions { display: none; }
+  .yomi-settings-status { grid-template-columns: 1fr 1fr; }
+  .yomi-settings-status-title { grid-column: 1 / -1; border-bottom: 1px solid var(--line); }
+  .yomi-settings-status-item { border-left: 0; border-top: 1px solid var(--line); }
+  .yomi-settings-status-item:nth-child(even) { border-right: 1px solid var(--line); }
+  .yomi-settings-status-item:last-child { grid-column: 1 / -1; border-right: 0; }
 }
 
 /* Product surfaces used by operational desktop routes ------------------- */

@@ -17,6 +17,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
+import { performVerifiedExtensionAction } from "./extensionLifecycle";
 
 type ExtensionAction = {
   pkgName: string;
@@ -98,33 +99,27 @@ export default function ExtensionsPage() {
 
   const { mutate: toggleInstall } = useMutation({
     mutationFn: ({ pkgName, action }: ExtensionAction) =>
-      sdk.ToggleExtensionInstall({
-        input: {
-          id: pkgName,
-          patch:
-            action === "install"
-              ? { install: true }
-              : action === "uninstall"
-                ? { uninstall: true }
-                : { update: true }
-        }
-      }),
+      performVerifiedExtensionAction(sdk, pkgName, action),
     onMutate: ({ pkgName }) => {
       markExtensionBusy(pkgName, true);
       setStatusMessage(null);
     },
     onSuccess: (result, variables) => {
-      const isInstalled = result.updateExtension?.extension?.isInstalled ?? (variables.action !== "uninstall");
+      const isInstalled = result.extension?.isInstalled ?? (variables.action !== "uninstall");
       setStatusMessage({
-        kind: "success",
+        kind: result.recovered ? "error" : "success",
         title:
-          variables.action === "update"
+          result.recovered
+            ? "Update failed; extension recovered"
+            : variables.action === "update"
             ? "Extension updated"
             : isInstalled
               ? "Extension installed"
               : "Extension uninstalled",
         detail:
-          variables.action === "update"
+          result.recovered
+            ? `${variables.name} was removed during the failed update, so Yomikura reinstalled it. Verify the source before continuing.`
+            : variables.action === "update"
             ? `${variables.name} has been updated to the latest version.`
             : `${variables.name} ${isInstalled ? "is available in Browse." : "was removed from this Suwayomi server."}`,
       });
@@ -157,23 +152,33 @@ export default function ExtensionsPage() {
   );
 
   const { mutate: updateAllExtensions, isPending: updatingAll } = useMutation({
-    mutationFn: () =>
-      sdk.UpdateExtensions({
-        input: {
-          ids: outdatedExtensions.map((ext) => ext.pkgName),
-          patch: { update: true },
-        },
-      }),
+    mutationFn: async () => {
+      const failures: string[] = [];
+      const recovered: string[] = [];
+      let updated = 0;
+      for (const extension of outdatedExtensions) {
+        try {
+          const result = await performVerifiedExtensionAction(sdk, extension.pkgName, "update");
+          if (result.recovered) recovered.push(extension.name);
+          else updated += 1;
+        } catch {
+          failures.push(extension.name);
+        }
+      }
+      return { failures, recovered, updated };
+    },
     onMutate: () => {
       setStatusMessage(null);
       outdatedExtensions.forEach((ext) => markExtensionBusy(ext.pkgName, true));
     },
     onSuccess: (result) => {
-      const count = result.updateExtensions?.extensions?.length ?? outdatedExtensions.length;
+      const hasProblems = result.failures.length > 0 || result.recovered.length > 0;
       setStatusMessage({
-        kind: "success",
-        title: "Extensions updated",
-        detail: `${count} extension${count === 1 ? "" : "s"} updated. Your library and sources are unchanged.`,
+        kind: hasProblems ? "error" : "success",
+        title: hasProblems ? "Extension updates need attention" : "Extensions updated",
+        detail: hasProblems
+          ? `${result.updated} updated; ${result.recovered.length} recovered after an unsafe server failure; ${result.failures.length} could not be verified. Installed sources were checked after every operation.`
+          : `${result.updated} extension${result.updated === 1 ? "" : "s"} updated and verified individually.`,
       });
       invalidateExtensionData();
     },

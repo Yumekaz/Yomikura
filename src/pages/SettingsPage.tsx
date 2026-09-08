@@ -409,7 +409,9 @@ function SettingsPage() {
           ))}
         </div>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="mt-4"><SettingsStatusPanel connectionStatus={connectionStatus} mockMode={mockMode} /></div>
+
+      <div className="mt-6">
         {/* Main Content Area based on active tab */}
         <div className="space-y-6">
           {activeTab === "connection" && (
@@ -693,8 +695,6 @@ function SettingsPage() {
           {activeTab === "about" && <AboutSettingsPanel />}
         </div>
 
-        {/* Sidebar Info Panel */}
-        <div className="space-y-4"><SettingsStatusPanel connectionStatus={connectionStatus} mockMode={mockMode} /></div>
       </div>
     </section>
   );

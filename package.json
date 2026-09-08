@@ -15,6 +15,7 @@
     "check:bundle": "node scripts/check-build-budget.mjs",
     "check:version": "node scripts/check-version-sync.mjs",
     "check:tag": "node scripts/check-release-tag.mjs",
+    "check:suwayomi": "node scripts/check-suwayomi-upstream.mjs",
     "verify:release": "pnpm run check:version && pnpm run typecheck && pnpm test && pnpm run build && pnpm run check:bundle",
     "codegen": "graphql-codegen --config codegen.ts"
   },

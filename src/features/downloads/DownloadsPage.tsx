@@ -124,7 +124,7 @@ export default function DownloadsPage() {
     <div className="yomi-workspace space-y-7">
       <div className="yomi-workspace-head">
         <div><span className="yomi-eyebrow">Offline reading</span><h1 className="yomi-workspace-title"><Download />Downloads</h1><p className="yomi-workspace-subtitle">Saved chapters and server activity, together in one workspace.</p></div>
-        <div className="flex items-center gap-2 shrink-0">
+        {queue.length > 0 && <div className="flex items-center gap-2 shrink-0">
           {downloaderState === "STARTED" ? (
             <button
               onClick={() => stopDownloader()}
@@ -155,14 +155,14 @@ export default function DownloadsPage() {
           >
             Clear queue
           </button>
-        </div>
+        </div>}
       </div>
 
       <SavedDownloads chapters={cachedChapters} activeDownloads={activeDownloads} onCancel={cancelDownload} onRetry={retryDownload} onDelete={async (chapter) => { if (await confirm({ title: "Remove saved chapter?", detail: `Delete the offline pages for “${chapter.name}”?`, confirmLabel: "Remove download", danger: true })) await deleteChapter(chapter.id); }} />
 
       <div className="yomi-commandbar">
         <div className="yomi-commandbar-copy"><span className={`status ${downloaderState === "STARTED" ? "" : "is-idle"}`} />
-          <div><strong>{downloaderState === "STARTED" ? "Downloader is working" : "Downloader is paused"}</strong><span>Suwayomi queue · {queue.length} item{queue.length === 1 ? "" : "s"}</span></div>
+          <div><strong>{queue.length === 0 ? "Server queue is clear" : downloaderState === "STARTED" ? "Downloader is working" : "Downloader is paused"}</strong><span>{queue.length === 0 ? "New server-managed downloads will start here." : `Suwayomi queue · ${queue.length} item${queue.length === 1 ? "" : "s"}`}</span></div>
         </div>
         <span className={`yomi-chip ${downloaderState === "STARTED" ? "is-live" : ""}`}>{downloaderState}</span>
       </div>

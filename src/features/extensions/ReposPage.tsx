@@ -1,11 +1,11 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CheckCircle2, Loader2, Plus, Trash2, Github, AlertCircle, ShieldCheck } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
-import { validateExtensionRepositoryUrl } from "./extensionRepo";
+import { getRepositorySnapshot, saveRepositorySnapshot, validateExtensionRepositoryUrl } from "./extensionRepo";
 
 // Suwayomi 2.3 migrates the old repository setting to Mihon's extension-store
 // format. The minified legacy index now contains only compatibility notices.
@@ -30,9 +30,15 @@ export default function ReposPage() {
   });
 
   const repos = data?.settings?.extensionRepos || [];
+  const repositorySnapshot = useMemo(() => getRepositorySnapshot(localStorage, serverBaseUrl), [serverBaseUrl, data]);
+
+  useEffect(() => {
+    if (repos.length > 0) saveRepositorySnapshot(localStorage, serverBaseUrl, repos);
+  }, [repos, serverBaseUrl]);
 
   const { mutate: updateRepos, isPending: updating } = useMutation({
     mutationFn: async (newRepos: string[]) => {
+      saveRepositorySnapshot(localStorage, serverBaseUrl, repos);
       // Set the repos in settings
       await sdk.SetExtensionRepos({
         input: {
@@ -101,6 +107,16 @@ export default function ReposPage() {
           {statusMessage.kind === "error" ? <AlertCircle className="h-5 w-5 shrink-0" /> : <CheckCircle2 className="h-5 w-5 shrink-0" />}
           <span>{statusMessage.text}</span>
         </div>}
+        {repos.length === 0 && repositorySnapshot && repositorySnapshot.repositories.length > 0 && (
+          <div className="yomi-alert border-amber-400/25 bg-amber-400/10">
+            <AlertCircle className="h-5 w-5 shrink-0 text-amber-300" />
+            <div className="min-w-0 flex-1">
+              <strong className="block text-amber-100">Repository settings may have been lost during a server upgrade</strong>
+              <p className="mt-1 text-slate-300">Yomikura saved {repositorySnapshot.repositories.length} previous {repositorySnapshot.repositories.length === 1 ? "repository" : "repositories"} for this server.</p>
+            </div>
+            <button type="button" className="yomi-button yomi-button-secondary shrink-0" disabled={updating} onClick={() => updateRepos(repositorySnapshot.repositories)}>Restore</button>
+          </div>
+        )}
         {/* Preset Button */}
         {!repos.includes(KEIYOUSHI_URL) && (
           <div className="yomi-commandbar p-5 flex-col sm:flex-row">
