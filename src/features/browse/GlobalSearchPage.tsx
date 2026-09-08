@@ -64,7 +64,7 @@ function MangaCard({ manga, serverBaseUrl }: { manga: MangaSearchResult; serverB
           {manga.title}
         </span>
         {manga.inLibrary && (
-          <span className="mt-1 inline-flex w-fit items-center rounded bg-yomi-jade/10 border border-yomi-jade/20 px-1 py-0.5 text-[9px] font-bold text-yomi-jade">
+          <span className="mt-1 inline-flex w-fit items-center rounded bg-yomi-jade/10 border border-yomi-jade/20 px-1 py-0.5 text-xs font-bold text-yomi-jade">
             In Library
           </span>
         )}
@@ -139,7 +139,7 @@ function GlobalSourceSearchResults({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm font-bold text-slate-200">{source.name}</span>
-          <span className="text-[9px] text-yomi-mint font-bold uppercase px-1.5 py-0.5 rounded bg-white/5">
+          <span className="text-xs text-yomi-mint font-bold uppercase px-1.5 py-0.5 rounded bg-white/5">
             {source.lang === "localsourcelang" ? "Local" : source.lang.toUpperCase()}
           </span>
         </div>
@@ -388,7 +388,7 @@ export default function GlobalSearchPage() {
                         <button
                           type="button"
                           onClick={() => setSelectedSourceIds([])}
-                          className="text-[10px] text-yomi-jade hover:underline font-bold"
+                          className="text-xs text-yomi-jade hover:underline font-bold"
                         >
                           Reset
                         </button>
@@ -398,7 +398,7 @@ export default function GlobalSearchPage() {
                         placeholder="Search sources..."
                         value={sourceSearchInput}
                         onChange={(e) => setSourceSearchInput(e.target.value)}
-                        className="w-full rounded-lg bg-ink-950 border border-white/10 px-2.5 py-1.5 text-[11px] text-slate-200 outline-none focus:border-yomi-jade/40"
+                        className="w-full rounded-lg bg-ink-950 border border-white/10 px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-yomi-jade/40"
                       />
                       <div className="max-h-48 overflow-y-auto space-y-1 scrollbar-thin">
                         {sources
@@ -420,7 +420,7 @@ export default function GlobalSearchPage() {
                                   className="rounded border-white/15 bg-ink-950 text-yomi-jade focus:ring-0 h-3.5 w-3.5"
                                 />
                                 <span className="truncate flex-1">{source.name}</span>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase">{source.lang === "localsourcelang" ? "Local" : source.lang}</span>
+                                <span className="text-xs font-bold text-slate-500 uppercase">{source.lang === "localsourcelang" ? "Local" : source.lang}</span>
                               </label>
                             );
                           })}

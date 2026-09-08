@@ -175,7 +175,7 @@ export function TrackerPanel({ mangaId }: TrackerPanelProps) {
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[10px] text-slate-400 pb-1">Status</label>
+                          <label className="block text-xs text-slate-400 pb-1">Status</label>
                           <select
                             value={status}
                             onChange={(e) => setStatus(parseInt(e.target.value))}
@@ -189,7 +189,7 @@ export function TrackerPanel({ mangaId }: TrackerPanelProps) {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-[10px] text-slate-400 pb-1">Score</label>
+                          <label className="block text-xs text-slate-400 pb-1">Score</label>
                           <select
                             value={score}
                             onChange={(e) => setScore(e.target.value)}
@@ -207,7 +207,7 @@ export function TrackerPanel({ mangaId }: TrackerPanelProps) {
 
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex-1">
-                          <label className="block text-[10px] text-slate-400 pb-1">Chapters Read</label>
+                          <label className="block text-xs text-slate-400 pb-1">Chapters Read</label>
                           <div className="flex items-center gap-1.5">
                             <input
                               type="number"

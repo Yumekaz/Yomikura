@@ -129,7 +129,7 @@ export default function SourcesPage() {
                   <Pin className="h-4 w-4 text-yomi-jade shrink-0" />
                   <div className="flex flex-col flex-1 overflow-hidden">
                     <span className="font-semibold text-slate-200 truncate text-sm">{s.name}</span>
-                    <span className="text-[10px] text-slate-500 truncate">Query: "{s.query}"</span>
+                    <span className="text-xs text-slate-500 truncate">Query: "{s.query}"</span>
                   </div>
                 </Link>
                 <button
@@ -180,7 +180,7 @@ export default function SourcesPage() {
                     <strong>{source.name}</strong>
                     <div className="flex items-center gap-2">
                       {source.supportsLatest && (
-                        <span className="text-[10px] text-yomi-jade font-semibold">Supports Latest</span>
+                        <span className="text-xs text-yomi-jade font-semibold">Supports Latest</span>
                       )}
                     </div>
                   </div>

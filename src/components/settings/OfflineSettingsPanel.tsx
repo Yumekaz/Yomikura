@@ -50,7 +50,7 @@ export function OfflineSettingsPanel({
               style={{ width: `${Math.min(100, Math.max(1, storageQuota ? (storageUsage / storageQuota) * 100 : 0))}%` }}
             />
           </div>
-          <div className="flex justify-between text-[10px] text-slate-500 mt-1.5 font-medium">
+          <div className="flex justify-between text-xs text-slate-500 mt-1.5 font-medium">
             <span>Used: {storageQuota ? ((storageUsage / storageQuota) * 100).toFixed(2) : "0"}%</span>
             <span>Capacity: {formatBytes(storageQuota)}</span>
           </div>
@@ -91,7 +91,7 @@ export function OfflineSettingsPanel({
                 <div className="min-w-0 flex-1">
                   <h4 className="text-sm font-semibold text-slate-200 truncate">{chapter.mangaTitle}</h4>
                   <p className="text-xs text-slate-400 truncate mt-0.5">{chapter.name}</p>
-                  <div className="flex gap-2 text-[10px] text-slate-500 mt-1 font-medium">
+                  <div className="flex gap-2 text-xs text-slate-500 mt-1 font-medium">
                     <span>{chapter.pageCount} Pages</span>
                     <span>•</span>
                     <span>{formatBytes(chapter.totalSizeBytes)}</span>

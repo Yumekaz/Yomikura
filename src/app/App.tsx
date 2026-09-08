@@ -73,6 +73,7 @@ function App() {
             path="/manga/:mangaId"
             element={<MangaDetailPage />}
           />
+          <Route path="/settings/:section" element={<SettingsPage />} />
           <Route path="/browse/:sourceId" element={<SourceBrowsePage />} />
           <Route path="/browse/source/:sourceId/settings" element={<SourcePrefsPage />} />
           <Route path="/extensions/repos" element={<ReposPage />} />

@@ -14,9 +14,9 @@ const mockImpl: any = {
   async GetCategories() {
     return {
       categories: {
-        edges: [
-          { node: { id: 1, name: "Default", order: 1 } },
-          { node: { id: 2, name: "Favorites", order: 2 } },
+        nodes: [
+          { id: 1, name: "Default", order: 1 },
+          { id: 2, name: "Favorites", order: 2 },
         ],
       },
     };
@@ -26,26 +26,24 @@ const mockImpl: any = {
     return {
       mangas: {
         pageInfo: { hasNextPage: false, endCursor: null },
-        edges: [
+        nodes: [
           {
-            node: {
-              id: 10001,
-              title: "[Demo] Sita's Sister",
-              thumbnailUrl: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300",
-              unreadCount: 3,
-              downloadCount: 0,
-              categories: { edges: [{ node: { id: 1 } }] },
-            },
+            id: 10001,
+            title: "[Demo] Sita's Sister",
+            thumbnailUrl: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300",
+            unreadCount: 3,
+            downloadCount: 0,
+            lastReadChapter: null,
+            categories: { nodes: [{ id: 1 }] },
           },
           {
-            node: {
-              id: 10002,
-              title: "[Demo] Pepper & Carrot",
-              thumbnailUrl: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300",
-              unreadCount: 5,
-              downloadCount: 0,
-              categories: { edges: [{ node: { id: 1 } }] },
-            },
+            id: 10002,
+            title: "[Demo] Pepper & Carrot",
+            thumbnailUrl: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300",
+            unreadCount: 5,
+            downloadCount: 0,
+            lastReadChapter: { id: 20002 },
+            categories: { nodes: [{ id: 1 }] },
           },
         ],
       },

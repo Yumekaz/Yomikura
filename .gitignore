@@ -13,3 +13,5 @@ suwayomi-server/
 .yomi-local-publish-*
 .cache/
 temp/
+test-results/
+playwright-report/

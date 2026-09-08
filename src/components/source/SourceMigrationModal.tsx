@@ -157,7 +157,7 @@ export function SourceMigrationModal({
         <div className="flex items-center justify-between border-b border-white/5 pb-4 shrink-0">
           <div className="flex flex-col">
             <h2 className="text-base font-bold text-white">Source Migration</h2>
-            <p className="text-[11px] text-slate-500">Migrating: "{mangaTitle}" ({sourceName})</p>
+            <p className="text-xs text-slate-500">Migrating: "{mangaTitle}" ({sourceName})</p>
           </div>
           <button
             onClick={onClose}
@@ -247,7 +247,7 @@ export function SourceMigrationModal({
                     />
                     <div className="flex flex-col min-w-0">
                       <span className="text-xs font-bold text-slate-200 truncate">{m.title}</span>
-                      <span className="text-[10px] text-slate-500">ID: {m.id}</span>
+                      <span className="text-xs text-slate-500">ID: {m.id}</span>
                     </div>
                   </button>
                 ))}
@@ -265,7 +265,7 @@ export function SourceMigrationModal({
             <div className="flex flex-col items-center justify-center py-10 text-center gap-3">
               <Loader2 className="h-8 w-8 animate-spin text-yomi-jade" />
               <span className="text-xs font-semibold text-slate-300">Migrating library progress...</span>
-              <p className="text-[10px] text-slate-500 max-w-xs leading-normal">
+              <p className="text-xs text-slate-500 max-w-xs leading-normal">
                 Adding "{targetManga?.title}" to library, fetching target chapters, matching reading history, and pruning source manga entry.
               </p>
             </div>

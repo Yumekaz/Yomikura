@@ -26,7 +26,7 @@ export function ExtensionHealthPanel() {
 
   if (connectionStatus !== "connected") {
     return (
-      <p className="text-xs text-slate-500">Connect to Suwayomi to view extension health.</p>
+      <p className="text-xs text-slate-400">Connect to Suwayomi to view extension health.</p>
     );
   }
 
@@ -45,18 +45,18 @@ export function ExtensionHealthPanel() {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
+      <div className="grid grid-cols-3 gap-2 text-center text-xs">
         <div className="rounded-lg border border-white/5 bg-ink-950/40 p-3">
           <p className="text-lg font-bold text-yomi-jade">{healthy.length}</p>
-          <p className="text-slate-500">Healthy</p>
+          <p className="text-slate-400">Healthy</p>
         </div>
         <div className="rounded-lg border border-white/5 bg-ink-950/40 p-3">
           <p className="text-lg font-bold text-amber-300">{outdated.length}</p>
-          <p className="text-slate-500">Updates</p>
+          <p className="text-slate-400">Updates</p>
         </div>
         <div className="rounded-lg border border-white/5 bg-ink-950/40 p-3">
           <p className="text-lg font-bold text-red-400">{broken.length}</p>
-          <p className="text-slate-500">Obsolete</p>
+          <p className="text-slate-400">Obsolete</p>
         </div>
       </div>
 
@@ -82,7 +82,7 @@ export function ExtensionHealthPanel() {
       )}
 
       {extensions.length === 0 && (
-        <p className="flex items-center gap-1.5 text-xs text-slate-500">
+        <p className="flex items-center gap-1.5 text-xs text-slate-400">
           <CheckCircle2 className="h-4 w-4 text-yomi-jade" />
           No extensions installed yet.
         </p>

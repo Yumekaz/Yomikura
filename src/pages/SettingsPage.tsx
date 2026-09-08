@@ -8,37 +8,33 @@ import {
   Activity,
   Upload,
   Download,
-  BookOpen,
   Layout,
   Plus,
   Trash2,
   Edit2,
   Server,
   AlertCircle,
-  Palette,
-  Sliders,
-  Sun,
-  Moon,
-  Monitor,
-  Globe,
 } from "lucide-react";
-import { useSettingsStore, ReaderMode, ServerProfile, isTauri, SettingsProfile } from "../stores/useSettingsStore";
+import { useSettingsStore, ServerProfile } from "../stores/useSettingsStore";
 import { createGraphqlClient } from "../api/graphql/client";
 import { getErrorMessage } from "../api/suwayomi/errors";
 import { useDownloadStore } from "../stores/useDownloadStore";
-import { DuplicateScanner } from "../components/library/DuplicateScanner";
-import { LocalImportSection } from "../components/library/LocalImportSection";
 import { useTranslation } from "../hooks/useTranslation";
-import { ExtensionHealthPanel } from "../components/ExtensionHealthPanel";
-import { OpdsPanel } from "../components/settings/OpdsPanel";
-import { TrackerSettingsPanel } from "../components/settings/TrackerSettingsPanel";
 import { AboutSettingsPanel } from "../components/settings/AboutSettingsPanel";
 import { SettingsStatusPanel } from "../components/settings/SettingsStatusPanel";
 import { OfflineSettingsPanel } from "../components/settings/OfflineSettingsPanel";
 import { BackupSettingsPanel } from "../components/settings/BackupSettingsPanel";
 import { useFeedback } from "../components/ui/FeedbackProvider";
+import { useNavigate, useParams } from "react-router-dom";
+import { SettingsSearch, type SettingsSection } from "../components/settings/SettingsSearch";
+import { AdvancedSettingsPanel } from "../components/settings/AdvancedSettingsPanel";
+import { AppearanceSettingsPanel } from "../components/settings/AppearanceSettingsPanel";
+import { ReaderSettingsPanel } from "../components/settings/ReaderSettingsPanel";
+import { validateBackupFile } from "../components/settings/backupValidation";
+import { fetchAllLibrary } from "../api/library/fetchAllLibrary";
 
-type SettingsTab = "connection" | "appearance" | "reader" | "backup" | "offline" | "advanced" | "about";
+type SettingsTab = SettingsSection;
+const SETTINGS_TABS: SettingsTab[] = ["connection", "appearance", "reader", "backup", "offline", "advanced", "about"];
 
 const RESTORE_BACKUP_UPLOAD_QUERY = `
   mutation RestoreBackup($input: RestoreBackupInput!) {
@@ -84,6 +80,8 @@ async function restoreBackupUpload(endpoint: string, file: File) {
 }
 
 function SettingsPage() {
+  const navigate = useNavigate();
+  const { section } = useParams<{ section?: string }>();
   const { t } = useTranslation();
   const { confirm, notify } = useFeedback();
   const {
@@ -92,50 +90,13 @@ function SettingsPage() {
     testConnection,
     connectionStatus,
     errorMessage,
-    readerMode,
-    setReaderMode,
-    fitMode,
-    pageSpread,
     profiles,
     activeProfileId,
     addProfile,
     updateProfile,
     deleteProfile,
     setActiveProfileId,
-    accentColor,
-    setAccentColor,
-    coverDensity,
-    setCoverDensity,
-    themeMode,
-    setThemeMode,
     mockMode,
-    setMockMode,
-    resetAllSettings,
-    serverDataPath,
-    customKeybinds,
-    setCustomKeybinds,
-    language,
-    setLanguage,
-    autoDeleteReadChapters,
-    setAutoDeleteReadChapters,
-    settingsProfiles,
-    addSettingsProfile,
-    deleteSettingsProfile,
-    applySettingsProfile,
-    pageTransition,
-    setPageTransition,
-    autoDownloadCount,
-    setAutoDownloadCount,
-    highContrastMode,
-    setHighContrastMode,
-    reducedMotion,
-    setReducedMotion,
-    infiniteChapterReading,
-    setInfiniteChapterReading,
-    coverDynamicTheme,
-    setCoverDynamicTheme,
-    portableMode,
-    setPortableMode,
   } = useSettingsStore();
 
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
@@ -143,12 +104,18 @@ function SettingsPage() {
   const [profileUrlInput, setProfileUrlInput] = useState("");
   const [isAddingNew, setIsAddingNew] = useState(false);
 
-  const [settingsProfileNameInput, setSettingsProfileNameInput] = useState("");
-  const [isAddingSettingsProfile, setIsAddingSettingsProfile] = useState(false);
 
   const [localUrl, setLocalUrl] = useState(serverBaseUrl);
-  const [activeTab, setActiveTab] = useState<SettingsTab>("connection");
+  const routeTab = SETTINGS_TABS.includes(section as SettingsTab) ? section as SettingsTab : "connection";
+  const [activeTab, setActiveTab] = useState<SettingsTab>(routeTab);
   const [backupMessage, setBackupMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => setActiveTab(routeTab), [routeTab]);
+
+  const selectSettingsTab = (tab: SettingsTab) => {
+    setActiveTab(tab);
+    navigate(tab === "connection" ? "/settings" : `/settings/${tab}`);
+  };
   
   const { 
     cachedChapters, 
@@ -158,48 +125,6 @@ function SettingsPage() {
     storageUsage, 
     storageQuota 
   } = useDownloadStore();
-
-  const [recordingAction, setRecordingAction] = useState<string | null>(null);
-
-  const startRecording = (action: string) => {
-    setRecordingAction(action);
-  };
-
-  useEffect(() => {
-    if (!recordingAction) return;
-
-    const handleKeyRecord = (e: KeyboardEvent) => {
-      e.preventDefault();
-      const key = e.key.toLowerCase();
-      
-      const newKeybinds = { ...customKeybinds };
-      const currentKeys = newKeybinds[recordingAction] || [];
-      if (!currentKeys.includes(key)) {
-        newKeybinds[recordingAction] = [...currentKeys, key];
-        setCustomKeybinds(newKeybinds);
-      }
-      setRecordingAction(null);
-    };
-
-    window.addEventListener("keydown", handleKeyRecord);
-    return () => window.removeEventListener("keydown", handleKeyRecord);
-  }, [recordingAction, customKeybinds, setCustomKeybinds]);
-
-  const handleRemoveKey = (action: string, keyToRemove: string) => {
-    const newKeybinds = { ...customKeybinds };
-    newKeybinds[action] = (newKeybinds[action] || []).filter(k => k !== keyToRemove);
-    setCustomKeybinds(newKeybinds);
-  };
-
-  const handleResetKeybinds = () => {
-    setCustomKeybinds({
-      prevPage: ["arrowleft", "a", "backspace"],
-      nextPage: ["arrowright", "d", " ", "enter"],
-      toggleOverlay: ["escape"],
-      cycleFit: ["w"],
-      cycleSpread: ["s"]
-    });
-  };
 
   useEffect(() => {
     void loadCachedChapters();
@@ -336,13 +261,45 @@ function SettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const confirmRestore = await confirm({ title: "Restore this backup?", detail: "Your current library, history, and categories will be overwritten. This cannot be undone.", confirmLabel: "Restore backup", danger: true });
+    const validationError = await validateBackupFile(file);
+    if (validationError) {
+      setBackupMessage({ kind: "error", text: validationError });
+      e.target.value = "";
+      return;
+    }
+
+    const confirmRestore = await confirm({ title: "Restore this backup?", detail: "Yomikura will first ask Suwayomi to create a safety backup, then restore this file. Library, history, and categories may change.", confirmLabel: "Back up and restore", danger: true });
 
     if (confirmRestore) {
-      restoreBackup(file);
+      setBackupMessage({ kind: "success", text: "Creating a safety backup before restore…" });
+      try {
+        const safety = await sdk.CreateBackup({ input: {} });
+        if (!safety.createBackup?.url) throw new Error("Suwayomi did not confirm the safety backup.");
+        restoreBackup(file);
+      } catch (error) {
+        setBackupMessage({ kind: "error", text: `Restore stopped because a safety backup could not be created: ${getErrorMessage(error)}` });
+      }
     }
     // Reset file input
     e.target.value = "";
+  };
+
+  const exportLibraryCsv = async () => {
+    try {
+      const mangas = await fetchAllLibrary(sdk, { inLibrary: { equalTo: true } });
+      const escape = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+      const rows = [["Title", "Unread chapters", "Downloaded chapters"], ...mangas.filter(Boolean).map((manga) => [manga!.title, manga!.unreadCount, manga!.downloadCount])];
+      const blob = new Blob([rows.map((row) => row.map(escape).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `yomikura-library-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      notify(`${mangas.length} library titles exported.`, "success");
+    } catch (error) {
+      notify(`Library export failed: ${getErrorMessage(error)}`, "error");
+    }
   };
 
   const handleExportProfiles = () => {
@@ -433,13 +390,14 @@ function SettingsPage() {
           <h1>Settings</h1>
           <p>Reader preferences, storage, and server controls.</p>
         </div>
+        <SettingsSearch onSelect={selectSettingsTab} />
       </header>
 
         <div className="yomi-settings-tabs">
-          {(["connection", "appearance", "reader", "backup", "offline", "advanced", "about"] as SettingsTab[]).map((tab) => (
+          {SETTINGS_TABS.map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => selectSettingsTab(tab)}
               className={` ${
                 activeTab === tab
                   ? "is-active"
@@ -491,7 +449,7 @@ function SettingsPage() {
 
                         <div className="flex items-center gap-2 shrink-0 sm:justify-end">
                           {isActive ? (
-                            <span className="rounded bg-yomi-jade/10 border border-yomi-jade/20 px-2 py-0.5 text-[10px] font-bold text-yomi-jade uppercase tracking-wider">
+                            <span className="rounded bg-yomi-jade/10 border border-yomi-jade/20 px-2 py-0.5 text-xs font-bold text-yomi-jade uppercase tracking-wider">
                               Active
                             </span>
                           ) : (
@@ -704,441 +662,9 @@ function SettingsPage() {
             </div>
           )}
 
-          {activeTab === "appearance" && (
-            <div className="space-y-6">
-              {/* Theme Selection */}
-              <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <Palette className="h-5 w-5 text-yomi-jade" />
-                  Appearance & Theme
-                </h2>
-                <p className="mt-2 text-sm text-slate-400">
-                  Customize theme colors, accents, and visual layout.
-                </p>
+          {activeTab === "appearance" && <AppearanceSettingsPanel />}
 
-                <div className="mt-6 space-y-6">
-                  <div>
-                    <label className="block px-1 pb-3 text-sm font-medium text-slate-300">
-                      Theme Mode
-                    </label>
-                    <div className="grid grid-cols-3 gap-3 max-w-md">
-                      {(["dark", "light", "system"] as const).map((mode) => {
-                        const isSelected = themeMode === mode;
-                        return (
-                          <button
-                            key={mode}
-                            type="button"
-                            onClick={() => setThemeMode(mode)}
-                            className={`flex flex-col items-center gap-2 p-3 rounded-xl border text-sm font-medium transition ${
-                              isSelected
-                                ? "border-yomi-jade bg-yomi-jade/10 text-yomi-jade"
-                                : "border-white/5 bg-ink-950/40 text-slate-400 hover:border-white/10 hover:text-slate-200"
-                            }`}
-                          >
-                            {mode === "light" && <Sun className="h-5 w-5 text-yomi-jade" />}
-                            {mode === "dark" && <Moon className="h-5 w-5 text-yomi-jade" />}
-                            {mode === "system" && <Monitor className="h-5 w-5 text-yomi-jade" />}
-                            <span className="capitalize">{mode}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Accent Color */}
-                  <div>
-                    <label className="block px-1 pb-3 text-sm font-medium text-slate-300">
-                      Accent Color
-                    </label>
-                    <div className="flex flex-wrap gap-4">
-                      {[
-                        { name: "jade", class: "bg-[#efeae2]", label: "Ivory" },
-                        { name: "mint", class: "bg-teal-400", label: "Mint" },
-                        { name: "gold", class: "bg-amber-500", label: "Gold" },
-                        { name: "plum", class: "bg-fuchsia-600", label: "Plum" },
-                        { name: "coral", class: "bg-rose-500", label: "Coral" },
-                      ].map((color) => {
-                        const isSelected = accentColor === color.name;
-                        return (
-                          <button
-                            key={color.name}
-                            type="button"
-                            onClick={() => setAccentColor(color.name as any)}
-                            className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition ${
-                              isSelected
-                                ? "border-yomi-jade bg-yomi-jade/10 text-white"
-                                : "border-white/5 bg-ink-950/40 text-slate-400 hover:border-white/10 hover:text-slate-200"
-                            }`}
-                          >
-                            <span className={`h-4.5 w-4.5 rounded-full ${color.class} border border-white/15`} />
-                            <span>{color.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Cover Density */}
-                  <div>
-                    <label className="block px-1 pb-3 text-sm font-medium text-slate-300">
-                      Library Cover Grid Density
-                    </label>
-                    <div className="grid grid-cols-3 gap-3 max-w-md">
-                      {(["compact", "normal", "spacious"] as const).map((density) => {
-                        const isSelected = coverDensity === density;
-                        return (
-                          <button
-                            key={density}
-                            type="button"
-                            onClick={() => setCoverDensity(density)}
-                            className={`py-2.5 px-3 rounded-xl border text-sm font-medium transition ${
-                              isSelected
-                                ? "border-yomi-jade bg-yomi-jade/10 text-yomi-jade"
-                                : "border-white/5 bg-ink-950/40 text-slate-400 hover:border-white/10 hover:text-slate-200"
-                            }`}
-                          >
-                            <span className="capitalize">{density}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Accessibility */}
-                  <div className="border-t border-white/5 pt-6 space-y-3">
-                    <label className="block px-1 pb-1 text-sm font-medium text-slate-300">
-                      Accessibility
-                    </label>
-                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={highContrastMode}
-                        onChange={(e) => setHighContrastMode(e.target.checked)}
-                        className="h-4 w-4 rounded border-white/10 bg-ink-950 text-yomi-jade"
-                      />
-                      <span className="text-xs font-semibold text-slate-300">{t("high_contrast")}</span>
-                    </label>
-                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={reducedMotion}
-                        onChange={(e) => setReducedMotion(e.target.checked)}
-                        className="h-4 w-4 rounded border-white/10 bg-ink-950 text-yomi-jade"
-                      />
-                      <span className="text-xs font-semibold text-slate-300">{t("reduce_motion")}</span>
-                    </label>
-                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={coverDynamicTheme}
-                        onChange={(e) => setCoverDynamicTheme(e.target.checked)}
-                        className="h-4 w-4 rounded border-white/10 bg-ink-950 text-yomi-jade"
-                      />
-                      <span className="text-xs font-semibold text-slate-300">{t("cover_theme")}</span>
-                    </label>
-                  </div>
-
-                  {/* Language Selection */}
-                  <div className="border-t border-white/5 pt-6">
-                    <label className="block px-1 pb-3 text-sm font-medium text-slate-300">
-                      Language / Idioma
-                    </label>
-                    <div className="flex items-center gap-3 max-w-md">
-                      <Globe className="h-4.5 w-4.5 text-yomi-jade shrink-0" />
-                      <select
-                        value={language || "en"}
-                        onChange={(e) => setLanguage(e.target.value)}
-                        className="w-full rounded-xl border border-white/10 bg-ink-950 px-3 py-2.5 text-xs text-slate-300 outline-none focus:border-yomi-jade/55 transition"
-                      >
-                        <option value="en">English</option>
-                        <option value="es">Español (Spanish)</option>
-                        <option value="fr">Français (French)</option>
-                        <option value="de">Deutsch (German)</option>
-                        <option value="ja">日本語 (Japanese)</option>
-                        <option value="pt">Português (Portuguese)</option>
-                        <option value="zh">中文 (Chinese)</option>
-                        <option value="ru">Русский (Russian)</option>
-                        <option value="it">Italiano (Italian)</option>
-                        <option value="ko">한국어 (Korean)</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "reader" && (
-            <div className="space-y-6">
-              <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <BookOpen className="h-5 w-5 text-yomi-jade" />
-                  Reader Preferences
-                </h2>
-                <p className="mt-2 text-sm text-slate-400">
-                  Configure your default layout and reading preferences.
-                </p>
-
-                <div className="mt-6 space-y-4">
-                  <div>
-                    <label className="block px-1 pb-2 text-sm font-medium text-slate-300">
-                      Reading Mode
-                    </label>
-                    <select
-                      value={readerMode}
-                      onChange={(e) => setReaderMode(e.target.value as ReaderMode)}
-                      className="w-full sm:w-72 rounded-md border border-white/10 bg-ink-950 px-4 py-2.5 text-sm text-slate-300 outline-none focus:border-yomi-jade/50 focus:ring-1 focus:ring-yomi-jade/50 transition-colors"
-                    >
-                      <option value="WEBTOON">Vertical Webtoon</option>
-                      <option value="LTR">Left to Right (Single Page)</option>
-                      <option value="RTL">Right to Left (Single Page)</option>
-                    </select>
-                  </div>
-
-                  {/* Auto Delete Read Chapters Toggle */}
-                  <div className="pt-2">
-                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={autoDeleteReadChapters}
-                        onChange={(e) => setAutoDeleteReadChapters(e.target.checked)}
-                        className="rounded border-white/10 bg-ink-950 text-yomi-jade focus:ring-0 focus:ring-offset-0 h-4 w-4"
-                      />
-                      <span className="text-xs font-semibold text-slate-300">
-                        {t("auto_delete_read")}
-                      </span>
-                    </label>
-                  </div>
-
-                  <div>
-                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={infiniteChapterReading}
-                        onChange={(e) => setInfiniteChapterReading(e.target.checked)}
-                        className="rounded border-white/10 bg-ink-950 text-yomi-jade focus:ring-0 focus:ring-offset-0 h-4 w-4"
-                      />
-                      <span className="text-xs font-semibold text-slate-300">
-                        {t("infinite_reading")}
-                      </span>
-                    </label>
-                  </div>
-
-                  <div>
-                    <label className="block px-1 pb-2 text-sm font-medium text-slate-300">
-                      {t("page_transitions")}
-                    </label>
-                    <select
-                      value={pageTransition}
-                      onChange={(e) => setPageTransition(e.target.value as "fade" | "slide" | "none")}
-                      className="w-full sm:w-72 rounded-md border border-white/10 bg-ink-950 px-4 py-2.5 text-sm text-slate-300 outline-none focus:border-yomi-jade/50"
-                    >
-                      <option value="none">None</option>
-                      <option value="fade">Fade</option>
-                      <option value="slide">Slide</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block px-1 pb-2 text-sm font-medium text-slate-300">
-                      {t("auto_download_ahead")}
-                    </label>
-                    <select
-                      value={autoDownloadCount}
-                      onChange={(e) => setAutoDownloadCount(parseInt(e.target.value, 10))}
-                      className="w-full sm:w-72 rounded-md border border-white/10 bg-ink-950 px-4 py-2.5 text-sm text-slate-300 outline-none focus:border-yomi-jade/50"
-                    >
-                      <option value={0}>Disabled</option>
-                      <option value={1}>Next 1 chapter</option>
-                      <option value={3}>Next 3 chapters</option>
-                      <option value={5}>Next 5 chapters</option>
-                      <option value={10}>Next 10 chapters</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Settings Profiles Preset Manager */}
-              <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <Palette className="h-5 w-5 text-yomi-jade" />
-                  Reader Layout Presets
-                </h2>
-                <p className="mt-2 text-sm text-slate-400">
-                  Save combinations of Reader Mode, Fit Mode, and Page Spread for different layout setups (e.g. mobile vs desktop).
-                </p>
-
-                <div className="mt-6 space-y-4">
-                  {/* Existing Profiles List */}
-                  {settingsProfiles && settingsProfiles.length > 0 ? (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {settingsProfiles.map((prof) => (
-                        <div
-                          key={prof.id}
-                          className="flex items-center justify-between gap-4 p-3 rounded-lg border border-white/5 bg-ink-950/20"
-                        >
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-xs font-bold text-slate-200 truncate">{prof.name}</span>
-                            <span className="text-[10px] text-slate-500 truncate mt-0.5">
-                              {prof.readerMode} • {prof.fitMode} • {prof.pageSpread}
-                            </span>
-                          </div>
-
-                          <div className="flex gap-2 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => applySettingsProfile(prof.id)}
-                              className="rounded bg-yomi-jade/10 border border-yomi-jade/20 hover:bg-yomi-jade/20 text-yomi-jade px-2.5 py-1 text-xs font-bold transition"
-                            >
-                              Apply
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => deleteSettingsProfile(prof.id)}
-                              className="text-slate-500 hover:text-red-400 p-1"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-500">No layout presets created yet.</p>
-                  )}
-
-                  {/* Add New Profile Block */}
-                  <div className="pt-2 border-t border-white/5">
-                    {isAddingSettingsProfile ? (
-                      <form
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          if (!settingsProfileNameInput.trim()) return;
-                          addSettingsProfile(settingsProfileNameInput.trim(), {
-                            readerMode,
-                            fitMode,
-                            pageSpread,
-                          });
-                          setSettingsProfileNameInput("");
-                          setIsAddingSettingsProfile(false);
-                        }}
-                        className="flex flex-col sm:flex-row gap-2 max-w-md"
-                      >
-                        <input
-                          type="text"
-                          required
-                          value={settingsProfileNameInput}
-                          onChange={(e) => setSettingsProfileNameInput(e.target.value)}
-                          placeholder="e.g. Phone Layout, Desktop Reading"
-                          className="flex-1 rounded bg-ink-950 border border-white/10 px-3 py-1.5 text-xs text-slate-200 outline-none focus:border-yomi-jade/50 transition"
-                        />
-                        <div className="flex gap-1.5 justify-end">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsAddingSettingsProfile(false);
-                              setSettingsProfileNameInput("");
-                            }}
-                            className="rounded border border-white/10 px-3 py-1.5 text-xs text-slate-400 hover:bg-white/5"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="submit"
-                            className="rounded bg-yomi-jade text-ink-950 px-3 py-1.5 text-xs font-bold hover:bg-yomi-jade/90 transition"
-                          >
-                            Save
-                          </button>
-                        </div>
-                      </form>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setIsAddingSettingsProfile(true)}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-yomi-jade hover:underline"
-                      >
-                        <Plus className="h-4 w-4" /> Save current layout as preset
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Custom Keyboard Shortcuts */}
-              <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <Sliders className="h-5 w-5 text-yomi-jade" />
-                  Custom Keyboard Shortcuts
-                </h2>
-                <p className="mt-2 text-sm text-slate-400">
-                  Map reader navigation controls to custom keys. Click Record, then press any key.
-                </p>
-
-                <div className="mt-6 space-y-4 max-w-xl">
-                  {Object.entries(customKeybinds || {}).map(([action, keys]) => {
-                    const friendlyName: Record<string, string> = {
-                      prevPage: "Previous Page",
-                      nextPage: "Next Page",
-                      toggleOverlay: "Toggle Reader Overlay / Exit",
-                      cycleFit: "Cycle Scale/Fit Mode",
-                      cycleSpread: "Cycle Page Layout Spread"
-                    };
-
-                    const isRecording = recordingAction === action;
-
-                    return (
-                      <div key={action} className="flex items-center justify-between gap-4 p-3 rounded-lg border border-white/5 bg-ink-950/20 animate-fade-in">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-slate-200">
-                            {friendlyName[action] || action}
-                          </span>
-                          <div className="flex flex-wrap gap-1.5 mt-1.5">
-                            {keys.map((k) => (
-                              <span key={k} className="inline-flex items-center gap-1 rounded bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-bold text-slate-300 uppercase">
-                                {k === " " ? "SPACE" : k}
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveKey(action, k)}
-                                  className="text-slate-500 hover:text-red-400 font-bold ml-1"
-                                >
-                                  ✕
-                                </button>
-                              </span>
-                            ))}
-                            {keys.length === 0 && (
-                              <span className="text-[10px] text-slate-600">No keys bound</span>
-                            )}
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => startRecording(action)}
-                          className={`rounded px-3 py-1.5 text-xs font-bold transition ${
-                            isRecording
-                              ? "bg-red-500/20 text-red-400 border border-red-500/35 animate-pulse"
-                              : "bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300"
-                          }`}
-                        >
-                          {isRecording ? "Press Key..." : "Record"}
-                        </button>
-                      </div>
-                    );
-                  })}
-
-                  <div className="flex justify-end gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={handleResetKeybinds}
-                      className="rounded border border-white/10 px-3.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition"
-                    >
-                      Reset to Defaults
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {activeTab === "reader" && <ReaderSettingsPanel />}
 
           {activeTab === "backup" && (
             <BackupSettingsPanel
@@ -1147,6 +673,7 @@ function SettingsPage() {
               restoringBackup={restoringBackup}
               createBackup={() => createBackup()}
               handleFileChange={handleFileChange}
+              exportLibraryCsv={() => void exportLibraryCsv()}
             />
           )}
 
@@ -1161,229 +688,13 @@ function SettingsPage() {
             />
           )}
 
-          {activeTab === "advanced" && (
-            <div className="space-y-6">
-              {/* Local Import Section */}
-              <LocalImportSection />
-
-              <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <Sliders className="h-5 w-5 text-yomi-jade" />
-                  Advanced Settings
-                </h2>
-                <p className="mt-2 text-sm text-slate-400">
-                  Developer tools, simulations, and complete local state resets.
-                </p>
-
-                <div className="mt-6 space-y-6">
-                  {/* Mock Mode Toggle */}
-                  <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-white/5 bg-ink-950/30">
-                    <div className="space-y-1">
-                      <span className="font-semibold text-sm text-slate-200">
-                        Demo Mode / Playground Simulation
-                      </span>
-                      <p className="text-xs text-slate-400 leading-relaxed max-w-lg">
-                        Enables a simulation mode loaded with mockup catalogs and offline readers. 
-                        Useful for previewing Yomikura's interface when a Suwayomi server backend is unavailable.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setMockMode(!mockMode)}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        mockMode ? "bg-yomi-jade" : "bg-ink-950 border-white/10"
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          mockMode ? "translate-x-5 bg-ink-950" : "translate-x-0"
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  {/* Local Storage Directory (Tauri only) */}
-                  {isTauri() && (
-                    <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-white/5 bg-ink-950/30">
-                      <div className="space-y-1">
-                        <span className="font-semibold text-sm text-slate-200">
-                          Application Storage Directory
-                        </span>
-                        <p className="text-xs text-slate-400 leading-relaxed max-w-lg">
-                          Open the local directory containing Suwayomi-Server databases, extensions, configuration files, and execution logs.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          try {
-                            const { invoke } = await import("@tauri-apps/api/core");
-                            await invoke("open_logs_folder", { dataPath: serverDataPath });
-                          } catch (err: any) {
-                            console.error("Failed to open storage directory:", err);
-                            notify("Failed to open directory: " + (err.message || String(err)), "error");
-                          }
-                        }}
-                        className="rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 px-4 py-2 text-xs font-semibold text-slate-300 transition shrink-0"
-                      >
-                        Open Directory
-                      </button>
-                    </div>
-                  )}
-
-                  {isTauri() && (
-                    <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-white/5 bg-ink-950/30">
-                      <div className="space-y-1">
-                        <span className="font-semibold text-sm text-slate-200">{t("portable_mode")}</span>
-                        <p className="text-xs text-slate-400 leading-relaxed max-w-lg">
-                          Store Suwayomi data in a folder next to the app executable. Ideal for USB drives or portable installs.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const next = !portableMode;
-                          setPortableMode(next);
-                          if (next && isTauri()) {
-                            try {
-                              const { invoke } = await import("@tauri-apps/api/core");
-                              const path = await invoke<string>("get_portable_data_path");
-                              useSettingsStore.getState().setServerDataPath(path);
-                            } catch (err) {
-                              console.error("Failed to resolve portable data path:", err);
-                            }
-                          }
-                        }}
-                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          portableMode ? "bg-yomi-jade" : "bg-ink-950 border-white/10"
-                        }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                            portableMode ? "translate-x-5 bg-ink-950" : "translate-x-0"
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="border-t border-white/5 pt-6">
-                    <h3 className="text-sm font-semibold text-slate-200 mb-3">{t("opds_feed")}</h3>
-                    <OpdsPanel />
-                  </div>
-
-                  <div className="border-t border-white/5 pt-6">
-                    <h3 className="text-sm font-semibold text-slate-200 mb-3">{t("tracker_settings")}</h3>
-                    <TrackerSettingsPanel />
-                  </div>
-
-                  {/* Extension health */}
-                  <div className="border-t border-white/5 pt-6">
-                    <h3 className="text-sm font-semibold text-slate-200 mb-3">{t("extension_health")}</h3>
-                    <ExtensionHealthPanel />
-                  </div>
-
-                  {/* Duplicate Manga Scanner */}
-                  <div className="border-t border-white/5 pt-6">
-                    <DuplicateScanner />
-                  </div>
-
-                  {/* Reset Onboarding Wizard */}
-                  <div className="border-t border-white/5 pt-6 space-y-4">
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-200">Reset Setup Onboarding Wizard</h3>
-                      <p className="text-xs text-slate-400 mt-1">
-                        Clears the local connection configuration and data path storage memory, re-triggering the native setup onboarding wizard on the next launch.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const confirmReset = await confirm({ title: "Run setup again?", detail: "Yomikura will disconnect the active profile and show onboarding after reload. Your library and downloads are not deleted.", confirmLabel: "Reset setup", danger: true });
-                        if (confirmReset) {
-                          useSettingsStore.setState({
-                            connectionStatus: "disconnected",
-                            serverBaseUrl: "",
-                            activeProfileId: "",
-                            serverDataPath: "",
-                          });
-                          notify("Setup was reset. Reloading Yomikura…", "success");
-                          window.location.reload();
-                        }
-                      }}
-                      className="rounded-lg border border-yomi-jade/30 bg-yomi-jade/5 px-4 py-2.5 text-xs font-semibold text-yomi-jade hover:bg-yomi-jade/20 transition"
-                    >
-                      Reset Onboarding Wizard
-                    </button>
-                  </div>
-
-                  {/* Reset All Settings */}
-                  <div className="border-t border-white/5 pt-6 space-y-4">
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-200">Reset Yomikura Configuration</h3>
-                      <p className="text-xs text-slate-400 mt-1">
-                        Restores all connection profiles, appearances, accent themes, reader configurations, and browse options to factory defaults.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const confirmFirst = await confirm({ title: "Reset all settings?", detail: "Server profiles, appearance, reader preferences, and browse options will return to defaults.", confirmLabel: "Continue", danger: true });
-                        if (confirmFirst) {
-                          const confirmSecond = await confirm({ title: "Final confirmation", detail: "This settings reset cannot be undone. Offline chapter files are not affected.", confirmLabel: "Reset settings", danger: true });
-                          if (confirmSecond) {
-                            resetAllSettings();
-                            notify("All settings were reset.", "success");
-                          }
-                        }
-                      }}
-                      className="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-2.5 text-xs font-semibold text-red-400 hover:bg-red-500/20 hover:text-red-300 transition"
-                    >
-                      Reset All Settings
-                    </button>
-                  </div>
-
-                  {/* Desktop App Hard Reset (Tauri context only) */}
-                  {isTauri() && (
-                    <div className="flex items-center justify-between border-t border-white/5 pt-6">
-                      <div>
-                        <h3 className="text-sm font-medium text-red-400">Total Hard Reset</h3>
-                        <p className="text-xs text-slate-400 mt-1">
-                          Wipes Yomikura's settings and default local cache, then restarts the application. A custom storage folder is left untouched so unrelated files are never removed.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const confirm1 = await confirm({ title: "Wipe Yomikura-managed data?", detail: "Settings and the default local cache will be deleted. A custom storage folder is deliberately left untouched.", confirmLabel: "Continue", danger: true });
-                          if (confirm1) {
-                            const confirm2 = await confirm({ title: "Wipe and restart?", detail: "This is the final confirmation. Yomikura-managed local data cannot be restored afterward.", confirmLabel: "Wipe and restart", danger: true });
-                            if (confirm2) {
-                              try {
-                                const { invoke } = await import("@tauri-apps/api/core");
-                                await invoke("wipe_all_data");
-                              } catch (err) {
-                                notify("Hard reset failed: " + err, "error");
-                              }
-                            }
-                          }
-                        }}
-                        className="rounded-lg border border-red-600 bg-red-600/10 px-4 py-2.5 text-xs font-semibold text-red-200 hover:bg-red-600 hover:text-white transition shadow-sm"
-                      >
-                        Wipe & Restart
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
+          {activeTab === "advanced" && <AdvancedSettingsPanel />}
 
           {activeTab === "about" && <AboutSettingsPanel />}
         </div>
 
         {/* Sidebar Info Panel */}
-        <div className="space-y-4"><SettingsStatusPanel connectionStatus={connectionStatus} /></div>
+        <div className="space-y-4"><SettingsStatusPanel connectionStatus={connectionStatus} mockMode={mockMode} /></div>
       </div>
     </section>
   );

@@ -415,7 +415,7 @@ export default function ExtensionsPage() {
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-slate-200 truncate">{ext.name}</span>
                       {ext.isNsfw && (
-                        <span className="rounded bg-red-500/20 px-1 py-0.5 text-[10px] font-bold text-red-400">18+</span>
+                        <span className="rounded bg-red-500/20 px-1 py-0.5 text-xs font-bold text-red-400">18+</span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -423,7 +423,7 @@ export default function ExtensionsPage() {
                       <span>•</span>
                       <span>v{ext.versionName}</span>
                       {ext.isInstalled && ext.hasUpdate && (
-                        <span className="rounded bg-yomi-jade/10 px-1 py-0.5 text-[9px] font-bold text-yomi-jade">Update Available</span>
+                        <span className="rounded bg-yomi-jade/10 px-1 py-0.5 text-xs font-bold text-yomi-jade">Update Available</span>
                       )}
                     </div>
                   </div>

@@ -9,6 +9,8 @@ import { ErrorBoundary } from "../ErrorBoundary";
 import { useTranslation } from "../../hooks/useTranslation";
 import { UpdateNotificationBanner } from "../UpdateNotificationBanner";
 import { useDeviceProfileBootstrap } from "../../hooks/useDeviceProfile";
+import { useScheduledBackup } from "../../hooks/useScheduledBackup";
+import { useScheduledLibraryUpdate } from "../../hooks/useScheduledLibraryUpdate";
 
 function ProfileSwitcher() {
   const { profiles, activeProfileId, setActiveProfileId } = useSettingsStore();
@@ -73,7 +75,7 @@ function BackendHealthBadge() {
 
 function AppShell() {
   useEffect(() => () => {
-    useDownloadStore.getState().cancelAllDownloads();
+    useDownloadStore.getState().pauseForShutdown();
   }, []);
 
   const { t } = useTranslation();
@@ -96,6 +98,8 @@ function AppShell() {
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   useDeviceProfileBootstrap();
+  useScheduledBackup();
+  useScheduledLibraryUpdate();
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -139,6 +143,11 @@ function AppShell() {
     }
   }, [hasHydrated, mockMode, testConnection]);
 
+  useEffect(() => {
+    if (!hasHydrated || (!mockMode && connectionStatus !== "connected")) return;
+    void useDownloadStore.getState().restoreDownloadJobs();
+  }, [connectionStatus, hasHydrated, mockMode, serverBaseUrl]);
+
   // Effect to apply dynamic theme and accent color variables
   useEffect(() => {
     // 1. Theme application
@@ -171,7 +180,7 @@ function AppShell() {
     htmlElement.classList.toggle("reduce-motion", reducedMotion);
   }, [themeMode, accentColor, highContrastMode, reducedMotion]);
 
-  const showOfflineBanner = connectionStatus === "error" && !location.pathname.startsWith("/reader/") && mockMode;
+  const showOfflineBanner = connectionStatus === "error" && !location.pathname.startsWith("/reader/") && !mockMode;
 
   const isUnconnected = connectionStatus === "error" || connectionStatus === "disconnected";
   const showOnboarding = isUnconnected && !mockMode && location.pathname !== "/settings";
@@ -190,6 +199,10 @@ function AppShell() {
         setMockMode={setMockMode}
       />
     );
+  }
+
+  if (location.pathname.startsWith("/reader/")) {
+    return <main id="main-content" className="min-h-screen bg-black" tabIndex={-1}><ErrorBoundary><Outlet /></ErrorBoundary></main>;
   }
 
   return (
@@ -264,26 +277,26 @@ function AppShell() {
                   <div className="flex items-center justify-between text-xs text-slate-300">
                     <span>Next Page</span>
                     <span className="flex items-center gap-1">
-                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">D</kbd>
+                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-xs">D</kbd>
                       <span className="text-slate-500">or</span>
-                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">➜</kbd>
+                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-xs">➜</kbd>
                       <span className="text-slate-500">or</span>
-                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">Space</kbd>
+                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-xs">Space</kbd>
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs text-slate-300">
                     <span>Previous Page</span>
                     <span className="flex items-center gap-1">
-                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">A</kbd>
+                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-xs">A</kbd>
                       <span className="text-slate-500">or</span>
-                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">⬅</kbd>
+                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-xs">⬅</kbd>
                       <span className="text-slate-500">or</span>
-                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">Backspace</kbd>
+                      <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-xs">Backspace</kbd>
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs text-slate-300">
                     <span>Exit Reader</span>
-                    <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">Esc</kbd>
+                    <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-xs">Esc</kbd>
                   </div>
                 </div>
 
@@ -291,21 +304,21 @@ function AppShell() {
                   <h3 className="text-xs font-bold uppercase tracking-wider text-yomi-jade">Reader Settings</h3>
                   <div className="flex items-center justify-between text-xs text-slate-300">
                     <span>Cycle Fit Mode</span>
-                    <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">W</kbd>
+                    <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-xs">W</kbd>
                   </div>
                   <div className="flex items-center justify-between text-xs text-slate-300">
                     <span>Cycle Page Spread</span>
-                    <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">S</kbd>
+                    <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-xs">S</kbd>
                   </div>
                   <div className="flex items-center justify-between text-xs text-slate-300">
                     <span>Show Keyboard Help</span>
-                    <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-[10px]">?</kbd>
+                    <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/5 text-xs">?</kbd>
                   </div>
                 </div>
               </div>
             </div>
             
-            <p className="mt-8 text-[10px] text-slate-500 text-center border-t border-white/5 pt-4">
+            <p className="mt-8 text-xs text-slate-500 text-center border-t border-white/5 pt-4">
               Press <kbd className="px-1 rounded bg-white/5 border border-white/5">?</kbd> at any time to toggle this help cheatsheet.
             </p>
           </div>
@@ -615,11 +628,11 @@ function WelcomeOnboarding({
                     <HardDrive className="h-5 w-5" />
                   </div>
                   <h3 className="mt-3 text-xs font-semibold text-slate-200">Default (C: Drive)</h3>
-                  <p className="mt-1.5 text-[10px] text-slate-500 max-w-[160px] leading-normal">
+                  <p className="mt-1.5 text-xs text-slate-500 max-w-[160px] leading-normal">
                     Store inside standard system AppData.
                   </p>
                 </div>
-                <span className="mt-4 text-[10px] font-bold text-yomi-jade hover:underline">
+                <span className="mt-4 text-xs font-bold text-yomi-jade hover:underline">
                   Use Default &rarr;
                 </span>
               </button>
@@ -634,11 +647,11 @@ function WelcomeOnboarding({
                     <FolderOpen className="h-5 w-5" />
                   </div>
                   <h3 className="mt-3 text-xs font-semibold text-slate-200">Select Custom folder</h3>
-                  <p className="mt-1.5 text-[10px] text-slate-500 max-w-[160px] leading-normal">
+                  <p className="mt-1.5 text-xs text-slate-500 max-w-[160px] leading-normal">
                     Choose an empty folder on D:, E:, or another partition.
                   </p>
                 </div>
-                <span className="mt-4 text-[10px] font-bold text-yomi-jade hover:underline">
+                <span className="mt-4 text-xs font-bold text-yomi-jade hover:underline">
                   Browse Folder &rarr;
                 </span>
               </button>
@@ -653,11 +666,11 @@ function WelcomeOnboarding({
                     <RefreshCw className="h-5 w-5" />
                   </div>
                   <h3 className="mt-3 text-xs font-semibold text-slate-200">Portable mode</h3>
-                  <p className="mt-1.5 text-[10px] text-slate-500 max-w-[160px] leading-normal">
+                  <p className="mt-1.5 text-xs text-slate-500 max-w-[160px] leading-normal">
                     Store data next to the app — great for USB drives.
                   </p>
                 </div>
-                <span className="mt-4 text-[10px] font-bold text-yomi-jade hover:underline">
+                <span className="mt-4 text-xs font-bold text-yomi-jade hover:underline">
                   Use Portable &rarr;
                 </span>
               </button>
@@ -665,7 +678,7 @@ function WelcomeOnboarding({
 
             <button
               onClick={() => setMockMode(true)}
-              className="mt-6 text-[10px] text-slate-500 hover:text-slate-400 hover:underline"
+              className="mt-6 text-xs text-slate-500 hover:text-slate-400 hover:underline"
             >
               Skip and Enter Demo Playground Mode
             </button>
@@ -680,7 +693,7 @@ function WelcomeOnboarding({
               <div className="py-6 flex flex-col items-center">
                 <Loader2 className="h-10 w-10 animate-spin text-yomi-jade mb-3" />
                 <h3 className="text-sm font-semibold text-slate-200">Checking Java Environment...</h3>
-                <p className="text-[11px] text-slate-500 mt-1">Verifying OpenJDK runtime on your system PATH.</p>
+                <p className="text-xs text-slate-500 mt-1">Verifying OpenJDK runtime on your system PATH.</p>
               </div>
             )}
 
@@ -689,13 +702,13 @@ function WelcomeOnboarding({
               <div className="py-6 flex flex-col items-center w-full max-w-sm">
                 <Loader2 className="h-10 w-10 animate-spin text-yomi-jade mb-3" />
                 <h3 className="text-sm font-semibold text-slate-200">Setting up Java Runtime...</h3>
-                <p className="text-[11px] text-slate-400 mt-2 max-w-xs leading-relaxed">
+                <p className="text-xs text-slate-400 mt-2 max-w-xs leading-relaxed">
                   Yomikura is automatically downloading and configuring a private OpenJDK 21 runtime inside your local data directory. This removes setup friction and won't affect any system-wide Java settings.
                 </p>
                 <div className="mt-5 w-full bg-white/5 rounded-full h-1.5 overflow-hidden border border-white/5">
                   <div className="bg-yomi-jade h-full w-2/3 animate-pulse rounded-full" style={{ animationDuration: '2s' }} />
                 </div>
-                <span className="text-[10px] text-slate-500 mt-3">Downloading Eclipse Temurin JRE 21 ~ 40MB</span>
+                <span className="text-xs text-slate-500 mt-3">Downloading Eclipse Temurin JRE 21 ~ 40MB</span>
               </div>
             )}
 
@@ -706,7 +719,7 @@ function WelcomeOnboarding({
                   <AlertTriangle className="h-6 w-6" />
                 </div>
                 <h3 className="text-base font-bold text-slate-200">Java OpenJDK 21 Required</h3>
-                <p className="max-h-48 max-w-lg overflow-auto whitespace-pre-wrap rounded-xl border border-white/5 bg-black/20 p-3 text-left font-mono text-[11px] leading-relaxed text-slate-400 mt-3">
+                <p className="max-h-48 max-w-lg overflow-auto whitespace-pre-wrap rounded-xl border border-white/5 bg-black/20 p-3 text-left font-mono text-xs leading-relaxed text-slate-400 mt-3">
                   Yomikura's local backend requires **Java OpenJDK 21** (or newer) to run. Don't worry—it takes less than a minute to install and runs quietly in the background.
                 </p>
 
@@ -744,7 +757,7 @@ function WelcomeOnboarding({
               <div className="py-6 flex flex-col items-center">
                 <Loader2 className="h-10 w-10 animate-spin text-yomi-jade mb-3" />
                 <h3 className="text-sm font-semibold text-slate-200">Starting local manga engine...</h3>
-                <p className="text-[11px] text-slate-500 mt-1.5 max-w-xs leading-normal">
+                <p className="text-xs text-slate-500 mt-1.5 max-w-xs leading-normal">
                   Initializing the Suwayomi-Server database. This might take 5-10 seconds on the first launch.
                 </p>
               </div>
@@ -757,7 +770,7 @@ function WelcomeOnboarding({
                   <ShieldCheck className="h-5 w-5" />
                 </div>
                 <h3 className="text-sm font-semibold text-slate-200">Connected successfully!</h3>
-                <p className="text-[11px] text-slate-500 mt-1">Starting app, please wait...</p>
+                <p className="text-xs text-slate-500 mt-1">Starting app, please wait...</p>
               </div>
             )}
 
@@ -807,7 +820,7 @@ function WelcomeOnboarding({
                 {localError && (
                   <details className="mt-4 w-full rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-left">
                     <summary className="cursor-pointer text-xs text-slate-500">Technical details</summary>
-                    <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-relaxed text-slate-500">{localError}</pre>
+                    <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-slate-500">{localError}</pre>
                   </details>
                 )}
               </div>
@@ -893,7 +906,7 @@ function WelcomeOnboarding({
                 }`}
               >
                 <div className="rounded-xl border border-white/5 bg-ink-950/40 p-4 space-y-3">
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                  <p className="text-xs text-slate-500 leading-relaxed">
                     Enter your local or hosted Suwayomi server URL (e.g. <code>http://localhost:4567</code>) to load your live catalog and active sources.
                   </p>
                   
@@ -926,10 +939,10 @@ function WelcomeOnboarding({
                     </button>
 
                     {testStatus === "error" && localError && (
-                      <p className="text-[10px] text-red-400 text-center leading-relaxed">{localError}</p>
+                      <p className="text-xs text-red-400 text-center leading-relaxed">{localError}</p>
                     )}
                     {testStatus === "success" && (
-                      <p className="text-[10px] text-yomi-jade text-center font-semibold">Connected Successfully!</p>
+                      <p className="text-xs text-yomi-jade text-center font-semibold">Connected Successfully!</p>
                     )}
                   </form>
                 </div>
@@ -939,7 +952,7 @@ function WelcomeOnboarding({
         )}
 
         {/* Footer legal disclaimer */}
-        <p className="mt-8 text-[9px] text-slate-600 text-center leading-relaxed max-w-sm">
+        <p className="mt-8 text-xs text-slate-600 text-center leading-relaxed max-w-sm">
           Yomikura hosts no content. Desktop mode may run Suwayomi locally on your device; you are responsible for sources and repositories.
         </p>
       </div>

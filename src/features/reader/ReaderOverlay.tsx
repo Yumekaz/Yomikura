@@ -72,12 +72,13 @@ export function ReaderOverlay({
         <div className="flex items-center gap-4">
           <Link
             to={mangaId ? `/manga/${mangaId}` : "/library"}
+            aria-label="Back to manga details"
             className="rounded-full p-2 text-slate-300 hover:bg-white/10 hover:text-white"
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div className="flex flex-col">
-            <span className="text-[10px] sm:text-xs text-slate-400 line-clamp-1">{mangaTitle}</span>
+            <span className="text-xs sm:text-xs text-slate-400 line-clamp-1">{mangaTitle}</span>
             <span className="text-xs sm:text-sm font-semibold text-slate-200 line-clamp-1">{chapterName}</span>
           </div>
         </div>
@@ -186,7 +187,7 @@ export function ReaderOverlay({
                   <div className="flex items-center justify-between border-t border-white/5 pt-3">
                     <div className="flex flex-col">
                       <span className="text-xs font-semibold text-slate-300">Remember for this manga</span>
-                      <span className="text-[10px] text-slate-500">Save custom reader configuration overrides</span>
+                      <span className="text-xs text-slate-500">Save custom reader configuration overrides</span>
                     </div>
                     <button
                       type="button"
@@ -298,7 +299,7 @@ export function ReaderOverlay({
                 <div className="flex items-center justify-between">
                   <div className="flex flex-col">
                     <span className="text-xs font-semibold text-slate-300">Auto-Scroll Mode</span>
-                    <span className="text-[10px] text-slate-500">Only active in vertical webtoon mode</span>
+                    <span className="text-xs text-slate-500">Only active in vertical webtoon mode</span>
                   </div>
                   <button
                     onClick={() => {
@@ -367,7 +368,7 @@ export function ReaderOverlay({
                       className="h-full w-full object-cover"
                       loading="lazy"
                     />
-                    <div className="absolute inset-x-0 bottom-0 bg-black/75 py-0.2 text-[7px] font-black text-slate-300 text-center">
+                    <div className="absolute inset-x-0 bottom-0 bg-black/75 py-0.2 text-xs font-black text-slate-300 text-center">
                       {idx + 1}
                     </div>
                   </button>
@@ -381,18 +382,13 @@ export function ReaderOverlay({
         <div className="flex items-center justify-between">
           
           {/* Sibling Chapters navigation */}
-          <Link
-            to={prevChapterId ? `/reader/${prevChapterId}` : "#"}
-            className={`flex items-center gap-1 p-2 text-xs font-semibold ${prevChapterId ? "text-slate-300 hover:text-white" : "text-slate-600 pointer-events-none"}`}
-          >
-            <ChevronLeft className="h-4 w-4" /> Prev
-          </Link>
+          {prevChapterId ? <Link to={`/reader/${prevChapterId}`} className="flex items-center gap-1 p-2 text-xs font-semibold text-slate-300 hover:text-white"><ChevronLeft className="h-4 w-4" /> Prev</Link> : <span className="flex items-center gap-1 p-2 text-xs font-semibold text-slate-400" aria-disabled="true"><ChevronLeft className="h-4 w-4" /> Prev</span>}
 
           {/* Sub-tab Switchers Group */}
           <div className="flex items-center gap-1 rounded-lg bg-ink-900 p-0.5 border border-white/5">
             <button
               onClick={() => setActiveSubTab(activeSubTab === "layout" ? "none" : "layout")}
-              className={`rounded-md px-2.5 py-1 text-[10px] font-bold transition uppercase flex items-center gap-1 ${
+              className={`rounded-md px-2.5 py-1 text-xs font-bold transition uppercase flex items-center gap-1 ${
                 activeSubTab === "layout" ? "bg-yomi-jade text-ink-950 shadow" : "text-slate-400 hover:text-slate-200"
               }`}
             >
@@ -401,7 +397,7 @@ export function ReaderOverlay({
             </button>
             <button
               onClick={() => setActiveSubTab(activeSubTab === "filters" ? "none" : "filters")}
-              className={`rounded-md px-2.5 py-1 text-[10px] font-bold transition uppercase flex items-center gap-1 ${
+              className={`rounded-md px-2.5 py-1 text-xs font-bold transition uppercase flex items-center gap-1 ${
                 activeSubTab === "filters" ? "bg-yomi-jade text-ink-950 shadow" : "text-slate-400 hover:text-slate-200"
               }`}
             >
@@ -410,7 +406,7 @@ export function ReaderOverlay({
             </button>
             <button
               onClick={() => setActiveSubTab(activeSubTab === "scroll" ? "none" : "scroll")}
-              className={`rounded-md px-2.5 py-1 text-[10px] font-bold transition uppercase flex items-center gap-1 ${
+              className={`rounded-md px-2.5 py-1 text-xs font-bold transition uppercase flex items-center gap-1 ${
                 activeSubTab === "scroll" ? "bg-yomi-jade text-ink-950 shadow" : "text-slate-400 hover:text-slate-200"
               }`}
             >
@@ -419,16 +415,11 @@ export function ReaderOverlay({
             </button>
           </div>
 
-          <Link
-            to={nextChapterId ? `/reader/${nextChapterId}` : "#"}
-            className={`flex items-center gap-1 p-2 text-xs font-semibold ${nextChapterId ? "text-slate-300 hover:text-white" : "text-slate-600 pointer-events-none"}`}
-          >
-            Next <ChevronRight className="h-4 w-4" />
-          </Link>
+          {nextChapterId ? <Link to={`/reader/${nextChapterId}`} className="flex items-center gap-1 p-2 text-xs font-semibold text-slate-300 hover:text-white">Next <ChevronRight className="h-4 w-4" /></Link> : <span className="flex items-center gap-1 p-2 text-xs font-semibold text-slate-400" aria-disabled="true">Next <ChevronRight className="h-4 w-4" /></span>}
         </div>
 
         {/* Bottom Status bar */}
-        <div className="flex items-center justify-between text-[10px] text-slate-500 font-semibold px-1 mt-1 border-t border-white/5 pt-2">
+        <div className="mt-1 flex items-center justify-between border-t border-white/10 px-1 pt-2 text-xs font-semibold text-slate-400">
           <span>{currentPage + 1} of {totalPages} pages</span>
           <span>{readerMode} Mode</span>
         </div>

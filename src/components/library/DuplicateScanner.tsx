@@ -187,7 +187,7 @@ export function DuplicateScanner() {
                         />
                         <div className="flex flex-col min-w-0">
                           <span className="text-xs font-semibold text-slate-200 truncate">{m.title}</span>
-                          <span className="text-[10px] text-slate-500">Manga ID: {m.id}</span>
+                          <span className="text-xs text-slate-400">Manga ID: {m.id}</span>
                         </div>
                       </div>
 
@@ -198,7 +198,7 @@ export function DuplicateScanner() {
                             onClick={async () => {
                               if (await confirm({ title: "Merge duplicate titles?", detail: `Progress from manga ${m.id} will be merged into ${oth.id}, then ${m.id} will leave the library.`, confirmLabel: "Merge titles", danger: true })) mergeDuplicates({ keepId: parseInt(String(oth.id)), removeId: parseInt(String(m.id)) });
                             }}
-                            className="rounded bg-yomi-jade/10 border border-yomi-jade/20 px-2.5 py-1 text-[9px] font-bold text-yomi-mint hover:bg-yomi-jade/20 transition shrink-0"
+                            className="rounded bg-yomi-jade/10 border border-yomi-jade/20 px-2.5 py-1 text-xs font-bold text-yomi-mint hover:bg-yomi-jade/20 transition shrink-0"
                           >
                             Merge Into ID {oth.id}
                           </button>
@@ -213,7 +213,7 @@ export function DuplicateScanner() {
         })}
 
         {duplicates.length === 0 && (
-          <div className="text-center py-10 text-xs text-slate-500 border border-dashed border-white/5 rounded-xl">
+          <div className="rounded-xl border border-dashed border-white/10 py-10 text-center text-xs text-slate-400">
             No duplicate manga titles detected in your library!
           </div>
         )}

@@ -161,7 +161,7 @@ export function LibraryGrid({
 
   const titleClasses =
     coverDensity === "compact"
-      ? "line-clamp-2 text-[10px] sm:text-xs font-semibold leading-tight text-white drop-shadow-md"
+      ? "line-clamp-2 text-xs sm:text-xs font-semibold leading-tight text-white drop-shadow-md"
       : coverDensity === "spacious"
       ? "line-clamp-2 text-sm sm:text-base font-semibold leading-snug text-white drop-shadow-md"
       : "line-clamp-2 text-xs font-semibold leading-snug text-white drop-shadow-md sm:text-sm";
@@ -237,7 +237,7 @@ export function LibraryGrid({
 
               {/* Unread badge */}
               {!isSelectMode && manga.unreadCount > 0 && (
-                <div className="absolute -right-1 -top-1 z-20 flex h-5.5 min-w-[22px] items-center justify-center rounded-full bg-yomi-jade px-1.5 text-[9px] font-black text-ink-950 shadow border border-ink-950/20">
+                <div className="absolute -right-1 -top-1 z-20 flex h-5.5 min-w-[22px] items-center justify-center rounded-full bg-yomi-jade px-1.5 text-xs font-black text-ink-950 shadow border border-ink-950/20">
                   {manga.unreadCount}
                 </div>
               )}

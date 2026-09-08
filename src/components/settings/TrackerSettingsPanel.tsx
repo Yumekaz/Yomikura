@@ -44,7 +44,7 @@ export function TrackerSettingsPanel() {
   return (
     <div className="space-y-2">
       {trackers.length === 0 && (
-        <p className="text-xs text-slate-500">No trackers configured on your Suwayomi server.</p>
+        <p className="text-xs text-slate-400">No trackers configured on your Suwayomi server.</p>
       )}
       {trackers.map((tracker) => (
         <div
@@ -53,19 +53,19 @@ export function TrackerSettingsPanel() {
         >
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-slate-200">{tracker.name}</p>
-            <p className="text-[10px] text-slate-500">
+            <p className="text-xs text-slate-400">
               {tracker.isLoggedIn ? "Logged in" : "Not logged in"} · {tracker.icon}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {tracker.isLoggedIn ? (
-              <span className="text-[10px] font-bold text-yomi-jade">●</span>
+              <span className="text-xs font-bold text-yomi-jade">●</span>
             ) : (
               <a
                 href={tracker.authUrl || "#"}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1 text-[10px] font-semibold text-slate-300 hover:bg-white/5"
+                className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1 text-xs font-semibold text-slate-300 hover:bg-white/5"
               >
                 <Link2 className="h-3 w-3" />
                 Login
@@ -85,7 +85,7 @@ export function TrackerSettingsPanel() {
           </div>
         </div>
       ))}
-      <p className="pt-1 text-[10px] text-slate-500">
+      <p className="pt-1 text-xs text-slate-400">
         Per-manga tracking is available on each manga detail page. Link accounts above via Suwayomi.
       </p>
     </div>

@@ -117,9 +117,10 @@ export default function ReaderPage() {
     imageFilters: globalImageFilters,
     cropBorders: globalCropBorders,
     pageTransition: globalPageTransition,
+    readerNavigationMode,
   } = useSettingsStore();
 
-  const { downloadChapter, cachedChapters } = useDownloadStore();
+  const { downloadChapter, deleteChapter, cachedChapters } = useDownloadStore();
 
   const [showOverlay, setShowOverlay] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
@@ -320,6 +321,7 @@ export default function ReaderPage() {
                 id: progress.chapterId
               }
             });
+            await deleteChapter(progress.chapterId);
           } catch (deleteErr) {
             console.error("Failed to auto-delete read downloaded chapter:", deleteErr);
           }
@@ -601,11 +603,13 @@ export default function ReaderPage() {
   const handlePageClick = useCallback((e: React.MouseEvent) => {
     const width = window.innerWidth;
     const x = e.clientX;
-    const threshold = width * 0.3;
+    const threshold = width * (readerNavigationMode === "wide" ? 0.42 : 0.28);
 
     if (readerMode !== "WEBTOON") {
       e.stopPropagation();
-      if (x < threshold) {
+      if (readerNavigationMode === "disabled") {
+        setShowOverlay(!showOverlay);
+      } else if (x < threshold) {
         const dir = readerMode === "RTL" ? 1 : -1;
         navigatePage(dir);
       } else if (x > width - threshold) {
@@ -617,7 +621,7 @@ export default function ReaderPage() {
     } else {
       setShowOverlay(!showOverlay);
     }
-  }, [navigatePage, readerMode, showOverlay]);
+  }, [navigatePage, readerMode, readerNavigationMode, showOverlay]);
 
   const handleJumpToPage = useCallback((pageIndex: number) => {
     const target = Math.min(Math.max(0, pageIndex), pages.length - 1);
@@ -634,12 +638,14 @@ export default function ReaderPage() {
     for (let j = 1; j <= preloadCount; j++) {
       const nextIdx = currentPage + j;
       if (nextIdx < pages.length) {
-        const preloadUrl = buildSuwayomiPageUrl({
-          serverBaseUrl,
-          mangaId: chapter.mangaId,
-          chapterSourceOrder: chapter.sourceOrder,
-          pageIndex: nextIdx,
-        });
+        const preloadUrl = mockMode
+          ? resolveBackendUrl(serverBaseUrl, pages[nextIdx])
+          : buildSuwayomiPageUrl({
+              serverBaseUrl,
+              mangaId: chapter.mangaId,
+              chapterSourceOrder: chapter.sourceOrder,
+              pageIndex: nextIdx,
+            });
 
         const img = new Image();
         img.src = preloadUrl;
@@ -652,7 +658,7 @@ export default function ReaderPage() {
         img.src = "";
       });
     };
-  }, [currentPage, pages, chapter, serverBaseUrl]);
+  }, [currentPage, pages, chapter, mockMode, serverBaseUrl]);
 
   // Webtoon infinite-scroll binge (append chapters or navigate)
   useEffect(() => {
@@ -864,6 +870,7 @@ export default function ReaderPage() {
     : [idxA];
 
   const buildPageUrl = (pageIndex: number) => {
+    if (mockMode) return resolveBackendUrl(serverBaseUrl, pages[pageIndex]);
     return buildSuwayomiPageUrl({
       serverBaseUrl,
       mangaId: chapter.mangaId,
@@ -923,19 +930,21 @@ export default function ReaderPage() {
             {streamChapters.map((streamCh, ci) => (
               <div key={streamCh.id} className="flex w-full flex-col">
                 {ci > 0 && (
-                  <div className="border-t border-white/5 bg-ink-950/80 py-2 text-center text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                  <div className="border-t border-white/5 bg-ink-950/80 py-2 text-center text-xs font-semibold uppercase tracking-widest text-slate-500">
                     {streamCh.name}
                   </div>
                 )}
                 {streamCh.pages.map((url, i) => (
                   <WebtoonPageWrapper key={`${streamCh.id}-${i}`} pageIndex={i}>
                     <ReaderImage
-                      url={buildSuwayomiPageUrl({
-                        serverBaseUrl,
-                        mangaId: streamCh.mangaId,
-                        chapterSourceOrder: streamCh.sourceOrder,
-                        pageIndex: i,
-                      })}
+                      url={mockMode
+                        ? resolveBackendUrl(serverBaseUrl, url)
+                        : buildSuwayomiPageUrl({
+                            serverBaseUrl,
+                            mangaId: streamCh.mangaId,
+                            chapterSourceOrder: streamCh.sourceOrder,
+                            pageIndex: i,
+                          })}
                       fallbackUrl={resolveBackendUrl(serverBaseUrl, url)}
                       pageNumber={i}
                       onIntersect={(pageIndex) => handleIntersect(streamCh, pageIndex)}

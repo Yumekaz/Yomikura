@@ -123,7 +123,7 @@ export function BulkCategoryModal({
         <div className="flex items-center justify-between border-b border-white/5 pb-4">
           <div className="flex flex-col">
             <h2 id="bulk-category-title" className="text-lg font-semibold text-white">Bulk Categories</h2>
-            <p className="text-[10px] text-slate-500">Applying to {mangaIds.length} titles</p>
+            <p className="text-xs text-slate-500">Applying to {mangaIds.length} titles</p>
           </div>
           <button
             onClick={onClose}

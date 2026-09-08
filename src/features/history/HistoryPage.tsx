@@ -1,12 +1,12 @@
-import { useMemo } from "react";
-import { Link } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, ChevronRight, Clock3, History, Loader2, RotateCcw } from "lucide-react";
+import { BookOpen, ChevronRight, Clock3, History, Loader2, RotateCcw, Search, SkipForward, Trash2 } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
-import { deleteReadingHistoryItem, getReadingHistory } from "../../api/suwayomi/offlineCache";
+import { getReadingHistory, hideReadingHistoryItem } from "../../api/suwayomi/offlineCache";
 import { ChapterOrderBy, SortOrder } from "../../api/graphql/generated/graphql";
 
 interface HistoryItem {
@@ -56,6 +56,9 @@ function dateLabel(timestamp: number): string {
 
 export default function HistoryPage() {
   const { confirm } = useFeedback();
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [openingNextId, setOpeningNextId] = useState<string | null>(null);
   const { serverBaseUrl, mockMode } = useSettingsStore();
   const queryClient = useQueryClient();
   const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`), [serverBaseUrl]);
@@ -85,10 +88,12 @@ export default function HistoryPage() {
 
   const items = useMemo(() => {
     const merged = new Map<string, HistoryItem>();
+    const hidden = new Set((localHistory.data ?? []).filter((event) => event.isHidden).map((event) => String(event.chapterId)));
     for (const page of serverHistory.data?.pages ?? []) {
       for (const edge of page.chapters?.edges ?? []) {
         const node = edge?.node;
         if (!node) continue;
+        if (hidden.has(String(node.id))) continue;
         const readAt = parseHistoryTimestamp(node.lastReadAt);
         if (readAt <= 0) continue;
         merged.set(String(node.id), {
@@ -101,6 +106,7 @@ export default function HistoryPage() {
       // Demo Sandbox content has no matching chapter on a live Suwayomi server.
       // Keep legacy sample events out of a real library as well.
       if (!shouldShowReadingEvent(event, mockMode)) continue;
+      if (event.isHidden) continue;
       const key = String(event.chapterId);
       const existing = merged.get(key);
       if (!existing || event.readAt >= existing.readAt) {
@@ -112,8 +118,21 @@ export default function HistoryPage() {
         });
       }
     }
-    return [...merged.values()].sort((a, b) => b.readAt - a.readAt);
-  }, [localHistory.data, mockMode, serverHistory.data]);
+    const query = searchQuery.trim().toLowerCase();
+    return [...merged.values()]
+      .filter((item) => !query || `${item.manga.title} ${item.name}`.toLowerCase().includes(query))
+      .sort((a, b) => b.readAt - a.readAt);
+  }, [localHistory.data, mockMode, searchQuery, serverHistory.data]);
+
+  const hideHistory = useMutation({
+    mutationFn: async (item: HistoryItem) => hideReadingHistoryItem({
+      chapterId: Number(item.id), chapterName: item.name, chapterNumber: item.chapterNumber,
+      mangaId: item.mangaId, mangaTitle: item.manga.title, thumbnailUrl: item.manga.thumbnailUrl,
+      lastPageRead: item.lastPageRead, pageCount: item.pageCount ?? 0, isRead: false,
+      isDemo: mockMode,
+    }, serverBaseUrl),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["history"] }),
+  });
 
   const groups = useMemo(() => {
     const result = new Map<string, { timestamp: number; items: HistoryItem[] }>();
@@ -128,7 +147,11 @@ export default function HistoryPage() {
 
   const resetProgress = useMutation({
     mutationFn: async (item: HistoryItem) => {
-      await deleteReadingHistoryItem(serverBaseUrl, Number(item.id));
+      await hideReadingHistoryItem({
+        chapterId: Number(item.id), chapterName: item.name, chapterNumber: item.chapterNumber,
+        mangaId: item.mangaId, mangaTitle: item.manga.title, thumbnailUrl: item.manga.thumbnailUrl,
+        lastPageRead: 0, pageCount: item.pageCount ?? 0, isRead: false, isDemo: mockMode,
+      }, serverBaseUrl);
       await sdk.UpdateChapterProgress({ input: { id: Number(item.id), patch: { lastPageRead: 0, isRead: false } } }).catch(() => null);
     },
     onSuccess: () => {
@@ -136,6 +159,21 @@ export default function HistoryPage() {
       queryClient.invalidateQueries({ queryKey: ["chapter"] });
     },
   });
+
+  const openNextChapter = async (item: HistoryItem) => {
+    setOpeningNextId(item.id);
+    try {
+      const result = await sdk.GetChapter({ id: Number(item.id) });
+      const chapters = (result.chapter?.manga?.chapters?.edges ?? [])
+        .map((edge) => edge?.node)
+        .filter((chapter): chapter is NonNullable<typeof chapter> => !!chapter)
+        .filter((chapter) => chapter.chapterNumber > item.chapterNumber)
+        .sort((a, b) => a.chapterNumber - b.chapterNumber);
+      navigate(`/reader/${chapters[0]?.id ?? item.id}`);
+    } finally {
+      setOpeningNextId(null);
+    }
+  };
 
   if (!serverBaseUrl) return <EmptyHistory title="Connect your library" detail="Reading activity appears after Yomikura connects to Suwayomi." />;
   if ((serverHistory.isLoading || localHistory.isLoading) && items.length === 0) return <HistorySkeleton />;
@@ -148,7 +186,7 @@ export default function HistoryPage() {
     <section className="yomi-page yomi-history">
       <header className="yomi-page-header">
         <div><span className="yomi-eyebrow">Reading activity</span><h1>History</h1><p>{items.length} chapter{items.length === 1 ? "" : "s"} in your recent timeline</p></div>
-        {serverHistory.isError && <div className="yomi-status-chip" title={getErrorMessage(serverHistory.error)}><span className="yomi-status-dot is-warning" /> Local history shown</div>}
+        <div className="flex w-full max-w-sm flex-col gap-2"><label className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><span className="sr-only">Search reading history</span><input className="yomi-field w-full pl-10" type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search history…" /></label>{serverHistory.isError && <div className="yomi-status-chip" title={getErrorMessage(serverHistory.error)}><span className="yomi-status-dot is-warning" /> Local history shown</div>}</div>
       </header>
 
       <div className="yomi-timeline">
@@ -169,7 +207,7 @@ export default function HistoryPage() {
                       <div className="yomi-progress-line"><span style={{ width: `${percentage ?? 4}%` }} /></div>
                       <small>{percentage !== undefined ? `${percentage}% read` : `Last page ${item.lastPageRead + 1}`}</small>
                     </div>
-                    <div className="yomi-history-actions"><Link to={`/reader/${item.id}`} className="yomi-icon-button" title="Continue reading" aria-label={`Continue ${item.manga.title}`}><ChevronRight /></Link><button className="yomi-icon-button danger" title="Reset chapter progress" aria-label={`Reset progress for ${item.name}`} onClick={async () => { if (await confirm({ title: "Reset reading progress?", detail: `This removes “${item.name}” from your recent activity and resets its saved position.`, confirmLabel: "Reset progress", danger: true })) resetProgress.mutate(item); }}><RotateCcw /></button></div>
+                    <div className="yomi-history-actions"><Link to={`/reader/${item.id}`} className="yomi-icon-button" title="Continue reading" aria-label={`Continue ${item.manga.title}`}><ChevronRight /></Link><button className="yomi-icon-button" title="Open next chapter" aria-label={`Open next chapter after ${item.name}`} disabled={openingNextId === item.id} onClick={() => void openNextChapter(item)}>{openingNextId === item.id ? <Loader2 className="animate-spin" /> : <SkipForward />}</button><button className="yomi-icon-button danger" title="Remove from history" aria-label={`Remove ${item.name} from history`} onClick={async () => { if (await confirm({ title: "Remove from history?", detail: `Hide “${item.name}” from recent activity without changing reading progress.`, confirmLabel: "Remove", danger: true })) hideHistory.mutate(item); }}><Trash2 /></button><button className="yomi-icon-button danger" title="Reset chapter progress" aria-label={`Reset progress for ${item.name}`} onClick={async () => { if (await confirm({ title: "Reset reading progress?", detail: `This removes “${item.name}” from your recent activity and resets its saved position.`, confirmLabel: "Reset progress", danger: true })) resetProgress.mutate(item); }}><RotateCcw /></button></div>
                   </article>
                 );
               })}

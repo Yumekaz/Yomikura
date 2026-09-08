@@ -28,7 +28,7 @@ interface DownloadItem {
 
 export default function DownloadsPage() {
   const { confirm } = useFeedback();
-  const { cachedChapters, activeDownloads, loadCachedChapters, deleteChapter, cancelDownload, storageUsage } = useDownloadStore();
+  const { cachedChapters, activeDownloads, loadCachedChapters, deleteChapter, cancelDownload, retryDownload, storageUsage } = useDownloadStore();
   const { serverBaseUrl, connectionStatus, mockMode } = useSettingsStore();
   const queryClient = useQueryClient();
   const isUnconnected = (connectionStatus === "error" || connectionStatus === "disconnected") && !mockMode;
@@ -97,7 +97,7 @@ export default function DownloadsPage() {
     return (
       <div className="yomi-workspace space-y-7">
         <DownloadsHeader savedCount={cachedChapters.length} storageUsage={storageUsage} />
-        <SavedDownloads chapters={cachedChapters} activeDownloads={activeDownloads} onCancel={cancelDownload} onDelete={async (chapter) => { if (await confirm({ title: "Remove saved chapter?", detail: `Delete the offline pages for “${chapter.name}”?`, confirmLabel: "Remove download", danger: true })) await deleteChapter(chapter.id); }} />
+        <SavedDownloads chapters={cachedChapters} activeDownloads={activeDownloads} onCancel={cancelDownload} onRetry={retryDownload} onDelete={async (chapter) => { if (await confirm({ title: "Remove saved chapter?", detail: `Delete the offline pages for “${chapter.name}”?`, confirmLabel: "Remove download", danger: true })) await deleteChapter(chapter.id); }} />
         <div className="yomi-commandbar"><div className="yomi-commandbar-copy"><span className="status is-idle" /><div><strong>Server queue unavailable</strong><span>Reconnect Suwayomi to resume queued downloads. Saved chapters remain readable.</span></div></div></div>
       </div>
     );
@@ -158,7 +158,7 @@ export default function DownloadsPage() {
         </div>
       </div>
 
-      <SavedDownloads chapters={cachedChapters} activeDownloads={activeDownloads} onCancel={cancelDownload} onDelete={async (chapter) => { if (await confirm({ title: "Remove saved chapter?", detail: `Delete the offline pages for “${chapter.name}”?`, confirmLabel: "Remove download", danger: true })) await deleteChapter(chapter.id); }} />
+      <SavedDownloads chapters={cachedChapters} activeDownloads={activeDownloads} onCancel={cancelDownload} onRetry={retryDownload} onDelete={async (chapter) => { if (await confirm({ title: "Remove saved chapter?", detail: `Delete the offline pages for “${chapter.name}”?`, confirmLabel: "Remove download", danger: true })) await deleteChapter(chapter.id); }} />
 
       <div className="yomi-commandbar">
         <div className="yomi-commandbar-copy"><span className={`status ${downloaderState === "STARTED" ? "" : "is-idle"}`} />
@@ -218,7 +218,7 @@ export default function DownloadsPage() {
                     />
                   </div>
 
-                  <div className="flex items-center gap-4 text-[10px] text-slate-500 mt-2">
+                  <div className="flex items-center gap-4 text-xs text-slate-500 mt-2">
                     <span>Progress: {Math.round(item.progress)}%</span>
                     {item.tries > 0 && <span>Tries: {item.tries}</span>}
                     {item.position > 0 && <span>Position: #{item.position}</span>}
@@ -249,11 +249,11 @@ function DownloadsHeader({ savedCount, storageUsage }: { savedCount: number; sto
   return <div className="yomi-workspace-head"><div><span className="yomi-eyebrow">Offline reading</span><h1 className="yomi-workspace-title"><Download />Downloads</h1><p className="yomi-workspace-subtitle">Saved chapters stay readable even when the local engine is unavailable.</p></div><span className="yomi-status-chip">{savedCount} saved · {formatBytes(storageUsage)}</span></div>;
 }
 
-function SavedDownloads({ chapters, activeDownloads, onCancel, onDelete }: { chapters: CachedChapter[]; activeDownloads: ReturnType<typeof useDownloadStore.getState>["activeDownloads"]; onCancel: (id: number) => void; onDelete: (chapter: CachedChapter) => Promise<void> }) {
+function SavedDownloads({ chapters, activeDownloads, onCancel, onRetry, onDelete }: { chapters: CachedChapter[]; activeDownloads: ReturnType<typeof useDownloadStore.getState>["activeDownloads"]; onCancel: (id: number) => void; onRetry: (id: number) => Promise<void>; onDelete: (chapter: CachedChapter) => Promise<void> }) {
   const active = Object.entries(activeDownloads);
   return <section className="space-y-3" aria-labelledby="saved-downloads-title">
     <div className="flex items-end justify-between gap-4"><div><span className="yomi-eyebrow">On this device</span><h2 id="saved-downloads-title" className="text-lg font-semibold text-slate-100">Saved chapters</h2></div><span className="text-sm text-slate-400">{chapters.length} available offline</span></div>
-    {active.map(([id, progress]) => <div key={id} className="yomi-commandbar"><div className="yomi-commandbar-copy"><span className="status" /><div><strong>Saving chapter {id}</strong><span>{progress.total ? `${progress.progress} of ${progress.total} pages` : "Preparing pages"}{progress.error ? ` · ${progress.error}` : ""}</span></div></div><button className="yomi-icon-button danger" aria-label={`Cancel chapter ${id} download`} onClick={() => onCancel(Number(id))}><X /></button></div>)}
+    {active.map(([id, progress]) => <div key={id} className="yomi-commandbar"><div className="yomi-commandbar-copy"><span className={`status ${progress.status === "error" ? "is-error" : progress.status === "queued" ? "is-idle" : ""}`} /><div><strong>{progress.status === "queued" ? "Queued" : progress.status === "error" ? "Download needs attention" : "Saving"} chapter {id}</strong><span>{progress.total ? `${progress.progress} of ${progress.total} pages` : "Preparing pages"}{progress.attempts ? ` · attempt ${progress.attempts}` : ""}{progress.error ? ` · ${progress.error}` : ""}</span></div></div><div className="flex items-center gap-2">{progress.status === "error" && <button className="yomi-button yomi-button-secondary" onClick={() => void onRetry(Number(id))}>Retry</button>}<button className="yomi-icon-button danger" aria-label={`Cancel chapter ${id} download`} onClick={() => onCancel(Number(id))}><X /></button></div></div>)}
     {chapters.length === 0 && active.length === 0 ? <div className="yomi-route-empty"><div><BookOpen /><h2>No saved chapters yet</h2><p>Use the download action beside any chapter. Finished chapters will appear here and remain available offline.</p></div></div> : chapters.length > 0 && <div className="yomi-surface">{chapters.map((chapter) => <div className="yomi-surface-row" key={chapter.cacheKey}><div className="yomi-catalog-icon"><BookOpen /></div><div className="yomi-row-copy"><Link className="yomi-row-title" to={`/manga/${chapter.mangaId}`}>{chapter.mangaTitle}</Link><p>{chapter.name} · {chapter.pageCount} pages · {formatBytes(chapter.totalSizeBytes)}</p></div><Link className="yomi-button yomi-button-secondary" to={`/reader/${chapter.id}`}>Read</Link><button className="yomi-icon-button danger" aria-label={`Remove offline download ${chapter.name}`} onClick={() => void onDelete(chapter)}><Trash2 /></button></div>)}</div>}
   </section>;
 }

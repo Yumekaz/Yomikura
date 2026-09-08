@@ -226,7 +226,7 @@ export default function MangaDetailPage() {
   };
 
   return (
-    <div className="yomi-manga-detail min-h-screen pb-20 lg:pb-0">
+    <div className="yomi-manga-detail min-h-screen overflow-x-clip pb-20 lg:pb-0">
       {/* Top Banner & Metadata Area */}
       <div className="relative">
         {/* Blurred background */}

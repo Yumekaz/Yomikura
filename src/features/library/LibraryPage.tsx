@@ -10,9 +10,10 @@ import { LibraryFilters } from "./LibraryFilters";
 import { LibraryGrid, LibraryManga } from "./LibraryGrid";
 import { CategoryDialog } from "./CategoryDialog";
 import { BulkCategoryModal } from "../../components/library/BulkCategoryModal";
+import { LibraryList } from "./LibraryList";
 
 export default function LibraryPage() {
-  const { serverBaseUrl, setServerBaseUrl, testConnection } = useSettingsStore();
+  const { serverBaseUrl, setServerBaseUrl, testConnection, mockMode, libraryViewMode, setLibraryViewMode, librarySortMode, setLibrarySortMode, librarySortDescending, setLibrarySortDescending } = useSettingsStore();
   const { cachedChapters, loadCachedChapters, downloadChapter } = useDownloadStore();
   const queryClient = useQueryClient();
 
@@ -33,11 +34,11 @@ export default function LibraryPage() {
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
     return createGraphqlClient(`${cleanUrl}/api/graphql`);
-  }, [serverBaseUrl]);
+  }, [serverBaseUrl, mockMode]);
 
   // Fetch Categories
   const { data: catData, isLoading: catLoading } = useQuery({
-    queryKey: ["categories", serverBaseUrl],
+    queryKey: ["categories", serverBaseUrl, mockMode],
     queryFn: () => sdk.GetCategories(),
     enabled: !!serverBaseUrl,
     staleTime: 1000 * 60 * 5,
@@ -50,7 +51,7 @@ export default function LibraryPage() {
     isError: libError,
     refetch: refetchLibrary,
   } = useQuery({
-    queryKey: ["library", serverBaseUrl],
+    queryKey: ["library", serverBaseUrl, mockMode],
     queryFn: async () => {
       const nodes = await fetchAllLibrary(sdk, {
         inLibrary: { equalTo: true },
@@ -154,6 +155,18 @@ export default function LibraryPage() {
     }));
   }, [libData, searchQuery, isOfflineMode, cachedChapters, activeCategoryId]);
 
+  const displayMangas = useMemo(() => {
+    const direction = librarySortDescending ? -1 : 1;
+    return [...mangas].sort((a, b) => {
+      if (librarySortMode === "unread") return (a.unreadCount - b.unreadCount) * direction || a.title.localeCompare(b.title);
+      if (librarySortMode === "status") {
+        const rank = (manga: LibraryManga) => manga.hasStartedReading ? (manga.unreadCount ? 0 : 1) : 2;
+        return (rank(a) - rank(b)) * direction || a.title.localeCompare(b.title);
+      }
+      return a.title.localeCompare(b.title) * direction;
+    });
+  }, [librarySortDescending, librarySortMode, mangas]);
+
   // Bulk select handlers
   const handleToggleSelectManga = useCallback((mangaId: string | number) => {
     setIsSelectMode(true);
@@ -177,8 +190,8 @@ export default function LibraryPage() {
   }, []);
 
   const handleSelectAll = useCallback(() => {
-    setSelectedMangaIds(new Set(mangas.map((m) => m.id)));
-  }, [mangas]);
+    setSelectedMangaIds(new Set(displayMangas.map((m) => m.id)));
+  }, [displayMangas]);
 
   const bulkDownloadSelected = async () => {
     const idArray = Array.from(selectedMangaIds);
@@ -283,7 +296,7 @@ export default function LibraryPage() {
         <div>
           <span className="yomi-eyebrow">Your collection</span>
           <h1 className="mt-1 text-3xl font-semibold tracking-[-0.04em] text-white lg:text-4xl">Library</h1>
-          <p className="mt-2 text-sm text-slate-500">{mangas.length} title{mangas.length === 1 ? "" : "s"} ready to read</p>
+          <p className="mt-2 text-sm text-slate-400">{displayMangas.length} title{displayMangas.length === 1 ? "" : "s"} ready to read</p>
         </div>
       </header>
       {/* Filters Bar */}
@@ -298,6 +311,12 @@ export default function LibraryPage() {
         selectedCount={selectedMangaIds.size}
         onSelectAll={handleSelectAll}
         onCancelSelect={handleClearSelection}
+        viewMode={libraryViewMode}
+        sortMode={librarySortMode}
+        sortDescending={librarySortDescending}
+        onViewModeChange={setLibraryViewMode}
+        onSortModeChange={setLibrarySortMode}
+        onSortDirectionChange={setLibrarySortDescending}
       />
 
       {/* Main Grid Area */}
@@ -310,7 +329,7 @@ export default function LibraryPage() {
                 setServerBaseUrl("http://127.0.0.1:4567");
                 await testConnection();
               }}
-              className="rounded-full bg-yomi-jade/20 border border-yomi-jade/30 px-3 py-0.5 text-[10px] font-semibold text-yomi-mint hover:bg-yomi-jade/35 transition"
+              className="rounded-full bg-yomi-jade/20 border border-yomi-jade/30 px-3 py-0.5 text-xs font-semibold text-yomi-mint hover:bg-yomi-jade/35 transition"
             >
               Reconnect to Live Server (127.0.0.1:4567)
             </button>
@@ -321,13 +340,7 @@ export default function LibraryPage() {
             <Loader2 className="h-8 w-8 animate-spin text-yomi-jade/60" />
           </div>
         ) : (
-          <LibraryGrid
-            mangas={mangas}
-            serverBaseUrl={serverBaseUrl}
-            isSelectMode={isSelectMode}
-            selectedMangaIds={selectedMangaIds}
-            onToggleSelectManga={handleToggleSelectManga}
-          />
+          libraryViewMode === "grid" ? <LibraryGrid mangas={displayMangas} serverBaseUrl={serverBaseUrl} isSelectMode={isSelectMode} selectedMangaIds={selectedMangaIds} onToggleSelectManga={handleToggleSelectManga} /> : <LibraryList mangas={displayMangas} serverBaseUrl={serverBaseUrl} isSelectMode={isSelectMode} selectedMangaIds={selectedMangaIds} onToggleSelectManga={handleToggleSelectManga} />
         )}
       </div>
 

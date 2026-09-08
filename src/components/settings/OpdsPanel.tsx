@@ -11,7 +11,7 @@ export function OpdsPanel() {
   }, [serverBaseUrl]);
 
   if (!opdsUrl) {
-    return <p className="text-xs text-slate-500">Connect to Suwayomi to expose OPDS.</p>;
+    return <p className="text-xs text-slate-400">Connect to Suwayomi to expose OPDS.</p>;
   }
 
   return (
@@ -19,7 +19,7 @@ export function OpdsPanel() {
       <p className="text-xs text-slate-400">
         Use this OPDS URL in compatible readers (Kavita, panels apps, etc.).
       </p>
-      <code className="block break-all rounded-lg bg-black/30 p-3 text-[11px] text-yomi-mint">
+      <code className="block break-all rounded-lg bg-black/30 p-3 text-xs text-yomi-mint">
         {opdsUrl}
       </code>
       <div className="flex gap-2">

@@ -1,4 +1,5 @@
-import { Search, FolderEdit, X } from "lucide-react";
+import { ArrowDownAZ, ArrowUpAZ, FolderEdit, Grid2X2, List, Search, X } from "lucide-react";
+import type { LibrarySortMode, LibraryViewMode } from "../../stores/useSettingsStore";
 import { useTranslation } from "../../hooks/useTranslation";
 import { LibraryUpdateButton } from "../../components/library/LibraryUpdateButton";
 
@@ -20,6 +21,12 @@ interface LibraryFiltersProps {
   selectedCount?: number;
   onSelectAll?: () => void;
   onCancelSelect?: () => void;
+  viewMode: LibraryViewMode;
+  sortMode: LibrarySortMode;
+  sortDescending: boolean;
+  onViewModeChange: (mode: LibraryViewMode) => void;
+  onSortModeChange: (mode: LibrarySortMode) => void;
+  onSortDirectionChange: (descending: boolean) => void;
 }
 
 export function LibraryFilters({
@@ -33,6 +40,12 @@ export function LibraryFilters({
   selectedCount = 0,
   onSelectAll,
   onCancelSelect,
+  viewMode,
+  sortMode,
+  sortDescending,
+  onViewModeChange,
+  onSortModeChange,
+  onSortDirectionChange,
 }: LibraryFiltersProps) {
   const { t } = useTranslation();
 
@@ -72,7 +85,7 @@ export function LibraryFilters({
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-white/[0.07] bg-ink-900 px-4 py-3 lg:flex-row lg:items-center lg:justify-between mb-5">
+    <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-white/[0.07] bg-ink-900 px-4 py-3">
       {/* Category Pills */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide lg:pb-0 order-2 lg:order-1 flex-1">
         <button
@@ -130,9 +143,15 @@ export function LibraryFilters({
         </button>
       </div>
 
-      <div className="flex w-full items-center gap-2 order-1 lg:order-2 lg:w-auto">
+      <div className="order-1 flex w-full flex-wrap items-center gap-2 lg:order-2">
         <LibraryUpdateButton />
-        <div className="flex flex-1 items-center gap-2 rounded-xl border border-white/10 bg-ink-950/60 focus-within:border-yomi-jade/50 px-3.5 py-2.5 lg:w-72 transition-colors">
+        <select className="yomi-field min-w-28" aria-label="Sort library" value={sortMode} onChange={(event) => onSortModeChange(event.target.value as LibrarySortMode)}><option value="title">Title</option><option value="unread">Unread</option><option value="status">Reading status</option></select>
+        <button type="button" className="yomi-icon-button" aria-label={sortDescending ? "Sort ascending" : "Sort descending"} onClick={() => onSortDirectionChange(!sortDescending)}>{sortDescending ? <ArrowDownAZ /> : <ArrowUpAZ />}</button>
+        <div className="flex rounded-xl border border-white/10 bg-ink-950/60 p-1" role="group" aria-label="Library view">
+          <button type="button" className={`yomi-icon-button h-8 w-8 border-0 ${viewMode === "grid" ? "bg-white/10 text-white" : ""}`} aria-label="Grid view" aria-pressed={viewMode === "grid"} onClick={() => onViewModeChange("grid")}><Grid2X2 /></button>
+          <button type="button" className={`yomi-icon-button h-8 w-8 border-0 ${viewMode === "list" ? "bg-white/10 text-white" : ""}`} aria-label="List view" aria-pressed={viewMode === "list"} onClick={() => onViewModeChange("list")}><List /></button>
+        </div>
+        <div className="flex min-w-56 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-ink-950/60 px-3.5 py-2.5 transition-colors focus-within:border-yomi-jade/50">
           <Search className="h-4 w-4 text-slate-500" />
           <input
             type="text"

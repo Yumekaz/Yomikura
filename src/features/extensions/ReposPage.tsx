@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CheckCircle2, Loader2, Plus, Trash2, Github, AlertCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, Plus, Trash2, Github, AlertCircle, ShieldCheck } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
+import { validateExtensionRepositoryUrl } from "./extensionRepo";
 
 // Suwayomi 2.3 migrates the old repository setting to Mihon's extension-store
 // format. The minified legacy index now contains only compatibility notices.
@@ -57,10 +58,21 @@ export default function ReposPage() {
     },
   });
 
-  const handleAdd = (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!repoUrl.trim() || repos.includes(repoUrl.trim())) return;
-    updateRepos([...repos, repoUrl.trim()]);
+    const validation = validateExtensionRepositoryUrl(repoUrl);
+    if (!validation.valid) {
+      setStatusMessage({ kind: "error", text: validation.message });
+      return;
+    }
+    if (repos.includes(validation.url)) return;
+    if (!(await confirm({ title: `Trust ${validation.host}?`, detail: "Extensions can execute source code inside Suwayomi. Add repositories only when you recognize and trust their maintainer.", confirmLabel: "Trust and add" }))) return;
+    updateRepos([...repos, validation.url]);
+  };
+
+  const addRecommendedRepository = async () => {
+    if (!(await confirm({ title: "Use the Keiyoushi community repository?", detail: "This repository is community-maintained and is not operated by Yomikura or Mihon. Its extensions execute through Suwayomi.", confirmLabel: "Trust and add" }))) return;
+    updateRepos([...repos, KEIYOUSHI_URL]);
   };
 
   const handleRemove = async (urlToRemove: string) => {
@@ -72,7 +84,7 @@ export default function ReposPage() {
     <div className="min-h-screen bg-transparent pb-24">
       <div className="sticky top-0 z-20 border-b border-white/5 bg-ink-950/95 px-4 py-4 backdrop-blur-xl sm:px-6">
         <div className="max-w-3xl mx-auto flex items-center gap-3">
-          <Link to="/extensions" className="yomi-utility-button">
+          <Link to="/extensions" className="yomi-utility-button" aria-label="Back to extensions">
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div><span className="yomi-eyebrow">Extensions</span><h1 className="yomi-workspace-title mt-1">Repositories</h1></div>
@@ -100,7 +112,7 @@ export default function ReposPage() {
               <p className="text-sm text-slate-400 mt-1">The unofficial community-maintained extension repository for Mihon/Suwayomi.</p>
             </div>
             <button
-              onClick={() => updateRepos([...repos, KEIYOUSHI_URL])}
+              onClick={() => void addRecommendedRepository()}
               disabled={updating}
               className="yomi-button yomi-button-primary whitespace-nowrap disabled:opacity-50"
             >
@@ -143,7 +155,7 @@ export default function ReposPage() {
             <div className="yomi-surface">
               {repos.map(url => (
                 <div key={url} className="flex items-center justify-between gap-4 px-4 py-4 border-b border-white/5 last:border-0">
-                  <span className="truncate text-sm text-slate-300 font-mono">{url}</span>
+                  <div className="min-w-0"><span className="block truncate text-sm text-slate-300 font-mono">{url}</span><span className="mt-1 flex items-center gap-1.5 text-xs text-slate-400"><ShieldCheck className="h-3.5 w-3.5" />Approved by this user</span></div>
                   <button
                     onClick={() => handleRemove(url)}
                     disabled={updating}

@@ -66,6 +66,9 @@ export type ConnectionStatus = "disconnected" | "connected" | "error" | "testing
 export type ReaderMode = "WEBTOON" | "LTR" | "RTL";
 export type FitMode = "FIT_SCREEN" | "FIT_WIDTH" | "FIT_HEIGHT";
 export type PageSpread = "SINGLE" | "DOUBLE" | "DOUBLE_COVER";
+export type ReaderNavigationMode = "edge" | "wide" | "disabled";
+export type LibraryViewMode = "grid" | "list";
+export type LibrarySortMode = "title" | "unread" | "status";
 
 export interface ServerProfile {
   id: string;
@@ -130,6 +133,19 @@ interface SettingsState {
   cropBorders: boolean;
   pageTransition: "fade" | "slide" | "none";
   autoDownloadCount: number;
+  downloadConcurrency: number;
+  backupIntervalHours: number;
+  lastScheduledBackupAt: number;
+  scheduledBackupStatus: "idle" | "running" | "success" | "error";
+  scheduledBackupError: string;
+  libraryUpdateIntervalHours: number;
+  lastLibraryUpdateAt: number;
+  scheduledLibraryUpdateStatus: "idle" | "running" | "success" | "error";
+  scheduledLibraryUpdateError: string;
+  readerNavigationMode: ReaderNavigationMode;
+  libraryViewMode: LibraryViewMode;
+  librarySortMode: LibrarySortMode;
+  librarySortDescending: boolean;
   customKeybinds: Record<string, string[]>;
   savedSearches: SavedSearch[];
 
@@ -170,6 +186,15 @@ interface SettingsState {
   setCropBorders: (crop: boolean) => void;
   setPageTransition: (transition: "fade" | "slide" | "none") => void;
   setAutoDownloadCount: (count: number) => void;
+  setDownloadConcurrency: (count: number) => void;
+  setBackupIntervalHours: (hours: number) => void;
+  setScheduledBackupResult: (status: "idle" | "running" | "success" | "error", error?: string) => void;
+  setLibraryUpdateIntervalHours: (hours: number) => void;
+  setScheduledLibraryUpdateResult: (status: "idle" | "running" | "success" | "error", error?: string) => void;
+  setReaderNavigationMode: (mode: ReaderNavigationMode) => void;
+  setLibraryViewMode: (mode: LibraryViewMode) => void;
+  setLibrarySortMode: (mode: LibrarySortMode) => void;
+  setLibrarySortDescending: (descending: boolean) => void;
   setCustomKeybinds: (keybinds: Record<string, string[]>) => void;
   addSavedSearch: (name: string, sourceId: string, query: string, filters: string) => void;
   deleteSavedSearch: (id: string) => void;
@@ -218,6 +243,19 @@ export const useSettingsStore = create<SettingsState>()(
       cropBorders: false,
       pageTransition: "none",
       autoDownloadCount: 0,
+      downloadConcurrency: 2,
+      backupIntervalHours: 0,
+      lastScheduledBackupAt: 0,
+      scheduledBackupStatus: "idle",
+      scheduledBackupError: "",
+      libraryUpdateIntervalHours: 0,
+      lastLibraryUpdateAt: 0,
+      scheduledLibraryUpdateStatus: "idle",
+      scheduledLibraryUpdateError: "",
+      readerNavigationMode: "edge",
+      libraryViewMode: "grid",
+      librarySortMode: "title",
+      librarySortDescending: false,
       customKeybinds: {
         prevPage: ["arrowleft", "a", "backspace"],
         nextPage: ["arrowright", "d", " ", "enter"],
@@ -375,6 +413,23 @@ export const useSettingsStore = create<SettingsState>()(
       setCropBorders: (crop) => set({ cropBorders: crop }),
       setPageTransition: (transition) => set({ pageTransition: transition }),
       setAutoDownloadCount: (count) => set({ autoDownloadCount: count }),
+      setDownloadConcurrency: (count) => set({ downloadConcurrency: Math.min(4, Math.max(1, Math.round(count))) }),
+      setBackupIntervalHours: (hours) => set({ backupIntervalHours: Math.max(0, Math.round(hours)) }),
+      setScheduledBackupResult: (status, error = "") => set({
+        scheduledBackupStatus: status,
+        scheduledBackupError: error,
+        ...(status === "success" ? { lastScheduledBackupAt: Date.now() } : {}),
+      }),
+      setLibraryUpdateIntervalHours: (hours) => set({ libraryUpdateIntervalHours: Math.max(0, Math.round(hours)) }),
+      setScheduledLibraryUpdateResult: (status, error = "") => set({
+        scheduledLibraryUpdateStatus: status,
+        scheduledLibraryUpdateError: error,
+        ...(status === "success" ? { lastLibraryUpdateAt: Date.now() } : {}),
+      }),
+      setReaderNavigationMode: (mode) => set({ readerNavigationMode: mode }),
+      setLibraryViewMode: (mode) => set({ libraryViewMode: mode }),
+      setLibrarySortMode: (mode) => set({ librarySortMode: mode }),
+      setLibrarySortDescending: (descending) => set({ librarySortDescending: descending }),
       setCustomKeybinds: (keybinds) => set({ customKeybinds: keybinds }),
       addSavedSearch: (name, sourceId, query, filters) => {
         const newSearch: SavedSearch = {
@@ -448,6 +503,19 @@ export const useSettingsStore = create<SettingsState>()(
           cropBorders: false,
           pageTransition: "none",
           autoDownloadCount: 0,
+          downloadConcurrency: 2,
+          backupIntervalHours: 0,
+          lastScheduledBackupAt: 0,
+          scheduledBackupStatus: "idle",
+          scheduledBackupError: "",
+          libraryUpdateIntervalHours: 0,
+          lastLibraryUpdateAt: 0,
+          scheduledLibraryUpdateStatus: "idle",
+          scheduledLibraryUpdateError: "",
+          readerNavigationMode: "edge",
+          libraryViewMode: "grid",
+          librarySortMode: "title",
+          librarySortDescending: false,
           customKeybinds: {
             prevPage: ["arrowleft", "a", "backspace"],
             nextPage: ["arrowright", "d", " ", "enter"],
@@ -497,6 +565,19 @@ export const useSettingsStore = create<SettingsState>()(
         cropBorders: state.cropBorders,
         pageTransition: state.pageTransition,
         autoDownloadCount: state.autoDownloadCount,
+        downloadConcurrency: state.downloadConcurrency,
+        backupIntervalHours: state.backupIntervalHours,
+        lastScheduledBackupAt: state.lastScheduledBackupAt,
+        scheduledBackupStatus: state.scheduledBackupStatus === "running" ? "idle" : state.scheduledBackupStatus,
+        scheduledBackupError: state.scheduledBackupError,
+        libraryUpdateIntervalHours: state.libraryUpdateIntervalHours,
+        lastLibraryUpdateAt: state.lastLibraryUpdateAt,
+        scheduledLibraryUpdateStatus: state.scheduledLibraryUpdateStatus === "running" ? "idle" : state.scheduledLibraryUpdateStatus,
+        scheduledLibraryUpdateError: state.scheduledLibraryUpdateError,
+        readerNavigationMode: state.readerNavigationMode,
+        libraryViewMode: state.libraryViewMode,
+        librarySortMode: state.librarySortMode,
+        librarySortDescending: state.librarySortDescending,
         customKeybinds: state.customKeybinds,
         savedSearches: state.savedSearches,
         language: state.language,
@@ -540,6 +621,19 @@ export const useSettingsStore = create<SettingsState>()(
           cropBorders: persisted?.cropBorders ?? currentState.cropBorders,
           pageTransition: persisted?.pageTransition ?? currentState.pageTransition,
           autoDownloadCount: persisted?.autoDownloadCount ?? currentState.autoDownloadCount,
+          downloadConcurrency: persisted?.downloadConcurrency ?? currentState.downloadConcurrency,
+          backupIntervalHours: persisted?.backupIntervalHours ?? currentState.backupIntervalHours,
+          lastScheduledBackupAt: persisted?.lastScheduledBackupAt ?? currentState.lastScheduledBackupAt,
+          scheduledBackupStatus: persisted?.scheduledBackupStatus === "running" ? "idle" : persisted?.scheduledBackupStatus ?? currentState.scheduledBackupStatus,
+          scheduledBackupError: persisted?.scheduledBackupError ?? currentState.scheduledBackupError,
+          libraryUpdateIntervalHours: persisted?.libraryUpdateIntervalHours ?? currentState.libraryUpdateIntervalHours,
+          lastLibraryUpdateAt: persisted?.lastLibraryUpdateAt ?? currentState.lastLibraryUpdateAt,
+          scheduledLibraryUpdateStatus: persisted?.scheduledLibraryUpdateStatus === "running" ? "idle" : persisted?.scheduledLibraryUpdateStatus ?? currentState.scheduledLibraryUpdateStatus,
+          scheduledLibraryUpdateError: persisted?.scheduledLibraryUpdateError ?? currentState.scheduledLibraryUpdateError,
+          readerNavigationMode: persisted?.readerNavigationMode ?? currentState.readerNavigationMode,
+          libraryViewMode: persisted?.libraryViewMode ?? currentState.libraryViewMode,
+          librarySortMode: persisted?.librarySortMode ?? currentState.librarySortMode,
+          librarySortDescending: persisted?.librarySortDescending ?? currentState.librarySortDescending,
           customKeybinds: persisted?.customKeybinds ?? currentState.customKeybinds,
           savedSearches: persisted?.savedSearches ?? currentState.savedSearches,
           language: persisted?.language ?? currentState.language,

@@ -28,15 +28,33 @@ export interface ReadingHistoryEvent {
   lastPageRead: number;
   pageCount: number;
   isRead: boolean;
+  /** Hidden records suppress stale server history until the chapter is opened again. */
+  isHidden?: boolean;
   /** Demo Sandbox activity is intentionally kept separate from a live library. */
   isDemo?: boolean;
   readAt: number;
 }
 
+export type DownloadJobStatus = "queued" | "downloading" | "failed";
+
+export interface DownloadJob {
+  jobKey: string;
+  serverBaseUrl: string;
+  chapterId: number;
+  mangaTitle?: string;
+  status: DownloadJobStatus;
+  progress: number;
+  total: number;
+  attempts: number;
+  error?: string;
+  updatedAt: number;
+}
+
 const DB_NAME = "yomikura-offline";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE_NAME = "chapters";
 const HISTORY_STORE_NAME = "reading-history";
+const DOWNLOAD_JOB_STORE_NAME = "download-jobs";
 
 export function normalizeCacheServerUrl(serverBaseUrl: string): string {
   return serverBaseUrl.trim().replace(/\/+$/, "");
@@ -65,7 +83,56 @@ export function openDB(): Promise<IDBDatabase> {
         historyStore.createIndex("readAt", "readAt", { unique: false });
         historyStore.createIndex("mangaId", "mangaId", { unique: false });
       }
+      if (!db.objectStoreNames.contains(DOWNLOAD_JOB_STORE_NAME)) {
+        const downloadStore = db.createObjectStore(DOWNLOAD_JOB_STORE_NAME, { keyPath: "jobKey" });
+        downloadStore.createIndex("serverBaseUrl", "serverBaseUrl", { unique: false });
+        downloadStore.createIndex("updatedAt", "updatedAt", { unique: false });
+      }
     };
+  });
+}
+
+export function getDownloadJobKey(serverBaseUrl: string, chapterId: number): string {
+  return `${normalizeCacheServerUrl(serverBaseUrl)}::${chapterId}`;
+}
+
+export async function saveDownloadJob(job: Omit<DownloadJob, "jobKey" | "serverBaseUrl"> & { serverBaseUrl: string }): Promise<void> {
+  const normalizedServer = normalizeCacheServerUrl(job.serverBaseUrl);
+  const record: DownloadJob = {
+    ...job,
+    jobKey: getDownloadJobKey(normalizedServer, job.chapterId),
+    serverBaseUrl: normalizedServer,
+  };
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(DOWNLOAD_JOB_STORE_NAME, "readwrite").objectStore(DOWNLOAD_JOB_STORE_NAME).put(record);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve();
+  });
+}
+
+export async function getDownloadJobs(serverBaseUrl?: string): Promise<DownloadJob[]> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(DOWNLOAD_JOB_STORE_NAME, "readonly").objectStore(DOWNLOAD_JOB_STORE_NAME).getAll();
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const normalizedServer = serverBaseUrl ? normalizeCacheServerUrl(serverBaseUrl) : undefined;
+      resolve(((request.result || []) as DownloadJob[])
+        .filter((job) => !normalizedServer || job.serverBaseUrl === normalizedServer)
+        .sort((a, b) => a.updatedAt - b.updatedAt));
+    };
+  });
+}
+
+export async function deleteDownloadJob(serverBaseUrl: string, chapterId: number): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(DOWNLOAD_JOB_STORE_NAME, "readwrite")
+      .objectStore(DOWNLOAD_JOB_STORE_NAME)
+      .delete(getDownloadJobKey(serverBaseUrl, chapterId));
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve();
   });
 }
 
@@ -127,6 +194,16 @@ export async function deleteReadingHistoryItem(serverBaseUrl: string, chapterId:
       .delete(getReadingHistoryKey(serverBaseUrl, chapterId));
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve();
+  });
+}
+
+export async function hideReadingHistoryItem(event: Omit<ReadingHistoryEvent, "historyKey" | "serverBaseUrl" | "readAt">, serverBaseUrl: string): Promise<void> {
+  await saveReadingHistoryEvent({
+    ...event,
+    historyKey: getReadingHistoryKey(serverBaseUrl, event.chapterId),
+    serverBaseUrl: normalizeCacheServerUrl(serverBaseUrl),
+    isHidden: true,
+    readAt: Date.now(),
   });
 }
 
@@ -237,11 +314,11 @@ export async function clearAllCache(): Promise<void> {
   try {
     const db = await openDB();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.clear();
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve();
+    const transaction = db.transaction([STORE_NAME, DOWNLOAD_JOB_STORE_NAME], "readwrite");
+    transaction.objectStore(STORE_NAME).clear();
+    transaction.objectStore(DOWNLOAD_JOB_STORE_NAME).clear();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.oncomplete = () => resolve();
     });
   } catch (err) {
     console.error("IndexedDB clear failed:", err);

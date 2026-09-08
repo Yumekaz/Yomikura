@@ -118,12 +118,12 @@ export function LocalImportSection() {
       </p>
 
       {localSourcePath ? (
-        <div className="mt-4 p-3 rounded-lg bg-ink-950/40 border border-white/5 text-[11px] text-slate-400 font-mono break-all flex flex-col gap-1">
+        <div className="mt-4 p-3 rounded-lg bg-ink-950/40 border border-white/5 text-xs text-slate-400 font-mono break-all flex flex-col gap-1">
           <span className="font-bold text-slate-300">Server Local Directory:</span>
           <span>{localSourcePath}</span>
         </div>
       ) : loadingSettings ? (
-        <div className="flex items-center gap-2 py-4 text-xs text-slate-500">
+        <div className="flex items-center gap-2 py-4 text-xs text-slate-400">
           <Loader2 className="h-4 w-4 animate-spin text-yomi-jade" />
           Fetching server paths...
         </div>
@@ -131,10 +131,11 @@ export function LocalImportSection() {
 
       <form onSubmit={handleImport} className="mt-6 space-y-4 max-w-xl">
         <div>
-          <label className="block px-1 pb-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          <label htmlFor="local-import-title" className="block px-1 pb-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Manga Title
           </label>
           <input
+            id="local-import-title"
             type="text"
             required
             placeholder="e.g. My Favorite Manga"
@@ -146,7 +147,7 @@ export function LocalImportSection() {
         </div>
 
         <div>
-          <label className="block px-1 pb-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          <label htmlFor="local-import-files" className="block px-1 pb-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Select Archive Files
           </label>
           <div
@@ -155,6 +156,7 @@ export function LocalImportSection() {
             onDrop={handleDrop}
           >
             <input
+              id="local-import-files"
               type="file"
               multiple
               accept=".cbz,.cbr,.pdf"
@@ -168,7 +170,7 @@ export function LocalImportSection() {
                 ? `${selectedFiles.length} files selected`
                 : "Drag & drop files or click to browse"}
             </span>
-            <span className="text-[10px] text-slate-500 mt-1">
+            <span className="mt-1 text-xs text-slate-400">
               Supports .cbz, .cbr, and .pdf formats
             </span>
           </div>
@@ -176,7 +178,7 @@ export function LocalImportSection() {
           {selectedFiles.length > 0 && (
             <div className="mt-2 max-h-24 overflow-y-auto px-1 space-y-1 scrollbar-thin">
               {selectedFiles.map((f, i) => (
-                <div key={i} className="text-[10px] text-slate-400 truncate">
+                <div key={i} className="text-xs text-slate-400 truncate">
                   • {f.name} ({(f.size / (1024 * 1024)).toFixed(2)} MB)
                 </div>
               ))}
@@ -198,7 +200,7 @@ export function LocalImportSection() {
               <span>{feedbackMessage}</span>
             </div>
             {!isTauri() && localSourcePath && (
-              <div className="mt-1 p-2 rounded bg-black/40 border border-white/5 text-[10px] text-slate-300 space-y-1">
+              <div className="mt-1 p-2 rounded bg-black/40 border border-white/5 text-xs text-slate-300 space-y-1">
                 <p className="font-bold text-slate-200">How to import in Browser/PWA Mode:</p>
                 <p>1. Copy the selected files on your computer.</p>
                 <p>2. Create a folder named <code className="bg-white/5 px-1 py-0.5 rounded text-yomi-mint">"{mangaTitle || "Manga Title"}"</code> inside:</p>
