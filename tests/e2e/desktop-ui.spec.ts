@@ -19,6 +19,15 @@ async function enterDemo(page: import("@playwright/test").Page) {
   await expect(page.getByText("[Demo] Pepper & Carrot", { exact: true })).toBeVisible();
 }
 
+test("default onboarding keeps the ivory and bookmark-red brand palette", async ({ page }) => {
+  await page.goto("/library");
+  const demoButton = page.getByRole("button", { name: "Explore Demo Library" });
+  await expect(demoButton).toBeVisible({ timeout: 15_000 });
+  await expect(demoButton).toHaveCSS("background-color", "rgb(239, 234, 226)");
+  const brandAccent = await page.locator(".text-\\[rgb\\(var\\(--yomi-signature\\)\\)\\]").first().evaluate((element) => getComputedStyle(element).color);
+  expect(brandAccent).toBe("rgb(229, 72, 63)");
+});
+
 test("desktop shell keeps one clear navigation hierarchy", async ({ page }) => {
   await enterDemo(page);
   await expect(page.getByRole("link", { name: "Library", exact: true })).toHaveCount(1);
