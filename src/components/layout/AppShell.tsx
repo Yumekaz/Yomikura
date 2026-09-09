@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { BookOpen, Server, Play, ShieldCheck, ArrowRight, Loader2, Sparkles, ChevronDown, ChevronUp, FolderOpen, HardDrive, RefreshCw, AlertTriangle } from "lucide-react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { browseNav, primaryNav, utilityNav, type NavItem } from "../../app/navigation";
 import { useSettingsStore, isTauri } from "../../stores/useSettingsStore";
@@ -94,6 +94,7 @@ function AppShell() {
     hasHydrated,
   } = useSettingsStore();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [showShortcuts, setShowShortcuts] = useState(false);
 
@@ -239,6 +240,12 @@ function AppShell() {
         <div className="px-4 pt-2 lg:px-0">
           <UpdateNotificationBanner />
         </div>
+        {mockMode && !location.pathname.startsWith("/reader/") && (
+          <div className="mx-auto my-3 flex max-w-3xl flex-col items-start justify-between gap-3 rounded-xl border border-[rgba(var(--yomi-signature),.28)] bg-[rgba(var(--yomi-signature),.08)] px-4 py-3 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 items-start gap-2 text-sm"><Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[rgb(var(--yomi-signature))]" /><p className="text-slate-200"><strong>Demo Sandbox is active.</strong> You are viewing sample titles only; your server library, history, extensions, and downloads are not shown.</p></div>
+            <button type="button" onClick={() => { setMockMode(false); navigate("/settings"); }} className="yomi-button yomi-button-primary shrink-0">Connect a server</button>
+          </div>
+        )}
         {showOfflineBanner && (
           <div className="mx-auto my-3 max-w-xl rounded-full bg-amber-500/10 border border-amber-500/20 px-4 py-1.5 text-center text-xs font-semibold text-amber-300 backdrop-blur-md shadow-md animate-fade-in flex items-center justify-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />

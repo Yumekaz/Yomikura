@@ -49,6 +49,15 @@ test("desktop shell keeps one clear navigation hierarchy", async ({ page }) => {
   expect(layout.bodyBackground).toBe("rgb(9, 10, 12)");
 });
 
+test("demo mode explains its boundary and exits directly into server setup", async ({ page }) => {
+  await enterDemo(page);
+  await expect(page.getByText("Demo Sandbox is active.")).toBeVisible();
+  await page.getByRole("button", { name: "Connect a server" }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+  await expect(page.getByText("Demo Sandbox is active.")).toHaveCount(0);
+});
+
 test("keyboard users can skip directly to the main content", async ({ page }) => {
   await enterDemo(page);
   const skipLink = page.getByRole("link", { name: "Skip to content" });
