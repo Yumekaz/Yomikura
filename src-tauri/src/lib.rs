@@ -691,7 +691,13 @@ fn start_backend(
 
     let mut cmd = Command::new(java_program);
     #[cfg(windows)]
-    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    {
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+                                        // Java's bundled CA file does not include roots installed by Windows
+                                        // security software, school/work proxies, or managed networks. Using
+                                        // Windows-ROOT keeps Suwayomi HTTPS behavior aligned with the browser.
+        cmd.arg("-Djavax.net.ssl.trustStoreType=Windows-ROOT");
+    }
 
     cmd.arg(format!(
         "-Dsuwayomi.tachidesk.config.server.rootDir={}",

@@ -41,6 +41,17 @@ export type AboutWebUi = {
   updateTimestamp: Scalars['LongString']['output'];
 };
 
+export type AddExtensionStoreInput = {
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  indexUrl: Scalars['String']['input'];
+};
+
+export type AddExtensionStorePayload = {
+  __typename?: 'AddExtensionStorePayload';
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  extensionStore: ExtensionStoreType;
+};
+
 export enum AuthMode {
   BasicAuth = 'BASIC_AUTH',
   None = 'NONE',
@@ -76,6 +87,18 @@ export type BindTrackInput = {
 
 export type BindTrackPayload = {
   __typename?: 'BindTrackPayload';
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  trackRecord: TrackRecordType;
+};
+
+export type BindTrackRecordInput = {
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  mangaId: Scalars['Int']['input'];
+  trackRecordId: Scalars['Int']['input'];
+};
+
+export type BindTrackRecordPayload = {
+  __typename?: 'BindTrackRecordPayload';
   clientMutationId?: Maybe<Scalars['String']['output']>;
   trackRecord: TrackRecordType;
 };
@@ -344,6 +367,30 @@ export type ConnectKoSyncAccountInput = {
   password: Scalars['String']['input'];
   serverAddress: Scalars['String']['input'];
   username: Scalars['String']['input'];
+};
+
+export enum ContentWarning {
+  Mixed = 'MIXED',
+  Nsfw = 'NSFW',
+  Safe = 'SAFE'
+}
+
+export type ContentWarningFilterInput = {
+  distinctFrom?: InputMaybe<ContentWarning>;
+  distinctFromAll?: InputMaybe<Array<ContentWarning>>;
+  distinctFromAny?: InputMaybe<Array<ContentWarning>>;
+  equalTo?: InputMaybe<ContentWarning>;
+  greaterThan?: InputMaybe<ContentWarning>;
+  greaterThanOrEqualTo?: InputMaybe<ContentWarning>;
+  in?: InputMaybe<Array<ContentWarning>>;
+  isNull?: InputMaybe<Scalars['Boolean']['input']>;
+  lessThan?: InputMaybe<ContentWarning>;
+  lessThanOrEqualTo?: InputMaybe<ContentWarning>;
+  notDistinctFrom?: InputMaybe<ContentWarning>;
+  notEqualTo?: InputMaybe<ContentWarning>;
+  notEqualToAll?: InputMaybe<Array<ContentWarning>>;
+  notEqualToAny?: InputMaybe<Array<ContentWarning>>;
+  notIn?: InputMaybe<Array<ContentWarning>>;
 };
 
 export type CreateBackupInput = {
@@ -717,16 +764,20 @@ export type EnqueueChapterDownloadsPayload = {
 
 export type ExtensionConditionInput = {
   apkName?: InputMaybe<Scalars['String']['input']>;
+  apkUrl?: InputMaybe<Scalars['String']['input']>;
+  contentWarning?: InputMaybe<ContentWarning>;
+  extensionLib?: InputMaybe<Scalars['String']['input']>;
   hasUpdate?: InputMaybe<Scalars['Boolean']['input']>;
   iconUrl?: InputMaybe<Scalars['String']['input']>;
   isInstalled?: InputMaybe<Scalars['Boolean']['input']>;
-  isNsfw?: InputMaybe<Scalars['Boolean']['input']>;
   isObsolete?: InputMaybe<Scalars['Boolean']['input']>;
+  jarUrl?: InputMaybe<Scalars['String']['input']>;
   lang?: InputMaybe<Scalars['String']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
   pkgName?: InputMaybe<Scalars['String']['input']>;
-  repo?: InputMaybe<Scalars['String']['input']>;
+  storeIndexUrl?: InputMaybe<Scalars['String']['input']>;
   versionCode?: InputMaybe<Scalars['Int']['input']>;
+  versionCodeLong?: InputMaybe<Scalars['LongString']['input']>;
   versionName?: InputMaybe<Scalars['String']['input']>;
 };
 
@@ -739,18 +790,21 @@ export type ExtensionEdge = Edge & {
 export type ExtensionFilterInput = {
   and?: InputMaybe<Array<ExtensionFilterInput>>;
   apkName?: InputMaybe<StringFilterInput>;
+  apkUrl?: InputMaybe<StringFilterInput>;
+  contentWarning?: InputMaybe<ContentWarningFilterInput>;
+  extensionLib?: InputMaybe<StringFilterInput>;
   hasUpdate?: InputMaybe<BooleanFilterInput>;
   iconUrl?: InputMaybe<StringFilterInput>;
   isInstalled?: InputMaybe<BooleanFilterInput>;
-  isNsfw?: InputMaybe<BooleanFilterInput>;
   isObsolete?: InputMaybe<BooleanFilterInput>;
+  jarUrl?: InputMaybe<StringFilterInput>;
   lang?: InputMaybe<StringFilterInput>;
   name?: InputMaybe<StringFilterInput>;
   not?: InputMaybe<ExtensionFilterInput>;
   or?: InputMaybe<Array<ExtensionFilterInput>>;
   pkgName?: InputMaybe<StringFilterInput>;
-  repo?: InputMaybe<StringFilterInput>;
-  versionCode?: InputMaybe<IntFilterInput>;
+  storeIndexUrl?: InputMaybe<StringFilterInput>;
+  versionCodeLong?: InputMaybe<LongFilterInput>;
   versionName?: InputMaybe<StringFilterInput>;
 };
 
@@ -763,6 +817,7 @@ export type ExtensionNodeList = NodeList & {
 };
 
 export enum ExtensionOrderBy {
+  /** @deprecated  */
   ApkName = 'APK_NAME',
   Name = 'NAME',
   PkgName = 'PKG_NAME'
@@ -773,20 +828,82 @@ export type ExtensionOrderInput = {
   byType?: InputMaybe<SortOrder>;
 };
 
+export type ExtensionStoreConditionInput = {
+  id?: InputMaybe<Scalars['Int']['input']>;
+  indexUrl?: InputMaybe<Scalars['String']['input']>;
+  name?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type ExtensionStoreEdge = Edge & {
+  __typename?: 'ExtensionStoreEdge';
+  cursor: Scalars['Cursor']['output'];
+  node: ExtensionStoreType;
+};
+
+export type ExtensionStoreFilterInput = {
+  and?: InputMaybe<Array<ExtensionStoreFilterInput>>;
+  indexUrl?: InputMaybe<StringFilterInput>;
+  name?: InputMaybe<StringFilterInput>;
+  not?: InputMaybe<ExtensionStoreFilterInput>;
+  or?: InputMaybe<Array<ExtensionStoreFilterInput>>;
+};
+
+export type ExtensionStoreNodeList = NodeList & {
+  __typename?: 'ExtensionStoreNodeList';
+  edges: Array<ExtensionStoreEdge>;
+  nodes: Array<ExtensionStoreType>;
+  pageInfo: PageInfo;
+  totalCount: Scalars['Int']['output'];
+};
+
+export enum ExtensionStoreOrderBy {
+  IndexUrl = 'INDEX_URL',
+  Name = 'NAME'
+}
+
+export type ExtensionStoreOrderInput = {
+  by: ExtensionStoreOrderBy;
+  byType?: InputMaybe<SortOrder>;
+};
+
+export type ExtensionStoreType = {
+  __typename?: 'ExtensionStoreType';
+  badgeLabel: Scalars['String']['output'];
+  contactDiscord?: Maybe<Scalars['String']['output']>;
+  contactWebsite: Scalars['String']['output'];
+  extensionListUrl?: Maybe<Scalars['String']['output']>;
+  extensions: ExtensionNodeList;
+  indexUrl: Scalars['String']['output'];
+  isLegacy: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
+  signingKey: Scalars['String']['output'];
+};
+
 export type ExtensionType = {
   __typename?: 'ExtensionType';
-  apkName: Scalars['String']['output'];
+  /** This will be nullable in the future */
+  apkName?: Maybe<Scalars['String']['output']>;
+  apkUrl?: Maybe<Scalars['String']['output']>;
+  contentWarning: ContentWarning;
+  extensionLib?: Maybe<Scalars['String']['output']>;
+  extensionStore?: Maybe<ExtensionStoreType>;
   hasUpdate: Scalars['Boolean']['output'];
   iconUrl: Scalars['String']['output'];
   isInstalled: Scalars['Boolean']['output'];
+  /** @deprecated Removed in extension api v1.6, replace with contentWarning */
   isNsfw: Scalars['Boolean']['output'];
   isObsolete: Scalars['Boolean']['output'];
+  jarUrl?: Maybe<Scalars['String']['output']>;
   lang: Scalars['String']['output'];
   name: Scalars['String']['output'];
   pkgName: Scalars['String']['output'];
+  /** @deprecated Removed in extension api v1.6, replace with storeIndexUrl */
   repo?: Maybe<Scalars['String']['output']>;
   source: SourceNodeList;
+  storeIndexUrl?: Maybe<Scalars['String']['output']>;
+  /** @deprecated Type was changed to Long, will be switched back to this variable name in the future., replace with versionCodeLong */
   versionCode: Scalars['Int']['output'];
+  versionCodeLong: Scalars['LongString']['output'];
   versionName: Scalars['String']['output'];
 };
 
@@ -822,7 +939,22 @@ export type FetchExtensionsInput = {
 export type FetchExtensionsPayload = {
   __typename?: 'FetchExtensionsPayload';
   clientMutationId?: Maybe<Scalars['String']['output']>;
+  extensionStores: Array<ExtensionStoreType>;
   extensions: Array<ExtensionType>;
+};
+
+export type FetchMangaAndChaptersInput = {
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  fetchChapters: Scalars['Boolean']['input'];
+  fetchManga: Scalars['Boolean']['input'];
+  id: Scalars['Int']['input'];
+};
+
+export type FetchMangaAndChaptersPayload = {
+  __typename?: 'FetchMangaAndChaptersPayload';
+  chapters: Array<ChapterType>;
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  manga: MangaType;
 };
 
 export type FetchMangaInput = {
@@ -1310,7 +1442,9 @@ export type MultiSelectListPreference = {
 
 export type Mutation = {
   __typename?: 'Mutation';
+  addExtensionStore?: Maybe<AddExtensionStorePayload>;
   bindTrack: BindTrackPayload;
+  bindTrackRecord?: Maybe<BindTrackRecordPayload>;
   clearCachedImages: ClearCachedImagesPayload;
   clearDownloader?: Maybe<ClearDownloaderPayload>;
   connectKoSyncAccount: KoSyncConnectPayload;
@@ -1334,9 +1468,12 @@ export type Mutation = {
   enqueueChapterDownload?: Maybe<EnqueueChapterDownloadPayload>;
   enqueueChapterDownloads?: Maybe<EnqueueChapterDownloadsPayload>;
   fetchChapterPages?: Maybe<FetchChapterPagesPayload>;
+  /** @deprecated Deprecated in Tachiyomix 1.6, replace with fetchMangaAndChapters */
   fetchChapters?: Maybe<FetchChaptersPayload>;
   fetchExtensions?: Maybe<FetchExtensionsPayload>;
+  /** @deprecated Deprecated in Tachiyomix 1.6, replace with fetchMangaAndChapters */
   fetchManga?: Maybe<FetchMangaPayload>;
+  fetchMangaAndChapters?: Maybe<FetchMangaAndChaptersPayload>;
   fetchSourceManga?: Maybe<FetchSourceMangaPayload>;
   fetchTrack: FetchTrackPayload;
   installExternalExtension?: Maybe<InstallExternalExtensionPayload>;
@@ -1348,6 +1485,7 @@ export type Mutation = {
   pullKoSyncProgress?: Maybe<PullKoSyncProgressPayload>;
   pushKoSyncProgress?: Maybe<PushKoSyncProgressPayload>;
   refreshToken: RefreshTokenPayload;
+  removeExtensionStore?: Maybe<RemoveExtensionStorePayload>;
   reorderChapterDownload?: Maybe<ReorderChapterDownloadPayload>;
   resetSettings: ResetSettingsPayload;
   resetWebUIUpdateStatus?: Maybe<WebUiUpdateStatus>;
@@ -1364,6 +1502,7 @@ export type Mutation = {
   setSourceMeta?: Maybe<SetSourceMetaPayload>;
   setSourceMetas?: Maybe<SetSourceMetasPayload>;
   startDownloader?: Maybe<StartDownloaderPayload>;
+  startSync: StartSyncPayload;
   stopDownloader?: Maybe<StopDownloaderPayload>;
   trackProgress?: Maybe<TrackProgressPayload>;
   unbindTrack: UnbindTrackPayload;
@@ -1388,8 +1527,18 @@ export type Mutation = {
 };
 
 
+export type MutationAddExtensionStoreArgs = {
+  input: AddExtensionStoreInput;
+};
+
+
 export type MutationBindTrackArgs = {
   input: BindTrackInput;
+};
+
+
+export type MutationBindTrackRecordArgs = {
+  input: BindTrackRecordInput;
 };
 
 
@@ -1523,6 +1672,11 @@ export type MutationFetchMangaArgs = {
 };
 
 
+export type MutationFetchMangaAndChaptersArgs = {
+  input: FetchMangaAndChaptersInput;
+};
+
+
 export type MutationFetchSourceMangaArgs = {
   input: FetchSourceMangaInput;
 };
@@ -1575,6 +1729,11 @@ export type MutationPushKoSyncProgressArgs = {
 
 export type MutationRefreshTokenArgs = {
   input: RefreshTokenInput;
+};
+
+
+export type MutationRemoveExtensionStoreArgs = {
+  input: RemoveExtensionStoreInput;
 };
 
 
@@ -1650,6 +1809,11 @@ export type MutationSetSourceMetasArgs = {
 
 export type MutationStartDownloaderArgs = {
   input: StartDownloaderInput;
+};
+
+
+export type MutationStartSyncArgs = {
+  input: StartSyncInput;
 };
 
 
@@ -1757,7 +1921,7 @@ export type MutationUpdateWebUiArgs = {
   input: WebUiUpdateInput;
 };
 
-export type Node = CategoryMetaType | CategoryType | ChapterMetaType | ChapterType | DownloadType | DownloadUpdate | ExtensionType | GlobalMetaType | MangaMetaType | MangaType | PartialSettingsType | SettingsType | SourceMetaType | SourceType | TrackRecordType | TrackerType;
+export type Node = CategoryMetaType | CategoryType | ChapterMetaType | ChapterType | DownloadType | DownloadUpdate | ExtensionStoreType | ExtensionType | GlobalMetaType | MangaMetaType | MangaType | PartialSettingsType | SettingsType | SourceMetaType | SourceType | TrackRecordType | TrackerType;
 
 export type NodeList = {
   /** A list of edges which contains the [T] and cursor to aid in pagination. */
@@ -1832,6 +1996,7 @@ export type PartialSettingsType = Settings & {
   excludeEntryWithUnreadChapters?: Maybe<Scalars['Boolean']['output']>;
   excludeNotStarted?: Maybe<Scalars['Boolean']['output']>;
   excludeUnreadChapters?: Maybe<Scalars['Boolean']['output']>;
+  /** @deprecated Replaced with addExtensionStore and removeExtensionStore mutations */
   extensionRepos?: Maybe<Array<Scalars['String']['output']>>;
   flareSolverrAsResponseFallback?: Maybe<Scalars['Boolean']['output']>;
   flareSolverrEnabled?: Maybe<Scalars['Boolean']['output']>;
@@ -1847,6 +2012,7 @@ export type PartialSettingsType = Settings & {
   jwtAudience?: Maybe<Scalars['String']['output']>;
   jwtRefreshExpiry?: Maybe<Scalars['Duration']['output']>;
   jwtTokenExpiry?: Maybe<Scalars['Duration']['output']>;
+  kcefEnabled?: Maybe<Scalars['Boolean']['output']>;
   koreaderSyncChecksumMethod?: Maybe<KoreaderSyncChecksumMethod>;
   /** @deprecated Moved to preference store. Is supposed to be random and gets auto generated, replace with MOVE TO PREFERENCES */
   koreaderSyncDeviceId?: Maybe<Scalars['String']['output']>;
@@ -1873,6 +2039,7 @@ export type PartialSettingsType = Settings & {
   opdsMarkAsReadOnDownload?: Maybe<Scalars['Boolean']['output']>;
   opdsShowOnlyDownloadedChapters?: Maybe<Scalars['Boolean']['output']>;
   opdsShowOnlyUnreadChapters?: Maybe<Scalars['Boolean']['output']>;
+  opdsSkipChapterMetadataFeed?: Maybe<Scalars['Boolean']['output']>;
   opdsUseBinaryFileSizes?: Maybe<Scalars['Boolean']['output']>;
   port?: Maybe<Scalars['Int']['output']>;
   serveConversions?: Maybe<Array<SettingsDownloadConversionType>>;
@@ -1882,6 +2049,15 @@ export type PartialSettingsType = Settings & {
   socksProxyPort?: Maybe<Scalars['String']['output']>;
   socksProxyUsername?: Maybe<Scalars['String']['output']>;
   socksProxyVersion?: Maybe<Scalars['Int']['output']>;
+  syncDataCategories?: Maybe<Scalars['Boolean']['output']>;
+  syncDataChapters?: Maybe<Scalars['Boolean']['output']>;
+  syncDataHistory?: Maybe<Scalars['Boolean']['output']>;
+  syncDataManga?: Maybe<Scalars['Boolean']['output']>;
+  syncDataTracking?: Maybe<Scalars['Boolean']['output']>;
+  syncInterval?: Maybe<Scalars['Duration']['output']>;
+  syncYomiApiKey?: Maybe<Scalars['String']['output']>;
+  syncYomiEnabled?: Maybe<Scalars['Boolean']['output']>;
+  syncYomiHost?: Maybe<Scalars['String']['output']>;
   systemTrayEnabled?: Maybe<Scalars['Boolean']['output']>;
   updateMangas?: Maybe<Scalars['Boolean']['output']>;
   useHikariConnectionPool?: Maybe<Scalars['Boolean']['output']>;
@@ -1922,7 +2098,6 @@ export type PartialSettingsTypeInput = {
   excludeEntryWithUnreadChapters?: InputMaybe<Scalars['Boolean']['input']>;
   excludeNotStarted?: InputMaybe<Scalars['Boolean']['input']>;
   excludeUnreadChapters?: InputMaybe<Scalars['Boolean']['input']>;
-  extensionRepos?: InputMaybe<Array<Scalars['String']['input']>>;
   flareSolverrAsResponseFallback?: InputMaybe<Scalars['Boolean']['input']>;
   flareSolverrEnabled?: InputMaybe<Scalars['Boolean']['input']>;
   flareSolverrSessionName?: InputMaybe<Scalars['String']['input']>;
@@ -1935,6 +2110,7 @@ export type PartialSettingsTypeInput = {
   jwtAudience?: InputMaybe<Scalars['String']['input']>;
   jwtRefreshExpiry?: InputMaybe<Scalars['Duration']['input']>;
   jwtTokenExpiry?: InputMaybe<Scalars['Duration']['input']>;
+  kcefEnabled?: InputMaybe<Scalars['Boolean']['input']>;
   koreaderSyncChecksumMethod?: InputMaybe<KoreaderSyncChecksumMethod>;
   koreaderSyncPercentageTolerance?: InputMaybe<Scalars['Float']['input']>;
   koreaderSyncStrategyBackward?: InputMaybe<KoreaderSyncConflictStrategy>;
@@ -1951,6 +2127,7 @@ export type PartialSettingsTypeInput = {
   opdsMarkAsReadOnDownload?: InputMaybe<Scalars['Boolean']['input']>;
   opdsShowOnlyDownloadedChapters?: InputMaybe<Scalars['Boolean']['input']>;
   opdsShowOnlyUnreadChapters?: InputMaybe<Scalars['Boolean']['input']>;
+  opdsSkipChapterMetadataFeed?: InputMaybe<Scalars['Boolean']['input']>;
   opdsUseBinaryFileSizes?: InputMaybe<Scalars['Boolean']['input']>;
   port?: InputMaybe<Scalars['Int']['input']>;
   serveConversions?: InputMaybe<Array<SettingsDownloadConversionTypeInput>>;
@@ -1960,6 +2137,15 @@ export type PartialSettingsTypeInput = {
   socksProxyPort?: InputMaybe<Scalars['String']['input']>;
   socksProxyUsername?: InputMaybe<Scalars['String']['input']>;
   socksProxyVersion?: InputMaybe<Scalars['Int']['input']>;
+  syncDataCategories?: InputMaybe<Scalars['Boolean']['input']>;
+  syncDataChapters?: InputMaybe<Scalars['Boolean']['input']>;
+  syncDataHistory?: InputMaybe<Scalars['Boolean']['input']>;
+  syncDataManga?: InputMaybe<Scalars['Boolean']['input']>;
+  syncDataTracking?: InputMaybe<Scalars['Boolean']['input']>;
+  syncInterval?: InputMaybe<Scalars['Duration']['input']>;
+  syncYomiApiKey?: InputMaybe<Scalars['String']['input']>;
+  syncYomiEnabled?: InputMaybe<Scalars['Boolean']['input']>;
+  syncYomiHost?: InputMaybe<Scalars['String']['input']>;
   systemTrayEnabled?: InputMaybe<Scalars['Boolean']['input']>;
   updateMangas?: InputMaybe<Scalars['Boolean']['input']>;
   useHikariConnectionPool?: InputMaybe<Scalars['Boolean']['input']>;
@@ -2007,9 +2193,12 @@ export type Query = {
   checkForWebUIUpdate: WebUiUpdateCheck;
   downloadStatus: DownloadStatus;
   extension: ExtensionType;
+  extensionStore: ExtensionStoreType;
+  extensionStores: ExtensionStoreNodeList;
   extensions: ExtensionNodeList;
   getWebUIUpdateStatus: WebUiUpdateStatus;
   koSyncStatus: KoSyncStatusPayload;
+  lastSyncStatus?: Maybe<SyncStatus>;
   lastUpdateTimestamp: LastUpdateTimestampPayload;
   libraryUpdateStatus: LibraryUpdateStatus;
   manga: MangaType;
@@ -2040,8 +2229,6 @@ export type QueryCategoriesArgs = {
   last?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order?: InputMaybe<Array<CategoryOrderInput>>;
-  orderBy?: InputMaybe<CategoryOrderBy>;
-  orderByType?: InputMaybe<SortOrder>;
 };
 
 
@@ -2064,13 +2251,28 @@ export type QueryChaptersArgs = {
   last?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order?: InputMaybe<Array<ChapterOrderInput>>;
-  orderBy?: InputMaybe<ChapterOrderBy>;
-  orderByType?: InputMaybe<SortOrder>;
 };
 
 
 export type QueryExtensionArgs = {
   pkgName: Scalars['String']['input'];
+};
+
+
+export type QueryExtensionStoreArgs = {
+  indexUrl: Scalars['String']['input'];
+};
+
+
+export type QueryExtensionStoresArgs = {
+  after?: InputMaybe<Scalars['Cursor']['input']>;
+  before?: InputMaybe<Scalars['Cursor']['input']>;
+  condition?: InputMaybe<ExtensionStoreConditionInput>;
+  filter?: InputMaybe<ExtensionStoreFilterInput>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+  order?: InputMaybe<Array<ExtensionStoreOrderInput>>;
 };
 
 
@@ -2083,8 +2285,6 @@ export type QueryExtensionsArgs = {
   last?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order?: InputMaybe<Array<ExtensionOrderInput>>;
-  orderBy?: InputMaybe<ExtensionOrderBy>;
-  orderByType?: InputMaybe<SortOrder>;
 };
 
 
@@ -2102,8 +2302,6 @@ export type QueryMangasArgs = {
   last?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order?: InputMaybe<Array<MangaOrderInput>>;
-  orderBy?: InputMaybe<MangaOrderBy>;
-  orderByType?: InputMaybe<SortOrder>;
 };
 
 
@@ -2121,8 +2319,6 @@ export type QueryMetasArgs = {
   last?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order?: InputMaybe<Array<MetaOrderInput>>;
-  orderBy?: InputMaybe<MetaOrderBy>;
-  orderByType?: InputMaybe<SortOrder>;
 };
 
 
@@ -2150,8 +2346,6 @@ export type QuerySourcesArgs = {
   last?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order?: InputMaybe<Array<SourceOrderInput>>;
-  orderBy?: InputMaybe<SourceOrderBy>;
-  orderByType?: InputMaybe<SortOrder>;
 };
 
 
@@ -2169,8 +2363,6 @@ export type QueryTrackRecordsArgs = {
   last?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order?: InputMaybe<Array<TrackRecordOrderInput>>;
-  orderBy?: InputMaybe<TrackRecordOrderBy>;
-  orderByType?: InputMaybe<SortOrder>;
 };
 
 
@@ -2187,8 +2379,6 @@ export type QueryTrackersArgs = {
   last?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   order?: InputMaybe<Array<TrackerOrderInput>>;
-  orderBy?: InputMaybe<TrackerOrderBy>;
-  orderByType?: InputMaybe<SortOrder>;
 };
 
 
@@ -2205,6 +2395,17 @@ export type RefreshTokenPayload = {
   __typename?: 'RefreshTokenPayload';
   accessToken: Scalars['String']['output'];
   clientMutationId?: Maybe<Scalars['String']['output']>;
+};
+
+export type RemoveExtensionStoreInput = {
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  indexUrl: Scalars['String']['input'];
+};
+
+export type RemoveExtensionStorePayload = {
+  __typename?: 'RemoveExtensionStorePayload';
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  extensionStore?: Maybe<ExtensionStoreType>;
 };
 
 export type ReorderChapterDownloadInput = {
@@ -2448,6 +2649,7 @@ export type Settings = {
   excludeEntryWithUnreadChapters?: Maybe<Scalars['Boolean']['output']>;
   excludeNotStarted?: Maybe<Scalars['Boolean']['output']>;
   excludeUnreadChapters?: Maybe<Scalars['Boolean']['output']>;
+  /** @deprecated Replaced with addExtensionStore and removeExtensionStore mutations */
   extensionRepos?: Maybe<Array<Scalars['String']['output']>>;
   flareSolverrAsResponseFallback?: Maybe<Scalars['Boolean']['output']>;
   flareSolverrEnabled?: Maybe<Scalars['Boolean']['output']>;
@@ -2463,6 +2665,7 @@ export type Settings = {
   jwtAudience?: Maybe<Scalars['String']['output']>;
   jwtRefreshExpiry?: Maybe<Scalars['Duration']['output']>;
   jwtTokenExpiry?: Maybe<Scalars['Duration']['output']>;
+  kcefEnabled?: Maybe<Scalars['Boolean']['output']>;
   koreaderSyncChecksumMethod?: Maybe<KoreaderSyncChecksumMethod>;
   /** @deprecated Moved to preference store. Is supposed to be random and gets auto generated, replace with MOVE TO PREFERENCES */
   koreaderSyncDeviceId?: Maybe<Scalars['String']['output']>;
@@ -2489,6 +2692,7 @@ export type Settings = {
   opdsMarkAsReadOnDownload?: Maybe<Scalars['Boolean']['output']>;
   opdsShowOnlyDownloadedChapters?: Maybe<Scalars['Boolean']['output']>;
   opdsShowOnlyUnreadChapters?: Maybe<Scalars['Boolean']['output']>;
+  opdsSkipChapterMetadataFeed?: Maybe<Scalars['Boolean']['output']>;
   opdsUseBinaryFileSizes?: Maybe<Scalars['Boolean']['output']>;
   port?: Maybe<Scalars['Int']['output']>;
   serveConversions?: Maybe<Array<SettingsDownloadConversion>>;
@@ -2498,6 +2702,15 @@ export type Settings = {
   socksProxyPort?: Maybe<Scalars['String']['output']>;
   socksProxyUsername?: Maybe<Scalars['String']['output']>;
   socksProxyVersion?: Maybe<Scalars['Int']['output']>;
+  syncDataCategories?: Maybe<Scalars['Boolean']['output']>;
+  syncDataChapters?: Maybe<Scalars['Boolean']['output']>;
+  syncDataHistory?: Maybe<Scalars['Boolean']['output']>;
+  syncDataManga?: Maybe<Scalars['Boolean']['output']>;
+  syncDataTracking?: Maybe<Scalars['Boolean']['output']>;
+  syncInterval?: Maybe<Scalars['Duration']['output']>;
+  syncYomiApiKey?: Maybe<Scalars['String']['output']>;
+  syncYomiEnabled?: Maybe<Scalars['Boolean']['output']>;
+  syncYomiHost?: Maybe<Scalars['String']['output']>;
   systemTrayEnabled?: Maybe<Scalars['Boolean']['output']>;
   updateMangas?: Maybe<Scalars['Boolean']['output']>;
   useHikariConnectionPool?: Maybe<Scalars['Boolean']['output']>;
@@ -2591,6 +2804,7 @@ export type SettingsType = Settings & {
   excludeEntryWithUnreadChapters: Scalars['Boolean']['output'];
   excludeNotStarted: Scalars['Boolean']['output'];
   excludeUnreadChapters: Scalars['Boolean']['output'];
+  /** @deprecated Replaced with addExtensionStore and removeExtensionStore mutations */
   extensionRepos: Array<Scalars['String']['output']>;
   flareSolverrAsResponseFallback: Scalars['Boolean']['output'];
   flareSolverrEnabled: Scalars['Boolean']['output'];
@@ -2606,6 +2820,7 @@ export type SettingsType = Settings & {
   jwtAudience: Scalars['String']['output'];
   jwtRefreshExpiry: Scalars['Duration']['output'];
   jwtTokenExpiry: Scalars['Duration']['output'];
+  kcefEnabled: Scalars['Boolean']['output'];
   koreaderSyncChecksumMethod: KoreaderSyncChecksumMethod;
   /** @deprecated Moved to preference store. Is supposed to be random and gets auto generated, replace with MOVE TO PREFERENCES */
   koreaderSyncDeviceId: Scalars['String']['output'];
@@ -2632,6 +2847,7 @@ export type SettingsType = Settings & {
   opdsMarkAsReadOnDownload: Scalars['Boolean']['output'];
   opdsShowOnlyDownloadedChapters: Scalars['Boolean']['output'];
   opdsShowOnlyUnreadChapters: Scalars['Boolean']['output'];
+  opdsSkipChapterMetadataFeed: Scalars['Boolean']['output'];
   opdsUseBinaryFileSizes: Scalars['Boolean']['output'];
   port: Scalars['Int']['output'];
   serveConversions: Array<SettingsDownloadConversionType>;
@@ -2641,6 +2857,15 @@ export type SettingsType = Settings & {
   socksProxyPort: Scalars['String']['output'];
   socksProxyUsername: Scalars['String']['output'];
   socksProxyVersion: Scalars['Int']['output'];
+  syncDataCategories: Scalars['Boolean']['output'];
+  syncDataChapters: Scalars['Boolean']['output'];
+  syncDataHistory: Scalars['Boolean']['output'];
+  syncDataManga: Scalars['Boolean']['output'];
+  syncDataTracking: Scalars['Boolean']['output'];
+  syncInterval: Scalars['Duration']['output'];
+  syncYomiApiKey: Scalars['String']['output'];
+  syncYomiEnabled: Scalars['Boolean']['output'];
+  syncYomiHost: Scalars['String']['output'];
   systemTrayEnabled: Scalars['Boolean']['output'];
   updateMangas: Scalars['Boolean']['output'];
   useHikariConnectionPool: Scalars['Boolean']['output'];
@@ -2678,8 +2903,8 @@ export type SortSelectionInput = {
 };
 
 export type SourceConditionInput = {
+  contentWarning?: InputMaybe<ContentWarning>;
   id?: InputMaybe<Scalars['LongString']['input']>;
-  isNsfw?: InputMaybe<Scalars['Boolean']['input']>;
   lang?: InputMaybe<Scalars['String']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
 };
@@ -2692,8 +2917,8 @@ export type SourceEdge = Edge & {
 
 export type SourceFilterInput = {
   and?: InputMaybe<Array<SourceFilterInput>>;
+  contentWarning?: InputMaybe<ContentWarningFilterInput>;
   id?: InputMaybe<LongFilterInput>;
-  isNsfw?: InputMaybe<BooleanFilterInput>;
   lang?: InputMaybe<StringFilterInput>;
   name?: InputMaybe<StringFilterInput>;
   not?: InputMaybe<SourceFilterInput>;
@@ -2744,13 +2969,17 @@ export type SourcePreferenceChangeInput = {
 
 export type SourceType = {
   __typename?: 'SourceType';
+  /** @deprecated , replace with homeUrl */
   baseUrl?: Maybe<Scalars['String']['output']>;
+  contentWarning: ContentWarning;
   displayName: Scalars['String']['output'];
   extension: ExtensionType;
   filters: Array<Filter>;
+  homeUrl?: Maybe<Scalars['String']['output']>;
   iconUrl: Scalars['String']['output'];
   id: Scalars['LongString']['output'];
   isConfigurable: Scalars['Boolean']['output'];
+  /** @deprecated , replace with contentWarning */
   isNsfw: Scalars['Boolean']['output'];
   lang: Scalars['String']['output'];
   manga: MangaNodeList;
@@ -2769,6 +2998,22 @@ export type StartDownloaderPayload = {
   clientMutationId?: Maybe<Scalars['String']['output']>;
   downloadStatus: DownloadStatus;
 };
+
+export type StartSyncInput = {
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type StartSyncPayload = {
+  __typename?: 'StartSyncPayload';
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  result: StartSyncResult;
+};
+
+export enum StartSyncResult {
+  Success = 'SUCCESS',
+  SyncDisabled = 'SYNC_DISABLED',
+  SyncInProgress = 'SYNC_IN_PROGRESS'
+}
 
 export type StopDownloaderInput = {
   clientMutationId?: InputMaybe<Scalars['String']['input']>;
@@ -2862,6 +3107,7 @@ export type Subscription = {
   downloadChanged: DownloadStatus;
   downloadStatusChanged: DownloadUpdates;
   libraryUpdateStatusChanged: UpdaterUpdates;
+  syncStatusChanged: SyncStatus;
   /** @deprecated Replaced with updates, replace with updates(input) */
   updateStatusChanged: UpdateStatus;
   webUIUpdateStatusChange: WebUiUpdateStatus;
@@ -2892,6 +3138,26 @@ export type SyncConflictInfoType = {
   __typename?: 'SyncConflictInfoType';
   deviceName: Scalars['String']['output'];
   remotePage: Scalars['Int']['output'];
+};
+
+export enum SyncState {
+  CreatingBackup = 'CREATING_BACKUP',
+  Downloading = 'DOWNLOADING',
+  Error = 'ERROR',
+  Merging = 'MERGING',
+  Restoring = 'RESTORING',
+  Started = 'STARTED',
+  Success = 'SUCCESS',
+  Uploading = 'UPLOADING'
+}
+
+export type SyncStatus = {
+  __typename?: 'SyncStatus';
+  backupRestoreId?: Maybe<Scalars['String']['output']>;
+  endDate?: Maybe<Scalars['LongString']['output']>;
+  errorMessage?: Maybe<Scalars['String']['output']>;
+  startDate: Scalars['LongString']['output'];
+  state: SyncState;
 };
 
 export type TextFilter = {
@@ -3462,11 +3728,10 @@ export type WebUiUpdateStatus = {
   state: UpdateState;
 };
 
-export type AuthMode =
-  | 'BASIC_AUTH'
-  | 'NONE'
-  | 'SIMPLE_LOGIN'
-  | 'UI_LOGIN';
+export type AddExtensionStoreInput = {
+  clientMutationId?: string | null | undefined;
+  indexUrl: string;
+};
 
 export type BackupRestoreState =
   | 'FAILURE'
@@ -3494,11 +3759,6 @@ export type BooleanFilterInput = {
   notEqualToAny?: Array<boolean> | null | undefined;
   notIn?: Array<boolean> | null | undefined;
 };
-
-export type CbzMediaType =
-  | 'COMPATIBLE'
-  | 'LEGACY'
-  | 'MODERN';
 
 export type ChapterFilterInput = {
   and?: Array<ChapterFilterInput> | null | undefined;
@@ -3555,13 +3815,14 @@ export type CreateCategoryInput = {
   order?: number | null | undefined;
 };
 
-export type DatabaseType =
-  | 'H2'
-  | 'POSTGRESQL';
-
 export type DeleteCategoryInput = {
   categoryId: number;
   clientMutationId?: string | null | undefined;
+};
+
+export type DeleteDownloadedChapterInput = {
+  clientMutationId?: string | null | undefined;
+  id: number;
 };
 
 export type DequeueChapterDownloadInput = {
@@ -3596,6 +3857,11 @@ export type DownloadState =
 export type DownloaderState =
   | 'STARTED'
   | 'STOPPED';
+
+export type EnqueueChapterDownloadInput = {
+  clientMutationId?: string | null | undefined;
+  id: number;
+};
 
 export type FetchChapterPagesInput = {
   chapterId: number;
@@ -3653,16 +3919,6 @@ export type IntFilterInput = {
   notEqualToAny?: Array<number> | null | undefined;
   notIn?: Array<number> | null | undefined;
 };
-
-export type KoreaderSyncChecksumMethod =
-  | 'BINARY'
-  | 'FILENAME';
-
-export type KoreaderSyncConflictStrategy =
-  | 'DISABLED'
-  | 'KEEP_LOCAL'
-  | 'KEEP_REMOTE'
-  | 'PROMPT';
 
 export type LogoutTrackerInput = {
   clientMutationId?: string | null | undefined;
@@ -3747,107 +4003,15 @@ export type PartialBackupFlagsInput = {
   includeTracking?: boolean | null | undefined;
 };
 
-export type PartialSettingsTypeInput = {
-  authMode?: AuthMode | null | undefined;
-  authPassword?: string | null | undefined;
-  authUsername?: string | null | undefined;
-  autoBackupIncludeCategories?: boolean | null | undefined;
-  autoBackupIncludeChapters?: boolean | null | undefined;
-  autoBackupIncludeClientData?: boolean | null | undefined;
-  autoBackupIncludeHistory?: boolean | null | undefined;
-  autoBackupIncludeManga?: boolean | null | undefined;
-  autoBackupIncludeServerSettings?: boolean | null | undefined;
-  autoBackupIncludeTracking?: boolean | null | undefined;
-  autoDownloadIgnoreReUploads?: boolean | null | undefined;
-  autoDownloadNewChapters?: boolean | null | undefined;
-  autoDownloadNewChaptersLimit?: number | null | undefined;
-  backupInterval?: number | null | undefined;
-  backupPath?: string | null | undefined;
-  backupTTL?: number | null | undefined;
-  backupTime?: string | null | undefined;
-  databasePassword?: string | null | undefined;
-  databaseType?: DatabaseType | null | undefined;
-  databaseUrl?: string | null | undefined;
-  databaseUsername?: string | null | undefined;
-  debugLogsEnabled?: boolean | null | undefined;
-  downloadAsCbz?: boolean | null | undefined;
-  downloadConversions?: Array<SettingsDownloadConversionTypeInput> | null | undefined;
-  downloadsPath?: string | null | undefined;
-  electronPath?: string | null | undefined;
-  excludeCompleted?: boolean | null | undefined;
-  excludeEntryWithUnreadChapters?: boolean | null | undefined;
-  excludeNotStarted?: boolean | null | undefined;
-  excludeUnreadChapters?: boolean | null | undefined;
-  extensionRepos?: Array<string> | null | undefined;
-  flareSolverrAsResponseFallback?: boolean | null | undefined;
-  flareSolverrEnabled?: boolean | null | undefined;
-  flareSolverrSessionName?: string | null | undefined;
-  flareSolverrSessionTtl?: number | null | undefined;
-  flareSolverrTimeout?: number | null | undefined;
-  flareSolverrUrl?: string | null | undefined;
-  globalUpdateInterval?: number | null | undefined;
-  initialOpenInBrowserEnabled?: boolean | null | undefined;
-  ip?: string | null | undefined;
-  jwtAudience?: string | null | undefined;
-  jwtRefreshExpiry?: unknown;
-  jwtTokenExpiry?: unknown;
-  koreaderSyncChecksumMethod?: KoreaderSyncChecksumMethod | null | undefined;
-  koreaderSyncPercentageTolerance?: number | null | undefined;
-  koreaderSyncStrategyBackward?: KoreaderSyncConflictStrategy | null | undefined;
-  koreaderSyncStrategyForward?: KoreaderSyncConflictStrategy | null | undefined;
-  localSourcePath?: string | null | undefined;
-  maxLogFileSize?: string | null | undefined;
-  maxLogFiles?: number | null | undefined;
-  maxLogFolderSize?: string | null | undefined;
-  maxSourcesInParallel?: number | null | undefined;
-  opdsCbzMimetype?: CbzMediaType | null | undefined;
-  opdsChapterSortOrder?: SortOrder | null | undefined;
-  opdsEnablePageReadProgress?: boolean | null | undefined;
-  opdsItemsPerPage?: number | null | undefined;
-  opdsMarkAsReadOnDownload?: boolean | null | undefined;
-  opdsShowOnlyDownloadedChapters?: boolean | null | undefined;
-  opdsShowOnlyUnreadChapters?: boolean | null | undefined;
-  opdsUseBinaryFileSizes?: boolean | null | undefined;
-  port?: number | null | undefined;
-  serveConversions?: Array<SettingsDownloadConversionTypeInput> | null | undefined;
-  socksProxyEnabled?: boolean | null | undefined;
-  socksProxyHost?: string | null | undefined;
-  socksProxyPassword?: string | null | undefined;
-  socksProxyPort?: string | null | undefined;
-  socksProxyUsername?: string | null | undefined;
-  socksProxyVersion?: number | null | undefined;
-  systemTrayEnabled?: boolean | null | undefined;
-  updateMangas?: boolean | null | undefined;
-  useHikariConnectionPool?: boolean | null | undefined;
-  webUIChannel?: WebUiChannel | null | undefined;
-  webUIFlavor?: WebUiFlavor | null | undefined;
-  webUIInterface?: WebUiInterface | null | undefined;
-  webUIUpdateCheckInterval?: number | null | undefined;
+export type RemoveExtensionStoreInput = {
+  clientMutationId?: string | null | undefined;
+  indexUrl: string;
 };
 
 export type RestoreBackupInput = {
   backup: unknown;
   clientMutationId?: string | null | undefined;
   flags?: PartialBackupFlagsInput | null | undefined;
-};
-
-export type SetSettingsInput = {
-  clientMutationId?: string | null | undefined;
-  settings: PartialSettingsTypeInput;
-};
-
-export type SettingsDownloadConversionHeaderTypeInput = {
-  name: string;
-  value: string;
-};
-
-export type SettingsDownloadConversionTypeInput = {
-  callTimeout?: unknown;
-  compressionLevel?: number | null | undefined;
-  connectTimeout?: unknown;
-  headers?: Array<SettingsDownloadConversionHeaderTypeInput> | null | undefined;
-  mimeType: string;
-  target: string;
 };
 
 export type SortOrder =
@@ -4016,6 +4180,17 @@ export type UpdateExtensionPatchInput = {
   update?: boolean | null | undefined;
 };
 
+export type UpdateExtensionsInput = {
+  clientMutationId?: string | null | undefined;
+  ids: Array<string>;
+  patch: UpdateExtensionPatchInput;
+};
+
+export type UpdateLibraryInput = {
+  categories?: Array<number> | null | undefined;
+  clientMutationId?: string | null | undefined;
+};
+
 export type UpdateMangaCategoriesInput = {
   clientMutationId?: string | null | undefined;
   id: number;
@@ -4057,20 +4232,6 @@ export type UpdateTrackInput = {
   startDate?: unknown;
   status?: number | null | undefined;
 };
-
-export type WebUiChannel =
-  | 'BUNDLED'
-  | 'PREVIEW'
-  | 'STABLE';
-
-export type WebUiFlavor =
-  | 'CUSTOM'
-  | 'VUI'
-  | 'WEBUI';
-
-export type WebUiInterface =
-  | 'BROWSER'
-  | 'ELECTRON';
 
 export type CreateBackupMutationVariables = Exact<{
   input?: CreateBackupInput | null | undefined;
@@ -4135,12 +4296,33 @@ export type UpdateMangaCategoriesMutationVariables = Exact<{
 
 export type UpdateMangaCategoriesMutation = { updateMangaCategories: { manga: { id: number } } | null };
 
-export type SetExtensionReposMutationVariables = Exact<{
-  input: SetSettingsInput;
+export type DeleteDownloadedChapterMutationVariables = Exact<{
+  input: DeleteDownloadedChapterInput;
 }>;
 
 
-export type SetExtensionReposMutation = { setSettings: { settings: { extensionRepos: Array<string> } } };
+export type DeleteDownloadedChapterMutation = { deleteDownloadedChapter: { clientMutationId: string | null } | null };
+
+export type EnqueueChapterDownloadMutationVariables = Exact<{
+  input: EnqueueChapterDownloadInput;
+}>;
+
+
+export type EnqueueChapterDownloadMutation = { enqueueChapterDownload: { downloadStatus: { state: DownloaderState, queue: Array<{ chapter: { id: number } }> } } | null };
+
+export type AddExtensionStoreMutationVariables = Exact<{
+  input: AddExtensionStoreInput;
+}>;
+
+
+export type AddExtensionStoreMutation = { addExtensionStore: { extensionStore: { name: string, indexUrl: string, isLegacy: boolean, signingKey: string, badgeLabel: string } } | null };
+
+export type RemoveExtensionStoreMutationVariables = Exact<{
+  input: RemoveExtensionStoreInput;
+}>;
+
+
+export type RemoveExtensionStoreMutation = { removeExtensionStore: { extensionStore: { indexUrl: string } | null } | null };
 
 export type FetchExtensionCatalogMutationVariables = Exact<{
   input: FetchExtensionsInput;
@@ -4155,6 +4337,20 @@ export type ToggleExtensionInstallMutationVariables = Exact<{
 
 
 export type ToggleExtensionInstallMutation = { updateExtension: { extension: { pkgName: string, isInstalled: boolean } | null } | null };
+
+export type UpdateExtensionsMutationVariables = Exact<{
+  input: UpdateExtensionsInput;
+}>;
+
+
+export type UpdateExtensionsMutation = { updateExtensions: { extensions: Array<{ pkgName: string, isInstalled: boolean, hasUpdate: boolean, versionName: string }> } | null };
+
+export type UpdateLibraryMutationVariables = Exact<{
+  input: UpdateLibraryInput;
+}>;
+
+
+export type UpdateLibraryMutation = { updateLibrary: { updateStatus: { jobsInfo: { isRunning: boolean, finishedJobs: number, totalJobs: number, skippedMangasCount: number } } } | null };
 
 export type FetchChapterPagesMutationVariables = Exact<{
   input: FetchChapterPagesInput;
@@ -4225,38 +4421,10 @@ export type DequeueChapterDownloadMutationVariables = Exact<{
 
 export type DequeueChapterDownloadMutation = { dequeueChapterDownload: { downloadStatus: { state: DownloaderState } } | null };
 
-export type DeleteDownloadedChapterMutationVariables = Exact<{
-  input: DeleteDownloadedChapterInput;
-}>;
+export type GetExtensionStoresQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type DeleteDownloadedChapterMutation = { deleteDownloadedChapter?: { clientMutationId?: string | null } | null };
-
-export type GetExtensionReposQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-export type GetExtensionReposQuery = { settings: { extensionRepos: Array<string> } };
-
-export type GetServerSettingsQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-export type GetServerSettingsQuery = { settings: { localSourcePath: string, globalUpdateInterval: number } };
-
-export type GetLibraryUpdateStatusQueryVariables = Exact<{ [key: string]: never; }>;
-
-export type GetLibraryUpdateStatusQuery = { libraryUpdateStatus: { jobsInfo: { isRunning: boolean, finishedJobs: number, totalJobs: number, skippedMangasCount: number } } };
-
-export type UpdateLibraryMutationVariables = Exact<{
-  input: UpdateLibraryInput;
-}>;
-
-export type UpdateLibraryMutation = { updateLibrary: { updateStatus: { jobsInfo: { isRunning: boolean, finishedJobs: number, totalJobs: number, skippedMangasCount: number } } } | null };
-
-export type UpdateExtensionsMutationVariables = Exact<{
-  input: UpdateExtensionsInput;
-}>;
-
-export type UpdateExtensionsMutation = { updateExtensions: { extensions: Array<{ pkgName: string, isInstalled: boolean, hasUpdate: boolean, versionName: string }> } | null };
+export type GetExtensionStoresQuery = { extensionStores: { totalCount: number, nodes: Array<{ name: string, indexUrl: string, isLegacy: boolean, signingKey: string, badgeLabel: string, contactWebsite: string, extensionListUrl: string | null }> } };
 
 export type GetExtensionsQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -4271,18 +4439,23 @@ export type GetCategoriesQuery = { categories: { nodes: Array<{ id: number, name
 export type GetLibraryQueryVariables = Exact<{
   filter?: MangaFilterInput | null | undefined;
   first?: number | null | undefined;
-  after?: InputMaybe<Scalars['Cursor']['input']>;
+  after?: unknown;
 }>;
 
 
-export type GetLibraryQuery = { mangas: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, title: string, thumbnailUrl: string | null, unreadCount: number, downloadCount: number, lastReadChapter?: { id: number } | null, categories: { nodes: Array<{ id: number }> } }> } };
+export type GetLibraryQuery = { mangas: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, title: string, thumbnailUrl: string | null, unreadCount: number, downloadCount: number, lastReadChapter: { id: number } | null, categories: { nodes: Array<{ id: number }> } }> } };
+
+export type GetLibraryUpdateStatusQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetLibraryUpdateStatusQuery = { libraryUpdateStatus: { jobsInfo: { isRunning: boolean, finishedJobs: number, totalJobs: number, skippedMangasCount: number } } };
 
 export type GetMangaDetailsQueryVariables = Exact<{
   id: number;
 }>;
 
 
-export type GetMangaDetailsQuery = { manga: { id: number, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, categories: { edges: Array<{ node: { id: number } }> }, source: { name: string } | null, chapters: { edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, pageCount: number, isBookmarked: boolean, isDownloaded: boolean, uploadDate: unknown, scanlator: string | null } }> } } };
+export type GetMangaDetailsQuery = { manga: { id: number, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, categories: { edges: Array<{ node: { id: number } }> }, source: { name: string } | null, chapters: { edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, lastPageRead: number, pageCount: number, uploadDate: unknown, scanlator: string | null } }> } } };
 
 export type GetChapterQueryVariables = Exact<{
   id: number;
@@ -4290,6 +4463,11 @@ export type GetChapterQueryVariables = Exact<{
 
 
 export type GetChapterQuery = { chapter: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, pageCount: number, sourceOrder: number, mangaId: number, manga: { title: string, chapters: { edges: Array<{ node: { id: number, chapterNumber: number } }> } } } };
+
+export type GetServerSettingsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetServerSettingsQuery = { settings: { localSourcePath: string, globalUpdateInterval: number } };
 
 export type GetSourcePreferencesQueryVariables = Exact<{
   sourceId: unknown;
@@ -4467,11 +4645,45 @@ export const UpdateMangaCategoriesDocument = gql`
   }
 }
     `;
-export const SetExtensionReposDocument = gql`
-    mutation SetExtensionRepos($input: SetSettingsInput!) {
-  setSettings(input: $input) {
-    settings {
-      extensionRepos
+export const DeleteDownloadedChapterDocument = gql`
+    mutation DeleteDownloadedChapter($input: DeleteDownloadedChapterInput!) {
+  deleteDownloadedChapter(input: $input) {
+    clientMutationId
+  }
+}
+    `;
+export const EnqueueChapterDownloadDocument = gql`
+    mutation EnqueueChapterDownload($input: EnqueueChapterDownloadInput!) {
+  enqueueChapterDownload(input: $input) {
+    downloadStatus {
+      state
+      queue {
+        chapter {
+          id
+        }
+      }
+    }
+  }
+}
+    `;
+export const AddExtensionStoreDocument = gql`
+    mutation AddExtensionStore($input: AddExtensionStoreInput!) {
+  addExtensionStore(input: $input) {
+    extensionStore {
+      name
+      indexUrl
+      isLegacy
+      signingKey
+      badgeLabel
+    }
+  }
+}
+    `;
+export const RemoveExtensionStoreDocument = gql`
+    mutation RemoveExtensionStore($input: RemoveExtensionStoreInput!) {
+  removeExtensionStore(input: $input) {
+    extensionStore {
+      indexUrl
     }
   }
 }
@@ -4491,6 +4703,32 @@ export const ToggleExtensionInstallDocument = gql`
     extension {
       pkgName
       isInstalled
+    }
+  }
+}
+    `;
+export const UpdateExtensionsDocument = gql`
+    mutation UpdateExtensions($input: UpdateExtensionsInput!) {
+  updateExtensions(input: $input) {
+    extensions {
+      pkgName
+      isInstalled
+      hasUpdate
+      versionName
+    }
+  }
+}
+    `;
+export const UpdateLibraryDocument = gql`
+    mutation UpdateLibrary($input: UpdateLibraryInput!) {
+  updateLibrary(input: $input) {
+    updateStatus {
+      jobsInfo {
+        isRunning
+        finishedJobs
+        totalJobs
+        skippedMangasCount
+      }
     }
   }
 }
@@ -4624,63 +4862,19 @@ export const DequeueChapterDownloadDocument = gql`
   }
 }
     `;
-export const GetExtensionReposDocument = gql`
-    query GetExtensionRepos {
-  settings {
-    extensionRepos
-  }
-}
-    `;
-export const GetServerSettingsDocument = gql`
-    query GetServerSettings {
-  settings {
-    localSourcePath
-    globalUpdateInterval
-  }
-}
-    `;
-export const GetLibraryUpdateStatusDocument = gql`
-    query GetLibraryUpdateStatus {
-  libraryUpdateStatus {
-    jobsInfo {
-      isRunning
-      finishedJobs
-      totalJobs
-      skippedMangasCount
+export const GetExtensionStoresDocument = gql`
+    query GetExtensionStores {
+  extensionStores(first: 100) {
+    totalCount
+    nodes {
+      name
+      indexUrl
+      isLegacy
+      signingKey
+      badgeLabel
+      contactWebsite
+      extensionListUrl
     }
-  }
-}
-    `;
-export const UpdateLibraryDocument = gql`
-    mutation UpdateLibrary($input: UpdateLibraryInput!) {
-  updateLibrary(input: $input) {
-    updateStatus {
-      jobsInfo {
-        isRunning
-        finishedJobs
-        totalJobs
-        skippedMangasCount
-      }
-    }
-  }
-}
-    `;
-export const UpdateExtensionsDocument = gql`
-    mutation UpdateExtensions($input: UpdateExtensionsInput!) {
-  updateExtensions(input: $input) {
-    extensions {
-      pkgName
-      isInstalled
-      hasUpdate
-      versionName
-    }
-  }
-}
-    `;
-export const DeleteDownloadedChapterDocument = gql`
-    mutation DeleteDownloadedChapter($input: DeleteDownloadedChapterInput!) {
-  deleteDownloadedChapter(input: $input) {
-    clientMutationId
   }
 }
     `;
@@ -4738,6 +4932,18 @@ export const GetLibraryDocument = gql`
   }
 }
     `;
+export const GetLibraryUpdateStatusDocument = gql`
+    query GetLibraryUpdateStatus {
+  libraryUpdateStatus {
+    jobsInfo {
+      isRunning
+      finishedJobs
+      totalJobs
+      skippedMangasCount
+    }
+  }
+}
+    `;
 export const GetMangaDetailsDocument = gql`
     query GetMangaDetails($id: Int!) {
   manga(id: $id) {
@@ -4767,10 +4973,10 @@ export const GetMangaDetailsDocument = gql`
           name
           chapterNumber
           isRead
-          lastPageRead
-          pageCount
           isBookmarked
           isDownloaded
+          lastPageRead
+          pageCount
           uploadDate
           scanlator
         }
@@ -4801,6 +5007,14 @@ export const GetChapterDocument = gql`
         }
       }
     }
+  }
+}
+    `;
+export const GetServerSettingsDocument = gql`
+    query GetServerSettings {
+  settings {
+    localSourcePath
+    globalUpdateInterval
   }
 }
     `;
@@ -5070,14 +5284,29 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     UpdateMangaCategories(variables: UpdateMangaCategoriesMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateMangaCategoriesMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<UpdateMangaCategoriesMutation>({ document: UpdateMangaCategoriesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateMangaCategories', 'mutation', variables);
     },
-    SetExtensionRepos(variables: SetExtensionReposMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<SetExtensionReposMutation> {
-      return withWrapper((wrappedRequestHeaders) => client.request<SetExtensionReposMutation>({ document: SetExtensionReposDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'SetExtensionRepos', 'mutation', variables);
+    DeleteDownloadedChapter(variables: DeleteDownloadedChapterMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<DeleteDownloadedChapterMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<DeleteDownloadedChapterMutation>({ document: DeleteDownloadedChapterDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'DeleteDownloadedChapter', 'mutation', variables);
+    },
+    EnqueueChapterDownload(variables: EnqueueChapterDownloadMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<EnqueueChapterDownloadMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<EnqueueChapterDownloadMutation>({ document: EnqueueChapterDownloadDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'EnqueueChapterDownload', 'mutation', variables);
+    },
+    AddExtensionStore(variables: AddExtensionStoreMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<AddExtensionStoreMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<AddExtensionStoreMutation>({ document: AddExtensionStoreDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'AddExtensionStore', 'mutation', variables);
+    },
+    RemoveExtensionStore(variables: RemoveExtensionStoreMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<RemoveExtensionStoreMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<RemoveExtensionStoreMutation>({ document: RemoveExtensionStoreDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'RemoveExtensionStore', 'mutation', variables);
     },
     FetchExtensionCatalog(variables: FetchExtensionCatalogMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<FetchExtensionCatalogMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<FetchExtensionCatalogMutation>({ document: FetchExtensionCatalogDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'FetchExtensionCatalog', 'mutation', variables);
     },
     ToggleExtensionInstall(variables: ToggleExtensionInstallMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ToggleExtensionInstallMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<ToggleExtensionInstallMutation>({ document: ToggleExtensionInstallDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ToggleExtensionInstall', 'mutation', variables);
+    },
+    UpdateExtensions(variables: UpdateExtensionsMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateExtensionsMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<UpdateExtensionsMutation>({ document: UpdateExtensionsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateExtensions', 'mutation', variables);
+    },
+    UpdateLibrary(variables: UpdateLibraryMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateLibraryMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<UpdateLibraryMutation>({ document: UpdateLibraryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateLibrary', 'mutation', variables);
     },
     FetchChapterPages(variables: FetchChapterPagesMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<FetchChapterPagesMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<FetchChapterPagesMutation>({ document: FetchChapterPagesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'FetchChapterPages', 'mutation', variables);
@@ -5112,14 +5341,8 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     DequeueChapterDownload(variables: DequeueChapterDownloadMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<DequeueChapterDownloadMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<DequeueChapterDownloadMutation>({ document: DequeueChapterDownloadDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'DequeueChapterDownload', 'mutation', variables);
     },
-    DeleteDownloadedChapter(variables: DeleteDownloadedChapterMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<DeleteDownloadedChapterMutation> {
-      return withWrapper((wrappedRequestHeaders) => client.request<DeleteDownloadedChapterMutation>({ document: DeleteDownloadedChapterDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'DeleteDownloadedChapter', 'mutation', variables);
-    },
-    GetExtensionRepos(variables?: GetExtensionReposQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetExtensionReposQuery> {
-      return withWrapper((wrappedRequestHeaders) => client.request<GetExtensionReposQuery>({ document: GetExtensionReposDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetExtensionRepos', 'query', variables);
-    },
-    GetServerSettings(variables?: GetServerSettingsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetServerSettingsQuery> {
-      return withWrapper((wrappedRequestHeaders) => client.request<GetServerSettingsQuery>({ document: GetServerSettingsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetServerSettings', 'query', variables);
+    GetExtensionStores(variables?: GetExtensionStoresQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetExtensionStoresQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetExtensionStoresQuery>({ document: GetExtensionStoresDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetExtensionStores', 'query', variables);
     },
     GetExtensions(variables?: GetExtensionsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetExtensionsQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetExtensionsQuery>({ document: GetExtensionsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetExtensions', 'query', variables);
@@ -5130,11 +5353,17 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     GetLibrary(variables?: GetLibraryQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetLibraryQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetLibraryQuery>({ document: GetLibraryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetLibrary', 'query', variables);
     },
+    GetLibraryUpdateStatus(variables?: GetLibraryUpdateStatusQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetLibraryUpdateStatusQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetLibraryUpdateStatusQuery>({ document: GetLibraryUpdateStatusDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetLibraryUpdateStatus', 'query', variables);
+    },
     GetMangaDetails(variables: GetMangaDetailsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetMangaDetailsQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetMangaDetailsQuery>({ document: GetMangaDetailsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetMangaDetails', 'query', variables);
     },
     GetChapter(variables: GetChapterQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetChapterQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetChapterQuery>({ document: GetChapterDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetChapter', 'query', variables);
+    },
+    GetServerSettings(variables?: GetServerSettingsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetServerSettingsQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetServerSettingsQuery>({ document: GetServerSettingsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetServerSettings', 'query', variables);
     },
     GetSourcePreferences(variables: GetSourcePreferencesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetSourcePreferencesQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetSourcePreferencesQuery>({ document: GetSourcePreferencesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetSourcePreferences', 'query', variables);
@@ -5165,15 +5394,6 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetHistory(variables?: GetHistoryQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetHistoryQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetHistoryQuery>({ document: GetHistoryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetHistory', 'query', variables);
-    },
-    GetLibraryUpdateStatus(variables?: GetLibraryUpdateStatusQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetLibraryUpdateStatusQuery> {
-      return withWrapper((wrappedRequestHeaders) => client.request<GetLibraryUpdateStatusQuery>({ document: GetLibraryUpdateStatusDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetLibraryUpdateStatus', 'query', variables);
-    },
-    UpdateLibrary(variables: UpdateLibraryMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateLibraryMutation> {
-      return withWrapper((wrappedRequestHeaders) => client.request<UpdateLibraryMutation>({ document: UpdateLibraryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateLibrary', 'mutation', variables);
-    },
-    UpdateExtensions(variables: UpdateExtensionsMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateExtensionsMutation> {
-      return withWrapper((wrappedRequestHeaders) => client.request<UpdateExtensionsMutation>({ document: UpdateExtensionsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateExtensions', 'mutation', variables);
     }
   };
 }

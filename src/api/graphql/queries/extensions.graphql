@@ -1,6 +1,15 @@
-query GetExtensionRepos {
-  settings {
-    extensionRepos
+query GetExtensionStores {
+  extensionStores(first: 100) {
+    totalCount
+    nodes {
+      name
+      indexUrl
+      isLegacy
+      signingKey
+      badgeLabel
+      contactWebsite
+      extensionListUrl
+    }
   }
 }
 

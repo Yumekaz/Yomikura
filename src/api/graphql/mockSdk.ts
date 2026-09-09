@@ -313,8 +313,11 @@ const mockImpl: any = {
   async UpdateMangaCategories({ input }: any) {
     return { updateMangaCategories: { manga: { id: input.mangaId } } };
   },
-  async SetExtensionRepos() {
-    return { setSettings: { settings: { extensionRepos: [] } } };
+  async AddExtensionStore({ input }: any) {
+    return { addExtensionStore: { extensionStore: { name: "Demo Store", indexUrl: input.indexUrl, isLegacy: false, signingKey: "demo", badgeLabel: "DEMO" } } };
+  },
+  async RemoveExtensionStore() {
+    return { removeExtensionStore: { extensionStore: null } };
   },
   async FetchExtensionCatalog() {
     return { fetchExtensions: { extensions: [] } };
@@ -381,11 +384,14 @@ const mockImpl: any = {
   async DequeueChapterDownload() {
     return { dequeueChapterDownload: { downloadStatus: { state: "STOPPED" } } };
   },
+  async EnqueueChapterDownload() {
+    return { enqueueChapterDownload: { downloadStatus: { state: "STARTED", queue: [] } } };
+  },
   async DeleteDownloadedChapter({ input }: any) {
     return { deleteDownloadedChapter: { clientMutationId: input.clientMutationId || "1" } };
   },
-  async GetExtensionRepos() {
-    return { settings: { extensionRepos: [] } };
+  async GetExtensionStores() {
+    return { extensionStores: { totalCount: 0, nodes: [] } };
   },
   async GetSourcePreferences() {
     return { source: { id: "mock-source", name: "Yomikura Playground", isConfigurable: false, preferences: [] } };

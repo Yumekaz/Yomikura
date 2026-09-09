@@ -838,7 +838,7 @@ function WelcomeOnboarding({
             {/* Feature List */}
             <div className="mt-8 space-y-4 w-full border-t border-white/5 pt-6">
               <div className="flex gap-4 items-start">
-                <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-yomi-jade/10 border border-yomi-jade/20 text-yomi-jade">
+                <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[rgba(var(--yomi-signature),.24)] bg-[rgba(var(--yomi-signature),.08)] text-[rgb(var(--yomi-signature))]">
                   <BookOpen className="h-4.5 w-4.5" />
                 </div>
                 <div>
@@ -850,7 +850,7 @@ function WelcomeOnboarding({
               </div>
 
               <div className="flex gap-4 items-start">
-                <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-yomi-jade/10 border border-yomi-jade/20 text-yomi-jade">
+                <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[rgba(var(--yomi-signature),.24)] bg-[rgba(var(--yomi-signature),.08)] text-[rgb(var(--yomi-signature))]">
                   <ShieldCheck className="h-4.5 w-4.5" />
                 </div>
                 <div>
@@ -862,7 +862,7 @@ function WelcomeOnboarding({
               </div>
 
               <div className="flex gap-4 items-start">
-                <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-yomi-jade/10 border border-yomi-jade/20 text-yomi-jade">
+                <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[rgba(var(--yomi-signature),.24)] bg-[rgba(var(--yomi-signature),.08)] text-[rgb(var(--yomi-signature))]">
                   <Sparkles className="h-4.5 w-4.5" />
                 </div>
                 <div>
@@ -878,7 +878,7 @@ function WelcomeOnboarding({
             <div className="mt-8 w-full">
               <button
                 onClick={() => setMockMode(true)}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-yomi-jade py-3.5 px-4 text-sm font-bold text-ink-950 hover:bg-yomi-jade/90 hover:scale-[1.01] active:scale-[0.99] transition shadow-md"
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#efeae2] py-3.5 px-4 text-sm font-bold text-[#101318] shadow-md transition-[transform,background-color] duration-150 hover:bg-white active:scale-[0.99]"
               >
                 <span>Explore Demo Library</span>
                 <ArrowRight className="h-4 w-4" />

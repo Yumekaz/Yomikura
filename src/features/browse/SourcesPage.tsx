@@ -17,7 +17,7 @@ export default function SourcesPage() {
   }, [serverBaseUrl]);
 
   // Step 1: Get all installed extension languages
-  const { data: extData } = useQuery({
+  const { data: extData, isLoading: extensionsLoading } = useQuery({
     queryKey: ["installed-ext-langs", serverBaseUrl],
     queryFn: () => sdk.GetInstalledExtensionLangs(),
     enabled: !!serverBaseUrl,
@@ -78,7 +78,7 @@ export default function SourcesPage() {
     return groups;
   }, [sources]);
 
-  if (isLoading) {
+  if (extensionsLoading || isLoading || (!!extData && installedLangs.length > 0 && sourcesData === undefined)) {
     return (
       <div className="yomi-workspace flex min-h-[50vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-yomi-jade" />

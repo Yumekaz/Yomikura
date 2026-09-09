@@ -3,3 +3,16 @@ mutation DeleteDownloadedChapter($input: DeleteDownloadedChapterInput!) {
     clientMutationId
   }
 }
+
+mutation EnqueueChapterDownload($input: EnqueueChapterDownloadInput!) {
+  enqueueChapterDownload(input: $input) {
+    downloadStatus {
+      state
+      queue {
+        chapter {
+          id
+        }
+      }
+    }
+  }
+}

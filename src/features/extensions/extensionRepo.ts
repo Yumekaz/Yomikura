@@ -3,7 +3,7 @@ export function validateExtensionRepositoryUrl(value: string): { valid: true; ur
   try {
     parsed = new URL(value.trim());
   } catch {
-    return { valid: false, message: "Enter a complete extension repository URL." };
+    return { valid: false, message: "Enter a complete Extension Store descriptor URL." };
   }
   const local = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]";
   if (parsed.protocol !== "https:" && !(local && parsed.protocol === "http:")) {

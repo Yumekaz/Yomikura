@@ -1,7 +1,19 @@
-mutation SetExtensionRepos($input: SetSettingsInput!) {
-  setSettings(input: $input) {
-    settings {
-      extensionRepos
+mutation AddExtensionStore($input: AddExtensionStoreInput!) {
+  addExtensionStore(input: $input) {
+    extensionStore {
+      name
+      indexUrl
+      isLegacy
+      signingKey
+      badgeLabel
+    }
+  }
+}
+
+mutation RemoveExtensionStore($input: RemoveExtensionStoreInput!) {
+  removeExtensionStore(input: $input) {
+    extensionStore {
+      indexUrl
     }
   }
 }

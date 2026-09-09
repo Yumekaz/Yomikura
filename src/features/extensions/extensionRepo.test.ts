@@ -3,7 +3,7 @@ import { getRepositorySnapshot, saveRepositorySnapshot, validateExtensionReposit
 
 describe("extension repository trust boundary", () => {
   it("accepts HTTPS JSON indexes", () => {
-    expect(validateExtensionRepositoryUrl("https://example.com/repo/index.json")).toMatchObject({ valid: true, host: "example.com" });
+    expect(validateExtensionRepositoryUrl("https://example.com/repo/index.min.json")).toMatchObject({ valid: true, host: "example.com" });
   });
 
   it("rejects insecure remote and credential-bearing URLs", () => {

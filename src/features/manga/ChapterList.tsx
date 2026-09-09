@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Bookmark, CheckCircle2, Circle, Download, Loader2, Search, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useDownloadStore } from "../../stores/useDownloadStore";
-import { useSettingsStore } from "../../stores/useSettingsStore";
+import { isTauri, useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { formatChapterDate } from "./chapterDate";
@@ -29,7 +29,8 @@ type ChapterFilter = "all" | "unread" | "bookmarked" | "downloaded";
 export function ChapterList({ chapters, mangaTitle }: ChapterListProps) {
   const { confirm, notify } = useFeedback();
   const queryClient = useQueryClient();
-  const { serverBaseUrl } = useSettingsStore();
+  const { serverBaseUrl, mockMode } = useSettingsStore();
+  const keepsLocalCopy = isTauri() || mockMode;
   const { activeDownloads, cachedChapterIds, downloadChapter, retryDownload, cancelDownload, deleteChapter } = useDownloadStore();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ChapterFilter>("all");
@@ -118,7 +119,7 @@ export function ChapterList({ chapters, mangaTitle }: ChapterListProps) {
                 {isCached ? <button onClick={async () => { if (await confirm({ title: "Remove offline chapter?", detail: `Delete the saved pages for “${chapter.name}” from this device?`, confirmLabel: "Remove download", danger: true })) await deleteChapter(chapterId); }} className="yomi-icon-button" aria-label={`Remove offline download of ${chapter.name}`}><CheckCircle2 /></button>
                   : download?.status === "downloading" || download?.status === "queued" ? <button onClick={() => cancelDownload(chapterId)} className="yomi-icon-button" aria-label={`Cancel download of ${chapter.name}`}>{download.status === "downloading" ? <Loader2 className="animate-spin" /> : <X />}</button>
                   : download?.status === "error" ? <button onClick={() => void retryDownload(chapterId, mangaTitle)} className="yomi-icon-button danger" aria-label={`Retry download of ${chapter.name}`}><Download /></button>
-                  : <button onClick={() => void downloadChapter(chapterId, mangaTitle)} className="yomi-icon-button" aria-label={`Save ${chapter.name} for offline reading`}><Download /></button>}
+                  : <button onClick={async () => { try { await downloadChapter(chapterId, mangaTitle); if (!keepsLocalCopy) { notify("Chapter added to Suwayomi's download queue.", "success"); queryClient.invalidateQueries({ queryKey: ["downloads"] }); } } catch (error) { notify(error instanceof Error ? error.message : "Download could not be started.", "error"); } }} className="yomi-icon-button" aria-label={keepsLocalCopy ? `Save ${chapter.name} for offline reading` : `Download ${chapter.name} through Suwayomi`}><Download /></button>}
               </div>
             </div>
           );

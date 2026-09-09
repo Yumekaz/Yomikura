@@ -46,7 +46,7 @@ test("core desktop routes have no serious automated WCAG violations", async ({ p
     { path: "/settings", heading: "Settings" },
     { path: "/settings/advanced", heading: "Settings" },
     { path: "/extensions", heading: "Extensions" },
-    { path: "/extensions/repos", heading: "Repositories" },
+    { path: "/extensions/repos", heading: "Stores" },
     { path: "/manga/10002", heading: "[Demo] Pepper & Carrot" },
   ];
 

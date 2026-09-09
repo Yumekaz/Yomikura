@@ -276,6 +276,11 @@ export const useDownloadStore = create<DownloadState>((set, get) => {
       }));
       return;
     }
+    if (!isTauri() && !useSettingsStore.getState().mockMode) {
+      const cleanUrl = serverBaseUrl.replace(/\/$/, "");
+      await createGraphqlClient(`${cleanUrl}/api/graphql`).EnqueueChapterDownload({ input: { id: chapterId } });
+      return;
+    }
     if (queuedIds.has(chapterId) || get().activeDownloads[chapterId]?.status === "downloading") return;
     queuedIds.add(chapterId);
     queue.push({ chapterId, mangaTitle, serverBaseUrl, attempts });

@@ -84,10 +84,10 @@ test("dangerous settings actions use an accessible, cancellable dialog", async (
 test("extension setup explains the first source step", async ({ page }) => {
   await enterDemo(page);
   await page.goto("/extensions/repos");
-  await expect(page.getByRole("heading", { name: "Repositories", exact: true })).toBeVisible();
-  await expect(page.getByText("Choose where Yomikura discovers sources", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Use this repository", exact: true })).toBeVisible();
-  await expect(page.getByLabel("Extension repository URL")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Stores", exact: true })).toBeVisible();
+  await expect(page.getByText("Choose who distributes your sources", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Use this store", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Extension Store descriptor URL")).toBeVisible();
 });
 
 test("reader opens a demo chapter and exposes a usable page", async ({ page }) => {
@@ -188,7 +188,7 @@ test("chapter filtering and bulk actions are discoverable", async ({ page }) => 
 test("extension repositories require a safe URL and explicit trust", async ({ page }) => {
   await enterDemo(page);
   await page.goto("/extensions/repos");
-  const input = page.getByLabel("Extension repository URL");
+  const input = page.getByLabel("Extension Store descriptor URL");
   await input.fill("http://example.com/index.json");
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("must use HTTPS");

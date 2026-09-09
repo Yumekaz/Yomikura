@@ -278,7 +278,7 @@ export default function ExtensionsPage() {
                 className="yomi-button yomi-button-secondary"
               >
                 <Settings className="h-4 w-4" />
-                <span className="hidden sm:inline">Repositories</span>
+                <span className="hidden sm:inline">Stores</span>
               </Link>
             </div>
           </div>
