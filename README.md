@@ -37,16 +37,20 @@ Inspired by the design and feel of Mihon.
 
 1. Download the installer for your OS from **[GitHub Releases](https://github.com/Yumekaz/Yomikura/releases)**.
 2. Launch Yomikura — onboarding will guide you through storage location, optional JRE + Suwayomi download, and first connection.
-3. Add extension repositories and sources in **Extensions** / **Browse** (user-configured; nothing bundled).
+3. Add a trusted Extension Store in **Extensions → Stores**, verify its publisher and signing key, then install sources in **Browse** (user-configured; nothing bundled).
+
+The local Suwayomi engine stays in the background; Yomikura disables Suwayomi's separate fallback browser window for managed storage.
 
 Yomikura is an independent open-source project applying to the [SignPath Foundation](https://signpath.org/) for free Windows code signing. Until that application is approved and the workflow is enabled, release installers are unsigned.
 
 ### Web / PWA
 
-Host the built `dist/` folder or run locally. You need a Suwayomi server URL (your own instance or LAN). Default:
+Host the built `dist/` folder or run locally. You need a reachable Suwayomi server URL (your own instance or LAN); a browser cannot start the desktop local engine for you. Default:
 ```text
 http://127.0.0.1:4567
 ```
+
+Website chapter downloads are managed by the connected Suwayomi server. Desktop additionally creates a verified local offline cache.
 
 ### Development
 

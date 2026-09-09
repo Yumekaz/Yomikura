@@ -282,6 +282,44 @@ fn prepare_managed_storage(
     Ok(())
 }
 
+fn disable_suwayomi_browser_autolaunch(data_dir: &std::path::Path) -> Result<(), String> {
+    let config_path = data_dir.join("server.conf");
+    if !config_path.exists() {
+        return Ok(());
+    }
+
+    let current = std::fs::read_to_string(&config_path)
+        .map_err(|e| format!("Failed to read Suwayomi settings: {e}"))?;
+    let mut found = false;
+    let mut changed = false;
+    let mut lines = Vec::new();
+    for line in current.lines() {
+        if line
+            .trim_start()
+            .starts_with("server.initialOpenInBrowserEnabled")
+        {
+            found = true;
+            if line.trim() != "server.initialOpenInBrowserEnabled = false" {
+                lines.push("server.initialOpenInBrowserEnabled = false".to_string());
+                changed = true;
+            } else {
+                lines.push(line.to_string());
+            }
+        } else {
+            lines.push(line.to_string());
+        }
+    }
+    if !found {
+        lines.push("server.initialOpenInBrowserEnabled = false".to_string());
+        changed = true;
+    }
+    if changed {
+        std::fs::write(&config_path, format!("{}\n", lines.join("\n")))
+            .map_err(|e| format!("Failed to disable Suwayomi browser auto-launch: {e}"))?;
+    }
+    Ok(())
+}
+
 fn download_file_with_curl(
     url: &str,
     dest: &std::path::Path,
@@ -570,6 +608,7 @@ fn download_and_install_jre_sync(
 
     let data_dir = std::path::PathBuf::from(&data_path);
     prepare_managed_storage(&app_handle, &data_dir)?;
+    disable_suwayomi_browser_autolaunch(&data_dir)?;
 
     let jre_dir = data_dir.join("jre");
 
@@ -704,6 +743,9 @@ fn start_backend(
         data_dir.to_string_lossy()
     ))
     .arg(format!("-Dsuwayomi.tachidesk.config.server.port={}", port))
+    // Yomikura owns the reader experience. Do not open Suwayomi's fallback
+    // WebUI in the user's browser each time the managed local engine starts.
+    .arg("-Dsuwayomi.tachidesk.config.server.initialOpenInBrowserEnabled=false")
     // Yomikura supplies its own WebView UI. Suwayomi's optional KCEF provider
     // downloads a separate ~260 MB Chromium runtime on first launch and can
     // hold backend readiness behind that download. Sources which require an
@@ -1094,7 +1136,9 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{sha256_file, verified_jar, verified_jar_is_unchanged};
+    use super::{
+        disable_suwayomi_browser_autolaunch, sha256_file, verified_jar, verified_jar_is_unchanged,
+    };
 
     #[test]
     fn sha256_file_matches_known_digest() {
@@ -1134,5 +1178,25 @@ mod tests {
         std::fs::write(&path, b"changed-length").expect("test file should be replaceable");
         assert!(!verified_jar_is_unchanged(&fingerprint, &path));
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn managed_suwayomi_config_never_auto_opens_a_browser() {
+        let directory =
+            std::env::temp_dir().join(format!("yomikura-browser-setting-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).expect("temporary config directory should be writable");
+        let config = directory.join("server.conf");
+        std::fs::write(
+            &config,
+            "server.initialOpenInBrowserEnabled = true # default: true ; Open client on startup\n",
+        )
+        .expect("test config should be writable");
+
+        disable_suwayomi_browser_autolaunch(&directory).expect("managed setting should be updated");
+        assert_eq!(
+            std::fs::read_to_string(&config).expect("updated config should be readable"),
+            "server.initialOpenInBrowserEnabled = false\n"
+        );
+        let _ = std::fs::remove_dir_all(directory);
     }
 }

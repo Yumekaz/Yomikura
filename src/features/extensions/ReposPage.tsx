@@ -80,7 +80,7 @@ export default function ReposPage() {
   };
 
   return <div className="min-h-screen bg-transparent pb-24">
-    <div className="sticky top-0 z-20 border-b border-white/5 bg-ink-950/95 px-4 py-4 backdrop-blur-xl sm:px-6"><div className="mx-auto flex max-w-3xl items-center gap-3"><Link to="/extensions" className="yomi-utility-button" aria-label="Back to extensions"><ArrowLeft /></Link><div><span className="yomi-eyebrow">Extensions</span><h1 className="yomi-workspace-title mt-1">Stores</h1></div></div></div>
+    <div className="lg:sticky lg:top-0 z-20 border-b border-white/5 bg-ink-950/95 px-4 py-4 backdrop-blur-xl sm:px-6"><div className="mx-auto flex max-w-3xl items-center gap-3"><Link to="/extensions" className="yomi-utility-button" aria-label="Back to extensions"><ArrowLeft /></Link><div><span className="yomi-eyebrow">Extensions</span><h1 className="yomi-workspace-title mt-1">Stores</h1></div></div></div>
     <div className="mx-auto max-w-3xl space-y-8 p-6 sm:p-10">
       <div className="yomi-commandbar flex-col items-start gap-2"><span className="yomi-eyebrow">First-time setup</span><h2 className="text-xl font-semibold text-slate-100">Choose who distributes your sources</h2><p className="max-w-2xl text-sm leading-6 text-slate-400">Extension Stores include publisher identity and signing information. Yomikura never bundles third-party manga sources.</p></div>
       {statusMessage && <div role={statusMessage.kind === "error" ? "alert" : "status"} className={`yomi-alert ${statusMessage.kind === "error" ? "border-red-500/25 bg-red-500/10 text-red-100" : "border-yomi-jade/25 bg-yomi-jade/10 text-yomi-jade"}`}>{statusMessage.kind === "error" ? <AlertCircle /> : <CheckCircle2 />}<span>{statusMessage.text}</span></div>}

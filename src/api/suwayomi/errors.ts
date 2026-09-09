@@ -31,7 +31,7 @@ export function classifySourceProblem(error: unknown): SourceProblem {
   if (lower.includes("certificate") || lower.includes("pkix") || lower.includes("ssl") || lower.includes("tls") || lower.includes("handshake")) {
     return {
       title: "The source certificate could not be verified",
-      detail: `${message}. Suwayomi could not establish a trusted connection to this source.`,
+      detail: "Suwayomi could not establish a trusted connection to this source. Check your system date, then try another source before changing certificate settings.",
       owner: "source",
       kind: "certificate",
     };
@@ -40,7 +40,7 @@ export function classifySourceProblem(error: unknown): SourceProblem {
   if (lower.includes("timeout") || lower.includes("timed out") || lower.includes("etimedout") || lower.includes("deadline exceeded")) {
     return {
       title: "The source took too long to respond",
-      detail: `${message}. The source may be slow, rate-limiting requests, or temporarily unavailable.`,
+      detail: "The source may be slow, rate-limiting requests, or temporarily unavailable. Wait briefly, then retry once.",
       owner: "network",
       kind: "timeout",
     };
@@ -49,7 +49,7 @@ export function classifySourceProblem(error: unknown): SourceProblem {
   if (lower.includes("429") || lower.includes("too many requests") || lower.includes("rate limit")) {
     return {
       title: "The source is rate-limiting requests",
-      detail: `${message}. Wait a little before retrying, or use another source for now.`,
+      detail: "Wait a little before retrying, or use another source for now.",
       owner: "source",
       kind: "rate-limit",
     };
@@ -58,8 +58,17 @@ export function classifySourceProblem(error: unknown): SourceProblem {
   if (lower.includes("404") || lower.includes("not found") || lower.includes("no longer exists")) {
     return {
       title: "This source page was not found",
-      detail: `${message}. The source may have changed its URL or removed this title.`,
+      detail: "The source may have changed its URL or removed this title.",
       owner: "source",
+      kind: "not-found",
+    };
+  }
+
+  if (lower.includes("non null type") && lower.includes("chapter")) {
+    return {
+      title: "This chapter is no longer available",
+      detail: "The server could not find this chapter. Return to the title, refresh its chapter list, then choose the chapter again.",
+      owner: "server",
       kind: "not-found",
     };
   }
@@ -67,7 +76,7 @@ export function classifySourceProblem(error: unknown): SourceProblem {
   if (lower.includes("no such host") || lower.includes("dns") || lower.includes("unknownhost")) {
     return {
       title: "DNS or network failure",
-      detail: `${message}. Your machine or Suwayomi server could not resolve the source host.`,
+      detail: "Your machine or Suwayomi server could not resolve the source host.",
       owner: "network",
       kind: "dns",
     };
@@ -76,7 +85,7 @@ export function classifySourceProblem(error: unknown): SourceProblem {
   if (lower.includes("cloudflare") || lower.includes("captcha") || lower.includes("ddos-guard")) {
     return {
       title: "Source protection blocked the request",
-      detail: `${message}. This usually has to be solved in the upstream extension/server path.`,
+      detail: "This usually has to be solved in the upstream extension or server configuration.",
       owner: "source",
       kind: "cloudflare",
     };
@@ -85,7 +94,7 @@ export function classifySourceProblem(error: unknown): SourceProblem {
   if (lower.includes("401") || lower.includes("403") || lower.includes("451") || lower.includes("forbidden") || lower.includes("unauthorized")) {
     return {
       title: "The source denied this request",
-      detail: `${message}. The source may require a browser, authentication, or a different network path.`,
+      detail: "The source may require a browser, authentication, or a different network path.",
       owner: "source",
       kind: "access-denied",
     };
@@ -94,7 +103,7 @@ export function classifySourceProblem(error: unknown): SourceProblem {
   if (lower.includes("glprofile") || lower.includes("gluegen") || lower.includes("kcef")) {
     return {
       title: "Embedded browser runtime issue",
-      detail: `${message}. This source needs Suwayomi's embedded browser path, which is failing on this machine.`,
+      detail: "This source needs Suwayomi's embedded browser path, which is failing on this machine.",
       owner: "server",
       kind: "browser-runtime",
     };
@@ -103,7 +112,7 @@ export function classifySourceProblem(error: unknown): SourceProblem {
   if (lower.includes("500") || lower.includes("502") || lower.includes("503") || lower.includes("504")) {
     return {
       title: "Source website is failing",
-      detail: `${message}. Retry later or try another source for the same manga.`,
+      detail: "Retry later or try another source for the same manga.",
       owner: "source",
       kind: "source-down",
     };
@@ -112,7 +121,7 @@ export function classifySourceProblem(error: unknown): SourceProblem {
   if (lower.includes("failed to fetch") || lower.includes("networkerror") || lower.includes("cors")) {
     return {
       title: "Browser could not reach Suwayomi",
-      detail: `${message}. Check the server URL, CORS, and whether Suwayomi is still running.`,
+      detail: "Check the server URL, CORS, and whether Suwayomi is still running.",
       owner: "app",
       kind: "app-network",
     };
@@ -120,7 +129,7 @@ export function classifySourceProblem(error: unknown): SourceProblem {
 
   return {
     title: "Source request failed",
-    detail: message,
+    detail: "Suwayomi could not complete this request. Retry once, then try another installed source if it continues.",
     owner: "server",
     kind: "unknown",
   };

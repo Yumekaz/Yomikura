@@ -147,7 +147,7 @@ export default function SourceBrowsePage() {
   return (
     <div className="min-h-screen bg-transparent pb-24 select-none">
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-ink-950/40 backdrop-blur-xl border-b border-white/5 px-4 py-4 sm:px-6 mb-6">
+      <div className="lg:sticky lg:top-0 z-20 bg-ink-950/40 backdrop-blur-xl border-b border-white/5 px-4 py-4 sm:px-6 mb-6">
         <div className="max-w-7xl mx-auto flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

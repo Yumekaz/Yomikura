@@ -19,4 +19,16 @@ describe("classifySourceProblem", () => {
     expect(problem.title).toBe("Source request failed");
     expect(getSourceRecoveryHints(problem)).toHaveLength(2);
   });
+
+  it("hides GraphQL chapter internals behind a useful recovery message", () => {
+    const problem = classifySourceProblem(new Error("The field at path '/chapter' was declared as a non null type"));
+    expect(problem.title).toBe("This chapter is no longer available");
+    expect(problem.detail).not.toContain("non null type");
+  });
+
+  it("does not render certificate stack traces to readers", () => {
+    const problem = classifySourceProblem(new Error("PKIX path building failed: javax.net.ssl.SSLHandshakeException"));
+    expect(problem.detail).not.toContain("PKIX");
+    expect(problem.detail).not.toContain("SSLHandshakeException");
+  });
 });

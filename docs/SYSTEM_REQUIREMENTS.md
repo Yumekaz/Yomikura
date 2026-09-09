@@ -12,7 +12,7 @@ The desktop application uses Microsoft WebView2 on Windows. Current Windows 10 a
 
 Allow at least 1 GB of free disk space for Yomikura's local engine before adding a library. Covers, chapter pages, backups, and extensions require additional space according to usage.
 
-The optional local-engine setup downloads a pinned Eclipse Temurin Java 21 runtime and Suwayomi Server release over HTTPS. A blocked GitHub connection, TLS inspection, or insufficient disk space can prevent first-run setup. Yomikura never bundles sources or extension repositories.
+The optional local-engine setup downloads a pinned Eclipse Temurin Java 21 runtime and Suwayomi Server release over HTTPS. A blocked GitHub connection or insufficient disk space can prevent first-run setup. On Windows, Yomikura lets Suwayomi use the Windows trusted-root store to support managed-network TLS inspection. Yomikura never bundles sources or Extension Stores.
 
 ## Safe installation
 

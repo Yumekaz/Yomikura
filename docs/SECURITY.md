@@ -6,7 +6,7 @@ Yomikura is a client shell (browser, PWA, or Tauri desktop). This document outli
 
 1. **Yomikura UI (MIT):** Rendering, reader UX, local preferences, optional desktop onboarding (storage picker, updater UI).
 2. **Suwayomi Server (MPL-2.0):** Extension execution, catalog access, library database, downloads, progress. Runs locally in desktop mode or on a server you configure.
-3. **Extension repositories (user-added):** Third-party JSON indexes; parsed by Suwayomi when the user adds URLs.
+3. **Extension Stores (user-added):** Third-party signed store descriptors; Suwayomi resolves the catalogue and reports publisher/signing metadata before extensions are installed.
 
 The Yomikura UI does not execute extension APKs or scrape content providers directly.
 
@@ -21,7 +21,7 @@ The Yomikura UI does not execute extension APKs or scrape content providers dire
 | Data | Location |
 |------|----------|
 | UI settings | Browser storage or desktop app persisted state |
-| Offline chapter cache | IndexedDB / local files |
+| Offline chapter cache | Verified local cache in Desktop mode; website downloads remain on the configured Suwayomi server |
 | Library & extensions | Suwayomi data directory (desktop) or remote server |
 
 **No Yomikura project telemetry.** Server profiles and reading data stay on your devices/servers.
@@ -31,3 +31,4 @@ The Yomikura UI does not execute extension APKs or scrape content providers dire
 - Local Suwayomi binds to loopback by default during onboarding.
 - JRE and Suwayomi JAR downloads use HTTPS to official release endpoints.
 - Users choose the data directory; portable mode stores data beside the app.
+- Managed local storage disables Suwayomi's fallback browser auto-open and uses the Windows trusted-root store for Suwayomi HTTPS requests.

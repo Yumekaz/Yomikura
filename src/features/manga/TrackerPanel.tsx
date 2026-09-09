@@ -179,7 +179,7 @@ export function TrackerPanel({ mangaId }: TrackerPanelProps) {
                           <select
                             value={status}
                             onChange={(e) => setStatus(parseInt(e.target.value))}
-                            className="w-full rounded bg-ink-900 border border-white/10 p-1 text-xs text-slate-300 outline-none"
+                            className="yomi-select w-full"
                           >
                             {tracker.statuses.map((s: any) => (
                               <option key={s.value} value={s.value}>
@@ -193,7 +193,7 @@ export function TrackerPanel({ mangaId }: TrackerPanelProps) {
                           <select
                             value={score}
                             onChange={(e) => setScore(e.target.value)}
-                            className="w-full rounded bg-ink-900 border border-white/10 p-1 text-xs text-slate-300 outline-none"
+                            className="yomi-select w-full"
                           >
                             <option value="0">No Score</option>
                             {tracker.scores.map((sc: string) => (

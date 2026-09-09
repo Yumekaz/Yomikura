@@ -89,7 +89,7 @@ export function ReaderOverlay({
         
         {/* Sub-tab panels */}
         {activeSubTab !== "none" && (
-          <div className="yomi-reader-panel mb-2 flex flex-col gap-4 p-4 animate-fade-in">
+          <div className="yomi-reader-panel mb-2 flex max-h-[52vh] flex-col gap-4 overflow-y-auto overscroll-contain p-4 animate-fade-in">
             
             {/* 1. LAYOUT CONTROLS */}
             {activeSubTab === "layout" && (
@@ -160,7 +160,7 @@ export function ReaderOverlay({
                   <select
                     value={pageTransition}
                     onChange={(e) => setPageTransition(e.target.value as "fade" | "slide" | "none")}
-                    className="rounded bg-ink-950 border border-white/10 px-2 py-1 text-xs text-slate-300"
+                    className="yomi-select min-w-24"
                   >
                     <option value="none">None</option>
                     <option value="fade">Fade</option>
@@ -173,7 +173,7 @@ export function ReaderOverlay({
                   <select
                     value={autoDownloadCount}
                     onChange={(e) => setAutoDownloadCount(parseInt(e.target.value, 10))}
-                    className="rounded bg-ink-950 border border-white/10 px-2 py-1 text-xs text-slate-300"
+                    className="yomi-select min-w-24"
                   >
                     <option value={0}>Off</option>
                     <option value={1}>1</option>
@@ -192,6 +192,8 @@ export function ReaderOverlay({
                     <button
                       type="button"
                       onClick={onToggleOverride}
+                      aria-label="Remember reader settings for this manga"
+                      aria-pressed={hasOverride}
                       className={`relative inline-flex h-5.5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                         hasOverride ? "bg-yomi-jade" : "bg-ink-950 border-white/10"
                       }`}
@@ -215,6 +217,8 @@ export function ReaderOverlay({
                   <button
                     type="button"
                     onClick={() => setCropBorders(!cropBorders)}
+                    aria-label="Crop white borders"
+                    aria-pressed={cropBorders}
                     className={`relative inline-flex h-5.5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                       cropBorders ? "bg-yomi-jade" : "bg-ink-950 border-white/10"
                     }`}

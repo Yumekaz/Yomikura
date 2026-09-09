@@ -181,7 +181,7 @@ export function SourceMigrationModal({
                   <select
                     value={selectedSourceId}
                     onChange={(e) => setSelectedSourceId(e.target.value)}
-                    className="w-full rounded-lg border border-white/10 bg-ink-950 px-3 py-2.5 text-xs text-slate-300 outline-none focus:border-yomi-jade/55 transition"
+                    className="yomi-select w-full"
                   >
                     <option value="">-- Choose source --</option>
                     {sources.map(s => (

@@ -312,7 +312,7 @@ export default function GlobalSearchPage() {
   return (
     <div className="min-h-screen bg-transparent pb-24 text-slate-100">
       {/* Top Sticky Header */}
-      <div className="sticky top-0 z-20 border-b border-white/5 bg-ink-950/95 px-4 py-4 backdrop-blur-xl sm:px-6">
+      <div className="lg:sticky lg:top-0 z-20 border-b border-white/5 bg-ink-950/95 px-4 py-4 backdrop-blur-xl sm:px-6">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button

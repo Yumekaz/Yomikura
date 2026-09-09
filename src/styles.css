@@ -450,6 +450,20 @@ html.reduce-motion *::after {
 .yomi-chip.is-live { border-color: rgba(var(--yomi-signature), .38); color: #f0b5af; background: rgba(var(--yomi-signature), .09); }
 .yomi-field { width: 100%; min-height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; color: var(--text); background: var(--ink-900); font-size: 12px; outline: none; transition: border-color 140ms ease, box-shadow 140ms ease; }
 .yomi-field:focus { border-color: rgba(var(--yomi-signature), .72); box-shadow: 0 0 0 3px rgba(var(--yomi-signature), .12); }
+/* Native menus cannot be fully restyled by the OS, but every select gets the
+   same quiet surface, focus ring, and readable option colours. */
+select.yomi-field,
+.yomi-select { color-scheme: dark; font-weight: 600; line-height: 1.2; transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease; }
+select.yomi-field:hover,
+.yomi-select:hover { border-color: var(--line-strong); background: var(--ink-850); }
+select.yomi-field:focus-visible,
+.yomi-select:focus-visible { border-color: rgba(var(--yomi-signature), .72); box-shadow: 0 0 0 3px rgba(var(--yomi-signature), .12); }
+select.yomi-field:disabled,
+.yomi-select:disabled { cursor: not-allowed; opacity: .55; }
+select.yomi-field option,
+.yomi-select option { color: var(--text-strong); background: var(--ink-850); }
+.light-theme select.yomi-field,
+.light-theme .yomi-select { color-scheme: light; }
 .yomi-catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(235px, 1fr)); gap: 10px; }
 .yomi-catalog-item { display: flex; min-height: 88px; align-items: center; gap: 12px; padding: 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--ink-900); transition: transform 120ms var(--ease-out), border-color 140ms ease, background-color 140ms ease; }
 .yomi-catalog-item:active { transform: scale(.98); }

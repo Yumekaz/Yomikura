@@ -20,6 +20,9 @@ async function enterDemo(page: import("@playwright/test").Page) {
 }
 
 test("default onboarding keeps the ivory and bookmark-red brand palette", async ({ page }) => {
+  // A real local engine may be running on a developer machine. This test is
+  // specifically about the clean first-run surface, not that machine's state.
+  await page.route("**/api/graphql", (route) => route.abort());
   await page.goto("/library");
   const demoButton = page.getByRole("button", { name: "Explore Demo Library" });
   await expect(demoButton).toBeVisible({ timeout: 15_000 });

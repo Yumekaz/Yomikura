@@ -233,7 +233,7 @@ export default function ExtensionsPage() {
   return (
     <div className="min-h-screen bg-transparent pb-24">
       {/* Header */}
-      <div className="sticky top-0 z-20 border-b border-white/5 bg-ink-950/95 px-4 py-4 backdrop-blur-xl sm:px-6">
+      <div className="lg:sticky lg:top-0 z-20 border-b border-white/5 bg-ink-950/95 px-4 py-4 backdrop-blur-xl sm:px-6">
         <div className="max-w-6xl mx-auto flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div><span className="yomi-eyebrow">Discover</span><h1 className="yomi-workspace-title mt-1"><Box />Extensions</h1></div>
