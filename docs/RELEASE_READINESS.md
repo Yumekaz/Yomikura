@@ -29,6 +29,8 @@ The lifecycle gate pre-stages its runtime so a slow third-party download cannot 
 
 ## Manual beta matrix
 
+For public testers, use the reproducible journey and privacy guidance in [BETA_TESTING.md](BETA_TESTING.md). Treat reports of unexpected data changes as release-blocking until reproduced or disproved.
+
 Before a public release, manually check the installed app through these paths:
 
 - First launch with no Java available.

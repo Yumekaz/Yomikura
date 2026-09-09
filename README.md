@@ -87,6 +87,7 @@ Explore our detailed architectural and design specifications:
 - [Release readiness](docs/RELEASE_READINESS.md) - Validation gates for installers and public releases.
 - [Installation and system requirements](docs/SYSTEM_REQUIREMENTS.md) - Supported platforms, storage, and safe installation.
 - [Known issues](docs/KNOWN_ISSUES.md) - Current signing, first-launch, source, and platform limitations.
+- [Public beta guide](docs/BETA_TESTING.md) - Safe tester journeys and privacy-preserving feedback.
 - [Privacy](PRIVACY.md) - Exact local storage, network, and deletion behavior.
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Plain-language recovery steps for common problems.
 

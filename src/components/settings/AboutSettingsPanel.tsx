@@ -1,4 +1,4 @@
-import { AlertCircle, Bug, CircleHelp, ShieldCheck } from "lucide-react";
+import { AlertCircle, Bug, CircleHelp, FlaskConical, ShieldCheck } from "lucide-react";
 import { isTauri } from "../../stores/useSettingsStore";
 import { APP_VERSION } from "../../utils/appVersion";
 import { SuwayomiServerUpdaterRow, TauriUpdaterRow } from "./UpdatePanels";
@@ -32,7 +32,8 @@ export function AboutSettingsPanel() {
             <div className="rounded-lg bg-ink-950/30 border border-white/5 p-4"><span className="font-semibold text-slate-300 block mb-1">Architecture</span><span className="text-slate-500">Zustand, React Query, Vite, Tauri</span></div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3" aria-label="Help and project information">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Help and project information">
+            <a className="yomi-button yomi-button-secondary justify-center" href="https://github.com/Yumekaz/Yomikura/issues/new?template=beta_feedback.yml" target="_blank" rel="noreferrer"><FlaskConical />Beta feedback</a>
             <a className="yomi-button yomi-button-secondary justify-center" href="https://github.com/Yumekaz/Yomikura/issues/new?template=bug_report.yml" target="_blank" rel="noreferrer"><Bug />Report a bug</a>
             <a className="yomi-button yomi-button-secondary justify-center" href="https://github.com/Yumekaz/Yomikura/blob/main/docs/TROUBLESHOOTING.md" target="_blank" rel="noreferrer"><CircleHelp />Troubleshooting</a>
             <a className="yomi-button yomi-button-secondary justify-center" href="https://github.com/Yumekaz/Yomikura/blob/main/PRIVACY.md" target="_blank" rel="noreferrer"><ShieldCheck />Privacy</a>

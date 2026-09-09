@@ -1,0 +1,85 @@
+name: Beta feedback
+description: Share a completed beta journey, confusing moment, or reproducible reliability problem.
+title: "[Beta]: "
+labels: [beta-feedback]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing Yomikura. Do not include passwords, tokens, private server URLs, manga files, or full diagnostic logs. Yomikura never sends diagnostics automatically.
+  - type: input
+    id: version
+    attributes:
+      label: Yomikura version
+      placeholder: "1.0.24"
+    validations:
+      required: true
+  - type: dropdown
+    id: client
+    attributes:
+      label: Client tested
+      options:
+        - Windows desktop app
+        - Website / PWA
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and browser (if website)
+      placeholder: "Windows 11 24H2 / Chrome 140"
+    validations:
+      required: true
+  - type: dropdown
+    id: journey
+    attributes:
+      label: Journey tested
+      options:
+        - First launch or server connection
+        - Extension Store or extension update
+        - Browse or search
+        - Library, history, or updates
+        - Reader or resume position
+        - Download or offline reading
+        - Backup, restore, or source migration
+        - Install, update, close, or uninstall
+        - Visual, accessibility, or usability feedback
+    validations:
+      required: true
+  - type: input
+    id: server_version
+    attributes:
+      label: Suwayomi version and source/extension (if relevant)
+      placeholder: "Suwayomi 2.3.x / source name and extension version"
+    validations:
+      required: false
+  - type: textarea
+    id: steps
+    attributes:
+      label: What did you do?
+      description: Number the exact steps so someone else can reproduce the result.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: dropdown
+    id: data_impact
+    attributes:
+      label: Did any library, reading progress, download, or setting appear lost or changed unexpectedly?
+      options:
+        - No
+        - Unsure
+        - Yes - I stopped and preserved my data
+    validations:
+      required: true
+  - type: textarea
+    id: safe_diagnostics
+    attributes:
+      label: Optional safe evidence
+      description: A cropped screenshot or the first non-sensitive error line is useful. Remove private URLs, paths, names, tokens, and cookies.
+    validations:
+      required: false

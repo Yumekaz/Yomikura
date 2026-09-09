@@ -15,6 +15,13 @@ body:
     validations:
       required: true
   - type: input
+    id: suwayomi_version
+    attributes:
+      label: Suwayomi version and extension/source (if relevant)
+      placeholder: "Suwayomi 2.3.x / extension name and version"
+    validations:
+      required: false
+  - type: input
     id: platform
     attributes:
       label: Platform
@@ -37,6 +44,16 @@ body:
     attributes:
       label: Steps to reproduce
       description: Tell us exactly what you clicked or entered.
+    validations:
+      required: true
+  - type: dropdown
+    id: data_impact
+    attributes:
+      label: Did any library data, reading progress, download, or setting change unexpectedly?
+      options:
+        - No
+        - Unsure
+        - Yes - I stopped and preserved my data
     validations:
       required: true
   - type: textarea
