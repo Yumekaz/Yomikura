@@ -31,6 +31,7 @@ import { AdvancedSettingsPanel } from "../components/settings/AdvancedSettingsPa
 import { AppearanceSettingsPanel } from "../components/settings/AppearanceSettingsPanel";
 import { ReaderSettingsPanel } from "../components/settings/ReaderSettingsPanel";
 import { validateBackupFile } from "../components/settings/backupValidation";
+import { waitForRestoreStatus } from "../components/settings/backupRestore";
 import { fetchAllLibrary } from "../api/library/fetchAllLibrary";
 
 type SettingsTab = SettingsSection;
@@ -39,8 +40,11 @@ const SETTINGS_TABS: SettingsTab[] = ["connection", "appearance", "reader", "bac
 const RESTORE_BACKUP_UPLOAD_QUERY = `
   mutation RestoreBackup($input: RestoreBackupInput!) {
     restoreBackup(input: $input) {
+      id
       status {
         state
+        mangaProgress
+        totalManga
       }
     }
   }
@@ -76,7 +80,9 @@ async function restoreBackupUpload(endpoint: string, file: File) {
     throw new Error(result.errors.map((item: { message?: string }) => item.message).filter(Boolean).join("; ") || "Restore failed.");
   }
 
-  return result?.data;
+  const restore = result?.data?.restoreBackup;
+  if (!restore?.id) throw new Error("Suwayomi accepted the file but did not provide a restore job ID.");
+  return restore as { id: string; status?: { state?: string; mangaProgress?: number; totalManga?: number } | null };
 }
 
 function SettingsPage() {
@@ -238,16 +244,21 @@ function SettingsPage() {
 
   // Mutation: Restore Backup
   const { mutate: restoreBackup, isPending: restoringBackup } = useMutation({
-    mutationFn: (file: File) => restoreBackupUpload(graphqlEndpoint, file),
+    mutationFn: async (file: File) => {
+      const restore = await restoreBackupUpload(graphqlEndpoint, file);
+      return waitForRestoreStatus((id) => sdk.GetRestoreStatus({ id }), restore.id);
+    },
     onMutate: () => {
       setBackupMessage(null);
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       setBackupMessage({
         kind: "success",
-        text: "Backup restored successfully! Refreshing library cache...",
+        text: result.completed
+          ? `Backup restored successfully${result.status?.totalManga ? ` (${result.status.mangaProgress}/${result.status.totalManga} titles processed)` : ""}. Refreshing library cache...`
+          : "Restore is still running in Suwayomi. Keep the server running; refresh the library after it completes.",
       });
-      queryClient.invalidateQueries();
+      if (result.completed) queryClient.invalidateQueries();
     },
     onError: (err) => {
       setBackupMessage({

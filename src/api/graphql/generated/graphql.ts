@@ -4366,6 +4366,13 @@ export type UpdateChapterProgressMutationVariables = Exact<{
 
 export type UpdateChapterProgressMutation = { updateChapter: { chapter: { id: number, isRead: boolean, lastPageRead: number } } | null };
 
+export type GetRestoreStatusQueryVariables = Exact<{
+  id: string;
+}>;
+
+
+export type GetRestoreStatusQuery = { restoreStatus: { state: BackupRestoreState, mangaProgress: number, totalManga: number } | null };
+
 export type GetSourcesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -4748,6 +4755,15 @@ export const UpdateChapterProgressDocument = gql`
       isRead
       lastPageRead
     }
+  }
+}
+    `;
+export const GetRestoreStatusDocument = gql`
+    query GetRestoreStatus($id: String!) {
+  restoreStatus(id: $id) {
+    state
+    mangaProgress
+    totalManga
   }
 }
     `;
@@ -5313,6 +5329,9 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     UpdateChapterProgress(variables: UpdateChapterProgressMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateChapterProgressMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<UpdateChapterProgressMutation>({ document: UpdateChapterProgressDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateChapterProgress', 'mutation', variables);
+    },
+    GetRestoreStatus(variables: GetRestoreStatusQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetRestoreStatusQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetRestoreStatusQuery>({ document: GetRestoreStatusDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetRestoreStatus', 'query', variables);
     },
     GetSources(variables?: GetSourcesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetSourcesQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetSourcesQuery>({ document: GetSourcesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetSources', 'query', variables);

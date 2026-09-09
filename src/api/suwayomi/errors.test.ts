@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifySourceProblem, getSourceRecoveryHints } from "./errors";
+import { classifySourceProblem, getErrorMessage, getSourceRecoveryHints } from "./errors";
 
 describe("classifySourceProblem", () => {
   it.each([
@@ -30,5 +30,11 @@ describe("classifySourceProblem", () => {
     const problem = classifySourceProblem(new Error("PKIX path building failed: javax.net.ssl.SSLHandshakeException"));
     expect(problem.detail).not.toContain("PKIX");
     expect(problem.detail).not.toContain("SSLHandshakeException");
+  });
+
+  it("never returns raw upstream diagnostics from the UI error helper", () => {
+    const detail = getErrorMessage(new Error("java.lang.IllegalStateException: private backend path"));
+    expect(detail).not.toContain("IllegalStateException");
+    expect(detail).not.toContain("private backend path");
   });
 });

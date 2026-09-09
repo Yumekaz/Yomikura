@@ -51,12 +51,12 @@ export default function ReposPage() {
       setRepoUrl("");
       setStatusMessage({ kind: "success", text: `Extension Store added and verified. Suwayomi discovered ${count.toLocaleString()} extensions.` });
     },
-    onError: (error) => setStatusMessage({ kind: "error", text: `Could not add this Extension Store: ${error instanceof Error ? error.message : String(error)}` }),
+    onError: () => setStatusMessage({ kind: "error", text: "Could not add this Extension Store. Confirm the descriptor URL, signing identity, and Suwayomi connection, then retry." }),
   });
   const removeStore = useMutation({
     mutationFn: (indexUrl: string) => sdk.RemoveExtensionStore({ input: { indexUrl } }),
     onSuccess: () => { refreshData(); setStatusMessage({ kind: "success", text: "Extension Store removed. Installed extensions remain available." }); },
-    onError: (error) => setStatusMessage({ kind: "error", text: `Could not remove this Extension Store: ${error instanceof Error ? error.message : String(error)}` }),
+    onError: () => setStatusMessage({ kind: "error", text: "Could not remove this Extension Store. It was left unchanged; check the Suwayomi connection and retry." }),
   });
   const busy = addStore.isPending || removeStore.isPending;
 

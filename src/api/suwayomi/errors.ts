@@ -7,7 +7,7 @@ export type SourceProblem = {
   kind: "dns" | "cloudflare" | "source-down" | "access-denied" | "rate-limit" | "not-found" | "certificate" | "timeout" | "browser-runtime" | "app-network" | "unknown";
 };
 
-export function getErrorMessage(error: unknown): string {
+function getDiagnosticMessage(error: unknown): string {
   if (error instanceof ClientError) {
     const graphQlMessage = error.response.errors?.map((item) => item.message).join("; ");
     return graphQlMessage || error.message;
@@ -25,7 +25,7 @@ export function getErrorMessage(error: unknown): string {
 }
 
 export function classifySourceProblem(error: unknown): SourceProblem {
-  const message = getErrorMessage(error);
+  const message = getDiagnosticMessage(error);
   const lower = message.toLowerCase();
 
   if (lower.includes("certificate") || lower.includes("pkix") || lower.includes("ssl") || lower.includes("tls") || lower.includes("handshake")) {
@@ -133,6 +133,12 @@ export function classifySourceProblem(error: unknown): SourceProblem {
     owner: "server",
     kind: "unknown",
   };
+}
+
+// UI code must never print upstream GraphQL, Java, or network stack traces.
+// Keep the diagnostic extractor private and expose only recovery-oriented copy.
+export function getErrorMessage(error: unknown): string {
+  return classifySourceProblem(error).detail;
 }
 
 export function getSourceRecoveryHints(problem?: SourceProblem | null): string[] {

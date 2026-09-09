@@ -4,6 +4,8 @@ import { X, Search, Loader2, RefreshCw, AlertTriangle, CheckCircle } from "lucid
 import { createGraphqlClient } from "../../api/graphql/client";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { FetchSourceMangaType } from "../../api/graphql/generated/graphql";
+import { classifySourceProblem } from "../../api/suwayomi/errors";
+import { buildChapterMigrationPlan, runWithConcurrency } from "./chapterMigration";
 
 interface SourceMigrationModalProps {
   isOpen: boolean;
@@ -60,9 +62,9 @@ export function SourceMigrationModal({
     onSuccess: () => {
       setMigrationStatus("confirming");
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       setMigrationStatus("error");
-      setErrorMessage(err.message || "Failed to search target source.");
+      setErrorMessage(classifySourceProblem(err).detail);
     },
   });
 
@@ -71,7 +73,7 @@ export function SourceMigrationModal({
     mutationFn: async (targetId: number) => {
       setMigrationStatus("migrating");
       
-      // 1. Add target manga to library
+      // Keep the original title until every copy operation has succeeded.
       await sdk.ToggleMangaLibrary({
         input: {
           id: targetId,
@@ -79,45 +81,20 @@ export function SourceMigrationModal({
         },
       });
 
-      // 2. Fetch full details and chapters for both mangas
       const sourceDetails = await sdk.GetMangaDetails({ id: mangaId });
       const targetDetails = await sdk.GetMangaDetails({ id: targetId });
+      if (!sourceDetails.manga || !targetDetails.manga) throw new Error("Yomikura could not load both titles needed for migration. The original title was kept unchanged.");
 
-      const sourceChapters = sourceDetails.manga?.chapters?.edges?.map(e => e?.node).filter(Boolean) || [];
-      const targetChapters = targetDetails.manga?.chapters?.edges?.map(e => e?.node).filter(Boolean) || [];
+      const sourceChapters = sourceDetails.manga.chapters.edges.map((edge) => edge.node);
+      const targetChapters = targetDetails.manga.chapters.edges.map((edge) => edge.node);
+      const plan = buildChapterMigrationPlan(sourceChapters, targetChapters);
+      await runWithConcurrency(plan, (entry) => sdk.UpdateChapterProgress({ input: { id: entry.targetId, patch: entry.patch } }));
 
-      // 3. Match chapters by chapterNumber or name and copy progress
-      const progressPromises = [];
-      for (const srcCh of sourceChapters) {
-        if (!srcCh.isRead) continue; // Skip unread chapters
-        
-        // Find matching chapter in target
-        const match = targetChapters.find(
-          tarCh => 
-            tarCh.chapterNumber === srcCh.chapterNumber ||
-            tarCh.name.toLowerCase() === srcCh.name.toLowerCase()
-        );
-
-        if (match) {
-          progressPromises.push(
-            sdk.UpdateChapterProgress({
-              input: {
-                id: parseInt(String(match.id)),
-                patch: {
-                  isRead: true,
-                  lastPageRead: srcCh.lastPageRead ?? 999
-                }
-              }
-            })
-          );
-        }
+      const sourceCategoryIds = sourceDetails.manga.categories.edges.map((edge) => edge.node.id);
+      if (sourceCategoryIds.length) {
+        await sdk.UpdateMangaCategories({ input: { id: targetId, patch: { addToCategories: sourceCategoryIds } } });
       }
 
-      if (progressPromises.length > 0) {
-        await Promise.all(progressPromises);
-      }
-
-      // 4. Remove original manga from library
       await sdk.ToggleMangaLibrary({
         input: {
           id: mangaId,
@@ -130,9 +107,9 @@ export function SourceMigrationModal({
       queryClient.invalidateQueries({ queryKey: ["library"] });
       queryClient.invalidateQueries({ queryKey: ["manga"] });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       setMigrationStatus("error");
-      setErrorMessage(err.message || "Migration process failed.");
+      setErrorMessage(`${classifySourceProblem(err).detail} The original title was kept in your library.`);
     },
   });
 
@@ -162,6 +139,7 @@ export function SourceMigrationModal({
           <button
             onClick={onClose}
             className="rounded-full p-1.5 hover:bg-white/10 text-slate-400 hover:text-white transition"
+            aria-label="Close source migration"
           >
             <X className="h-5 w-5" />
           </button>
@@ -172,13 +150,14 @@ export function SourceMigrationModal({
           {migrationStatus === "idle" && (
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">Select Target Source</label>
+                <label htmlFor="migration-target-source" className="block text-xs font-semibold text-slate-400 mb-1.5">Select Target Source</label>
                 {loadingSources ? (
                   <div className="flex items-center justify-center p-4">
                     <Loader2 className="h-5 w-5 animate-spin text-yomi-jade" />
                   </div>
                 ) : (
                   <select
+                    id="migration-target-source"
                     value={selectedSourceId}
                     onChange={(e) => setSelectedSourceId(e.target.value)}
                     className="yomi-select w-full"
@@ -194,10 +173,11 @@ export function SourceMigrationModal({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">Search Query</label>
+                <label htmlFor="migration-search-query" className="block text-xs font-semibold text-slate-400 mb-1.5">Search Query</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
                   <input
+                    id="migration-search-query"
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -276,7 +256,7 @@ export function SourceMigrationModal({
               <CheckCircle className="h-10 w-10 text-yomi-jade animate-pulse" />
               <span className="text-sm font-bold text-slate-200">Migration Completed!</span>
               <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
-                Successfully migrated progress logs, history, and category tags to **"{targetManga?.title}"**.
+                Migrated reading progress, bookmarks, partial pages, and category tags to “{targetManga?.title}”.
               </p>
               <button
                 onClick={onClose}

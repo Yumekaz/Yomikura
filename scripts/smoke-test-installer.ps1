@@ -266,6 +266,11 @@ try {
     Set-Content -LiteralPath (Join-Path $PreservedStoragePath "smoke-sentinel.txt") -Value "Yomikura user data must survive an application uninstall." -NoNewline
     Write-Host "Local Suwayomi GraphQL endpoint is ready on port $backendPort"
   }
+  Write-Host "Verifying the supported Suwayomi GraphQL contract"
+  node (Join-Path $PSScriptRoot "verify-suwayomi-contract.mjs") "--base-url=http://127.0.0.1:$backendPort"
+  if ($LASTEXITCODE -ne 0) {
+    throw "Installed Suwayomi backend does not satisfy Yomikura's supported GraphQL contract"
+  }
   $ownedProcessIds = @(Get-DescendantProcessIds -RootProcessId $app.Id)
   $measuredProcessIds = @($app.Id) + $ownedProcessIds | Select-Object -Unique
   $measuredProcesses = @($measuredProcessIds | ForEach-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
