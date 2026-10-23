@@ -87,6 +87,14 @@ Migration refreshes the destination using `fetchMangaAndChapters(input: { id, fe
 
 Chapter state, category union and destination membership must be confirmed before a separately selected replacement removes the original from the library. These operations have no shared backend transaction or expected-version guard. Pending client intent is not proof of server confirmation. See [migration verification and limits](RELIABILITY_BATCH_5_2026-10-24.md).
 
+## Tracker binding and verification
+
+`searchTracker(input: { trackerId, query })` provides the remote work selected for `bindTrack(input: { mangaId, trackerId, remoteId, private })`. Preserve `LongString` remote IDs without numeric conversion. `trackProgress({ mangaId })` synchronizes existing bindings; it is not a search or bind operation.
+
+The pinned tracker implementation can catch individual provider errors and return older records. The client verifies each binding through `fetchTrack({ recordId })` before reporting synchronization confirmation. Manual edits refresh the provider first and send only changed fields; local unlink uses `deleteRemoteTrack: false`.
+
+Eligible reading acknowledgements atomically retain a separate tracker retry marker in the progress head. Reading progress can be saved while tracker verification remains pending. See [tracker verification and account limitations](RELIABILITY_BATCH_6_2026-10-24.md).
+
 ## Backup export and restore
 
 Verified on 2026-10-23 against the pinned Suwayomi v2.3.2243 server using a disposable local-source library.

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({ key: "" }));
 vi.mock("./trackingActions", () => ({
   assertTrackingBackend: (backend: { key: string }) => { if (backend.key !== mocks.key) throw new Error("server changed"); },
   pushLinkedTrackerProgress: vi.fn(),
+  trackingErrorMessage: (error: Error) => error.message,
 }));
 const backend = progressBackend("http://tracking.example");
 const other = progressBackend("http://other.example");

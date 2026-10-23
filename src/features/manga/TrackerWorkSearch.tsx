@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import type { ProgressBackend } from "../../api/suwayomi/backendIdentity";
-import { bindTrackerWork, searchTrackerWorks, trackerExternalUrl, type TrackerSearchResult } from "../../api/suwayomi/trackingActions";
-import { getErrorMessage } from "../../api/suwayomi/errors";
+import { bindTrackerWork, searchTrackerWorks, trackerExternalUrl, trackingErrorMessage, type TrackerSearchResult } from "../../api/suwayomi/trackingActions";
 
 export function TrackerWorkSearch({ backend, mangaId, mangaTitle, trackerId, supportsPrivate, onLinked, onClose }: {
   backend: ProgressBackend; mangaId: number; mangaTitle: string; trackerId: number; supportsPrivate: boolean;
@@ -22,7 +21,7 @@ export function TrackerWorkSearch({ backend, mangaId, mangaTitle, trackerId, sup
     try {
       const found = await searchTrackerWorks(backend, mangaId, trackerId, query);
       if (request === generation.current) { setResults(found); setSearched(true); }
-    } catch (failure) { if (request === generation.current) setError(getErrorMessage(failure)); }
+    } catch (failure) { if (request === generation.current) setError(trackingErrorMessage(failure)); }
     finally { if (request === generation.current) setBusy(null); }
   };
   const bind = async () => {
@@ -31,7 +30,7 @@ export function TrackerWorkSearch({ backend, mangaId, mangaTitle, trackerId, sup
     try {
       await bindTrackerWork(backend, mangaId, trackerId, selected, privateTrack);
       if (request === generation.current) onLinked();
-    } catch (failure) { if (request === generation.current) setError(getErrorMessage(failure)); }
+    } catch (failure) { if (request === generation.current) setError(trackingErrorMessage(failure)); }
     finally { if (request === generation.current) setBusy(null); }
   };
   return <div className="mt-4 space-y-3 border-t border-white/10 pt-4">

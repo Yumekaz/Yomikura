@@ -1,6 +1,6 @@
 import type { ProgressBackend } from "./backendIdentity";
 import { acquireTrackingLease, getPendingTracking, getProgressOperations, recordTrackingResult, type ProgressHead } from "./progressStorage";
-import { assertTrackingBackend, pushLinkedTrackerProgress } from "./trackingActions";
+import { assertTrackingBackend, pushLinkedTrackerProgress, trackingErrorMessage } from "./trackingActions";
 import { TrackingBusyError, withTrackingLock } from "./trackingCoordination";
 
 const inFlight = new Map<string, { promise: Promise<void>; rerun: boolean; force: boolean }>();
@@ -34,7 +34,7 @@ async function drain(backend: ProgressBackend, force: boolean) {
         await recordTrackingResult(backend, requests, owner);
       } catch (error) {
         if (!current(backend)) return;
-        await recordTrackingResult(backend, requests, owner, error instanceof Error ? error.message : "Tracker progress could not be confirmed.");
+        await recordTrackingResult(backend, requests, owner, trackingErrorMessage(error));
       }
     }
     });

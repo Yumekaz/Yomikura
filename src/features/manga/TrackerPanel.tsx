@@ -4,9 +4,8 @@ import { ExternalLink, Link2, Link2Off, Loader2, RefreshCw } from "lucide-react"
 import { Link } from "react-router-dom";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { progressBackend } from "../../api/suwayomi/backendIdentity";
-import { editTrackerRecord, synchronizeLinkedTrackersNow, trackerExternalUrl, unlinkTrackerRecord, type BoundTrackerRecord } from "../../api/suwayomi/trackingActions";
+import { editTrackerRecord, synchronizeLinkedTrackersNow, trackerExternalUrl, trackingErrorMessage, unlinkTrackerRecord, type BoundTrackerRecord } from "../../api/suwayomi/trackingActions";
 import { synchronizeTracking } from "../../api/suwayomi/trackingSync";
-import { getErrorMessage } from "../../api/suwayomi/errors";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { TrackerWorkSearch } from "./TrackerWorkSearch";
@@ -33,19 +32,19 @@ export function TrackerPanel({ mangaId, mangaTitle }: { mangaId: number; mangaTi
   const run = async (action: () => Promise<unknown>, success?: () => void) => {
     const request = generation.current; setBusy(true); setErrorMsg("");
     try { await action(); if (request === generation.current) success?.(); }
-    catch (failure) { if (request === generation.current) setErrorMsg(getErrorMessage(failure)); }
+    catch (failure) { if (request === generation.current) setErrorMsg(trackingErrorMessage(failure)); }
     finally { await refresh(); if (request === generation.current) setBusy(false); }
   };
   if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-yomi-jade" /></div>;
-  if (isError) return <div className="rounded-xl border border-white/10 bg-ink-900 p-4 text-center"><p role="alert" className="text-sm text-red-300">Trackers could not be loaded: {getErrorMessage(error)}</p><button type="button" onClick={() => void refetch()} className="yomi-button yomi-button-secondary mt-3"><RefreshCw />Retry trackers</button></div>;
+  if (isError) return <div className="rounded-xl border border-white/10 bg-ink-900 p-4 text-center"><p role="alert" className="text-sm text-red-300">Trackers could not be loaded: {trackingErrorMessage(error)}</p><button type="button" onClick={() => void refetch()} className="yomi-button yomi-button-secondary mt-3"><RefreshCw />Retry trackers</button></div>;
   const trackers = data?.trackers.nodes ?? [];
   const records = data?.manga.trackRecords.nodes ?? [];
   return <section aria-label="Tracking" className="mt-6 space-y-4 rounded-xl border border-white/5 bg-ink-900 p-5">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-semibold text-slate-100">Tracking</h3><p className="mt-1 text-xs text-slate-400">Link the matching work and synchronize completed chapters with your trackers.</p></div>
-      {!!records.length && <button type="button" disabled={busy} onClick={() => void run(async () => {
-        const result = await synchronizeLinkedTrackersNow(backend, mangaId);
-        if (result.confirmed) notify("Linked tracker progress was confirmed.", "success");
-      })} className="yomi-button yomi-button-secondary"><RefreshCw className={busy ? "animate-spin" : ""} />Sync linked trackers</button>}
+      {!!records.length && <button type="button" disabled={busy} onClick={() => {
+        let confirmed = 0;
+        void run(async () => { confirmed = (await synchronizeLinkedTrackersNow(backend, mangaId)).confirmed; }, () => { if (confirmed) notify("Linked tracker progress was confirmed.", "success"); });
+      }} className="yomi-button yomi-button-secondary"><RefreshCw className={busy ? "animate-spin" : ""} />Sync linked trackers</button>}
     </div>
     {errorMsg && <p role="alert" className="text-xs text-red-300">{errorMsg}</p>}
     <div className="grid gap-4 sm:grid-cols-2">{trackers.map((tracker) => {

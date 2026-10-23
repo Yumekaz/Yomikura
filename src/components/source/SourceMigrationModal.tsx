@@ -53,7 +53,7 @@ export function SourceMigrationModal({ isOpen, onClose, mangaId, mangaTitle, sou
       setSelected(new Set(next.rows.filter((row) => row.status === "matched").map((row) => Number(row.source.id))));
       setPhase("review");
     } catch (error) {
-      if (request === generation.current) { setFailure({ message: getErrorMessage(error), original: "unchanged" }); setPhase("error"); }
+      if (request === generation.current) { setFailure({ message: error instanceof MigrationError ? error.message : getErrorMessage(error), original: "unchanged" }); setPhase("error"); }
     }
   }, [backend, mangaId, mangaTitle]);
   useEffect(() => {
@@ -86,7 +86,7 @@ export function SourceMigrationModal({ isOpen, onClose, mangaId, mangaTitle, sou
       const completed = await executeMangaMigration(review, selected, replace ? "replace" : "copy");
       setResult(completed); setPhase("done");
     } catch (error) {
-      setFailure({ message: getErrorMessage(error), original: error instanceof MigrationError ? error.original : "unchanged" }); setPhase("error");
+      setFailure({ message: error instanceof MigrationError ? error.message : getErrorMessage(error), original: error instanceof MigrationError ? error.original : "unchanged" }); setPhase("error");
     } finally {
       void invalidateChapterState(queryClient);
       void queryClient.invalidateQueries({ queryKey: ["library-duplicates"] });

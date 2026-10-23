@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { progressBackend } from "./backendIdentity";
-import { bindTrackerWork, editTrackerRecord, pushLinkedTrackerProgress, searchTrackerWorks, trackerExternalUrl, unlinkTrackerRecord, type BoundTrackerRecord, type TrackerSearchResult } from "./trackingActions";
-import { getProgressHeads, suppressEarlierTracking } from "./progressStorage";
+import { bindTrackerWork, editTrackerRecord, pushLinkedTrackerProgress, searchTrackerWorks, synchronizeLinkedTrackersNow, trackerExternalUrl, unlinkTrackerRecord, type BoundTrackerRecord, type TrackerSearchResult } from "./trackingActions";
+import { getPendingTracking, getProgressHeads, getProgressOperations, recordTrackingResult, suppressEarlierTracking } from "./progressStorage";
 
 const mocks = vi.hoisted(() => ({ settings: { serverBaseUrl: "http://tracker.example", mockMode: false }, sdk: {
   GetMangaTrackers: vi.fn(), SearchTracker: vi.fn(), BindTrackerWork: vi.fn(), UpdateTrack: vi.fn(), UnbindTrack: vi.fn(), TrackProgress: vi.fn(), RefreshTrackerRecord: vi.fn(),
 } }));
 vi.mock("../graphql/client", () => ({ createGraphqlClient: vi.fn(() => mocks.sdk) }));
 vi.mock("../../stores/useSettingsStore", () => ({ useSettingsStore: { getState: () => mocks.settings } }));
-vi.mock("./progressStorage", () => ({ getProgressHeads: vi.fn(), getProgressOperations: vi.fn(), suppressEarlierTracking: vi.fn() }));
+vi.mock("./progressStorage", () => ({ getProgressHeads: vi.fn(), getProgressOperations: vi.fn(), getPendingTracking: vi.fn(), recordTrackingResult: vi.fn(), suppressEarlierTracking: vi.fn() }));
 vi.mock("./progressSync", () => ({ synchronizeProgress: vi.fn() }));
 vi.mock("./trackingCoordination", () => ({ withTrackingLock: (_backend: unknown, work: (owner: string) => unknown) => work("owner") }));
 const backend = progressBackend("http://tracker.example");
@@ -21,6 +21,7 @@ beforeEach(() => {
   vi.resetAllMocks(); mocks.settings.serverBaseUrl = backend.serverBaseUrl; mocks.settings.mockMode = false; records = [record()]; highest = 3;
   trackers = [{ id: 1, name: "First tracker", isLoggedIn: true, isTokenExpired: false, supportsPrivateTracking: true, scores: ["10", "9"], statuses: [{ value: 1, name: "Reading" }, { value: 2, name: "Completed" }] }];
   vi.mocked(getProgressHeads).mockResolvedValue([]); vi.mocked(suppressEarlierTracking).mockResolvedValue();
+  vi.mocked(getProgressOperations).mockResolvedValue([]); vi.mocked(getPendingTracking).mockResolvedValue([]); vi.mocked(recordTrackingResult).mockResolvedValue();
   mocks.sdk.GetMangaTrackers.mockImplementation(async () => ({ manga: { id: 42, title: "Fixture", trackRecords: { nodes: structuredClone(records) } }, trackers: { nodes: structuredClone(trackers) }, chapters: { nodes: [{ chapterNumber: highest }] } }));
   mocks.sdk.SearchTracker.mockResolvedValue({ searchTracker: { trackSearches: [work(), work({ trackerId: 2 })] } });
   mocks.sdk.BindTrackerWork.mockImplementation(async ({ input }) => {
@@ -32,8 +33,8 @@ beforeEach(() => {
     return { updateTrack: { trackRecord: structuredClone(linked) } };
   });
   mocks.sdk.UnbindTrack.mockImplementation(async ({ input }) => { records = records.filter((item) => item.id !== input.recordId); return { unbindTrack: { trackRecord: null } }; });
-  mocks.sdk.TrackProgress.mockResolvedValue({ trackProgress: { trackRecords: [] } });
-  mocks.sdk.RefreshTrackerRecord.mockImplementation(async ({ input }) => ({ fetchTrack: { trackRecord: record({ ...records.find((item) => item.id === input.recordId), lastChapterRead: highest }) } }));
+  mocks.sdk.TrackProgress.mockImplementation(async () => { records.forEach((item) => { item.lastChapterRead = highest; }); return { trackProgress: { trackRecords: structuredClone(records) } }; });
+  mocks.sdk.RefreshTrackerRecord.mockImplementation(async ({ input }) => ({ fetchTrack: { trackRecord: structuredClone(records.find((item) => item.id === input.recordId)) } }));
 });
 
 describe("tracker search and binding", () => {
@@ -75,11 +76,23 @@ describe("manual tracker edits", () => {
     expect(updated).toMatchObject({ score: 0, lastChapterRead: 3 });
     expect(mocks.sdk.UpdateTrack).toHaveBeenCalledWith({ input: { recordId: 501, scoreString: "0" } });
   });
-  it("suppresses older automatic intents only after a confirmed manual position edit", async () => {
+  it("refreshes remote progress before a score edit so the backend cannot overwrite a stale cached value", async () => {
+    mocks.sdk.RefreshTrackerRecord.mockImplementationOnce(async () => { records[0].lastChapterRead = 3; return { fetchTrack: { trackRecord: structuredClone(records[0]) } }; });
+    const updated = await editTrackerRecord(backend, 42, record(), { scoreString: "0" });
+    expect(updated).toMatchObject({ score: 0, lastChapterRead: 3 });
+  });
+  it("persists a manual position override before sending the provider edit", async () => {
     const earlier = [{ entityKey: "captured", sequence: 12, chapter: { mangaId: 42 } }] as any;
     vi.mocked(getProgressHeads).mockResolvedValue(earlier);
     await editTrackerRecord(backend, 42, record(), { lastChapterRead: 0 });
     expect(suppressEarlierTracking).toHaveBeenCalledWith(backend, earlier);
+    expect(vi.mocked(suppressEarlierTracking).mock.invocationCallOrder[0]).toBeLessThan(mocks.sdk.UpdateTrack.mock.invocationCallOrder[0]);
+  });
+  it("sends no provider position edit if its local override barrier cannot be saved", async () => {
+    vi.mocked(getProgressHeads).mockResolvedValue([{ chapter: { mangaId: 42 } }] as any);
+    vi.mocked(suppressEarlierTracking).mockRejectedValue(new Error("storage failed"));
+    await expect(editTrackerRecord(backend, 42, record(), { lastChapterRead: 0 })).rejects.toThrow("Restore local progress storage");
+    expect(mocks.sdk.UpdateTrack).not.toHaveBeenCalled();
   });
   it("does not claim an ignored edit was saved or suppress its retry ordering", async () => {
     mocks.sdk.UpdateTrack.mockResolvedValue({ updateTrack: { trackRecord: record() } });
@@ -129,6 +142,12 @@ describe("verified tracker synchronization", () => {
   it("skips an unbound title and rejects a reused manga identity", async () => {
     await expect(pushLinkedTrackerProgress(backend, 42, { mangaTitle: "Replaced title" })).rejects.toThrow("title changed");
     records = []; await expect(pushLinkedTrackerProgress(backend, 42)).resolves.toMatchObject({ skipped: true });
+  });
+  it("clears an existing durable retry only after a successful manual synchronization", async () => {
+    const requests = [{ chapter: { mangaId: 42 }, trackingDueSequence: 12 }] as any;
+    vi.mocked(getPendingTracking).mockResolvedValue(requests);
+    await synchronizeLinkedTrackersNow(backend, 42);
+    expect(recordTrackingResult).toHaveBeenCalledWith(backend, requests, "owner");
   });
   it("permits only HTTP(S) tracker links", () => {
     expect(trackerExternalUrl("https://tracker.example/work/42")).toBe("https://tracker.example/work/42");
