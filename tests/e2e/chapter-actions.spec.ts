@@ -10,7 +10,11 @@ test("bookmark and mark-unread refresh the source chapter list and saved copy", 
     const { query, variables = {}, operationName } = route.request().postDataJSON();
     const name = operationName || /\b(?:query|mutation)\s+(\w+)/.exec(query)?.[1] || "ConnectionTest";
     let data: unknown;
-    if (name === "FetchChapters") data = { fetchChapters: { chapters: [{ ...chapter }] } };
+    if (name === "GetChapter") data = { chapter: { ...chapter, mangaId: 10002, sourceOrder: 1, pageCount: 3, manga: { title: "[Demo] Pepper & Carrot", chapters: { edges: [{ node: { id: chapter.id, chapterNumber: 1 } }] } } } };
+    else if (name === "GetMangaDetails") {
+      const result = await mockSdk.GetMangaDetails({ id: 10002 });
+      data = { manga: { ...result.manga, chapters: { edges: [{ node: { ...chapter, pageCount: 3 } }] } } };
+    } else if (name === "FetchChapters") data = { fetchChapters: { chapters: [{ ...chapter }] } };
     else if (name === "UpdateChapterProgress") {
       Object.assign(chapter, variables.input.patch);
       data = { updateChapter: { chapter: { ...chapter } } };
@@ -32,7 +36,7 @@ test("bookmark and mark-unread refresh the source chapter list and saved copy", 
         const transaction = db.transaction("chapters", "readwrite");
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error);
-        transaction.objectStore("chapters").put({ cacheKey: `${backend}::20002`, serverBaseUrl: backend, id: 20002, name: "Chapter action fixture", chapterNumber: 1, mangaId: 10002, mangaTitle: "Fixture", sourceOrder: 1, pageCount: 3, pages: ["/0", "/1", "/2"], cachedUrls: [], totalSizeBytes: 0, cachedAt: Date.now(), isRead: true, lastPageRead: 2 });
+        transaction.objectStore("chapters").put({ cacheKey: `${backend}::20002`, serverBaseUrl: backend, id: 20002, name: "Chapter action fixture", chapterNumber: 1, mangaId: 10002, mangaTitle: "[Demo] Pepper & Carrot", sourceOrder: 1, pageCount: 3, pages: ["/0", "/1", "/2"], cachedUrls: [], totalSizeBytes: 0, cachedAt: Date.now(), isRead: true, lastPageRead: 2 });
       });
     } finally { db.close(); }
   }, { backend });

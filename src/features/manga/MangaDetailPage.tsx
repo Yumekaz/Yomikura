@@ -363,7 +363,7 @@ export default function MangaDetailPage() {
               />
             </div>
           ) : (
-            <ChapterList chapters={chapters} mangaTitle={manga.title} mangaId={parsedMangaId} />
+            <ChapterList chapters={chapters} mangaTitle={manga.title} mangaId={parsedMangaId} offline={isOfflineMode} />
           )}
         </div>
 

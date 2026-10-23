@@ -188,7 +188,7 @@ export default function ReaderPage() {
                   }))
                 }
               }
-            })
+            }, { offline: true })
           };
         }
         throw err;
@@ -297,7 +297,7 @@ export default function ReaderPage() {
         deleteAfterAck: autoDeleteReadChapters && atEnd,
       });
       if (!result.accepted) {
-        setProgressSaveError("Progress was reset in another view. Reopen this chapter to begin a new reading session.");
+        setProgressSaveError(result.reason === "identity" ? "The saved progress belongs to an earlier chapter record. Review pending progress before saving this chapter." : "Progress was reset in another view. Reopen this chapter to begin a new reading session.");
         return;
       }
       failedProgressRef.current = null;

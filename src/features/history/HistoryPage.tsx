@@ -11,6 +11,7 @@ import { ChapterOrderBy, SortOrder } from "../../api/graphql/generated/graphql";
 import { invalidateChapterState } from "../../api/suwayomi/chapterState";
 import { progressBackend } from "../../api/suwayomi/backendIdentity";
 import { readProgressHistory, writeChapterProgress } from "../../api/suwayomi/progressSync";
+import { setProgressHistoryHidden } from "../../api/suwayomi/progressStorage";
 
 interface HistoryItem {
   id: string;
@@ -58,7 +59,7 @@ function dateLabel(timestamp: number): string {
 }
 
 export default function HistoryPage() {
-  const { confirm } = useFeedback();
+  const { confirm, notify } = useFeedback();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [openingNextId, setOpeningNextId] = useState<string | null>(null);
@@ -128,13 +129,17 @@ export default function HistoryPage() {
   }, [localHistory.data, mockMode, searchQuery, serverHistory.data]);
 
   const hideHistory = useMutation({
-    mutationFn: async (item: HistoryItem) => hideReadingHistoryItem({
+    mutationFn: async (item: HistoryItem) => {
+      await setProgressHistoryHidden(progressBackend(serverBaseUrl, mockMode), Number(item.id));
+      return hideReadingHistoryItem({
       chapterId: Number(item.id), chapterName: item.name, chapterNumber: item.chapterNumber,
       mangaId: item.mangaId, mangaTitle: item.manga.title, thumbnailUrl: item.manga.thumbnailUrl,
       lastPageRead: item.lastPageRead, pageCount: item.pageCount ?? 0, isRead: false,
       isDemo: mockMode,
-    }, serverBaseUrl),
+      }, serverBaseUrl);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["history"] }),
+    onError: () => notify("The history change could not be saved on this device. Check storage and retry.", "error"),
   });
 
   const groups = useMemo(() => {
@@ -157,6 +162,7 @@ export default function HistoryPage() {
     onSuccess: () => {
       void invalidateChapterState(queryClient);
     },
+    onError: () => notify("The reset could not be saved on this device. Check storage and retry.", "error"),
   });
 
   const openNextChapter = async (item: HistoryItem) => {

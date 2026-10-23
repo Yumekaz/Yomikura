@@ -2,7 +2,9 @@ import { IDBFactory } from "fake-indexeddb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { progressBackend } from "./backendIdentity";
 import { getProgressHead, getProgressOperations, type ProgressIntent } from "./progressStorage";
-import { projectChapterProgress, resolveProgressConflict, saveProgressIntent, synchronizeProgress } from "./progressSync";
+import { projectChapterProgress, readProgressHistory, resolveProgressConflict, saveProgressIntent, synchronizeProgress } from "./progressSync";
+import * as storage from "./progressStorage";
+import { getCachedChapter, getReadingHistory, saveCachedChapter } from "./offlineCache";
 
 const mocks = vi.hoisted(() => ({
   active: { serverBaseUrl: "http://localhost:4567", mockMode: false, connectionStatus: "connected", errorMessage: "" },
@@ -38,7 +40,7 @@ beforeEach(() => {
     return { updateChapter: { chapter: structuredClone(servers.get(server)!) } };
   });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("progress replay and acknowledgement", () => {
   it("retains progress across a failed request and replays it after reconnecting", async () => {
@@ -122,10 +124,34 @@ describe("progress replay and acknowledgement", () => {
     expect(await getProgressOperations(first)).toHaveLength(1);
   });
 
+  it("does not lose a reconnect requested while an old worker is releasing its lease", async () => {
+    await saveProgressIntent(first, reading(1));
+    mocks.read.mockImplementationOnce(async (server: string) => {
+      mocks.active.serverBaseUrl = second.serverBaseUrl;
+      return { chapter: structuredClone(servers.get(server)!) };
+    });
+    const release = storage.releaseProgressLease;
+    vi.spyOn(storage, "releaseProgressLease").mockImplementationOnce(async (...args) => {
+      await release(...args);
+      mocks.active.serverBaseUrl = first.serverBaseUrl;
+      void synchronizeProgress(first);
+    });
+    await synchronizeProgress(first);
+    expect(servers.get(first.serverBaseUrl)!.lastPageRead).toBe(1);
+    expect(await getProgressOperations(first)).toHaveLength(0);
+  });
+
   it("projects pending local progress over an older server response", async () => {
     await saveProgressIntent(first, reading(2));
     expect(await projectChapterProgress(first, remoteChapter())).toMatchObject({ lastPageRead: 2, isRead: false, progressEpoch: 0, progressBaseline: { lastPageRead: 0, isRead: false } });
     expect(await projectChapterProgress(second, remoteChapter())).toMatchObject({ lastPageRead: 0, isRead: false });
+  });
+
+  it("retains acknowledged progress for offline fallback without overriding a fresh server response", async () => {
+    await saveProgressIntent(first, reading(2));
+    await synchronizeProgress(first);
+    expect(await projectChapterProgress(first, remoteChapter(), { offline: true })).toMatchObject({ lastPageRead: 2 });
+    expect(await projectChapterProgress(first, remoteChapter())).toMatchObject({ lastPageRead: 0 });
   });
 
   it("rejects reused IDs whose chapter ownership changed", async () => {
@@ -137,6 +163,44 @@ describe("progress replay and acknowledgement", () => {
     await expect(resolveProgressConflict(first, 12, true)).rejects.toThrow("different chapter");
   });
 
+  it("fences an old session when a fresh server response identifies a replacement chapter", async () => {
+    await saveProgressIntent(first, reading(1)); await synchronizeProgress(first);
+    const replacement = { ...remoteChapter(), name: "Replacement chapter" };
+    const projected = await projectChapterProgress(first, replacement);
+    expect(projected.progressEpoch).toBe(1);
+    await saveProgressIntent(first, { ...reading(2, projected.progressEpoch), chapter: { ...chapter, chapterName: replacement.name } });
+    expect((await saveProgressIntent(first, reading(3, 0))).accepted).toBe(false);
+    expect((await getProgressHead(first, 12))!.chapter.chapterName).toBe("Replacement chapter");
+  });
+
+  it("keeps an unsent old identity for explicit review instead of silently replacing it", async () => {
+    await saveProgressIntent(first, reading(1));
+    const result = await saveProgressIntent(first, { ...reading(2), chapter: { ...chapter, mangaTitle: "Different book" } });
+    expect(result.accepted).toBe(false);
+    expect((await getProgressHead(first, 12))!.chapter.mangaTitle).toBe("Fixture");
+  });
+
+  it("does not let demo progress change overlapping live cache or history IDs", async () => {
+    await saveCachedChapter({ cacheKey: `${first.serverBaseUrl}::12`, serverBaseUrl: first.serverBaseUrl, id: 12, name: chapter.chapterName, chapterNumber: 1, mangaId: 42, mangaTitle: "Fixture", sourceOrder: 1, pageCount: 4, pages: ["0", "1", "2", "3"], cachedUrls: [], cachedAt: Date.now(), totalSizeBytes: 0, lastPageRead: 0, isRead: false });
+    await saveProgressIntent(first, reading(1));
+    const demo = progressBackend(first.serverBaseUrl, true); mocks.active.mockMode = true;
+    await saveProgressIntent(demo, { ...reading(3), chapter: { ...chapter, mangaTitle: "[Demo] Fixture" } });
+    await synchronizeProgress(demo);
+    expect(await getCachedChapter(first.serverBaseUrl, 12)).toMatchObject({ isRead: false, lastPageRead: 1, mangaTitle: "Fixture" });
+    expect((await getReadingHistory(first.serverBaseUrl))[0]).toMatchObject({ isDemo: false, lastPageRead: 1 });
+    expect(await projectChapterProgress(demo, { ...remoteChapter(), manga: { title: "[Demo] Fixture" } })).toMatchObject({ isRead: true, lastPageRead: 3 });
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("keeps removed history hidden while its reading progress is pending and after acknowledgement", async () => {
+    await saveProgressIntent(first, reading(1));
+    await storage.setProgressHistoryHidden(first, 12);
+    expect((await readProgressHistory(first))[0]).toMatchObject({ isHidden: true, lastPageRead: 1 });
+    await synchronizeProgress(first);
+    expect((await readProgressHistory(first))[0]).toMatchObject({ isHidden: true, lastPageRead: 1 });
+    expect(servers.get(first.serverBaseUrl)!.lastPageRead).toBe(1);
+  });
+
   it.each([true, false])("pauses on competing server edits and honors explicit resolution (use saved=%s)", async (useSaved) => {
     await saveProgressIntent(first, reading(1));
     servers.get(first.serverBaseUrl)!.lastPageRead = 2;
@@ -146,5 +210,23 @@ describe("progress replay and acknowledgement", () => {
     await resolveProgressConflict(first, 12, useSaved);
     expect(await getProgressOperations(first)).toHaveLength(0);
     expect(servers.get(first.serverBaseUrl)!.lastPageRead).toBe(useSaved ? 1 : 2);
+  });
+
+  it("does not let a delayed conflict choice overwrite a newer reset", async () => {
+    await saveProgressIntent(first, reading(1));
+    servers.get(first.serverBaseUrl)!.lastPageRead = 2;
+    await synchronizeProgress(first);
+    let finish!: () => void;
+    mocks.read.mockImplementationOnce(async (server: string) => {
+      await new Promise<void>((resolve) => { finish = resolve; });
+      return { chapter: structuredClone(servers.get(server)!) };
+    });
+    const choice = resolveProgressConflict(first, 12, false);
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+    await saveProgressIntent(first, { ...reading(0), kind: "explicit", patch: { isRead: false, lastPageRead: 0 } });
+    finish();
+    await expect(choice).rejects.toThrow("changed while you were reviewing");
+    expect((await getProgressHead(first, 12))!.patch).toEqual({ isRead: false, lastPageRead: 0 });
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 });

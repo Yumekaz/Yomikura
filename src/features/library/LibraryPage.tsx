@@ -14,8 +14,10 @@ import { LibraryList } from "./LibraryList";
 import { invalidateChapterState } from "../../api/suwayomi/chapterState";
 import { progressBackend } from "../../api/suwayomi/backendIdentity";
 import { writeChapterProgress } from "../../api/suwayomi/progressSync";
+import { useFeedback } from "../../components/ui/FeedbackProvider";
 
 export default function LibraryPage() {
+  const { notify } = useFeedback();
   const { serverBaseUrl, setServerBaseUrl, testConnection, mockMode, libraryViewMode, setLibraryViewMode, librarySortMode, setLibrarySortMode, librarySortDescending, setLibrarySortDescending } = useSettingsStore();
   const { cachedChapters, loadCachedChapters, downloadChapter } = useDownloadStore();
   const queryClient = useQueryClient();
@@ -217,6 +219,7 @@ export default function LibraryPage() {
 
   const bulkMarkReadStatus = async (isRead: boolean) => {
     const backend = progressBackend(serverBaseUrl, mockMode);
+    let failed = 0;
     const idArray = Array.from(selectedMangaIds);
     handleClearSelection();
     
@@ -229,15 +232,17 @@ export default function LibraryPage() {
         await Promise.all(
           targetChapters.map(async (ch) => {
             const patch = { isRead, lastPageRead: isRead ? Math.max(0, (ch.pageCount || 1) - 1) : 0 };
-              await writeChapterProgress(backend, Number(ch.id), patch);
+            await writeChapterProgress(backend, Number(ch.id), patch);
           })
         );
       } catch (err) {
+        failed += 1;
         console.error("Bulk mark read status failed for manga:", mangaId, err);
       }
     }
     
     await invalidateChapterState(queryClient);
+    if (failed) notify(`Progress changes could not be saved for ${failed} title${failed === 1 ? "" : "s"}. Check storage and the server connection, then retry.`, "error");
   };
 
   if (!serverBaseUrl) {

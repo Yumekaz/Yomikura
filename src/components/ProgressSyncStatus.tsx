@@ -9,7 +9,10 @@ function ConflictActions({ operation }: { operation: ProgressOperation }) {
   const { confirm, notify } = useFeedback();
   const resolve = async (saved: boolean) => {
     if (!await confirm({ title: "Resolve reading progress?", detail: saved ? `Use this device’s saved position for “${operation.chapter.chapterName}”? This replaces its current server progress.` : `Keep Suwayomi’s position for “${operation.chapter.chapterName}”? This replaces the pending change saved on this device.`, confirmLabel: saved ? "Use saved progress" : "Keep server progress" })) return;
-    try { await resolveProgressConflict(operation.backend, operation.chapter.chapterId, saved); }
+    try {
+      await resolveProgressConflict(operation.backend, operation.chapter.chapterId, saved, operation.sequence);
+      if (window.location.pathname.startsWith("/reader/")) window.location.reload();
+    }
     catch (error) { notify(error instanceof Error ? error.message : "Progress could not be resolved.", "error"); }
   };
   return <div className="mt-1 flex flex-wrap gap-x-3">

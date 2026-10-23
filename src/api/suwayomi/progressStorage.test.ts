@@ -99,6 +99,16 @@ describe("durable ordered progress", () => {
     expect(await getProgressOperations(server)).toHaveLength(0);
   });
 
+  it("recovers an abandoned process lease immediately when a browser Web Lock is held", async () => {
+    await enqueueProgress(server, reading(2));
+    const operation = (await getProgressOperations(server))[0];
+    await acquireProgressLease(server, "exited-process");
+    expect(await acquireProgressLease(server, "new-process")).toBe(false);
+    expect(await acquireProgressLease(server, "new-process", true)).toBe(true);
+    expect(await acknowledgeProgress(operation, "exited-process", operation.patch)).toBe(false);
+    expect(await acknowledgeProgress(operation, "new-process", operation.patch)).toBe(true);
+  });
+
   it("surfaces unavailable storage instead of confirming a local save", async () => {
     vi.stubGlobal("indexedDB", { open: () => { throw new DOMException("full", "QuotaExceededError"); } });
     await expect(enqueueProgress(server, reading(2))).rejects.toThrow("full");

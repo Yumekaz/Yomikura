@@ -5,7 +5,7 @@ import { deleteCachedChapter, getCachedChapter, getReadingHistory, hideReadingHi
 import { acknowledgeProgress, acquireProgressLease, enqueueProgress, getProgressHead, getProgressHeads, getProgressOperations, markProgressOperation, progressChanged, releaseProgressLease, type ProgressHead, type ProgressIntent, type ProgressOperation, type ProgressPatch } from "./progressStorage";
 
 type RemoteChapter = { id: number; name: string; chapterNumber: number; mangaId: number; sourceOrder: number; pageCount: number; isRead: boolean; lastPageRead: number; manga?: { title: string } | null };
-const inFlight = new Map<string, Promise<void>>();
+const inFlight = new Map<string, { promise: Promise<void>; rerun: boolean }>();
 
 export function isCurrentProgressBackend(backend: ProgressBackend) {
   try {
@@ -28,8 +28,10 @@ function client(backend: ProgressBackend) {
 
 async function mirrorProgress(head: ProgressHead) {
   const { backend, chapter, patch } = head;
+  // Demo history/progress lives in its own heads. Never alter a live cache/history row with an overlapping ID.
+  if (backend.isDemo) return;
   const cached = await getCachedChapter(backend.serverBaseUrl, chapter.chapterId);
-  if (cached) await saveCachedChapter({ ...cached, lastPageRead: patch.lastPageRead, isRead: patch.isRead });
+  if (cached && chapterIdentityMatches(chapter, cachedIdentity(cached))) await saveCachedChapter({ ...cached, lastPageRead: patch.lastPageRead, isRead: patch.isRead });
   const existing = (await getReadingHistory(backend.serverBaseUrl)).find((item) => item.chapterId === chapter.chapterId && !!item.isDemo === backend.isDemo);
   if (!head.hasActivity && !existing) return;
   const event = { chapterId: chapter.chapterId, chapterName: chapter.chapterName, chapterNumber: chapter.chapterNumber, mangaId: chapter.mangaId, mangaTitle: chapter.mangaTitle, lastPageRead: patch.lastPageRead, pageCount: chapter.pageCount, isRead: patch.isRead, isDemo: backend.isDemo, readAt: head.activityAt ?? existing?.readAt, isHidden: head.hideHistory };
@@ -47,10 +49,12 @@ export async function saveProgressIntent(backend: ProgressBackend, intent: Progr
   return result;
 }
 
-export async function projectChapterProgress<T extends RemoteChapter>(backend: ProgressBackend, chapter: T) {
+export async function projectChapterProgress<T extends RemoteChapter>(backend: ProgressBackend, chapter: T, options: { offline?: boolean } = {}) {
   const head = await getProgressHead(backend, chapter.id).catch(() => undefined);
-  const pending = head && head.sequence > head.acknowledgedSequence && chapterIdentityMatches(head.chapter, progressChapterIdentity(chapter));
-  return { ...chapter, ...(pending ? { isRead: head.patch.isRead, lastPageRead: head.patch.lastPageRead } : {}), progressEpoch: head?.epoch ?? 0,
+  const matches = head && chapterIdentityMatches(head.chapter, progressChapterIdentity(chapter));
+  const transition = head && !matches && !options.offline && head.sequence <= head.acknowledgedSequence;
+  const pending = head && (backend.isDemo || options.offline || head.sequence > head.acknowledgedSequence) && matches;
+  return { ...chapter, ...(pending ? { isRead: head.patch.isRead, lastPageRead: backend.isDemo || options.offline || head.dirtyFields?.includes("lastPageRead") ? head.patch.lastPageRead : chapter.lastPageRead } : {}), progressEpoch: (head?.epoch ?? 0) + (transition ? 1 : 0),
     progressBaseline: pending ? head.lastAcknowledged ?? head.baseline : { isRead: chapter.isRead, lastPageRead: chapter.lastPageRead },
   };
 }
@@ -102,9 +106,9 @@ async function sendOperation(backend: ProgressBackend, operation: ProgressOperat
   }
 }
 
-async function drain(backend: ProgressBackend) {
+async function drain(backend: ProgressBackend, exclusiveBrowserLock = false) {
   const owner = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
-  if (!await acquireProgressLease(backend, owner)) return;
+  if (!await acquireProgressLease(backend, owner, exclusiveBrowserLock)) return;
   const renew = window.setInterval(() => { void acquireProgressLease(backend, owner).catch(() => undefined); }, 10_000);
   try {
     while (isCurrentProgressBackend(backend)) {
@@ -131,13 +135,18 @@ async function drain(backend: ProgressBackend) {
 
 export function synchronizeProgress(backend: ProgressBackend): Promise<void> {
   const running = inFlight.get(backend.key);
-  if (running) return running;
+  if (running) { running.rerun = true; return running.promise; }
+  const task = { promise: Promise.resolve(), rerun: false };
   const job = (async () => {
-    if (navigator.locks) await navigator.locks.request(`yomikura-progress:${backend.key}`, () => drain(backend));
-    else await drain(backend);
+    do {
+      task.rerun = false;
+      if (navigator.locks) await navigator.locks.request(`yomikura-progress:${backend.key}`, () => drain(backend, true));
+      else await drain(backend);
+    } while (task.rerun && isCurrentProgressBackend(backend));
   })();
-  inFlight.set(backend.key, job);
-  void job.finally(() => { if (inFlight.get(backend.key) === job) inFlight.delete(backend.key); }).catch(() => undefined);
+  task.promise = job;
+  inFlight.set(backend.key, task);
+  void job.finally(() => { if (inFlight.get(backend.key) === task) inFlight.delete(backend.key); }).catch(() => undefined);
   return job;
 }
 
@@ -173,23 +182,26 @@ export async function getPendingHistory(backend: ProgressBackend) {
   return (await getProgressHeads(backend)).filter((head) => head.sequence > head.acknowledgedSequence);
 }
 
-export async function resolveProgressConflict(backend: ProgressBackend, chapterId: number, useSaved: boolean) {
-  const remote = (await client(backend).GetChapter({ id: chapterId })).chapter;
+export async function resolveProgressConflict(backend: ProgressBackend, chapterId: number, useSaved: boolean, expectedSequence?: number) {
   const head = await getProgressHead(backend, chapterId);
   if (!head || head.sequence <= head.acknowledgedSequence) return;
+  if (expectedSequence !== undefined && head.sequence !== expectedSequence) throw new Error("Progress changed while you were reviewing it. Review the current change and try again.");
+  const remote = (await client(backend).GetChapter({ id: chapterId })).chapter;
   if (useSaved && !chapterIdentityMatches(head.chapter, progressChapterIdentity(remote))) throw new Error("This saved change belongs to a different chapter. Keep the server's progress instead.");
   const baseline = { isRead: remote.isRead, lastPageRead: remote.lastPageRead };
-  await saveProgressIntent(backend, { kind: "explicit", chapter: progressChapterIdentity(remote), baseline,
+  const saved = await saveProgressIntent(backend, { kind: "explicit", chapter: progressChapterIdentity(remote), baseline, expectedSequence: head.sequence,
     patch: useSaved ? head.patch : baseline, hideHistory: useSaved && head.hideHistory,
   });
+  if (!saved.accepted) throw new Error("Progress changed while you were reviewing it. Review the current change and try again.");
   await synchronizeProgress(backend);
 }
 
 export async function readProgressHistory(backend: ProgressBackend) {
   const events = await getReadingHistory(backend.serverBaseUrl);
-  const pending = await getPendingHistory(backend);
-  for (const head of pending) {
-    const index = events.findIndex((event) => event.chapterId === head.chapter.chapterId && !!event.isDemo === backend.isDemo);
+  const heads = await getProgressHeads(backend);
+  for (const head of heads) {
+    const index = events.findIndex((event) => event.chapterId === head.chapter.chapterId && (event.isDemo ?? event.mangaTitle.startsWith("[Demo]")) === backend.isDemo);
+    if (head.sequence <= head.acknowledgedSequence && index >= 0 && !head.hideHistory && (head.activityAt ?? 0) < events[index].readAt) continue;
     if (!head.hasActivity && index < 0 && !head.hideHistory) continue;
     const event = { ...(index >= 0 ? events[index] : {}), historyKey: head.entityKey, serverBaseUrl: backend.serverBaseUrl,
       chapterId: head.chapter.chapterId, chapterName: head.chapter.chapterName, chapterNumber: head.chapter.chapterNumber,

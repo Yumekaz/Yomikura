@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bookmark, CheckCircle2, Circle, Download, Loader2, Search, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useDownloadStore } from "../../stores/useDownloadStore";
@@ -10,6 +10,8 @@ import { formatChapterDate } from "./chapterDate";
 import { invalidateChapterState } from "../../api/suwayomi/chapterState";
 import { progressBackend } from "../../api/suwayomi/backendIdentity";
 import { writeChapterProgress } from "../../api/suwayomi/progressSync";
+import { getProgressHeads } from "../../api/suwayomi/progressStorage";
+import { useProgressBackend } from "../../hooks/useProgressSynchronization";
 
 export interface Chapter {
   id: string | number;
@@ -26,11 +28,12 @@ interface ChapterListProps {
   chapters: Chapter[];
   mangaTitle?: string;
   mangaId?: number;
+  offline?: boolean;
 }
 
 type ChapterFilter = "all" | "unread" | "bookmarked" | "downloaded";
 
-export function ChapterList({ chapters, mangaTitle, mangaId }: ChapterListProps) {
+export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: ChapterListProps) {
   const { confirm, notify } = useFeedback();
   const queryClient = useQueryClient();
   const { serverBaseUrl, mockMode } = useSettingsStore();
@@ -43,7 +46,13 @@ export function ChapterList({ chapters, mangaTitle, mangaId }: ChapterListProps)
   const [bulkBusy, setBulkBusy] = useState(false);
 
   const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`), [serverBaseUrl]);
-  const sortedChapters = useMemo(() => [...chapters].sort((a, b) => b.chapterNumber - a.chapterNumber), [chapters]);
+  const backend = useProgressBackend();
+  const localProgress = useQuery({ queryKey: ["progress-local", backend?.key], queryFn: () => getProgressHeads(backend!), enabled: !!backend, retry: false });
+  const sortedChapters = useMemo(() => chapters.map((chapter) => {
+    const saved = localProgress.data?.find((head) => head.chapter.chapterId === Number(chapter.id) && head.chapter.mangaId === mangaId
+      && head.chapter.mangaTitle === mangaTitle && head.chapter.chapterName === chapter.name && head.chapter.chapterNumber === chapter.chapterNumber);
+    return saved && (offline || backend?.isDemo || saved.sequence > saved.acknowledgedSequence) ? { ...chapter, isRead: saved.patch.isRead } : chapter;
+  }).sort((a, b) => b.chapterNumber - a.chapterNumber), [chapters, localProgress.data, mangaId, mangaTitle, offline, backend]);
   const scanlators = useMemo(() => [...new Set(chapters.map((chapter) => chapter.scanlator).filter((value): value is string => !!value))].sort(), [chapters]);
   const missingCount = useMemo(() => {
     const wholeNumbers = [...new Set(chapters.map((chapter) => chapter.chapterNumber).filter(Number.isInteger))].sort((a, b) => a - b);

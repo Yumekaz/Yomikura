@@ -69,6 +69,14 @@ ame\, \iconUrl\, and \lang\.
 ### \updateManga(input: UpdateMangaInput!)\ mutation (Toggle Library)
 - Used to toggle the \inLibrary\ status of a manga. Used when viewing a newly discovered manga in MangaDetailPage.
 
+## Client progress recovery
+
+Verified on 2026-10-23 with Suwayomi v2.3.2243. The client persists reading intents before attempting `updateChapter`, captures their endpoint, and replays them through a serialized backend worker. Reset/unread are explicit barriers; earlier acknowledgements cannot remove a newer client intent.
+
+`UpdateChapterInput` supports the chapter ID, optional client mutation ID and a patch containing read/bookmark/position fields. It has no expected-version comparison. The client checks current chapter ownership and progress before automatic replay, but that check and the mutation are not an atomic server transaction. Competing server changes require review; perfect simultaneous multi-device conflict resolution is not claimed.
+
+Pending state is independent of a Suwayomi library backup. See [offline progress recovery](RELIABILITY_BATCH_2_2026-10-23.md) for the persistence, conflict and verification contract, including the backend durability limit observed during forced-stop testing.
+
 ## Backup export and restore
 
 Verified on 2026-10-23 against the pinned Suwayomi v2.3.2243 server using a disposable local-source library.

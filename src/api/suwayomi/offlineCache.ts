@@ -130,11 +130,14 @@ export async function getDownloadJobs(serverBaseUrl?: string): Promise<DownloadJ
 export async function deleteDownloadJob(serverBaseUrl: string, chapterId: number): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const request = db.transaction(DOWNLOAD_JOB_STORE_NAME, "readwrite")
-      .objectStore(DOWNLOAD_JOB_STORE_NAME)
-      .delete(getDownloadJobKey(serverBaseUrl, chapterId));
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
+    const transaction = db.transaction(DOWNLOAD_JOB_STORE_NAME, "readwrite");
+    const store = transaction.objectStore(DOWNLOAD_JOB_STORE_NAME);
+    const request = store.getAll();
+    request.onsuccess = () => {
+      for (const job of request.result as DownloadJob[]) if (job.chapterId === chapterId && normalizeCacheServerUrl(job.serverBaseUrl) === normalizeCacheServerUrl(serverBaseUrl)) store.delete(job.jobKey);
+    };
+    transaction.onerror = transaction.onabort = () => { db.close(); reject(transaction.error); };
+    transaction.oncomplete = () => { db.close(); resolve(); };
   });
 }
 
@@ -190,12 +193,14 @@ export async function getReadingHistory(serverBaseUrl?: string): Promise<Reading
 export async function deleteReadingHistoryItem(serverBaseUrl: string, chapterId: number): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const request = db
-      .transaction(HISTORY_STORE_NAME, "readwrite")
-      .objectStore(HISTORY_STORE_NAME)
-      .delete(getReadingHistoryKey(serverBaseUrl, chapterId));
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
+    const transaction = db.transaction(HISTORY_STORE_NAME, "readwrite");
+    const store = transaction.objectStore(HISTORY_STORE_NAME);
+    const request = store.getAll();
+    request.onsuccess = () => {
+      for (const event of request.result as ReadingHistoryEvent[]) if (event.chapterId === chapterId && normalizeCacheServerUrl(event.serverBaseUrl) === normalizeCacheServerUrl(serverBaseUrl)) store.delete(event.historyKey);
+    };
+    transaction.onerror = transaction.onabort = () => { db.close(); reject(transaction.error); };
+    transaction.oncomplete = () => { db.close(); resolve(); };
   });
 }
 

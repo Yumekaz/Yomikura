@@ -11,6 +11,7 @@ export type ProgressIntent = {
   epoch?: number;
   hideHistory?: boolean;
   deleteAfterAck?: boolean;
+  expectedSequence?: number;
 };
 export interface ProgressHead {
   entityKey: string;
@@ -98,6 +99,15 @@ export async function getProgressHeads(backend: ProgressBackend) {
   return transaction(["heads"], "readonly", (tx) => read<ProgressHead[]>(tx.objectStore("heads").index("backend").getAll(backend.key)));
 }
 
+export async function setProgressHistoryHidden(backend: ProgressBackend, chapterId: number) {
+  await transaction(["heads"], "readwrite", async (tx) => {
+    const store = tx.objectStore("heads");
+    const head = await read<ProgressHead | undefined>(store.get(entityKey(backend, chapterId)));
+    if (head) store.put({ ...head, hideHistory: true });
+  });
+  progressChanged(backend);
+}
+
 export async function getProgressOperations(backend: ProgressBackend) {
   return transaction(["operations"], "readonly", async (tx) => {
     const operations = await read<ProgressOperation[]>(tx.objectStore("operations").index("backend").getAll(backend.key));
@@ -111,9 +121,13 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
     const operations = tx.objectStore("operations");
     const key = entityKey(backend, intent.chapter.chapterId);
     const previous = await read<ProgressHead | undefined>(heads.get(key));
-    // A late callback from a reader opened before reset/unread is obsolete.
-    if (intent.kind === "reading" && (intent.epoch ?? 0) !== (previous?.epoch ?? 0)) return { head: previous!, accepted: false };
+    if (intent.expectedSequence !== undefined && (previous?.sequence ?? 0) !== intent.expectedSequence) return { head: previous!, accepted: false, reason: "changed" };
     const sameChapter = previous && chapterIdentityMatches(previous.chapter, intent.chapter);
+    const previousPending = !!previous && previous.sequence > previous.acknowledgedSequence;
+    const identityTransition = !!previous && !sameChapter && !previousPending;
+    // A late callback from a reader opened before reset/unread is obsolete.
+    if (intent.kind === "reading" && previous && !sameChapter && previousPending) return { head: previous, accepted: false, reason: "identity" };
+    if (intent.kind === "reading" && (intent.epoch ?? 0) !== (previous?.epoch ?? 0) + (identityTransition ? 1 : 0)) return { head: previous!, accepted: false, reason: "epoch" };
     const pending = sameChapter && previous.sequence > previous.acknowledgedSequence;
     const baseline = intent.baseline;
     const isRead = intent.kind === "explicit" ? intent.patch.isRead ?? (pending ? previous.patch.isRead : baseline.isRead)
@@ -123,7 +137,7 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
       lastPageRead: Math.max(0, intent.patch.lastPageRead ?? (pending ? previous.patch.lastPageRead : baseline.lastPageRead)),
       ...(intent.patch.isBookmarked !== undefined ? { isBookmarked: intent.patch.isBookmarked } : pending && previous.patch.isBookmarked !== undefined ? { isBookmarked: previous.patch.isBookmarked } : {}),
     };
-    const epoch = (previous?.epoch ?? 0) + (intent.kind === "explicit" ? 1 : 0);
+    const epoch = (previous?.epoch ?? 0) + (intent.kind === "explicit" || identityTransition ? 1 : 0);
     if (intent.kind === "reading" && sameChapter && pending && previous.lastKind === "reading" && !previous.hideHistory && JSON.stringify(previous.patch) === JSON.stringify(patch)) return { head: previous, accepted: true };
     const older = await read<ProgressOperation[]>(operations.index("entity").getAll(key));
     for (const operation of older) {
@@ -154,11 +168,13 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
   return result;
 }
 
-export async function acquireProgressLease(backend: ProgressBackend, owner: string) {
+export async function acquireProgressLease(backend: ProgressBackend, owner: string, exclusiveBrowserLock = false) {
   return transaction(["leases"], "readwrite", async (tx) => {
     const store = tx.objectStore("leases");
     const lease = await read<Lease | undefined>(store.get(backend.key));
-    if (lease && lease.owner !== owner && lease.expires > Date.now()) return false;
+    // A granted Web Lock proves the previous tab/process no longer owns the worker.
+    // Recover its durable lease immediately instead of waiting for a crash timeout.
+    if (!exclusiveBrowserLock && lease && lease.owner !== owner && lease.expires > Date.now()) return false;
     store.put({ key: backend.key, owner, expires: Date.now() + 60_000 });
     return true;
   });

@@ -2,6 +2,8 @@
 
 Date: 2026-10-23, Asia/Calcutta.
 
+Later progress retention/replay work and its verification are recorded in [reliability batch 2](RELIABILITY_BATCH_2_2026-10-23.md). This report preserves the first batch's scope and results.
+
 This batch implements and verifies the first reliability repairs: G01 backup retention and restore protection, G04 automatic completion correctness, and G11 chapter-query consistency. It also repairs the offline thumbnail limitation exposed by the earlier browser restart check. This is a scoped implementation result, not closure of the parity roadmap.
 
 This batch started on `main` at `1e8af90f1c99900ccf59ac3f66a8b0f2a9d5e948`. After verification, the user authorized local checkpoint commits while subsequent work continues. No push, PR or merge was made. The previously applied three-fix patch and its tests were preserved; the starting working changes were copied under ignored `.cache/reliability-2026-10-23/pre-existing-files/` and captured in `pre-existing.patch` before this batch.

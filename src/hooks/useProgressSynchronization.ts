@@ -32,6 +32,7 @@ export function useProgressSynchronization() {
       const detail = (event as CustomEvent<{ backendKey: string; kind: string }>).detail;
       if (detail?.backendKey !== backend.key) return;
       void client.invalidateQueries({ queryKey: ["progress-sync", backend.key] });
+      void client.invalidateQueries({ queryKey: ["progress-local", backend.key] });
       void client.invalidateQueries({ queryKey: ["history", "local", backend.serverBaseUrl] });
       if (detail.kind === "queued") {
         clearTimeout(debounce);

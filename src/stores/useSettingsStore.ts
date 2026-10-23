@@ -391,7 +391,7 @@ export const useSettingsStore = create<SettingsState>()(
       setAccentColor: (color) => set({ accentColor: color }),
       setCoverDensity: (density) => set({ coverDensity: density }),
       setThemeMode: (mode) => set({ themeMode: mode }),
-      setMockMode: (mock: boolean) => set({ mockMode: mock }),
+      setMockMode: (mock: boolean) => set({ mockMode: mock, ...(mock ? { connectionStatus: "disconnected", errorMessage: "" } : {}) }),
       setServerDataPath: (path: string) => set({ serverDataPath: path.trim() }),
       
       // Phase 2 actions implementation

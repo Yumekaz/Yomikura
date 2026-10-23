@@ -76,7 +76,6 @@ export function ReaderOverlay({
     <div className="fixed inset-0 z-50 pointer-events-none flex flex-col justify-between select-none">
       {/* Top Nav */}
       <div className="yomi-reader-top pointer-events-auto flex items-center justify-between px-4 py-3">
-        <ProgressSyncStatus />
         <div className="flex items-center gap-4">
           <Link
             to={mangaId ? `/manga/${mangaId}` : "/library"}
@@ -90,6 +89,7 @@ export function ReaderOverlay({
             <span className="text-xs sm:text-sm font-semibold text-slate-200 line-clamp-1">{chapterName}</span>
           </div>
         </div>
+        <ProgressSyncStatus />
       </div>
 
       {/* Bottom Nav */}

@@ -25,6 +25,7 @@ function ProfileSwitcher() {
     <div className="flex items-center gap-2 rounded-lg bg-ink-950/60 border border-white/5 hover:border-yomi-jade/30 px-2.5 py-1.5 text-xs text-slate-400 transition-[border-color,background-color] duration-150 shadow-sm">
       <Server className="h-3.5 w-3.5 text-yomi-jade shrink-0" />
       <select
+        aria-label="Server profile"
         value={activeProfileId}
         onChange={(e) => {
           setActiveProfileId(e.target.value);
@@ -146,7 +147,7 @@ function AppShell() {
     if (hasHydrated && !mockMode) {
       void testConnection();
     }
-  }, [hasHydrated, mockMode, testConnection]);
+  }, [hasHydrated, mockMode, serverBaseUrl, testConnection]);
 
   useEffect(() => {
     if (!hasHydrated || (!mockMode && connectionStatus !== "connected")) return;
