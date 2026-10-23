@@ -81,6 +81,12 @@ Pending state is independent of a Suwayomi library backup. See [offline progress
 
 Title-specific preferences are scoped by canonical backend endpoint, live/demo mode and manga ID. Reader controls use the effective title setting and write to that scope; inherited controls edit global defaults. Earlier numeric-only entries are preserved for an explicit owning-server association in Settings → Reader. These client preferences remain separate from Suwayomi library backups. See [reader settings verification](RELIABILITY_BATCH_4_2026-10-23.md).
 
+## Migration contracts
+
+Migration refreshes the destination using `fetchMangaAndChapters(input: { id, fetchManga: true, fetchChapters: true })`. Stored chapter queries alone do not fetch newly discovered source chapters. Complete chapter loading uses `chapters(condition: { mangaId }, first: 200, after: ..., order: [{ by: ID, byType: ASC }])` and checks totals, ownership and cursor progression.
+
+Chapter state, category union and destination membership must be confirmed before a separately selected replacement removes the original from the library. These operations have no shared backend transaction or expected-version guard. Pending client intent is not proof of server confirmation. See [migration verification and limits](RELIABILITY_BATCH_5_2026-10-24.md).
+
 ## Backup export and restore
 
 Verified on 2026-10-23 against the pinned Suwayomi v2.3.2243 server using a disposable local-source library.

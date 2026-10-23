@@ -153,7 +153,7 @@ test("closing a prepared review changes no library membership and restores focus
 
 test("duplicate merging uses the same review and preserves bookmarks and partial reading", async ({ page }) => {
   const data = await fixture(page, { duplicates: true });
-  await page.goto("/settings/library");
+  await page.goto("/settings/advanced");
   await page.getByRole("button", { name: "Review merge into 2", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Source migration", exact: true });
   await expect(dialog.getByRole("heading", { name: /^Review:/ })).toBeVisible();

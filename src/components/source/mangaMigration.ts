@@ -126,11 +126,13 @@ export async function executeMangaMigration(review: MigrationReview, selected: R
       assertBackend(backend);
     }
     const copied = await loadTitle(backend, target.id, false);
+    if (structure(copied) !== structure(target)) throw new MigrationError("The destination chapters changed during copying. Refresh the review before replacing the original.");
     if (!copied.inLibrary || categories.some((id) => !copied.categories.edges.some((edge) => edge.node.id === id))) throw new MigrationError("The destination library membership or categories could not be verified. The copy can be retried.");
     for (const row of rows) {
       const chapter = copied.chapters.find((item) => item.id === Number(row.target!.id));
+      const positionRequired = row.source.lastPageRead > 0 && !row.source.isRead && !row.positionSkipped;
       if (!chapter || row.source.isRead && !chapter.isRead || row.source.isBookmarked && !chapter.isBookmarked
-        || row.patch.lastPageRead !== undefined && !chapter.isRead && chapter.lastPageRead < row.patch.lastPageRead) throw new MigrationError("Some copied chapter state was not confirmed. The copy can be retried.");
+        || positionRequired && !chapter.isRead && (!Number.isSafeInteger(chapter.lastPageRead) || chapter.lastPageRead >= chapter.pageCount || chapter.lastPageRead < row.source.lastPageRead)) throw new MigrationError("Some copied chapter state was not confirmed. The copy can be retried.");
     }
     if (mode === "replace") {
       const current = await loadTitle(backend, source.id);

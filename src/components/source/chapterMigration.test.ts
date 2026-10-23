@@ -53,6 +53,16 @@ describe("chapter migration", () => {
     expect(row.patch).toEqual({}); expect(row.status).toBe("matched"); expect(row.positionSkipped).toBe(false);
   });
 
+  it("discloses incomparable partial positions even when the target index is higher", () => {
+    const [row] = reviewChapterMigration([chapter(1, { lastPageRead: 3 })], [chapter(10, { chapterNumber: 1, pageCount: 30, lastPageRead: 5 })]);
+    expect(row.positionSkipped).toBe(true); expect(row.patch).toEqual({});
+  });
+
+  it("replaces an invalid legacy target position with a valid comparable source position", () => {
+    const [row] = reviewChapterMigration([chapter(1, { lastPageRead: 3 })], [chapter(10, { chapterNumber: 1, lastPageRead: 999 })]);
+    expect(row.patch).toEqual({ lastPageRead: 3 }); expect(row.positionSkipped).toBe(false);
+  });
+
   it("limits concurrent mutations", async () => {
     let active = 0;
     let peak = 0;

@@ -46,10 +46,13 @@ export function reviewChapterMigration(source: MigrationChapter[], target: Migra
     if (match) {
       if (chapter.isRead && !match.isRead) patch.isRead = true;
       if (chapter.isBookmarked && !match.isBookmarked) patch.isBookmarked = true;
-      if (chapter.lastPageRead > match.lastPageRead && !match.isRead) {
+      if (chapter.lastPageRead > 0 && !match.isRead) {
         const samePages = !!chapter.pageCount && chapter.pageCount === match.pageCount;
         const validPosition = Number.isSafeInteger(chapter.lastPageRead) && chapter.lastPageRead >= 0 && chapter.lastPageRead < (match.pageCount ?? 0);
-        if (samePages && validPosition) patch.lastPageRead = chapter.lastPageRead;
+        const validTargetPosition = Number.isSafeInteger(match.lastPageRead) && match.lastPageRead >= 0 && match.lastPageRead < (match.pageCount ?? 0);
+        if (samePages && validPosition) {
+          if (!validTargetPosition || chapter.lastPageRead > match.lastPageRead) patch.lastPageRead = chapter.lastPageRead;
+        }
         else if (!chapter.isRead) positionSkipped = true;
       }
     }

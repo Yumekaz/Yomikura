@@ -130,6 +130,26 @@ describe("migration review and safety", () => {
     expect(titles.get(1)!.inLibrary).toBe(true);
   });
 
+  it("requires server proof of a pending partial position even when the patch is already coalesced", async () => {
+    titles.get(1)!.chapters[1].isBookmarked = false;
+    const targetChapter = titles.get(2)!.chapters[1];
+    vi.mocked(getProgressHeads).mockResolvedValue([{ chapter: { chapterId: 202, chapterName: targetChapter.name, chapterNumber: 2, mangaId: 2, mangaTitle: "Destination", sourceOrder: 2, pageCount: 10 }, sequence: 1, acknowledgedSequence: 0, patch: { isRead: false, lastPageRead: 3 } } as any]);
+    const review = await prepareMangaMigration(backend, 1, 2);
+    expect(review.rows[1].patch).toEqual({});
+    await expect(executeMangaMigration(review, selected(), "replace")).rejects.toThrow("not confirmed");
+    expect(titles.get(1)!.inLibrary).toBe(true);
+  });
+
+  it("keeps the original when destination chapters change during copying", async () => {
+    const review = await prepareMangaMigration(backend, 1, 2);
+    vi.mocked(writeChapterProgress).mockImplementationOnce(async (_backend, id, patch) => {
+      Object.assign(titles.get(2)!.chapters.find((chapter) => chapter.id === id)!, patch);
+      titles.get(2)!.chapters[0].pageCount = 15; return { acknowledged: true };
+    });
+    await expect(executeMangaMigration(review, selected(), "replace")).rejects.toThrow("chapters changed during");
+    expect(titles.get(1)!.inLibrary).toBe(true);
+  });
+
   it("rejects changed source progress and destination structure after review", async () => {
     const review = await prepareMangaMigration(backend, 1, 2);
     titles.get(1)!.chapters[0].lastPageRead = 4;
