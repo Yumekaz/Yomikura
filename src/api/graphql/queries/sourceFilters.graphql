@@ -11,6 +11,7 @@ fragment CatalogFilterFields on Filter {
 }
 
 query GetSourceFilters($id: LongString!) {
+  aboutServer { version }
   source(id: $id) {
     id
     name

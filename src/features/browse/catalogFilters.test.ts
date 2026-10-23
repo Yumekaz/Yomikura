@@ -88,6 +88,15 @@ describe("catalog filter contract", () => {
     expect(catalogFilterChanges(schema, schema.defaults)).toEqual([{ position: 0, selectState: -1 }, { position: 1, sortState: { index: -1, ascending: false } }]);
     expect(() => catalogFilterChanges(schema, { ...schema.defaults, 0: -2 })).toThrow("no longer available");
   });
+  it("rejects the verified broken Local-source Date option only for the affected server version", () => {
+    const filters: FilterDescriptor[] = [{ __typename: "SortFilter", name: "Order by", values: ["Title", "Date"], default: { index: 0, ascending: true } }];
+    const affected = buildCatalogFilterModel("0", filters, "v2.3.2243");
+    expect(affected.controls[0].unavailableOptions).toEqual([1]);
+    expect(() => catalogFilterChanges(affected, { 0: { index: 1, ascending: false } })).toThrow("no longer available");
+    expect(catalogFilterChanges(affected, { 0: { index: 0, ascending: false } })).toEqual([{ position: 0, sortState: { index: 0, ascending: false } }]);
+    expect(buildCatalogFilterModel("100", filters, "2.3.2243").controls[0].unavailableOptions).toBeUndefined();
+    expect(buildCatalogFilterModel("0", filters, "2.3.2244").controls[0].unavailableOptions).toBeUndefined();
+  });
   it("rejects a null saved sort when the server no longer offers a null default", () => {
     const schema = model(); const saved = serializeCatalogFilters(schema, schema.defaults);
     const changed = definitions(); changed[5].default = { index: 0, ascending: true };

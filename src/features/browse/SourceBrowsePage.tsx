@@ -46,7 +46,7 @@ export default function SourceBrowsePage() {
   }, enabled: !!sourceId, retry: false, refetchOnWindowFocus: false });
   const source = sources.data?.sources.nodes.find((item) => String(item.id) === sourceId);
   const sourceName = source?.name ?? metadata.data?.source.name ?? "Browse Source";
-  const model = useMemo(() => metadata.data && String(metadata.data.source.id) === sourceId ? buildCatalogFilterModel(sourceId, normalizeCatalogFilters(metadata.data.source.filters)) : undefined, [metadata.data, sourceId]);
+  const model = useMemo(() => metadata.data && String(metadata.data.source.id) === sourceId ? buildCatalogFilterModel(sourceId, normalizeCatalogFilters(metadata.data.source.filters), metadata.data.aboutServer?.version) : undefined, [metadata.data, sourceId]);
   const hasEnvelope = !!rawFilters && rawFilters !== "{}";
   const restored = useMemo(() => {
     if (!hasEnvelope) return { values: model?.defaults, error: "", serialized: "{}" };
@@ -73,7 +73,7 @@ export default function SourceBrowsePage() {
         const checked = await requestSdk.GetSourceFilters({ id: sourceId });
         if (String(checked.source.id) !== sourceId) throw new CatalogFilterError("The filter definitions belong to another source. Reload this source before applying filters.");
         client.setQueryData(metadataKey, checked);
-        const current = buildCatalogFilterModel(sourceId, normalizeCatalogFilters(checked.source.filters));
+        const current = buildCatalogFilterModel(sourceId, normalizeCatalogFilters(checked.source.filters), checked.aboutServer?.version);
         filters = catalogFilterChanges(current, restoreCatalogFilters(current, rawFilters));
       }
       return requestSdk.FetchSourceManga({ input: { source: sourceId, page, type, query: type === FetchSourceMangaType.Search ? query.trim() : undefined,

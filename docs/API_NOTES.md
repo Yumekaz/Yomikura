@@ -95,6 +95,14 @@ The pinned tracker implementation can catch individual provider errors and retur
 
 Eligible reading acknowledgements atomically retain a separate tracker retry marker in the progress head. Reading progress can be saved while tracker verification remains pending. See [tracker verification and account limitations](RELIABILITY_BATCH_6_2026-10-24.md).
 
+## Catalog filter contracts
+
+`source(id: ...) { filters }` exposes filter definitions. Default fields need per-type aliases because their union return types differ. `fetchSourceManga(input: { type: SEARCH, query, filters })` applies positional changes; `POPULAR` and `LATEST` do not use those filter changes. Empty-title filtered searches still require `SEARCH`.
+
+The pinned dispatcher supports root checkbox/text/select/tri-state/sort and one group level containing checkbox/text/select/tri-state. Deeper groups and grouped sorts are not applied. Positional snapshots must be checked against current definitions. Preserve explicit false, zero and empty text; omit a null sort change.
+
+Suwayomi v2.3.2243's built-in Local-source search advertises Date sorting but ignores the selected field index. The client disables that known option only for that source/version. See [catalog filter verification and binary evidence](RELIABILITY_BATCH_7_2026-10-24.md).
+
 ## Backup export and restore
 
 Verified on 2026-10-23 against the pinned Suwayomi v2.3.2243 server using a disposable local-source library.

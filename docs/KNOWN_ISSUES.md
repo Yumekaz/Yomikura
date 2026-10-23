@@ -19,3 +19,7 @@ Managed Yomikura storage also disables Suwayomi's fallback browser auto-open. Ex
 ## Platform coverage
 
 Windows receives the automated install, local-engine readiness, shutdown, uninstall, and storage-preservation test. macOS and Linux are compiled and packaged in CI, but their installed packages do not yet receive the same native lifecycle automation.
+
+## Local-source Date search sorting in Suwayomi v2.3.2243
+
+This server version advertises a Date choice in Local-source search but applies title sorting regardless of that choice. Title ascending/descending works. Yomikura detects the affected source/version and marks Date unavailable instead of sending a known-ignored selection. Other sources retain their supplied sort choices. The backend behavior and the exact shipped bytecode were verified; see [catalog filter evidence](RELIABILITY_BATCH_7_2026-10-24.md).

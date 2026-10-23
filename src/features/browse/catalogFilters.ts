@@ -1,10 +1,11 @@
 import type { FilterChangeInput } from "../../api/graphql/generated/graphql";
+import { parseSuwayomiVersion } from "../../api/suwayomi/version";
 
 export type FilterValue = string | boolean | number | { index: number; ascending: boolean } | null;
 export type FilterValues = Record<string, FilterValue>;
 export type FilterDescriptor = { __typename: string; name: string; default?: FilterValue; values?: string[]; filters?: FilterDescriptor[] };
 type WireFilter = { __typename: string; name: string; checkBoxDefault?: boolean; textDefault?: string; selectDefault?: number; triStateDefault?: string; sortDefault?: { index: number; ascending: boolean } | null; values?: string[]; filters?: WireFilter[] };
-export type FilterNode = { key: string; path: number[]; descriptor: FilterDescriptor; editable: boolean; children: FilterNode[] };
+export type FilterNode = { key: string; path: number[]; descriptor: FilterDescriptor; editable: boolean; children: FilterNode[]; unavailableOptions?: number[]; warning?: string };
 export type CatalogFilterModel = { sourceId: string; signature: string; nodes: FilterNode[]; controls: FilterNode[]; defaults: FilterValues };
 export class CatalogFilterError extends Error { constructor(message: string) { super(message); this.name = "CatalogFilterError"; } }
 const own = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
@@ -30,6 +31,7 @@ function validValue(node: FilterNode, value: unknown) {
       if (value === null) return filter.default === null;
       if (!sortValue(value as FilterValue)) return false;
       const selected = value as { index: number; ascending: boolean };
+      if (node.unavailableOptions?.includes(selected.index)) return false;
       if (Object.keys(selected).some((key) => key !== "index" && key !== "ascending")) return false;
       return selected.index >= 0 && selected.index < (filter.values?.length ?? 0)
         || selected.index === -1 && sortValue(filter.default) && (filter.default as { index: number }).index === -1;
@@ -39,13 +41,19 @@ function validValue(node: FilterNode, value: unknown) {
 }
 
 /** Mirror the pinned backend's supported top-level and single-group changes. */
-export function buildCatalogFilterModel(sourceId: string, filters: FilterDescriptor[]): CatalogFilterModel {
+export function buildCatalogFilterModel(sourceId: string, filters: FilterDescriptor[], serverVersion?: string): CatalogFilterModel {
+  const version = parseSuwayomiVersion(serverVersion);
+  const localDateUnavailable = sourceId === "0" && version?.[0] === 2 && version[1] === 3 && version[2] === 2243;
   const controls: FilterNode[] = [];
   const defaults: FilterValues = {};
   const visit = (descriptors: FilterDescriptor[], parent: number[] = []): FilterNode[] => descriptors.map((filter, position) => {
     const path = [...parent, position];
     const descriptor = { ...filter, ...(sortValue(filter.default) ? { default: { index: (filter.default as { index: number }).index, ascending: (filter.default as { ascending: boolean }).ascending } } : {}) };
     const node: FilterNode = { key: path.join("."), path, descriptor, editable: false, children: [] };
+    if (localDateUnavailable && path.length === 1 && position === 0 && filter.__typename === "SortFilter" && filter.values?.[0] === "Title" && filter.values[1] === "Date") {
+      node.unavailableOptions = [1];
+      node.warning = "Date sorting is unavailable for this server's Local source. Title sorting works in both directions.";
+    }
     if (filter.__typename === "GroupFilter" && path.length === 1 && filter.filters) node.children = visit(filter.filters, path);
     const permitted = path.length === 1 || path.length === 2 && ["CheckBoxFilter", "TextFilter", "SelectFilter", "TriStateFilter"].includes(filter.__typename);
     node.editable = permitted && validValue(node, descriptor.default);
@@ -54,7 +62,8 @@ export function buildCatalogFilterModel(sourceId: string, filters: FilterDescrip
   });
   const nodes = visit(filters);
   const signatureOf = (list: FilterDescriptor[]): unknown[] => list.map((filter) => [filter.__typename, filter.name, filter.values ?? null, filter.filters ? signatureOf(filter.filters) : null]);
-  return { sourceId, signature: JSON.stringify(signatureOf(filters)), nodes, controls, defaults };
+  const restricted = controls.filter((node) => node.unavailableOptions?.length).map((node) => [node.key, node.unavailableOptions]);
+  return { sourceId, signature: JSON.stringify(signatureOf(filters)) + (restricted.length ? `::unavailable:${JSON.stringify(restricted)}` : ""), nodes, controls, defaults };
 }
 
 export function validateCatalogFilterValues(model: CatalogFilterModel, values: unknown): FilterValues {

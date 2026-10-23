@@ -4556,7 +4556,7 @@ export type GetSourceFiltersQueryVariables = Exact<{
 }>;
 
 
-export type GetSourceFiltersQuery = { source: { id: unknown, name: string, filters: Array<
+export type GetSourceFiltersQuery = { aboutServer: { version: string }, source: { id: unknown, name: string, filters: Array<
       | { __typename: 'CheckBoxFilter', name: string, checkBoxDefault: boolean }
       | { __typename: 'GroupFilter', name: string, filters: Array<
           | { __typename: 'CheckBoxFilter', name: string, checkBoxDefault: boolean }
@@ -5269,6 +5269,9 @@ export const GetServerSettingsDocument = gql`
     `;
 export const GetSourceFiltersDocument = gql`
     query GetSourceFilters($id: LongString!) {
+  aboutServer {
+    version
+  }
   source(id: $id) {
     id
     name
