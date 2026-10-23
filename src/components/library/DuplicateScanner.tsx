@@ -4,6 +4,7 @@ import { Loader2, AlertTriangle, CheckCircle, RefreshCw, Layers } from "lucide-r
 import { createGraphqlClient } from "../../api/graphql/client";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useFeedback } from "../ui/FeedbackProvider";
+import { invalidateChapterState } from "../../api/suwayomi/chapterState";
 
 export function DuplicateScanner() {
   const { confirm } = useFeedback();
@@ -99,7 +100,7 @@ export function DuplicateScanner() {
     onSuccess: () => {
       setMergeStatus("success");
       queryClient.invalidateQueries({ queryKey: ["library-duplicates"] });
-      queryClient.invalidateQueries({ queryKey: ["library"] });
+      void invalidateChapterState(queryClient);
       setTimeout(() => setMergeStatus("idle"), 2000);
     },
     onError: (err: any) => {

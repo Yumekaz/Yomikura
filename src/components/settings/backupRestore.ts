@@ -14,7 +14,7 @@ export async function waitForRestoreStatus(
     const result = await getStatus(id);
     lastStatus = result.restoreStatus ?? null;
     if (lastStatus?.state === "SUCCESS") return { completed: true, status: lastStatus };
-    if (lastStatus?.state === "FAILURE") throw new Error("Suwayomi reported that the restore failed. Your safety backup is still available in the server backup folder.");
+    if (lastStatus?.state === "FAILURE") throw new Error("Suwayomi reported that the restore failed.");
     if (attempt < attempts - 1) await pause(750);
   }
   return { completed: false, status: lastStatus };

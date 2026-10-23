@@ -6,6 +6,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { FetchSourceMangaType } from "../../api/graphql/generated/graphql";
 import { classifySourceProblem } from "../../api/suwayomi/errors";
 import { buildChapterMigrationPlan, runWithConcurrency } from "./chapterMigration";
+import { applyCachedChapterReadPatch, invalidateChapterState } from "../../api/suwayomi/chapterState";
 
 interface SourceMigrationModalProps {
   isOpen: boolean;
@@ -88,7 +89,10 @@ export function SourceMigrationModal({
       const sourceChapters = sourceDetails.manga.chapters.edges.map((edge) => edge.node);
       const targetChapters = targetDetails.manga.chapters.edges.map((edge) => edge.node);
       const plan = buildChapterMigrationPlan(sourceChapters, targetChapters);
-      await runWithConcurrency(plan, (entry) => sdk.UpdateChapterProgress({ input: { id: entry.targetId, patch: entry.patch } }));
+      await runWithConcurrency(plan, async (entry) => {
+        await sdk.UpdateChapterProgress({ input: { id: entry.targetId, patch: entry.patch } });
+        await applyCachedChapterReadPatch(serverBaseUrl, entry.targetId, entry.patch);
+      });
 
       const sourceCategoryIds = sourceDetails.manga.categories.edges.map((edge) => edge.node.id);
       if (sourceCategoryIds.length) {
@@ -104,8 +108,7 @@ export function SourceMigrationModal({
     },
     onSuccess: () => {
       setMigrationStatus("success");
-      queryClient.invalidateQueries({ queryKey: ["library"] });
-      queryClient.invalidateQueries({ queryKey: ["manga"] });
+      void invalidateChapterState(queryClient);
     },
     onError: (err: unknown) => {
       setMigrationStatus("error");

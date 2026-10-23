@@ -8,6 +8,7 @@ import { getErrorMessage } from "../../api/suwayomi/errors";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { getReadingHistory, hideReadingHistoryItem } from "../../api/suwayomi/offlineCache";
 import { ChapterOrderBy, SortOrder } from "../../api/graphql/generated/graphql";
+import { applyCachedChapterReadPatch, invalidateChapterState } from "../../api/suwayomi/chapterState";
 
 interface HistoryItem {
   id: string;
@@ -153,10 +154,10 @@ export default function HistoryPage() {
         lastPageRead: 0, pageCount: item.pageCount ?? 0, isRead: false, isDemo: mockMode,
       }, serverBaseUrl);
       await sdk.UpdateChapterProgress({ input: { id: Number(item.id), patch: { lastPageRead: 0, isRead: false } } }).catch(() => null);
+      await applyCachedChapterReadPatch(serverBaseUrl, Number(item.id), { lastPageRead: 0, isRead: false });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["history"] });
-      queryClient.invalidateQueries({ queryKey: ["chapter"] });
+      void invalidateChapterState(queryClient);
     },
   });
 

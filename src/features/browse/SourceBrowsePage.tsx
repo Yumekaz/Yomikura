@@ -8,6 +8,7 @@ import { FetchSourceMangaType } from "../../api/graphql/generated/graphql";
 import { classifySourceProblem } from "../../api/suwayomi/errors";
 import { SourceRecoveryPanel } from "../../components/source/SourceRecoveryPanel";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
+import { readSourceBrowseQuery } from "./sourceBrowseRoute";
 
 interface MangaCardProps {
   manga: any;
@@ -46,7 +47,7 @@ export default function SourceBrowsePage() {
   const { notify, requestText } = useFeedback();
   const { sourceId } = useParams<{ sourceId: string }>();
   const [searchParams] = useSearchParams();
-  const urlQuery = searchParams.get("query") || "";
+  const urlQuery = readSourceBrowseQuery(searchParams);
 
   const { serverBaseUrl, addSavedSearch, savedSearches } = useSettingsStore();
 

@@ -11,6 +11,7 @@ import { LibraryGrid, LibraryManga } from "./LibraryGrid";
 import { CategoryDialog } from "./CategoryDialog";
 import { BulkCategoryModal } from "../../components/library/BulkCategoryModal";
 import { LibraryList } from "./LibraryList";
+import { applyCachedChapterReadPatch, invalidateChapterState } from "../../api/suwayomi/chapterState";
 
 export default function LibraryPage() {
   const { serverBaseUrl, setServerBaseUrl, testConnection, mockMode, libraryViewMode, setLibraryViewMode, librarySortMode, setLibrarySortMode, librarySortDescending, setLibrarySortDescending } = useSettingsStore();
@@ -223,24 +224,23 @@ export default function LibraryPage() {
         const targetChapters = nodes.filter(n => n.isRead !== isRead);
         
         await Promise.all(
-          targetChapters.map((ch) =>
-            sdk.UpdateChapterProgress({
+          targetChapters.map(async (ch) => {
+            const patch = { isRead, lastPageRead: isRead ? Math.max(0, (ch.pageCount || 1) - 1) : 0 };
+            await sdk.UpdateChapterProgress({
               input: {
                 id: parseInt(String(ch.id)),
-                patch: {
-                  isRead,
-                  lastPageRead: isRead ? Math.max(0, (ch.pageCount || 1) - 1) : 0
-                }
+                patch,
               }
-            })
-          )
+            });
+            await applyCachedChapterReadPatch(serverBaseUrl, Number(ch.id), patch);
+          })
         );
       } catch (err) {
         console.error("Bulk mark read status failed for manga:", mangaId, err);
       }
     }
     
-    queryClient.invalidateQueries({ queryKey: ["library"] });
+    await invalidateChapterState(queryClient);
   };
 
   if (!serverBaseUrl) {

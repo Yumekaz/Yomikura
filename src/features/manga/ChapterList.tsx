@@ -7,6 +7,7 @@ import { isTauri, useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { formatChapterDate } from "./chapterDate";
+import { applyCachedChapterReadPatch, invalidateChapterState } from "../../api/suwayomi/chapterState";
 
 export interface Chapter {
   id: string | number;
@@ -69,11 +70,15 @@ export function ChapterList({ chapters, mangaTitle }: ChapterListProps) {
     if (!selected.size) return;
     setBulkBusy(true);
     try {
-      await Promise.all([...selected].map((id) => sdk.UpdateChapterProgress({ input: { id, patch } })));
+      await Promise.all([...selected].map(async (id) => {
+        await sdk.UpdateChapterProgress({ input: { id, patch } });
+        await applyCachedChapterReadPatch(serverBaseUrl, id, patch);
+      }));
       setSelected(new Set());
-      await queryClient.invalidateQueries({ queryKey: ["manga"] });
+      await invalidateChapterState(queryClient);
       notify(`${selected.size} chapters updated.`, "success");
     } catch (error: any) {
+      await invalidateChapterState(queryClient);
       notify(error?.message || "Chapter update failed.", "error");
     } finally {
       setBulkBusy(false);

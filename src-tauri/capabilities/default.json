@@ -8,6 +8,24 @@
   "permissions": [
     "core:default",
     "fs:default",
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [
+        { "path": "$APPLOCALDATA/library-backups/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-rename",
+      "allow": [
+        { "path": "$APPLOCALDATA/library-backups/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-remove",
+      "allow": [
+        { "path": "$APPLOCALDATA/library-backups/**" }
+      ]
+    },
     "process:allow-restart",
     {
       "identifier": "fs:scope-appdata-recursive",

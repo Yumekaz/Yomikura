@@ -23,7 +23,7 @@ import { useTranslation } from "../hooks/useTranslation";
 import { AboutSettingsPanel } from "../components/settings/AboutSettingsPanel";
 import { SettingsStatusPanel } from "../components/settings/SettingsStatusPanel";
 import { OfflineSettingsPanel } from "../components/settings/OfflineSettingsPanel";
-import { BackupSettingsPanel } from "../components/settings/BackupSettingsPanel";
+import { BackupSettingsPanel, type BackupMessage } from "../components/settings/BackupSettingsPanel";
 import { useFeedback } from "../components/ui/FeedbackProvider";
 import { useNavigate, useParams } from "react-router-dom";
 import { SettingsSearch, type SettingsSection } from "../components/settings/SettingsSearch";
@@ -33,57 +33,13 @@ import { ReaderSettingsPanel } from "../components/settings/ReaderSettingsPanel"
 import { validateBackupFile } from "../components/settings/backupValidation";
 import { waitForRestoreStatus } from "../components/settings/backupRestore";
 import { fetchAllLibrary } from "../api/library/fetchAllLibrary";
+import { backupErrorMessage, LibraryBackupError } from "../api/suwayomi/backupStorage";
+import { createLibraryBackup, exportLibraryBackup, restoreWithSafetyBackup } from "../api/suwayomi/libraryBackups";
+import { normalizeCacheServerUrl } from "../api/suwayomi/offlineCache";
+import { restoreBackupUpload } from "../api/suwayomi/backupUpload";
 
 type SettingsTab = SettingsSection;
 const SETTINGS_TABS: SettingsTab[] = ["connection", "appearance", "reader", "backup", "offline", "advanced", "about"];
-
-const RESTORE_BACKUP_UPLOAD_QUERY = `
-  mutation RestoreBackup($input: RestoreBackupInput!) {
-    restoreBackup(input: $input) {
-      id
-      status {
-        state
-        mangaProgress
-        totalManga
-      }
-    }
-  }
-`;
-
-async function restoreBackupUpload(endpoint: string, file: File) {
-  const formData = new FormData();
-  formData.append(
-    "operations",
-    JSON.stringify({
-      query: RESTORE_BACKUP_UPLOAD_QUERY,
-      variables: {
-        input: {
-          backup: null,
-        },
-      },
-    })
-  );
-  formData.append("map", JSON.stringify({ "0": ["variables.input.backup"] }));
-  formData.append("0", file, file.name);
-
-  const response = await fetch(endpoint, {
-    method: "POST",
-    body: formData,
-  });
-  const result = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    throw new Error(result?.errors?.map((item: { message?: string }) => item.message).filter(Boolean).join("; ") || `HTTP ${response.status}`);
-  }
-
-  if (result?.errors?.length) {
-    throw new Error(result.errors.map((item: { message?: string }) => item.message).filter(Boolean).join("; ") || "Restore failed.");
-  }
-
-  const restore = result?.data?.restoreBackup;
-  if (!restore?.id) throw new Error("Suwayomi accepted the file but did not provide a restore job ID.");
-  return restore as { id: string; status?: { state?: string; mangaProgress?: number; totalManga?: number } | null };
-}
 
 function SettingsPage() {
   const navigate = useNavigate();
@@ -114,7 +70,8 @@ function SettingsPage() {
   const [localUrl, setLocalUrl] = useState(serverBaseUrl);
   const routeTab = SETTINGS_TABS.includes(section as SettingsTab) ? section as SettingsTab : "connection";
   const [activeTab, setActiveTab] = useState<SettingsTab>(routeTab);
-  const [backupMessage, setBackupMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const [backupMessage, setBackupMessage] = useState<BackupMessage | null>(null);
+  useEffect(() => setBackupMessage(null), [serverBaseUrl]);
 
   useEffect(() => setActiveTab(routeTab), [routeTab]);
 
@@ -204,95 +161,87 @@ function SettingsPage() {
 
   // Mutation: Create Backup
   const { mutate: createBackup, isPending: creatingBackup } = useMutation({
-    mutationFn: () => sdk.CreateBackup({ input: {} }),
-    onMutate: () => {
-      setBackupMessage(null);
+    mutationFn: async () => {
+      if (mockMode) throw new LibraryBackupError("Connect to Suwayomi before creating a backup.");
+      const backup = await createLibraryBackup(sdk, serverBaseUrl, "manual");
+      try { await exportLibraryBackup(backup.serverBaseUrl, backup.id); }
+      catch (error) { throw new LibraryBackupError(`The backup is retained in Saved backups, but export could not start. Export “${backup.fileName}” again from the list.`, { cause: error }); }
+      return backup;
     },
-    onSuccess: (data) => {
-      const backupUrl = data?.createBackup?.url;
-      if (backupUrl) {
-        const fullUrl = backupUrl.startsWith("http")
-          ? backupUrl
-          : `${serverBaseUrl.replace(/\/$/, "")}${backupUrl.startsWith("/") ? "" : "/"}${backupUrl}`;
-
-        // Auto trigger file download
-        const a = document.createElement("a");
-        a.href = fullUrl;
-        a.download = backupUrl.split("/").pop() || "suwayomi_backup.zip";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
-        setBackupMessage({
-          kind: "success",
-          text: "Backup created and download started successfully!",
-        });
-      } else {
-        setBackupMessage({
-          kind: "error",
-          text: "Server did not return a valid backup URL.",
-        });
-      }
+    onMutate: () => {
+      setBackupMessage({ kind: "info", text: "Saving and verifying the backup on this device…" });
+    },
+    onSuccess: (backup) => {
+      if (normalizeCacheServerUrl(useSettingsStore.getState().serverBaseUrl) !== backup.serverBaseUrl) return;
+      setBackupMessage({ kind: "success", text: "Backup saved and verified on this device. Export started; the retained copy is available in Saved backups." });
     },
     onError: (err) => {
       setBackupMessage({
         kind: "error",
-        text: `Failed to create backup: ${getErrorMessage(err)}`,
+        text: backupErrorMessage(err, "Failed to create a backup."),
       });
     },
   });
 
   // Mutation: Restore Backup
-  const { mutate: restoreBackup, isPending: restoringBackup } = useMutation({
-    mutationFn: async (file: File) => {
-      const restore = await restoreBackupUpload(graphqlEndpoint, file);
-      return waitForRestoreStatus((id) => sdk.GetRestoreStatus({ id }), restore.id);
+  const { mutateAsync: restoreBackup, isPending: restoringBackup } = useMutation({
+    mutationFn: async ({ file, server, endpoint, client }: { file: File; server: string; endpoint: string; client: typeof sdk }) => {
+      if (useSettingsStore.getState().mockMode) throw new LibraryBackupError("Connect to Suwayomi before restoring a backup.");
+      return restoreWithSafetyBackup(
+        () => createLibraryBackup(client, server, "safety"),
+        async () => {
+          if (normalizeCacheServerUrl(useSettingsStore.getState().serverBaseUrl) === normalizeCacheServerUrl(server)) {
+            setBackupMessage({ kind: "info", text: "Safety backup saved and verified. Restoring the selected file…" });
+          }
+          const restore = await restoreBackupUpload(endpoint, file);
+          return waitForRestoreStatus((id) => client.GetRestoreStatus({ id }), restore.id);
+        },
+      );
     },
     onMutate: () => {
-      setBackupMessage(null);
+      setBackupMessage({ kind: "info", text: "Saving and verifying a safety backup before restore…" });
     },
-    onSuccess: (result) => {
+    onSuccess: ({ result, safetyBackup }) => {
+      if (normalizeCacheServerUrl(useSettingsStore.getState().serverBaseUrl) !== safetyBackup.serverBaseUrl) return;
       setBackupMessage({
-        kind: "success",
+        kind: result.completed ? "success" : "info",
         text: result.completed
-          ? `Backup restored successfully${result.status?.totalManga ? ` (${result.status.mangaProgress}/${result.status.totalManga} titles processed)` : ""}. Refreshing library cache...`
-          : "Restore is still running in Suwayomi. Keep the server running; refresh the library after it completes.",
+          ? `Backup restored successfully${result.status?.totalManga ? ` (${result.status.mangaProgress}/${result.status.totalManga} titles processed)` : ""}. The safety backup is retained in Saved backups.`
+          : "Restore is still running in Suwayomi. Keep the server running; refresh the library after it completes. The safety backup is retained in Saved backups.",
       });
       if (result.completed) queryClient.invalidateQueries();
     },
     onError: (err) => {
       setBackupMessage({
         kind: "error",
-        text: `Failed to restore backup: ${getErrorMessage(err)}`,
+        text: backupErrorMessage(err, "Failed to restore the backup."),
       });
     },
   });
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const requestBackupRestore = async (file: File) => {
+    const server = serverBaseUrl;
     const validationError = await validateBackupFile(file);
     if (validationError) {
       setBackupMessage({ kind: "error", text: validationError });
-      e.target.value = "";
       return;
     }
 
-    const confirmRestore = await confirm({ title: "Restore this backup?", detail: "Yomikura will first ask Suwayomi to create a safety backup, then restore this file. Library, history, and categories may change.", confirmLabel: "Back up and restore", danger: true });
+    const confirmRestore = await confirm({ title: "Restore this backup?", detail: "Yomikura will first save and verify a safety backup on this device, then restore this file. Library, history, and categories may change.", confirmLabel: "Back up and restore", danger: true });
 
     if (confirmRestore) {
-      setBackupMessage({ kind: "success", text: "Creating a safety backup before restore…" });
-      try {
-        const safety = await sdk.CreateBackup({ input: {} });
-        if (!safety.createBackup?.url) throw new Error("Suwayomi did not confirm the safety backup.");
-        restoreBackup(file);
-      } catch (error) {
-        setBackupMessage({ kind: "error", text: `Restore stopped because a safety backup could not be created: ${getErrorMessage(error)}` });
+      if (normalizeCacheServerUrl(useSettingsStore.getState().serverBaseUrl) !== normalizeCacheServerUrl(server)) {
+        setBackupMessage({ kind: "error", text: "The selected server changed. Select the backup again for the current server." });
+        return;
       }
+      await restoreBackup({ file, server, endpoint: graphqlEndpoint, client: sdk }).catch(() => undefined);
     }
-    // Reset file input
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     e.target.value = "";
+    if (file) await requestBackupRestore(file);
   };
 
   const exportLibraryCsv = async () => {
@@ -687,6 +636,7 @@ function SettingsPage() {
               createBackup={() => createBackup()}
               handleFileChange={handleFileChange}
               exportLibraryCsv={() => void exportLibraryCsv()}
+              restoreSavedBackup={requestBackupRestore}
             />
           )}
 

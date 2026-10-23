@@ -36,10 +36,7 @@ async function expectNoSeriousAccessibilityViolations(page: Page, routeName: str
   expect(blocking, `${routeName} has serious WCAG violations`).toEqual([]);
 }
 
-test("core desktop routes have no serious automated WCAG violations", async ({ page }) => {
-  await enterDemo(page);
-
-  const routes = [
+const accessibleRoutes = [
     { path: "/library", heading: "Library" },
     { path: "/history", heading: "History" },
     { path: "/downloads", heading: "Downloads" },
@@ -48,14 +45,16 @@ test("core desktop routes have no serious automated WCAG violations", async ({ p
     { path: "/extensions", heading: "Extensions" },
     { path: "/extensions/repos", heading: "Stores" },
     { path: "/manga/10002", heading: "[Demo] Pepper & Carrot" },
-  ];
+];
 
-  for (const route of routes) {
+for (const route of accessibleRoutes) {
+  test(`desktop route ${route.path} has no serious automated WCAG violations`, async ({ page }) => {
+    await enterDemo(page);
     await page.goto(route.path);
     await expect(page.getByRole("heading", { name: route.heading, exact: true })).toBeVisible();
     await expectNoSeriousAccessibilityViolations(page, route.path);
-  }
-});
+  });
+}
 
 test("reader journey survives search, offline save, history, and reload", async ({ page }) => {
   await enterDemo(page);

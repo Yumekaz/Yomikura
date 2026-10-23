@@ -1,14 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 
-import { FitMode, ImageFilters, isTauri, useSettingsStore } from "../../stores/useSettingsStore";
+import { FitMode, ImageFilters, useSettingsStore } from "../../stores/useSettingsStore";
+import { useReaderImageSource } from "./useReaderImageSource";
 
 interface ReaderImageProps {
   url: string;
   fallbackUrl?: string;
   pageNumber: number;
   onIntersect?: (pageIndex: number) => void;
+  onVisibilityChange?: (pageIndex: number, visible: boolean) => void;
+  onReadyChange?: (ready: boolean) => void;
   mode?: "webtoon" | "single";
   fitMode?: FitMode;
   imageFilters?: ImageFilters;
@@ -20,97 +23,72 @@ export function ReaderImage({
   fallbackUrl,
   pageNumber,
   onIntersect,
+  onVisibilityChange,
+  onReadyChange,
   mode = "webtoon",
   fitMode = "FIT_SCREEN",
   imageFilters: imageFiltersProp,
   cropBorders: cropBordersProp,
 }: ReaderImageProps) {
-  const [loaded, setLoaded] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const instanceId = useId();
+  const [loadedUrl, setLoadedUrl] = useState("");
   const [error, setError] = useState(false);
   const [usingFallback, setUsingFallback] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const retryTimer = useRef<ReturnType<typeof setTimeout>>();
+  const callbacks = useRef({ onIntersect, onVisibilityChange, onReadyChange });
+  callbacks.current = { onIntersect, onVisibilityChange, onReadyChange };
 
   const { imageFilters: storeFilters, cropBorders: storeCrop } = useSettingsStore();
   const imageFilters = imageFiltersProp ?? storeFilters;
   const cropBorders = cropBordersProp ?? storeCrop;
 
   const imageUrl = usingFallback && fallbackUrl ? fallbackUrl : url;
-  const [displayUrl, setDisplayUrl] = useState("");
+  const { url: displayUrl, reload } = useReaderImageSource(imageUrl);
+  const loaded = !!displayUrl && loadedUrl === displayUrl && !error;
+  const observesVisibility = !!(onIntersect || onVisibilityChange);
 
   useEffect(() => {
-    setLoaded(false);
+    setLoadedUrl("");
     setError(false);
     setUsingFallback(false);
     setRetryCount(0);
+    return () => clearTimeout(retryTimer.current);
   }, [url, fallbackUrl]);
 
   useEffect(() => {
-    let active = true;
-    let objectUrl: string | null = null;
-
-    async function resolveImage() {
-      if (isTauri() && (imageUrl.startsWith("file:") || imageUrl.includes(":\\") || imageUrl.startsWith("/"))) {
-        try {
-          const { convertFileSrc } = await import("@tauri-apps/api/core");
-          if (active) {
-            setDisplayUrl(convertFileSrc(imageUrl));
-            return;
-          }
-        } catch (e) {
-          console.warn("Failed to convert file src:", e);
-        }
-      }
-
-      try {
-        const cache = await caches.open("yomikura-page-cache");
-        const match = await cache.match(imageUrl);
-        if (match) {
-          const blob = await match.blob();
-          if (active) {
-            objectUrl = URL.createObjectURL(blob);
-            setDisplayUrl(objectUrl);
-            return;
-          }
-        }
-      } catch (e) {
-        console.warn("Failed to check cache:", e);
-      }
-
-      if (active) {
-        setDisplayUrl(imageUrl);
-      }
-    }
-
-    void resolveImage();
-
-    return () => {
-      active = false;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-  }, [imageUrl]);
+    const publish = callbacks.current.onReadyChange;
+    publish?.(loaded);
+    return () => publish?.(false);
+  }, [loaded, imageUrl]);
 
   useEffect(() => {
-    if (!onIntersect) return;
-    const el = document.getElementById(`reader-page-${pageNumber}`);
+    if (!observesVisibility) return;
+    // Streamed chapters restart page numbers. Observe this instance's element,
+    // never a document-wide lookup that could select another chapter's page.
+    const el = containerRef.current;
     if (!el) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) {
-          onIntersect(pageNumber);
-        }
+        const visible = entries[0].isIntersecting;
+        if (visible) callbacks.current.onIntersect?.(pageNumber);
+        callbacks.current.onVisibilityChange?.(pageNumber, visible);
       },
       { threshold: 0.5 }
     );
     observer.observe(el);
-    return () => observer.disconnect();
-  }, [pageNumber, onIntersect]);
+    const onHidden = callbacks.current.onVisibilityChange;
+    return () => {
+      observer.disconnect();
+      onHidden?.(pageNumber, false);
+    };
+  }, [pageNumber, observesVisibility, url]);
 
   const handleError = () => {
     if (!usingFallback && fallbackUrl && fallbackUrl !== url) {
-      setLoaded(false);
+      setLoadedUrl("");
       setUsingFallback(true);
       setRetryCount(0);
       return;
@@ -119,12 +97,9 @@ export function ReaderImage({
     if (retryCount < 3) {
       const nextRetry = retryCount + 1;
       setRetryCount(nextRetry);
-      setLoaded(false);
-      const currentUrl = displayUrl;
-      setDisplayUrl("");
-      setTimeout(() => {
-        setDisplayUrl(currentUrl);
-      }, Math.pow(2, nextRetry) * 500);
+      setLoadedUrl("");
+      clearTimeout(retryTimer.current);
+      retryTimer.current = setTimeout(reload, Math.pow(2, nextRetry) * 500);
       return;
     }
 
@@ -133,15 +108,12 @@ export function ReaderImage({
 
   const handleRetry = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    setLoaded(false);
+    setLoadedUrl("");
     setError(false);
     setUsingFallback(false);
     setRetryCount(0);
-    const currentUrl = displayUrl;
-    setDisplayUrl("");
-    setTimeout(() => {
-      setDisplayUrl(currentUrl);
-    }, 10);
+    clearTimeout(retryTimer.current);
+    reload();
   };
 
   // Determine classes based on mode and fitMode
@@ -169,7 +141,8 @@ export function ReaderImage({
 
   return (
     <div
-      id={`reader-page-${pageNumber}`}
+      ref={containerRef}
+      id={`reader-page-${instanceId}`}
       className={containerClass}
     >
       {!loaded && !error && (
@@ -211,7 +184,7 @@ export function ReaderImage({
           transformOrigin: "center",
           clipPath: cropBorders ? "inset(2% 2% 2% 2%)" : "none",
         }}
-        onLoad={() => setLoaded(true)}
+        onLoad={() => setLoadedUrl(displayUrl)}
         onError={handleError}
       />
     </div>

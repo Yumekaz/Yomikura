@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BookOpen, Server, Play, ShieldCheck, ArrowRight, Loader2, Sparkles, ChevronDown, ChevronUp, FolderOpen, HardDrive, RefreshCw, AlertTriangle } from "lucide-react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { browseNav, primaryNav, utilityNav, type NavItem } from "../../app/navigation";
 import { useSettingsStore, isTauri } from "../../stores/useSettingsStore";
 import { useDownloadStore } from "../../stores/useDownloadStore";
@@ -11,6 +11,7 @@ import { UpdateNotificationBanner } from "../UpdateNotificationBanner";
 import { useDeviceProfileBootstrap } from "../../hooks/useDeviceProfile";
 import { useScheduledBackup } from "../../hooks/useScheduledBackup";
 import { useScheduledLibraryUpdate } from "../../hooks/useScheduledLibraryUpdate";
+import { getCachedChapters } from "../../api/suwayomi/offlineCache";
 
 function ProfileSwitcher() {
   const { profiles, activeProfileId, setActiveProfileId } = useSettingsStore();
@@ -184,10 +185,26 @@ function AppShell() {
   const showOfflineBanner = connectionStatus === "error" && !location.pathname.startsWith("/reader/") && !mockMode;
 
   const isUnconnected = connectionStatus === "error" || connectionStatus === "disconnected";
-  const showOnboarding = isUnconnected && !mockMode && location.pathname !== "/settings";
+  const isSettingsRoute = /^\/settings(?:\/|$)/.test(location.pathname);
+  const isOfflineRoute = /^\/(?:library|downloads|history)\/?$/.test(location.pathname)
+    || /^\/(?:manga|reader)\/[^/]+\/?$/.test(location.pathname);
+  const checkOfflineCache = hasHydrated && isUnconnected && !mockMode
+    && !!serverBaseUrl.trim() && isOfflineRoute;
+  const offlineChapters = useQuery({
+    // Scope availability to the active backend. Never pass an empty URL, which
+    // would ask the cache for chapters belonging to every backend.
+    queryKey: ["offline-shell-chapters", serverBaseUrl],
+    queryFn: () => getCachedChapters(serverBaseUrl),
+    select: (chapters) => chapters.some((chapter) => chapter.pageCount > 0 && chapter.pages.length > 0),
+    enabled: checkOfflineCache,
+    retry: false,
+  });
+  const canOpenOffline = checkOfflineCache && offlineChapters.data === true;
+  const checkingOfflineCache = checkOfflineCache && offlineChapters.isFetching && !canOpenOffline;
+  const showOnboarding = isUnconnected && !mockMode && !isSettingsRoute && !canOpenOffline;
 
-  if (!hasHydrated) {
-    return <div className="yomi-route-loading" role="status" aria-label="Loading saved settings"><span className="yomi-skeleton h-8 w-40" /><span className="yomi-skeleton h-24 w-full" /></div>;
+  if (!hasHydrated || checkingOfflineCache) {
+    return <div className="yomi-route-loading" role="status" aria-label={checkingOfflineCache ? "Loading saved chapters" : "Loading saved settings"}><span className="yomi-skeleton h-8 w-40" /><span className="yomi-skeleton h-24 w-full" /></div>;
   }
 
   if (showOnboarding) {

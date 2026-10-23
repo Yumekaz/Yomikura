@@ -69,6 +69,18 @@ ame\, \iconUrl\, and \lang\.
 ### \updateManga(input: UpdateMangaInput!)\ mutation (Toggle Library)
 - Used to toggle the \inLibrary\ status of a manga. Used when viewing a newly discovered manga in MangaDetailPage.
 
+## Backup export and restore
+
+Verified on 2026-10-23 against the pinned Suwayomi v2.3.2243 server using a disposable local-source library.
+
+- `createBackup(input: {}) { url }` returns a download URL. A returned URL does not confirm that Yomikura retained the file. Download, validate and save its bytes before recording success or beginning a protected restore.
+- Exported files are gzip-compressed `.tachibk` archives. This batch retains library metadata, history and categories; downloaded pages and Yomikura settings are outside this artifact.
+- The server's multipart parser supports top-level upload variables. Use `mutation RestoreBackup($backup: Upload!) { restoreBackup(input: { backup: $backup }) { id status { state mangaProgress totalManga } } }`, an `operations` part with `variables: { backup: null }`, and a `map` part containing `{ "0": ["variables.backup"] }`.
+- Mapping `variables.input.backup` leaves the nested field null on this version. The failed real-server response and the corrected successful restore are retained in the reliability validation artifacts.
+- Poll `restoreStatus(id: ...)` after receiving the job ID. A submitted job or a polling timeout is not confirmed completion. Only `SUCCESS` confirms completion; `FAILURE` is a server-reported failure.
+
+Source: [v2.3.2243 multipart request parser](https://github.com/Suwayomi/Suwayomi-Server/blob/v2.3.2243/server/src/main/kotlin/suwayomi/tachidesk/graphql/server/JavalinGraphQLRequestParser.kt#L44-L107). See [reliability verification](RELIABILITY_BATCH_1_2026-10-23.md) for local validation and limits.
+
 ## Extensions Queries & Mutations
 ### `settings { extensionRepos }` query
 - Fetches the configured extension-store/repository URLs exposed by the server's compatibility API.

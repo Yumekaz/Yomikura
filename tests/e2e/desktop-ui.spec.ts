@@ -115,7 +115,7 @@ test("reader opens a demo chapter and exposes a usable page", async ({ page }) =
   await enterDemo(page);
   await page.goto("/reader/20002");
   await expect(page.getByText("Chapter 1: The Journey Begins", { exact: true })).toBeVisible({ timeout: 15_000 });
-  const firstPage = page.locator("#reader-page-0 img");
+  const firstPage = page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 1", exact: true }).first();
   await expect(firstPage).toBeVisible({ timeout: 15_000 });
   await expect.poll(() => firstPage.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
 });
@@ -149,7 +149,7 @@ test("settings search opens an addressable section", async ({ page }) => {
 test("history search and removal persist without resetting progress", async ({ page }) => {
   await enterDemo(page);
   await page.goto("/reader/20002");
-  const firstPage = page.locator("#reader-page-0 img");
+  const firstPage = page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 1", exact: true }).first();
   await expect.poll(() => firstPage.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
   await page.goto("/history");
   await page.getByPlaceholder("Search history…").fill("Pepper");

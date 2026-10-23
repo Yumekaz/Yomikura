@@ -2,6 +2,12 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, ChevronLeft, ChevronRight, Sliders, Settings, Play, Pause, Eye, BookOpen, RefreshCw } from "lucide-react";
 import { FitMode, PageSpread, ReaderMode, useSettingsStore } from "../../stores/useSettingsStore";
+import { useReaderImageSource } from "./useReaderImageSource";
+
+function ReaderThumbnail({ url, number }: { url: string; number: number }) {
+  const { url: resolvedUrl } = useReaderImageSource(url);
+  return <img src={resolvedUrl || undefined} alt={`Page ${number}`} className="h-full w-full object-cover" loading="lazy" />;
+}
 
 interface ReaderOverlayProps {
   show: boolean;
@@ -366,12 +372,7 @@ export function ReaderOverlay({
                         : "border-white/5 opacity-60 hover:opacity-100"
                     }`}
                   >
-                    <img
-                      src={buildPageUrl(idx)}
-                      alt={`Page ${idx + 1}`}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
+                    <ReaderThumbnail url={buildPageUrl(idx)} number={idx + 1} />
                     <div className="absolute inset-x-0 bottom-0 bg-black/75 py-0.2 text-xs font-black text-slate-300 text-center">
                       {idx + 1}
                     </div>

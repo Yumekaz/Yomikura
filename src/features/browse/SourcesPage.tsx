@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, Globe, Settings, Pin, X, Compass, Puzzle, RadioTower, Search } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
+import { buildSourceBrowsePath } from "./sourceBrowseRoute";
 
 /**
  * SourcesPage - Lists all installed sources.
@@ -123,7 +124,7 @@ export default function SourcesPage() {
                 className="yomi-catalog-item"
               >
                 <Link 
-                  to={`/browse/${s.sourceId}?query=${encodeURIComponent(s.query)}`}
+                  to={buildSourceBrowsePath(s.sourceId, s.query)}
                   className="flex items-center gap-3 flex-1 overflow-hidden"
                 >
                   <Pin className="h-4 w-4 text-yomi-jade shrink-0" />

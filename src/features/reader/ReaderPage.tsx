@@ -12,6 +12,7 @@ import { useTranslation } from "../../hooks/useTranslation";
 import { ReaderImage } from "./ReaderImage";
 import { ReaderOverlay } from "./ReaderOverlay";
 import { createProgressSnapshot, type ProgressSnapshot } from "./readerProgress";
+import { invalidateChapterState } from "../../api/suwayomi/chapterState";
 import { 
   getCachedChapter, 
   getCachedChaptersForManga, 
@@ -139,7 +140,13 @@ export default function ReaderPage() {
     mangaId: number;
     sourceOrder: number;
     pages: string[];
+    isRead: boolean;
   };
+  const readyPagesRef = useRef(new Set<string>());
+  const visiblePagesRef = useRef(new Map<string, { chapter: StreamChapter; pageIndex: number }>());
+  const completedChaptersRef = useRef(new Set<string>());
+  const [readyPageVersion, setReadyPageVersion] = useState(0);
+  const pageIdentity = useCallback((id: number, index: number) => `${serverBaseUrl}::${id}::${index}`, [serverBaseUrl]);
   const streamChaptersRef = useRef<StreamChapter[]>([]);
   const mangaTitleRef = useRef("Unknown Manga");
   const [streamChapters, setStreamChapters] = useState<StreamChapter[]>([]);
@@ -283,7 +290,12 @@ export default function ReaderPage() {
   // Update progress mutation
   const { mutate: updateProgress } = useMutation({
     mutationFn: async (progress: ProgressSnapshot) => {
-      const isRead = progress.pageCount > 0 && progress.pageIndex >= progress.pageCount - 1;
+      const completionKey = `${serverBaseUrl}::${progress.chapterId}`;
+      const wasRead = progress.wasRead || completedChaptersRef.current.has(completionKey);
+      const atEnd = progress.pageCount > 0 && progress.pageIndex >= progress.pageCount - 1;
+      const isRead = wasRead || atEnd;
+      const justCompleted = !wasRead && atEnd;
+      if (isRead) completedChaptersRef.current.add(completionKey);
 
       await recordReadingActivity(serverBaseUrl, {
         chapterId: progress.chapterId,
@@ -314,7 +326,7 @@ export default function ReaderPage() {
           } 
         });
 
-        if (isRead && autoDeleteReadChapters) {
+        if (justCompleted && autoDeleteReadChapters) {
           try {
             await sdk.DeleteDownloadedChapter({
               input: {
@@ -333,13 +345,7 @@ export default function ReaderPage() {
         return null;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["chapter"] });
-      queryClient.invalidateQueries({ queryKey: ["manga"] });
-      queryClient.invalidateQueries({ queryKey: ["library"] });
-      queryClient.invalidateQueries({ queryKey: ["updates"] });
-      queryClient.invalidateQueries({ queryKey: ["history"] });
-    }
+    onSuccess: () => invalidateChapterState(queryClient),
   });
 
   useEffect(() => {
@@ -366,10 +372,9 @@ export default function ReaderPage() {
     if (!chapter || pages.length === 0) return;
     const savedPage = Math.min(Math.max(chapter.lastPageRead || 0, 0), pages.length - 1);
     setCurrentPage(savedPage);
-    // Let the initial reader load create a history record even if the user
-    // leaves before scrolling far enough to trigger an intersection callback.
-    lastSavedPagesRef.current.delete(chapter.id);
-  }, [chapter?.id, chapter?.lastPageRead, pages.length]);
+    // Restore once when entering this chapter. Progress acknowledgements must
+    // not move the viewport or schedule the same page again.
+  }, [chapter?.id, serverBaseUrl, pages.length]);
 
   useEffect(() => {
     if (!chapter || pages.length === 0) return;
@@ -381,11 +386,12 @@ export default function ReaderPage() {
         mangaId: chapter.mangaId,
         sourceOrder: chapter.sourceOrder,
         pages,
+        isRead: chapter.isRead,
       },
     ]);
     autoScrollEndTriggered.current = false;
     bingeLoadingRef.current = false;
-  }, [chapter?.id, pages, chapter]);
+  }, [chapter?.id, serverBaseUrl, pages]);
 
   // Compute Sibling Chapters
   const siblingChapters = useMemo(() => {
@@ -461,6 +467,7 @@ export default function ReaderPage() {
           mangaId: chRes.chapter.mangaId,
           sourceOrder: chRes.chapter.sourceOrder,
           pages: newPages,
+          isRead: chRes.chapter.isRead,
         },
       ]);
       autoScrollEndTriggered.current = false;
@@ -473,6 +480,7 @@ export default function ReaderPage() {
 
   // Debounced progress saver
   const saveProgress = useCallback((streamChapter: StreamChapter, pageIndex: number) => {
+    if (!readyPagesRef.current.has(pageIdentity(streamChapter.id, pageIndex))) return;
     if (lastSavedPagesRef.current.get(streamChapter.id) === pageIndex) return;
     lastSavedPagesRef.current.set(streamChapter.id, pageIndex);
 
@@ -485,19 +493,21 @@ export default function ReaderPage() {
       updateProgress(progress);
     }, 750);
     debouncedUpdatesRef.current.set(streamChapter.id, timer);
-  }, [chapter?.manga?.title, updateProgress]);
+  }, [chapter?.manga?.title, updateProgress, pageIdentity]);
+
+  const handlePageReady = useCallback((owner: StreamChapter, index: number, ready: boolean) => {
+    const key = pageIdentity(owner.id, index);
+    if (readyPagesRef.current.has(key) === ready) return;
+    if (ready) readyPagesRef.current.add(key); else readyPagesRef.current.delete(key);
+    setReadyPageVersion((value) => value + 1);
+    const visible = visiblePagesRef.current.get(key);
+    if (ready && readerMode === "WEBTOON" && visible) saveProgress(visible.chapter, visible.pageIndex);
+  }, [pageIdentity, readerMode, saveProgress]);
 
   useEffect(() => {
     streamChaptersRef.current = streamChapters;
     mangaTitleRef.current = chapter?.manga?.title || "Unknown Manga";
   }, [chapter?.manga?.title, streamChapters]);
-
-  useEffect(() => {
-    if (!chapter || pages.length === 0) return;
-    const initialPage = Math.min(Math.max(chapter.lastPageRead || 0, 0), pages.length - 1);
-    const initialChapter = streamChapters.find((item) => item.id === chapter.id);
-    if (initialChapter) saveProgress(initialChapter, initialPage);
-  }, [chapter?.id, pages.length, saveProgress, streamChapters]);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -514,10 +524,16 @@ export default function ReaderPage() {
     };
   }, [updateProgress]);
 
-  const handleIntersect = useCallback((streamChapter: StreamChapter, pageIndex: number) => {
-    setCurrentPage(pageIndex);
-    saveProgress(streamChapter, pageIndex);
-  }, [saveProgress]);
+  const handleIntersect = useCallback((streamChapter: StreamChapter, pageIndex: number, visible: boolean) => {
+    const key = pageIdentity(streamChapter.id, pageIndex);
+    if (visible) {
+      visiblePagesRef.current.set(key, { chapter: streamChapter, pageIndex });
+      setCurrentPage(pageIndex);
+      saveProgress(streamChapter, pageIndex);
+    } else {
+      visiblePagesRef.current.delete(key);
+    }
+  }, [pageIdentity, saveProgress]);
 
   // Page Transitions Engine
   const changePageWithTransition = useCallback((nextIndex: number) => {
@@ -559,8 +575,12 @@ export default function ReaderPage() {
     if (readerMode === "WEBTOON" || pages.length === 0) return;
     const activePage = idxB !== null && idxB < pages.length ? idxB : idxA;
     const initialChapter = streamChapters[0];
-    if (initialChapter) saveProgress(initialChapter, activePage);
-  }, [idxA, idxB, readerMode, pages.length, saveProgress, streamChapters]);
+    if (!initialChapter) return;
+    const displayed = [idxA, idxB].filter((index): index is number => index !== null && index < pages.length);
+    if (displayed.every((index) => readyPagesRef.current.has(pageIdentity(initialChapter.id, index)))) {
+      saveProgress(initialChapter, activePage);
+    }
+  }, [idxA, idxB, readerMode, pages.length, saveProgress, streamChapters, readyPageVersion, pageIdentity]);
 
   // Navigation Logic
   const navigatePage = useCallback((dir: number) => {
@@ -947,7 +967,8 @@ export default function ReaderPage() {
                           })}
                       fallbackUrl={resolveBackendUrl(serverBaseUrl, url)}
                       pageNumber={i}
-                      onIntersect={(pageIndex) => handleIntersect(streamCh, pageIndex)}
+                      onVisibilityChange={(pageIndex, visible) => handleIntersect(streamCh, pageIndex, visible)}
+                      onReadyChange={(ready) => handlePageReady(streamCh, i, ready)}
                       imageFilters={effectiveImageFilters}
                       cropBorders={effectiveCropBorders}
                     />
@@ -987,6 +1008,10 @@ export default function ReaderPage() {
                     url={buildPageUrl(idx)}
                     fallbackUrl={resolveBackendUrl(serverBaseUrl, pages[idx])}
                     pageNumber={idx}
+                    onReadyChange={(ready) => {
+                      const owner = streamChapters[0];
+                      if (owner) handlePageReady(owner, idx, ready);
+                    }}
                     mode="single"
                     fitMode={fitMode}
                     imageFilters={effectiveImageFilters}

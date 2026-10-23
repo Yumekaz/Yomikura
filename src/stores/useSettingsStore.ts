@@ -188,7 +188,7 @@ interface SettingsState {
   setAutoDownloadCount: (count: number) => void;
   setDownloadConcurrency: (count: number) => void;
   setBackupIntervalHours: (hours: number) => void;
-  setScheduledBackupResult: (status: "idle" | "running" | "success" | "error", error?: string) => void;
+  setScheduledBackupResult: (status: "idle" | "running" | "success" | "error", error?: string, savedAt?: number) => void;
   setLibraryUpdateIntervalHours: (hours: number) => void;
   setScheduledLibraryUpdateResult: (status: "idle" | "running" | "success" | "error", error?: string) => void;
   setReaderNavigationMode: (mode: ReaderNavigationMode) => void;
@@ -415,10 +415,10 @@ export const useSettingsStore = create<SettingsState>()(
       setAutoDownloadCount: (count) => set({ autoDownloadCount: count }),
       setDownloadConcurrency: (count) => set({ downloadConcurrency: Math.min(4, Math.max(1, Math.round(count))) }),
       setBackupIntervalHours: (hours) => set({ backupIntervalHours: Math.max(0, Math.round(hours)) }),
-      setScheduledBackupResult: (status, error = "") => set({
+      setScheduledBackupResult: (status, error = "", savedAt) => set({
         scheduledBackupStatus: status,
         scheduledBackupError: error,
-        ...(status === "success" ? { lastScheduledBackupAt: Date.now() } : {}),
+        ...(savedAt !== undefined ? { lastScheduledBackupAt: savedAt } : status === "success" ? { lastScheduledBackupAt: Date.now() } : {}),
       }),
       setLibraryUpdateIntervalHours: (hours) => set({ libraryUpdateIntervalHours: Math.max(0, Math.round(hours)) }),
       setScheduledLibraryUpdateResult: (status, error = "") => set({
