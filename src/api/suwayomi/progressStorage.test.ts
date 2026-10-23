@@ -86,6 +86,14 @@ describe("durable ordered progress", () => {
     expect((await getProgressHead(server, 12))!.patch).toEqual({ isRead: true, lastPageRead: 1 });
   });
 
+  it("keeps acknowledged completion when moving backward in the same reading session", async () => {
+    await enqueueProgress(server, reading(3));
+    const operation = (await getProgressOperations(server))[0];
+    await acquireProgressLease(server, "worker"); await acknowledgeProgress(operation, "worker", operation.patch);
+    await enqueueProgress(server, reading(1));
+    expect((await getProgressHead(server, 12))!.patch).toEqual({ isRead: true, lastPageRead: 1 });
+  });
+
   it("fences stale workers and leaves unacknowledged changes recoverable", async () => {
     await enqueueProgress(server, reading(2));
     const operation = (await getProgressOperations(server))[0];

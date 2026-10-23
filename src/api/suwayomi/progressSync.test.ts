@@ -154,6 +154,30 @@ describe("progress replay and acknowledgement", () => {
     expect(await projectChapterProgress(first, remoteChapter())).toMatchObject({ lastPageRead: 0 });
   });
 
+  it("does not overwrite a server reset that happens to match the session's initial baseline", async () => {
+    await saveProgressIntent(first, reading(3)); await synchronizeProgress(first);
+    servers.get(first.serverBaseUrl)!.isRead = false; servers.get(first.serverBaseUrl)!.lastPageRead = 0;
+    await saveProgressIntent(first, reading(1)); await synchronizeProgress(first);
+    expect((await getProgressOperations(first))[0].status).toBe("blocked");
+    expect(servers.get(first.serverBaseUrl)!).toMatchObject({ isRead: false, lastPageRead: 0 });
+  });
+
+  it("opens a new epoch for freshly observed server unread while fencing the old reader", async () => {
+    await saveProgressIntent(first, reading(3)); await synchronizeProgress(first);
+    const projected = await projectChapterProgress(first, remoteChapter());
+    expect(projected).toMatchObject({ isRead: false, lastPageRead: 0, progressEpoch: 1 });
+    expect((await saveProgressIntent(first, reading(3, 0))).accepted).toBe(false);
+    expect((await saveProgressIntent(first, reading(1, 1))).accepted).toBe(true);
+    expect((await getProgressHead(first, 12))!.patch.isRead).toBe(false);
+  });
+
+  it("does not mistake a stale metadata response for a new server reset", async () => {
+    await saveProgressIntent(first, reading(3));
+    const version = storage.progressHeadVersion(await getProgressHead(first, 12));
+    await synchronizeProgress(first);
+    expect(await projectChapterProgress(first, remoteChapter(), { observedVersion: version })).toMatchObject({ isRead: true, lastPageRead: 3, progressEpoch: 0 });
+  });
+
   it("rejects reused IDs whose chapter ownership changed", async () => {
     await saveProgressIntent(first, reading(2));
     servers.get(first.serverBaseUrl)!.manga.title = "A different library";

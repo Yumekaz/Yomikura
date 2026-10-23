@@ -2,7 +2,7 @@ import { createGraphqlClient } from "../graphql/client";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { chapterIdentityMatches, progressBackend, type ChapterProgressIdentity, type ProgressBackend } from "./backendIdentity";
 import { deleteCachedChapter, getCachedChapter, getReadingHistory, hideReadingHistoryItem, recordReadingActivity, saveCachedChapter, type CachedChapter } from "./offlineCache";
-import { acknowledgeProgress, acquireProgressLease, enqueueProgress, getProgressHead, getProgressHeads, getProgressOperations, markProgressOperation, progressChanged, releaseProgressLease, type ProgressHead, type ProgressIntent, type ProgressOperation, type ProgressPatch } from "./progressStorage";
+import { acknowledgeProgress, acquireProgressLease, enqueueProgress, getProgressHead, getProgressHeads, getProgressOperations, markProgressOperation, observeChapterProgress, progressChanged, releaseProgressLease, type ProgressHead, type ProgressIntent, type ProgressOperation, type ProgressPatch } from "./progressStorage";
 
 type RemoteChapter = { id: number; name: string; chapterNumber: number; mangaId: number; sourceOrder: number; pageCount: number; isRead: boolean; lastPageRead: number; manga?: { title: string } | null };
 const inFlight = new Map<string, { promise: Promise<void>; rerun: boolean }>();
@@ -18,7 +18,7 @@ export function progressChapterIdentity(chapter: RemoteChapter): ChapterProgress
   return { chapterId: chapter.id, chapterName: chapter.name, chapterNumber: chapter.chapterNumber, mangaId: chapter.mangaId, mangaTitle: chapter.manga?.title ?? "Unknown Manga", sourceOrder: chapter.sourceOrder, pageCount: chapter.pageCount };
 }
 
-function cachedIdentity(chapter: CachedChapter): ChapterProgressIdentity {
+export function cachedIdentity(chapter: CachedChapter): ChapterProgressIdentity {
   return { chapterId: chapter.id, chapterName: chapter.name, chapterNumber: chapter.chapterNumber, mangaId: chapter.mangaId, mangaTitle: chapter.mangaTitle, sourceOrder: chapter.sourceOrder, pageCount: chapter.pageCount };
 }
 
@@ -49,12 +49,14 @@ export async function saveProgressIntent(backend: ProgressBackend, intent: Progr
   return result;
 }
 
-export async function projectChapterProgress<T extends RemoteChapter>(backend: ProgressBackend, chapter: T, options: { offline?: boolean } = {}) {
-  const head = await getProgressHead(backend, chapter.id).catch(() => undefined);
+export async function projectChapterProgress<T extends RemoteChapter>(backend: ProgressBackend, chapter: T, options: { offline?: boolean; observedVersion?: string } = {}) {
+  const observation = options.offline || backend.isDemo ? { head: await getProgressHead(backend, chapter.id).catch(() => undefined), stale: false }
+    : await observeChapterProgress(backend, progressChapterIdentity(chapter), { isRead: chapter.isRead, lastPageRead: chapter.lastPageRead }, options.observedVersion).catch(() => ({ head: undefined, stale: false }));
+  const head = observation.head;
   const matches = head && chapterIdentityMatches(head.chapter, progressChapterIdentity(chapter));
-  const transition = head && !matches && !options.offline && head.sequence <= head.acknowledgedSequence;
-  const pending = head && (backend.isDemo || options.offline || head.sequence > head.acknowledgedSequence) && matches;
-  return { ...chapter, ...(pending ? { isRead: head.patch.isRead, lastPageRead: backend.isDemo || options.offline || head.dirtyFields?.includes("lastPageRead") ? head.patch.lastPageRead : chapter.lastPageRead } : {}), progressEpoch: (head?.epoch ?? 0) + (transition ? 1 : 0),
+  if (observation.stale && head && !matches) throw new Error("The chapter changed while loading. Retry the reader.");
+  const pending = head && (backend.isDemo || options.offline || observation.stale || head.sequence > head.acknowledgedSequence) && matches;
+  return { ...chapter, ...(pending ? { isRead: head.patch.isRead, lastPageRead: backend.isDemo || options.offline || head.dirtyFields?.includes("lastPageRead") || observation.stale && head.sequence <= head.acknowledgedSequence ? head.patch.lastPageRead : chapter.lastPageRead } : {}), progressEpoch: head?.epoch ?? 0,
     progressBaseline: pending ? head.lastAcknowledged ?? head.baseline : { isRead: chapter.isRead, lastPageRead: chapter.lastPageRead },
   };
 }
@@ -78,8 +80,7 @@ async function sendOperation(backend: ProgressBackend, operation: ProgressOperat
   const head = await getProgressHead(backend, operation.chapter.chapterId);
   const state = { isRead: remote.isRead, lastPageRead: remote.lastPageRead };
   // Exact explicit actions are user intent. Automatic writes pause on competing server edits.
-  if (operation.kind === "reading" && !sameState(state, operation.baseline) && !sameState(state, head?.lastAcknowledged)
-    && !sameState(state, head?.baseline) && !sameState(state, operation.patch)) {
+  if (operation.kind === "reading" && !sameState(state, head?.lastAcknowledged ?? head?.baseline ?? operation.baseline) && !sameState(state, operation.patch)) {
     await markProgressOperation(operation, owner, "blocked", "Reading progress changed on the server. Open this chapter to review it, or use an explicit read/unread action.");
     progressChanged(backend, "error");
     return;

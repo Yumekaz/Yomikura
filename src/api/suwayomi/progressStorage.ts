@@ -29,6 +29,7 @@ export interface ProgressHead {
   activityAt?: number;
   dirtyFields: (keyof ProgressPatch)[];
   lastKind: ProgressIntent["kind"];
+  serverRevision?: number;
 }
 export interface ProgressOperation extends ProgressIntent {
   sequence: number;
@@ -99,6 +100,30 @@ export async function getProgressHeads(backend: ProgressBackend) {
   return transaction(["heads"], "readonly", (tx) => read<ProgressHead[]>(tx.objectStore("heads").index("backend").getAll(backend.key)));
 }
 
+export function progressHeadVersion(head: ProgressHead | undefined) {
+  return head ? `${head.sequence}:${head.acknowledgedSequence}:${head.epoch}:${head.serverRevision ?? 0}` : "none";
+}
+
+/** Only a fresh response with no pending local edits may replace an observed server baseline. */
+export async function observeChapterProgress(backend: ProgressBackend, chapter: ChapterProgressIdentity, state: ProgressIntent["baseline"], expectedVersion?: string) {
+  return transaction(["heads"], "readwrite", async (tx) => {
+    const store = tx.objectStore("heads");
+    const head = await read<ProgressHead | undefined>(store.get(entityKey(backend, chapter.chapterId)));
+    if (expectedVersion !== undefined && progressHeadVersion(head) !== expectedVersion) return { head, stale: true };
+    if (!head || head.sequence > head.acknowledgedSequence) return { head, stale: false };
+    const identityChanged = !chapterIdentityMatches(head.chapter, chapter);
+    const changed = identityChanged || head.patch.isRead !== state.isRead || head.patch.lastPageRead !== state.lastPageRead;
+    if (!changed) return { head, stale: false };
+    const next: ProgressHead = { ...head, chapter, patch: { ...head.patch, ...state }, baseline: state, lastAcknowledged: state,
+      epoch: head.epoch + (identityChanged || head.patch.isRead && !state.isRead ? 1 : 0),
+      serverRevision: (head.serverRevision ?? 0) + 1,
+      ...(identityChanged ? { hasActivity: false, activityAt: undefined, hideHistory: true, dirtyFields: [] } : {}),
+    };
+    store.put(next);
+    return { head: next, stale: false };
+  });
+}
+
 export async function setProgressHistoryHidden(backend: ProgressBackend, chapterId: number) {
   await transaction(["heads"], "readwrite", async (tx) => {
     const store = tx.objectStore("heads");
@@ -131,7 +156,7 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
     const pending = sameChapter && previous.sequence > previous.acknowledgedSequence;
     const baseline = intent.baseline;
     const isRead = intent.kind === "explicit" ? intent.patch.isRead ?? (pending ? previous.patch.isRead : baseline.isRead)
-      : !!intent.patch.isRead || (pending ? previous.patch.isRead : baseline.isRead);
+      : !!intent.patch.isRead || (sameChapter ? previous.patch.isRead : baseline.isRead);
     const patch: ProgressPatch = {
       isRead,
       lastPageRead: Math.max(0, intent.patch.lastPageRead ?? (pending ? previous.patch.lastPageRead : baseline.lastPageRead)),
@@ -144,7 +169,7 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
       if (operation.status !== "sending" && !(intent.kind === "reading" && operation.kind === "explicit")) operations.delete(operation.sequence);
     }
     const createdAt = Date.now();
-    const deleteAfterAck = intent.kind === "reading" && patch.isRead && (intent.deleteAfterAck && !(pending ? previous.patch.isRead : baseline.isRead)
+    const deleteAfterAck = intent.kind === "reading" && patch.isRead && (intent.deleteAfterAck && !(sameChapter ? previous.patch.isRead : baseline.isRead)
       || older.some((item) => item.epoch === epoch && item.deleteAfterAck));
     const fields = [...new Set([...(Object.keys(intent.patch) as (keyof ProgressPatch)[]), ...(pending ? previous.dirtyFields ?? ["isRead", "lastPageRead"] as (keyof ProgressPatch)[] : [])])];
     const operation = { ...intent, backend, entityKey: key, patch, epoch, createdAt, status: "pending", deleteAfterAck, fields };
@@ -160,6 +185,7 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
       activityAt: intent.kind === "reading" ? createdAt : previous?.activityAt,
       dirtyFields: fields,
       lastKind: intent.kind,
+      serverRevision: previous?.serverRevision ?? 0,
     };
     heads.put(head);
     return { head, accepted: true };
@@ -206,6 +232,7 @@ export async function acknowledgeProgress(operation: ProgressOperation, owner: s
     if (operation.sequence > head.acknowledgedSequence) {
       const isLatest = head.sequence === operation.sequence;
       tx.objectStore("heads").put({ ...head, acknowledgedSequence: operation.sequence, lastAcknowledged: acknowledged,
+        serverRevision: (head.serverRevision ?? 0) + 1,
         ...(isLatest ? { patch: acknowledged } : {}),
       });
     }

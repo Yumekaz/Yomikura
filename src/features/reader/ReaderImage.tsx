@@ -12,6 +12,7 @@ interface ReaderImageProps {
   onIntersect?: (pageIndex: number) => void;
   onVisibilityChange?: (pageIndex: number, visible: boolean) => void;
   onReadyChange?: (ready: boolean) => void;
+  onLoadStateChange?: (state: "loading" | "ready" | "error" | "unmounted") => void;
   mode?: "webtoon" | "single";
   fitMode?: FitMode;
   imageFilters?: ImageFilters;
@@ -25,6 +26,7 @@ export function ReaderImage({
   onIntersect,
   onVisibilityChange,
   onReadyChange,
+  onLoadStateChange,
   mode = "webtoon",
   fitMode = "FIT_SCREEN",
   imageFilters: imageFiltersProp,
@@ -37,8 +39,8 @@ export function ReaderImage({
   const [usingFallback, setUsingFallback] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const retryTimer = useRef<ReturnType<typeof setTimeout>>();
-  const callbacks = useRef({ onIntersect, onVisibilityChange, onReadyChange });
-  callbacks.current = { onIntersect, onVisibilityChange, onReadyChange };
+  const callbacks = useRef({ onIntersect, onVisibilityChange, onReadyChange, onLoadStateChange });
+  callbacks.current = { onIntersect, onVisibilityChange, onReadyChange, onLoadStateChange };
 
   const { imageFilters: storeFilters, cropBorders: storeCrop } = useSettingsStore();
   const imageFilters = imageFiltersProp ?? storeFilters;
@@ -62,6 +64,12 @@ export function ReaderImage({
     publish?.(loaded);
     return () => publish?.(false);
   }, [loaded, imageUrl]);
+
+  useEffect(() => {
+    const publish = callbacks.current.onLoadStateChange;
+    publish?.(error ? "error" : loaded ? "ready" : "loading");
+    return () => publish?.("unmounted");
+  }, [loaded, error, imageUrl]);
 
   useEffect(() => {
     if (!observesVisibility) return;

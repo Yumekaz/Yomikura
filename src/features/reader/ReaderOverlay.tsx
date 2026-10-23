@@ -29,6 +29,7 @@ interface ReaderOverlayProps {
   onToggleOverride: () => void;
   buildPageUrl: (pageIndex: number) => string;
   onJumpToPage: (pageIndex: number) => void;
+  onHeaderRef?: (element: HTMLDivElement | null) => void;
   isAutoScrolling: boolean;
   onToggleAutoScroll: () => void;
 }
@@ -52,6 +53,7 @@ export function ReaderOverlay({
   onToggleOverride,
   buildPageUrl,
   onJumpToPage,
+  onHeaderRef,
   isAutoScrolling,
   onToggleAutoScroll,
 }: ReaderOverlayProps) {
@@ -75,7 +77,7 @@ export function ReaderOverlay({
   return (
     <div className="fixed inset-0 z-50 pointer-events-none flex flex-col justify-between select-none">
       {/* Top Nav */}
-      <div className="yomi-reader-top pointer-events-auto flex items-center justify-between px-4 py-3">
+      <div ref={onHeaderRef} className="yomi-reader-top pointer-events-auto flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-4">
           <Link
             to={mangaId ? `/manga/${mangaId}` : "/library"}
