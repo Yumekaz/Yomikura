@@ -87,6 +87,9 @@ importers:
       autoprefixer:
         specifier: ^10.4.20
         version: 10.5.0(postcss@8.5.14)
+      fake-indexeddb:
+        specifier: 6.2.6
+        version: 6.2.6
       happy-dom:
         specifier: ^21.0.3
         version: 21.0.3
@@ -110,6 +113,10 @@ importers:
         version: 5.0.0(@types/node@25.8.0)(happy-dom@21.0.3)(vite@6.4.2(@types/node@25.8.0)(jiti@1.21.7)(yaml@2.9.0))
 
 packages:
+
+  fake-indexeddb@6.2.6:
+    resolution: {integrity: sha512-ihhmr0KoET51jT8R4YhbUYuLLvr1qqO6INISygtN16i8loR8kAxtAUr4+EKHTSMjL+lggaAn4OC7DRqzrNgnuQ==}
+    engines: {node: '>=18'}
 
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
@@ -2331,6 +2338,8 @@ packages:
         optional: true
 
 snapshots:
+
+  fake-indexeddb@6.2.6: {}
 
   '@alloc/quick-lru@5.2.0': {}
 

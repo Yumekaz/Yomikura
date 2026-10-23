@@ -11,7 +11,9 @@ import { LibraryGrid, LibraryManga } from "./LibraryGrid";
 import { CategoryDialog } from "./CategoryDialog";
 import { BulkCategoryModal } from "../../components/library/BulkCategoryModal";
 import { LibraryList } from "./LibraryList";
-import { applyCachedChapterReadPatch, invalidateChapterState } from "../../api/suwayomi/chapterState";
+import { invalidateChapterState } from "../../api/suwayomi/chapterState";
+import { progressBackend } from "../../api/suwayomi/backendIdentity";
+import { writeChapterProgress } from "../../api/suwayomi/progressSync";
 
 export default function LibraryPage() {
   const { serverBaseUrl, setServerBaseUrl, testConnection, mockMode, libraryViewMode, setLibraryViewMode, librarySortMode, setLibrarySortMode, librarySortDescending, setLibrarySortDescending } = useSettingsStore();
@@ -214,6 +216,7 @@ export default function LibraryPage() {
   };
 
   const bulkMarkReadStatus = async (isRead: boolean) => {
+    const backend = progressBackend(serverBaseUrl, mockMode);
     const idArray = Array.from(selectedMangaIds);
     handleClearSelection();
     
@@ -226,13 +229,7 @@ export default function LibraryPage() {
         await Promise.all(
           targetChapters.map(async (ch) => {
             const patch = { isRead, lastPageRead: isRead ? Math.max(0, (ch.pageCount || 1) - 1) : 0 };
-            await sdk.UpdateChapterProgress({
-              input: {
-                id: parseInt(String(ch.id)),
-                patch,
-              }
-            });
-            await applyCachedChapterReadPatch(serverBaseUrl, Number(ch.id), patch);
+              await writeChapterProgress(backend, Number(ch.id), patch);
           })
         );
       } catch (err) {

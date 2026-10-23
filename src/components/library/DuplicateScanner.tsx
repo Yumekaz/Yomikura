@@ -5,6 +5,8 @@ import { createGraphqlClient } from "../../api/graphql/client";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useFeedback } from "../ui/FeedbackProvider";
 import { invalidateChapterState } from "../../api/suwayomi/chapterState";
+import { progressBackend } from "../../api/suwayomi/backendIdentity";
+import { writeChapterProgress } from "../../api/suwayomi/progressSync";
 
 export function DuplicateScanner() {
   const { confirm } = useFeedback();
@@ -50,6 +52,7 @@ export function DuplicateScanner() {
   // Mutation to merge progress and keep one target
   const { mutate: mergeDuplicates } = useMutation({
     mutationFn: async ({ keepId, removeId }: { keepId: number; removeId: number }) => {
+      const backend = progressBackend(serverBaseUrl, useSettingsStore.getState().mockMode);
       setMergeStatus("merging");
 
       // 1. Fetch chapter states for both
@@ -72,15 +75,10 @@ export function DuplicateScanner() {
 
         if (match && !match.isRead) {
           progressPromises.push(
-            sdk.UpdateChapterProgress({
-              input: {
-                id: parseInt(String(match.id)),
-                patch: {
+            writeChapterProgress(backend, Number(match.id), {
                   isRead: true,
                   lastPageRead: remCh.lastPageRead ?? 999
-                }
-              }
-            })
+                }, { requireAcknowledgment: true })
           );
         }
       }

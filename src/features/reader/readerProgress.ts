@@ -5,6 +5,9 @@ export interface ProgressChapter {
   mangaId: number;
   pages: string[];
   isRead?: boolean;
+  sourceOrder?: number;
+  progressEpoch?: number;
+  progressBaseline?: { isRead: boolean; lastPageRead: number };
 }
 
 export interface ProgressSnapshot {
@@ -16,6 +19,9 @@ export interface ProgressSnapshot {
   pageIndex: number;
   pageCount: number;
   wasRead: boolean;
+  sourceOrder?: number;
+  progressEpoch: number;
+  baseline: { isRead: boolean; lastPageRead: number };
 }
 
 export function createProgressSnapshot(
@@ -32,5 +38,8 @@ export function createProgressSnapshot(
     pageIndex: Math.max(0, Math.min(pageIndex, Math.max(0, chapter.pages.length - 1))),
     pageCount: chapter.pages.length,
     wasRead: chapter.isRead === true,
+    sourceOrder: chapter.sourceOrder,
+    progressEpoch: chapter.progressEpoch ?? 0,
+    baseline: chapter.progressBaseline ?? { isRead: chapter.isRead === true, lastPageRead: 0 },
   };
 }

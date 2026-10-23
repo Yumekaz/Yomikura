@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowLeft, ChevronLeft, ChevronRight, Sliders, Settings, Play, Pause, Eye, BookOpen, RefreshCw } from "lucide-react";
 import { FitMode, PageSpread, ReaderMode, useSettingsStore } from "../../stores/useSettingsStore";
 import { useReaderImageSource } from "./useReaderImageSource";
+import { ProgressSyncStatus } from "../../components/ProgressSyncStatus";
 
 function ReaderThumbnail({ url, number }: { url: string; number: number }) {
   const { url: resolvedUrl } = useReaderImageSource(url);
@@ -75,6 +76,7 @@ export function ReaderOverlay({
     <div className="fixed inset-0 z-50 pointer-events-none flex flex-col justify-between select-none">
       {/* Top Nav */}
       <div className="yomi-reader-top pointer-events-auto flex items-center justify-between px-4 py-3">
+        <ProgressSyncStatus />
         <div className="flex items-center gap-4">
           <Link
             to={mangaId ? `/manga/${mangaId}` : "/library"}

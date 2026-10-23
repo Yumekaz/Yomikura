@@ -6,7 +6,9 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { FetchSourceMangaType } from "../../api/graphql/generated/graphql";
 import { classifySourceProblem } from "../../api/suwayomi/errors";
 import { buildChapterMigrationPlan, runWithConcurrency } from "./chapterMigration";
-import { applyCachedChapterReadPatch, invalidateChapterState } from "../../api/suwayomi/chapterState";
+import { invalidateChapterState } from "../../api/suwayomi/chapterState";
+import { progressBackend } from "../../api/suwayomi/backendIdentity";
+import { writeChapterProgress } from "../../api/suwayomi/progressSync";
 
 interface SourceMigrationModalProps {
   isOpen: boolean;
@@ -72,6 +74,7 @@ export function SourceMigrationModal({
   // Mutation: Execute migration
   const { mutate: executeMigration, isPending: migrating } = useMutation({
     mutationFn: async (targetId: number) => {
+      const backend = progressBackend(serverBaseUrl, useSettingsStore.getState().mockMode);
       setMigrationStatus("migrating");
       
       // Keep the original title until every copy operation has succeeded.
@@ -90,8 +93,7 @@ export function SourceMigrationModal({
       const targetChapters = targetDetails.manga.chapters.edges.map((edge) => edge.node);
       const plan = buildChapterMigrationPlan(sourceChapters, targetChapters);
       await runWithConcurrency(plan, async (entry) => {
-        await sdk.UpdateChapterProgress({ input: { id: entry.targetId, patch: entry.patch } });
-        await applyCachedChapterReadPatch(serverBaseUrl, entry.targetId, entry.patch);
+        await writeChapterProgress(backend, entry.targetId, entry.patch, { requireAcknowledgment: true });
       });
 
       const sourceCategoryIds = sourceDetails.manga.categories.edges.map((edge) => edge.node.id);

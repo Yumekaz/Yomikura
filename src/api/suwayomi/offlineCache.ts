@@ -57,7 +57,9 @@ const HISTORY_STORE_NAME = "reading-history";
 const DOWNLOAD_JOB_STORE_NAME = "download-jobs";
 
 export function normalizeCacheServerUrl(serverBaseUrl: string): string {
-  return serverBaseUrl.trim().replace(/\/+$/, "");
+  const trimmed = serverBaseUrl.trim().replace(/\/+$/, "");
+  try { return new URL(trimmed).toString().replace(/\/+$/, ""); }
+  catch { return trimmed; }
 }
 
 export function getChapterCacheKey(serverBaseUrl: string, chapterId: number): string {
@@ -119,7 +121,7 @@ export async function getDownloadJobs(serverBaseUrl?: string): Promise<DownloadJ
     request.onsuccess = () => {
       const normalizedServer = serverBaseUrl ? normalizeCacheServerUrl(serverBaseUrl) : undefined;
       resolve(((request.result || []) as DownloadJob[])
-        .filter((job) => !normalizedServer || job.serverBaseUrl === normalizedServer)
+        .filter((job) => !normalizedServer || normalizeCacheServerUrl(job.serverBaseUrl) === normalizedServer)
         .sort((a, b) => a.updatedAt - b.updatedAt));
     };
   });
@@ -174,7 +176,7 @@ export async function getReadingHistory(serverBaseUrl?: string): Promise<Reading
         const normalizedServer = serverBaseUrl ? normalizeCacheServerUrl(serverBaseUrl) : undefined;
         resolve(
           events
-            .filter((event) => !normalizedServer || event.serverBaseUrl === normalizedServer)
+            .filter((event) => !normalizedServer || normalizeCacheServerUrl(event.serverBaseUrl) === normalizedServer)
             .sort((a, b) => b.readAt - a.readAt)
         );
       };
@@ -215,7 +217,13 @@ export async function getCachedChapter(serverBaseUrl: string, id: number): Promi
       const store = transaction.objectStore(STORE_NAME);
       const request = store.get(getChapterCacheKey(serverBaseUrl, id));
       request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result || null);
+      request.onsuccess = () => {
+        if (request.result) return resolve(request.result);
+        // Preserve v4 keys written before endpoint canonicalization; do not merge different hosts.
+        const legacy = store.getAll();
+        legacy.onerror = () => reject(legacy.error);
+        legacy.onsuccess = () => resolve((legacy.result as CachedChapter[]).find((chapter) => chapter.id === id && normalizeCacheServerUrl(chapter.serverBaseUrl) === normalizeCacheServerUrl(serverBaseUrl)) ?? null);
+      };
     });
   } catch (error) {
     console.error("IndexedDB error in getCachedChapter:", error);
@@ -238,7 +246,7 @@ export async function getCachedChapters(serverBaseUrl?: string): Promise<CachedC
           return;
         }
         const normalizedServer = normalizeCacheServerUrl(serverBaseUrl);
-        resolve(chapters.filter((chapter) => chapter.serverBaseUrl === normalizedServer));
+        resolve(chapters.filter((chapter) => normalizeCacheServerUrl(chapter.serverBaseUrl) === normalizedServer));
       };
     });
   } catch (error) {

@@ -8,7 +8,9 @@ import { getErrorMessage } from "../../api/suwayomi/errors";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { getReadingHistory, hideReadingHistoryItem } from "../../api/suwayomi/offlineCache";
 import { ChapterOrderBy, SortOrder } from "../../api/graphql/generated/graphql";
-import { applyCachedChapterReadPatch, invalidateChapterState } from "../../api/suwayomi/chapterState";
+import { invalidateChapterState } from "../../api/suwayomi/chapterState";
+import { progressBackend } from "../../api/suwayomi/backendIdentity";
+import { readProgressHistory, writeChapterProgress } from "../../api/suwayomi/progressSync";
 
 interface HistoryItem {
   id: string;
@@ -83,7 +85,7 @@ export default function HistoryPage() {
 
   const localHistory = useQuery({
     queryKey: ["history", "local", serverBaseUrl],
-    queryFn: () => getReadingHistory(serverBaseUrl),
+    queryFn: () => readProgressHistory(progressBackend(serverBaseUrl, mockMode)),
     enabled: !!serverBaseUrl,
   });
 
@@ -148,13 +150,9 @@ export default function HistoryPage() {
 
   const resetProgress = useMutation({
     mutationFn: async (item: HistoryItem) => {
-      await hideReadingHistoryItem({
-        chapterId: Number(item.id), chapterName: item.name, chapterNumber: item.chapterNumber,
-        mangaId: item.mangaId, mangaTitle: item.manga.title, thumbnailUrl: item.manga.thumbnailUrl,
-        lastPageRead: 0, pageCount: item.pageCount ?? 0, isRead: false, isDemo: mockMode,
-      }, serverBaseUrl);
-      await sdk.UpdateChapterProgress({ input: { id: Number(item.id), patch: { lastPageRead: 0, isRead: false } } }).catch(() => null);
-      await applyCachedChapterReadPatch(serverBaseUrl, Number(item.id), { lastPageRead: 0, isRead: false });
+      await writeChapterProgress(progressBackend(serverBaseUrl, mockMode), Number(item.id), { lastPageRead: 0, isRead: false }, { hideHistory: true,
+        fallback: { chapterId: Number(item.id), chapterName: item.name, chapterNumber: item.chapterNumber, mangaId: item.mangaId, mangaTitle: item.manga.title, pageCount: item.pageCount ?? 0 },
+      });
     },
     onSuccess: () => {
       void invalidateChapterState(queryClient);

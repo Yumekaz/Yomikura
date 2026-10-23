@@ -7,9 +7,9 @@ import { mockSdk } from "./mockSdk";
 type ClientOptions = ConstructorParameters<typeof GraphQLClient>[1];
 
 // This is an unauthenticated client since Suwayomi typically relies on network access/CORS configuration
-export function createGraphqlClient(endpoint: string, options?: ClientOptions) {
+export function createGraphqlClient(endpoint: string, options?: ClientOptions, mode?: "live" | "demo") {
   try {
-    const isMockMode = useSettingsStore.getState().mockMode;
+    const isMockMode = mode ? mode === "demo" : useSettingsStore.getState().mockMode;
     if (isMockMode) {
       return mockSdk;
     }

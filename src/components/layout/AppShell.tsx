@@ -12,6 +12,8 @@ import { useDeviceProfileBootstrap } from "../../hooks/useDeviceProfile";
 import { useScheduledBackup } from "../../hooks/useScheduledBackup";
 import { useScheduledLibraryUpdate } from "../../hooks/useScheduledLibraryUpdate";
 import { getCachedChapters } from "../../api/suwayomi/offlineCache";
+import { useProgressSynchronization } from "../../hooks/useProgressSynchronization";
+import { ProgressSyncStatus } from "../ProgressSyncStatus";
 
 function ProfileSwitcher() {
   const { profiles, activeProfileId, setActiveProfileId } = useSettingsStore();
@@ -102,6 +104,7 @@ function AppShell() {
   useDeviceProfileBootstrap();
   useScheduledBackup();
   useScheduledLibraryUpdate();
+  useProgressSynchronization();
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -220,7 +223,7 @@ function AppShell() {
   }
 
   if (location.pathname.startsWith("/reader/")) {
-    return <main id="main-content" className="min-h-screen bg-black" tabIndex={-1}><ErrorBoundary><Outlet /></ErrorBoundary></main>;
+    return <main id="main-content" className="min-h-screen bg-black" tabIndex={-1}><ErrorBoundary key={`${serverBaseUrl}::${mockMode}`}><Outlet /></ErrorBoundary></main>;
   }
 
   return (
@@ -229,6 +232,7 @@ function AppShell() {
       <aside className="yomi-sidebar">
         <BrandLockup />
         <BackendHealthBadge />
+        <ProgressSyncStatus />
         
         {/* Profile Switcher */}
         <div className="mt-5 px-1">
@@ -269,7 +273,7 @@ function AppShell() {
             <span>Suwayomi server is offline. Yomikura is running in offline mode.</span>
           </div>
         )}
-        <ErrorBoundary>
+        <ErrorBoundary key={`${serverBaseUrl}::${mockMode}`}>
           <Outlet />
         </ErrorBoundary>
       </main>

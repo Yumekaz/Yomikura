@@ -7,7 +7,9 @@ import { isTauri, useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { formatChapterDate } from "./chapterDate";
-import { applyCachedChapterReadPatch, invalidateChapterState } from "../../api/suwayomi/chapterState";
+import { invalidateChapterState } from "../../api/suwayomi/chapterState";
+import { progressBackend } from "../../api/suwayomi/backendIdentity";
+import { writeChapterProgress } from "../../api/suwayomi/progressSync";
 
 export interface Chapter {
   id: string | number;
@@ -23,11 +25,12 @@ export interface Chapter {
 interface ChapterListProps {
   chapters: Chapter[];
   mangaTitle?: string;
+  mangaId?: number;
 }
 
 type ChapterFilter = "all" | "unread" | "bookmarked" | "downloaded";
 
-export function ChapterList({ chapters, mangaTitle }: ChapterListProps) {
+export function ChapterList({ chapters, mangaTitle, mangaId }: ChapterListProps) {
   const { confirm, notify } = useFeedback();
   const queryClient = useQueryClient();
   const { serverBaseUrl, mockMode } = useSettingsStore();
@@ -70,13 +73,18 @@ export function ChapterList({ chapters, mangaTitle }: ChapterListProps) {
     if (!selected.size) return;
     setBulkBusy(true);
     try {
+      let pending = 0;
+      const backend = progressBackend(serverBaseUrl, mockMode);
       await Promise.all([...selected].map(async (id) => {
-        await sdk.UpdateChapterProgress({ input: { id, patch } });
-        await applyCachedChapterReadPatch(serverBaseUrl, id, patch);
+        if (patch.isRead !== undefined || patch.lastPageRead !== undefined) {
+          const chapter = chapters.find((item) => Number(item.id) === id);
+          const result = await writeChapterProgress(backend, id, patch, { fallback: chapter && mangaId !== undefined && mangaTitle ? { chapterId: id, chapterName: chapter.name, chapterNumber: chapter.chapterNumber, mangaId, mangaTitle, pageCount: 0 } : undefined });
+          if (!result.acknowledged) pending += 1;
+        } else await sdk.UpdateChapterProgress({ input: { id, patch } });
       }));
       setSelected(new Set());
       await invalidateChapterState(queryClient);
-      notify(`${selected.size} chapters updated.`, "success");
+      notify(pending ? `${selected.size} chapters saved on this device; ${pending} waiting to synchronize.` : `${selected.size} chapters updated.`, pending ? "info" : "success");
     } catch (error: any) {
       await invalidateChapterState(queryClient);
       notify(error?.message || "Chapter update failed.", "error");

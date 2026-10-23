@@ -293,7 +293,8 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       testConnection: async () => {
-        const { serverBaseUrl } = get();
+        const { serverBaseUrl, mockMode: requestedMockMode } = get();
+        const stillCurrent = () => get().serverBaseUrl === serverBaseUrl && get().mockMode === requestedMockMode;
         if (!serverBaseUrl) {
           set({ connectionStatus: "error", errorMessage: "Server URL cannot be empty." });
           return false;
@@ -303,6 +304,7 @@ export const useSettingsStore = create<SettingsState>()(
 
         try {
           const success = await testServerConnection(serverBaseUrl);
+          if (!stillCurrent()) return false;
           if (success) {
             set({ connectionStatus: "connected", errorMessage: "", mockMode: false });
             return true;
@@ -313,6 +315,7 @@ export const useSettingsStore = create<SettingsState>()(
           });
           return false;
         } catch (error: any) {
+          if (!stillCurrent()) return false;
           set({ connectionStatus: "error", errorMessage: error.message || "Connection failed" });
           return false;
         }

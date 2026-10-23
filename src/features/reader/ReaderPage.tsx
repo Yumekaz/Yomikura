@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useSettingsStore, FitMode, PageSpread, ReaderMode } from "../../stores/useSettingsStore";
 import { useDownloadStore } from "../../stores/useDownloadStore";
@@ -12,12 +12,11 @@ import { useTranslation } from "../../hooks/useTranslation";
 import { ReaderImage } from "./ReaderImage";
 import { ReaderOverlay } from "./ReaderOverlay";
 import { createProgressSnapshot, type ProgressSnapshot } from "./readerProgress";
-import { invalidateChapterState } from "../../api/suwayomi/chapterState";
+import { progressBackend, type ProgressBackend } from "../../api/suwayomi/backendIdentity";
+import { projectChapterProgress, saveProgressIntent } from "../../api/suwayomi/progressSync";
 import { 
   getCachedChapter, 
   getCachedChaptersForManga, 
-  recordReadingActivity,
-  updateCachedChapterProgress 
 } from "../../api/suwayomi/offlineCache";
 
 interface WebtoonPageWrapperProps {
@@ -94,7 +93,6 @@ function WebtoonPageWrapper({ pageIndex, children }: WebtoonPageWrapperProps) {
 export default function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { t } = useTranslation();
   
   // Settings store global values & setters
@@ -121,14 +119,15 @@ export default function ReaderPage() {
     readerNavigationMode,
   } = useSettingsStore();
 
-  const { downloadChapter, deleteChapter, cachedChapters } = useDownloadStore();
+  const { downloadChapter, cachedChapters } = useDownloadStore();
 
   const [showOverlay, setShowOverlay] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isAutoScrolling, setIsAutoScrolling] = useState(false);
   const lastSavedPagesRef = useRef(new Map<number, number>());
-  const debouncedUpdatesRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  const [progressSaveError, setProgressSaveError] = useState("");
+  const failedProgressRef = useRef<{ backend: ProgressBackend; progress: ProgressSnapshot } | null>(null);
   const scrollRef = useRef<number | null>(null);
   const autoScrollEndTriggered = useRef(false);
   const bingeLoadingRef = useRef(false);
@@ -141,15 +140,15 @@ export default function ReaderPage() {
     sourceOrder: number;
     pages: string[];
     isRead: boolean;
+    progressEpoch: number;
+    progressBaseline: { isRead: boolean; lastPageRead: number };
   };
   const readyPagesRef = useRef(new Set<string>());
   const visiblePagesRef = useRef(new Map<string, { chapter: StreamChapter; pageIndex: number }>());
-  const completedChaptersRef = useRef(new Set<string>());
   const [readyPageVersion, setReadyPageVersion] = useState(0);
   const pageIdentity = useCallback((id: number, index: number) => `${serverBaseUrl}::${id}::${index}`, [serverBaseUrl]);
-  const streamChaptersRef = useRef<StreamChapter[]>([]);
-  const mangaTitleRef = useRef("Unknown Manga");
   const [streamChapters, setStreamChapters] = useState<StreamChapter[]>([]);
+  const progressTarget = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
 
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
@@ -161,14 +160,15 @@ export default function ReaderPage() {
     queryKey: ["chapter", chapterId, serverBaseUrl],
     queryFn: async () => {
       try {
-        return await sdk.GetChapter({ id: parseInt(chapterId!) });
+        const result = await sdk.GetChapter({ id: parseInt(chapterId!) });
+        return { ...result, chapter: await projectChapterProgress(progressTarget, result.chapter) };
       } catch (err) {
         console.warn("Failed to fetch chapter from server, checking offline cache...", err);
         const cached = await getCachedChapter(serverBaseUrl, parseInt(chapterId!));
         if (cached) {
           const allCached = await getCachedChaptersForManga(serverBaseUrl, cached.mangaId);
           return {
-            chapter: {
+            chapter: await projectChapterProgress(progressTarget, {
               id: cached.id,
               name: cached.name,
               chapterNumber: cached.chapterNumber,
@@ -188,7 +188,7 @@ export default function ReaderPage() {
                   }))
                 }
               }
-            }
+            })
           };
         }
         throw err;
@@ -287,74 +287,33 @@ export default function ReaderPage() {
     }
   });
 
-  // Update progress mutation
-  const { mutate: updateProgress } = useMutation({
-    mutationFn: async (progress: ProgressSnapshot) => {
-      const completionKey = `${serverBaseUrl}::${progress.chapterId}`;
-      const wasRead = progress.wasRead || completedChaptersRef.current.has(completionKey);
+  const updateProgress = useCallback(async (backend: ProgressBackend, progress: ProgressSnapshot) => {
+    try {
       const atEnd = progress.pageCount > 0 && progress.pageIndex >= progress.pageCount - 1;
-      const isRead = wasRead || atEnd;
-      const justCompleted = !wasRead && atEnd;
-      if (isRead) completedChaptersRef.current.add(completionKey);
-
-      await recordReadingActivity(serverBaseUrl, {
-        chapterId: progress.chapterId,
-        chapterName: progress.chapterName,
-        chapterNumber: progress.chapterNumber,
-        mangaId: progress.mangaId,
-        mangaTitle: progress.mangaTitle,
-        lastPageRead: progress.pageIndex,
-        pageCount: progress.pageCount,
-        isRead,
-        isDemo: mockMode,
+      const result = await saveProgressIntent(backend, {
+        kind: "reading", chapter: { chapterId: progress.chapterId, chapterName: progress.chapterName, chapterNumber: progress.chapterNumber, mangaId: progress.mangaId, mangaTitle: progress.mangaTitle, pageCount: progress.pageCount, sourceOrder: progress.sourceOrder },
+        epoch: progress.progressEpoch, baseline: progress.baseline,
+        patch: { lastPageRead: progress.pageIndex, isRead: progress.wasRead || atEnd },
+        deleteAfterAck: autoDeleteReadChapters && atEnd,
       });
-
-      try {
-        await updateCachedChapterProgress(serverBaseUrl, progress.chapterId, progress.pageIndex, isRead);
-      } catch (err) {
-        console.error("Failed to update offline progress cache:", err);
+      if (!result.accepted) {
+        setProgressSaveError("Progress was reset in another view. Reopen this chapter to begin a new reading session.");
+        return;
       }
-
-      try {
-        const result = await sdk.UpdateChapterProgress({ 
-          input: { 
-            id: progress.chapterId,
-            patch: { 
-              lastPageRead: progress.pageIndex,
-              isRead 
-            } 
-          } 
-        });
-
-        if (justCompleted && autoDeleteReadChapters) {
-          try {
-            await sdk.DeleteDownloadedChapter({
-              input: {
-                id: progress.chapterId
-              }
-            });
-            await deleteChapter(progress.chapterId);
-          } catch (deleteErr) {
-            console.error("Failed to auto-delete read downloaded chapter:", deleteErr);
-          }
-        }
-
-        return result;
-      } catch (err) {
-        console.warn("Failed to update progress on server (saved locally):", err);
-        return null;
-      }
-    },
-    onSuccess: () => invalidateChapterState(queryClient),
-  });
+      failedProgressRef.current = null;
+      setProgressSaveError("");
+    } catch {
+      failedProgressRef.current = { backend, progress };
+      lastSavedPagesRef.current.delete(progress.chapterId);
+      setProgressSaveError("Reading progress could not be saved on this device. Check storage and retry before closing the reader.");
+    }
+  }, [autoDeleteReadChapters]);
 
   useEffect(() => {
     if (chapterId && serverBaseUrl) {
       setCurrentPage(0);
       setIsAutoScrolling(false);
       autoScrollEndTriggered.current = false;
-      for (const timer of debouncedUpdatesRef.current.values()) clearTimeout(timer);
-      debouncedUpdatesRef.current.clear();
       lastSavedPagesRef.current.clear();
       fetchPages();
     }
@@ -387,6 +346,8 @@ export default function ReaderPage() {
         sourceOrder: chapter.sourceOrder,
         pages,
         isRead: chapter.isRead,
+        progressEpoch: chapter.progressEpoch,
+        progressBaseline: chapter.progressBaseline,
       },
     ]);
     autoScrollEndTriggered.current = false;
@@ -457,6 +418,7 @@ export default function ReaderPage() {
       const pgRes = await sdk.FetchChapterPages({ input: { chapterId: nextId } });
       const newPages = pgRes.fetchChapterPages?.pages || [];
       if (newPages.length === 0) return;
+      const restoredChapter = await projectChapterProgress(progressTarget, chRes.chapter);
 
       setStreamChapters((prev) => [
         ...prev,
@@ -467,7 +429,9 @@ export default function ReaderPage() {
           mangaId: chRes.chapter.mangaId,
           sourceOrder: chRes.chapter.sourceOrder,
           pages: newPages,
-          isRead: chRes.chapter.isRead,
+          isRead: restoredChapter.isRead,
+          progressEpoch: restoredChapter.progressEpoch,
+          progressBaseline: restoredChapter.progressBaseline,
         },
       ]);
       autoScrollEndTriggered.current = false;
@@ -476,24 +440,17 @@ export default function ReaderPage() {
     } finally {
       bingeLoadingRef.current = false;
     }
-  }, [streamChapters, getNextSiblingId, sdk]);
+  }, [streamChapters, getNextSiblingId, sdk, progressTarget]);
 
-  // Debounced progress saver
+  // Commit immediately. Only network synchronization is debounced by the app shell.
   const saveProgress = useCallback((streamChapter: StreamChapter, pageIndex: number) => {
     if (!readyPagesRef.current.has(pageIdentity(streamChapter.id, pageIndex))) return;
     if (lastSavedPagesRef.current.get(streamChapter.id) === pageIndex) return;
     lastSavedPagesRef.current.set(streamChapter.id, pageIndex);
 
-    const existingTimer = debouncedUpdatesRef.current.get(streamChapter.id);
-    if (existingTimer) clearTimeout(existingTimer);
-
     const progress = createProgressSnapshot(streamChapter, chapter?.manga?.title || "Unknown Manga", pageIndex);
-    const timer = setTimeout(() => {
-      debouncedUpdatesRef.current.delete(streamChapter.id);
-      updateProgress(progress);
-    }, 750);
-    debouncedUpdatesRef.current.set(streamChapter.id, timer);
-  }, [chapter?.manga?.title, updateProgress, pageIdentity]);
+    void updateProgress(progressTarget, progress);
+  }, [chapter?.manga?.title, updateProgress, pageIdentity, progressTarget]);
 
   const handlePageReady = useCallback((owner: StreamChapter, index: number, ready: boolean) => {
     const key = pageIdentity(owner.id, index);
@@ -503,26 +460,6 @@ export default function ReaderPage() {
     const visible = visiblePagesRef.current.get(key);
     if (ready && readerMode === "WEBTOON" && visible) saveProgress(visible.chapter, visible.pageIndex);
   }, [pageIdentity, readerMode, saveProgress]);
-
-  useEffect(() => {
-    streamChaptersRef.current = streamChapters;
-    mangaTitleRef.current = chapter?.manga?.title || "Unknown Manga";
-  }, [chapter?.manga?.title, streamChapters]);
-
-  // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
-      for (const [streamChapterId, timer] of debouncedUpdatesRef.current) {
-        clearTimeout(timer);
-        const streamChapter = streamChaptersRef.current.find((item) => item.id === streamChapterId);
-        const pageIndex = lastSavedPagesRef.current.get(streamChapterId);
-        if (streamChapter && pageIndex !== undefined) {
-          updateProgress(createProgressSnapshot(streamChapter, mangaTitleRef.current, pageIndex));
-        }
-      }
-      debouncedUpdatesRef.current.clear();
-    };
-  }, [updateProgress]);
 
   const handleIntersect = useCallback((streamChapter: StreamChapter, pageIndex: number, visible: boolean) => {
     const key = pageIdentity(streamChapter.id, pageIndex);
@@ -911,6 +848,14 @@ export default function ReaderPage() {
 
   return (
     <div className="min-h-screen bg-black">
+      {progressSaveError && <div role="alert" className="fixed left-4 top-20 z-[60] max-w-md rounded-lg border border-red-400/30 bg-ink-950 p-3 text-sm text-slate-200">
+        <p>{progressSaveError}</p>
+        <button type="button" className="mt-2 text-yomi-jade underline" onClick={() => {
+          const failed = failedProgressRef.current;
+          if (failed) void updateProgress(failed.backend, failed.progress);
+          else window.location.reload();
+        }}>{failedProgressRef.current ? "Retry saving progress" : "Reopen chapter"}</button>
+      </div>}
       <ReaderOverlay
         show={showOverlay}
         mangaId={chapter.mangaId}
