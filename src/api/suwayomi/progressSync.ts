@@ -192,6 +192,7 @@ export async function resolveProgressConflict(backend: ProgressBackend, chapterI
   const baseline = { isRead: remote.isRead, lastPageRead: remote.lastPageRead };
   const saved = await saveProgressIntent(backend, { kind: "explicit", chapter: progressChapterIdentity(remote), baseline, expectedSequence: head.sequence,
     patch: useSaved ? head.patch : baseline, hideHistory: useSaved && head.hideHistory,
+    trackCompletion: useSaved && head.lastKind === "reading" && head.patch.isRead && !head.baseline.isRead,
   });
   if (!saved.accepted) throw new Error("Progress changed while you were reviewing it. Review the current change and try again.");
   await synchronizeProgress(backend);

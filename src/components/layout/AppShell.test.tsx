@@ -7,6 +7,7 @@ import { getCachedChapters, type CachedChapter } from "../../api/suwayomi/offlin
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { render, waitForRender } from "../../test/render";
 import AppShell from "./AppShell";
+import { FeedbackProvider } from "../ui/FeedbackProvider";
 
 vi.mock("../../api/suwayomi/offlineCache", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../api/suwayomi/offlineCache")>(),
@@ -30,6 +31,7 @@ let client: QueryClient;
 async function open(path: string) {
   view = await render(
     <QueryClientProvider client={client}>
+      <FeedbackProvider>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route element={<AppShell />}>
@@ -37,6 +39,7 @@ async function open(path: string) {
           </Route>
         </Routes>
       </MemoryRouter>
+      </FeedbackProvider>
     </QueryClientProvider>,
   );
 }

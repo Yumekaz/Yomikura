@@ -368,7 +368,7 @@ export default function MangaDetailPage() {
         </div>
 
         {/* Tracker Syncing Panel */}
-        <TrackerPanel mangaId={manga.id} />
+      <TrackerPanel mangaId={manga.id} mangaTitle={manga.title} />
       </div>
 
       {/* Categories Selection Modal */}

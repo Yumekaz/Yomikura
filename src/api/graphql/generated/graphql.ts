@@ -3742,6 +3742,15 @@ export type BackupRestoreState =
   | 'RESTORING_SETTINGS'
   | 'SUCCESS';
 
+export type BindTrackInput = {
+  clientMutationId?: string | null | undefined;
+  mangaId: number;
+  /** This will only work if the tracker of the track record supports private tracking */
+  private?: boolean | null | undefined;
+  remoteId: unknown;
+  trackerId: number;
+};
+
 export type BooleanFilterInput = {
   distinctFrom?: boolean | null | undefined;
   distinctFromAll?: Array<boolean> | null | undefined;
@@ -3894,6 +3903,11 @@ export type FetchSourceMangaType =
   | 'POPULAR'
   | 'SEARCH';
 
+export type FetchTrackInput = {
+  clientMutationId?: string | null | undefined;
+  recordId: number;
+};
+
 export type FilterChangeInput = {
   checkBoxState?: boolean | null | undefined;
   groupChange?: FilterChangeInput | null | undefined;
@@ -4019,6 +4033,11 @@ export type RestoreBackupInput = {
   backup: unknown;
   clientMutationId?: string | null | undefined;
   flags?: PartialBackupFlagsInput | null | undefined;
+};
+
+export type SearchTrackerInput = {
+  query: string;
+  trackerId: number;
 };
 
 export type SortOrder =
@@ -4534,21 +4553,44 @@ export type UpdateSourcePreferenceMutation = { updateSourcePreference: { prefere
 export type GetTrackersQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetTrackersQuery = { trackers: { nodes: Array<{ id: number, name: string, icon: string, isLoggedIn: boolean, authUrl: string | null, scores: Array<string>, statuses: Array<{ name: string, value: number }> }> } };
+export type GetTrackersQuery = { trackers: { nodes: Array<{ id: number, name: string, icon: string, isLoggedIn: boolean, isTokenExpired: boolean, authUrl: string | null, scores: Array<string>, statuses: Array<{ name: string, value: number }> }> } };
 
 export type GetMangaTrackersQueryVariables = Exact<{
   mangaId: number;
 }>;
 
 
-export type GetMangaTrackersQuery = { trackers: { nodes: Array<{ id: number, name: string, icon: string, isLoggedIn: boolean, authUrl: string | null, scores: Array<string>, statuses: Array<{ name: string, value: number }> }> }, manga: { id: number, trackRecords: { nodes: Array<{ id: number, trackerId: number, mangaId: number, title: string, lastChapterRead: number, totalChapters: number, score: number, status: number, remoteUrl: string }> } } };
+export type GetMangaTrackersQuery = { trackers: { nodes: Array<{ id: number, name: string, icon: string, isLoggedIn: boolean, isTokenExpired: boolean, supportsPrivateTracking: boolean, authUrl: string | null, scores: Array<string>, statuses: Array<{ name: string, value: number }> }> }, manga: { id: number, title: string, trackRecords: { nodes: Array<{ id: number, trackerId: number, mangaId: number, remoteId: unknown, title: string, lastChapterRead: number, totalChapters: number, score: number, displayScore: string, status: number, remoteUrl: string, private: boolean }> } }, chapters: { nodes: Array<{ chapterNumber: number }> } };
+
+export type TrackerRecordFieldsFragment = { id: number, trackerId: number, mangaId: number, remoteId: unknown, title: string, lastChapterRead: number, totalChapters: number, score: number, displayScore: string, status: number, remoteUrl: string, private: boolean };
+
+export type SearchTrackerQueryVariables = Exact<{
+  input: SearchTrackerInput;
+}>;
+
+
+export type SearchTrackerQuery = { searchTracker: { trackSearches: Array<{ id: number, trackerId: number, remoteId: unknown, title: string, coverUrl: string, summary: string, totalChapters: number, lastChapterRead: number, trackingUrl: string, private: boolean, publishingStatus: string, publishingType: string }> } };
+
+export type BindTrackerWorkMutationVariables = Exact<{
+  input: BindTrackInput;
+}>;
+
+
+export type BindTrackerWorkMutation = { bindTrack: { trackRecord: { id: number, trackerId: number, mangaId: number, remoteId: unknown, title: string, lastChapterRead: number, totalChapters: number, score: number, displayScore: string, status: number, remoteUrl: string, private: boolean } } };
+
+export type RefreshTrackerRecordMutationVariables = Exact<{
+  input: FetchTrackInput;
+}>;
+
+
+export type RefreshTrackerRecordMutation = { fetchTrack: { trackRecord: { id: number, trackerId: number, mangaId: number, remoteId: unknown, title: string, lastChapterRead: number, totalChapters: number, score: number, displayScore: string, status: number, remoteUrl: string, private: boolean } } };
 
 export type TrackProgressMutationVariables = Exact<{
   input: TrackProgressInput;
 }>;
 
 
-export type TrackProgressMutation = { trackProgress: { trackRecords: Array<{ id: number, trackerId: number, mangaId: number, title: string, lastChapterRead: number }> } | null };
+export type TrackProgressMutation = { trackProgress: { trackRecords: Array<{ id: number, trackerId: number, mangaId: number, remoteId: unknown, title: string, lastChapterRead: number, totalChapters: number, score: number, displayScore: string, status: number, remoteUrl: string, private: boolean }> } | null };
 
 export type UnbindTrackMutationVariables = Exact<{
   input: UnbindTrackInput;
@@ -4562,7 +4604,7 @@ export type UpdateTrackMutationVariables = Exact<{
 }>;
 
 
-export type UpdateTrackMutation = { updateTrack: { trackRecord: { id: number, trackerId: number, mangaId: number, title: string, lastChapterRead: number, totalChapters: number, score: number, status: number, remoteUrl: string } | null } };
+export type UpdateTrackMutation = { updateTrack: { trackRecord: { id: number, trackerId: number, mangaId: number, remoteId: unknown, title: string, lastChapterRead: number, totalChapters: number, score: number, displayScore: string, status: number, remoteUrl: string, private: boolean } | null } };
 
 export type LogoutTrackerMutationVariables = Exact<{
   input: LogoutTrackerInput;
@@ -4591,7 +4633,22 @@ export type GetHistoryQueryVariables = Exact<{
 
 export type GetHistoryQuery = { chapters: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, lastReadAt: unknown, scanlator: string | null, mangaId: number, manga: { id: number, title: string, thumbnailUrl: string | null } } }> } };
 
-
+export const TrackerRecordFieldsFragmentDoc = gql`
+    fragment TrackerRecordFields on TrackRecordType {
+  id
+  trackerId
+  mangaId
+  remoteId
+  title
+  lastChapterRead
+  totalChapters
+  score
+  displayScore
+  status
+  remoteUrl
+  private
+}
+    `;
 export const CreateBackupDocument = gql`
     mutation CreateBackup($input: CreateBackupInput) {
   createBackup(input: $input) {
@@ -5202,6 +5259,7 @@ export const GetTrackersDocument = gql`
       name
       icon
       isLoggedIn
+      isTokenExpired
       authUrl
       scores
       statuses {
@@ -5220,6 +5278,8 @@ export const GetMangaTrackersDocument = gql`
       name
       icon
       isLoggedIn
+      isTokenExpired
+      supportsPrivateTracking
       authUrl
       scores
       statuses {
@@ -5230,35 +5290,71 @@ export const GetMangaTrackersDocument = gql`
   }
   manga(id: $mangaId) {
     id
+    title
     trackRecords {
       nodes {
-        id
-        trackerId
-        mangaId
-        title
-        lastChapterRead
-        totalChapters
-        score
-        status
-        remoteUrl
+        ...TrackerRecordFields
       }
+    }
+  }
+  chapters(
+    condition: {mangaId: $mangaId, isRead: true}
+    first: 1
+    order: [{by: CHAPTER_NUMBER, byType: DESC}]
+  ) {
+    nodes {
+      chapterNumber
+    }
+  }
+}
+    ${TrackerRecordFieldsFragmentDoc}`;
+export const SearchTrackerDocument = gql`
+    query SearchTracker($input: SearchTrackerInput!) {
+  searchTracker(input: $input) {
+    trackSearches {
+      id
+      trackerId
+      remoteId
+      title
+      coverUrl
+      summary
+      totalChapters
+      lastChapterRead
+      trackingUrl
+      private
+      publishingStatus
+      publishingType
     }
   }
 }
     `;
+export const BindTrackerWorkDocument = gql`
+    mutation BindTrackerWork($input: BindTrackInput!) {
+  bindTrack(input: $input) {
+    trackRecord {
+      ...TrackerRecordFields
+    }
+  }
+}
+    ${TrackerRecordFieldsFragmentDoc}`;
+export const RefreshTrackerRecordDocument = gql`
+    mutation RefreshTrackerRecord($input: FetchTrackInput!) {
+  fetchTrack(input: $input) {
+    trackRecord {
+      ...TrackerRecordFields
+    }
+  }
+}
+    ${TrackerRecordFieldsFragmentDoc}`;
 export const TrackProgressDocument = gql`
     mutation TrackProgress($input: TrackProgressInput!) {
   trackProgress(input: $input) {
     trackRecords {
-      id
-      trackerId
-      mangaId
-      title
-      lastChapterRead
+      ...TrackerRecordFields
     }
   }
 }
-    `;
+    ${TrackerRecordFieldsFragmentDoc}`;
 export const UnbindTrackDocument = gql`
     mutation UnbindTrack($input: UnbindTrackInput!) {
   unbindTrack(input: $input) {
@@ -5273,19 +5369,11 @@ export const UpdateTrackDocument = gql`
     mutation UpdateTrack($input: UpdateTrackInput!) {
   updateTrack(input: $input) {
     trackRecord {
-      id
-      trackerId
-      mangaId
-      title
-      lastChapterRead
-      totalChapters
-      score
-      status
-      remoteUrl
+      ...TrackerRecordFields
     }
   }
 }
-    `;
+    ${TrackerRecordFieldsFragmentDoc}`;
 export const LogoutTrackerDocument = gql`
     mutation LogoutTracker($input: LogoutTrackerInput!) {
   logoutTracker(input: $input) {
@@ -5489,6 +5577,15 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetMangaTrackers(variables: GetMangaTrackersQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetMangaTrackersQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetMangaTrackersQuery>({ document: GetMangaTrackersDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetMangaTrackers', 'query', variables);
+    },
+    SearchTracker(variables: SearchTrackerQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<SearchTrackerQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<SearchTrackerQuery>({ document: SearchTrackerDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'SearchTracker', 'query', variables);
+    },
+    BindTrackerWork(variables: BindTrackerWorkMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<BindTrackerWorkMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<BindTrackerWorkMutation>({ document: BindTrackerWorkDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'BindTrackerWork', 'mutation', variables);
+    },
+    RefreshTrackerRecord(variables: RefreshTrackerRecordMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<RefreshTrackerRecordMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<RefreshTrackerRecordMutation>({ document: RefreshTrackerRecordDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'RefreshTrackerRecord', 'mutation', variables);
     },
     TrackProgress(variables: TrackProgressMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<TrackProgressMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<TrackProgressMutation>({ document: TrackProgressDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'TrackProgress', 'mutation', variables);

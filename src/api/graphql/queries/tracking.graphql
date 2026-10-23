@@ -5,6 +5,7 @@ query GetTrackers {
       name
       icon
       isLoggedIn
+      isTokenExpired
       authUrl
       scores
       statuses {
@@ -22,6 +23,8 @@ query GetMangaTrackers($mangaId: Int!) {
       name
       icon
       isLoggedIn
+      isTokenExpired
+      supportsPrivateTracking
       authUrl
       scores
       statuses {
@@ -32,30 +35,64 @@ query GetMangaTrackers($mangaId: Int!) {
   }
   manga(id: $mangaId) {
     id
+    title
     trackRecords {
       nodes {
-        id
-        trackerId
-        mangaId
-        title
-        lastChapterRead
-        totalChapters
-        score
-        status
-        remoteUrl
+        ...TrackerRecordFields
       }
     }
   }
+  chapters(condition: { mangaId: $mangaId, isRead: true }, first: 1, order: [{ by: CHAPTER_NUMBER, byType: DESC }]) {
+    nodes { chapterNumber }
+  }
+}
+
+fragment TrackerRecordFields on TrackRecordType {
+  id
+  trackerId
+  mangaId
+  remoteId
+  title
+  lastChapterRead
+  totalChapters
+  score
+  displayScore
+  status
+  remoteUrl
+  private
+}
+
+query SearchTracker($input: SearchTrackerInput!) {
+  searchTracker(input: $input) {
+    trackSearches {
+      id
+      trackerId
+      remoteId
+      title
+      coverUrl
+      summary
+      totalChapters
+      lastChapterRead
+      trackingUrl
+      private
+      publishingStatus
+      publishingType
+    }
+  }
+}
+
+mutation BindTrackerWork($input: BindTrackInput!) {
+  bindTrack(input: $input) { trackRecord { ...TrackerRecordFields } }
+}
+
+mutation RefreshTrackerRecord($input: FetchTrackInput!) {
+  fetchTrack(input: $input) { trackRecord { ...TrackerRecordFields } }
 }
 
 mutation TrackProgress($input: TrackProgressInput!) {
   trackProgress(input: $input) {
     trackRecords {
-      id
-      trackerId
-      mangaId
-      title
-      lastChapterRead
+      ...TrackerRecordFields
     }
   }
 }
@@ -72,15 +109,7 @@ mutation UnbindTrack($input: UnbindTrackInput!) {
 mutation UpdateTrack($input: UpdateTrackInput!) {
   updateTrack(input: $input) {
     trackRecord {
-      id
-      trackerId
-      mangaId
-      title
-      lastChapterRead
-      totalChapters
-      score
-      status
-      remoteUrl
+      ...TrackerRecordFields
     }
   }
 }

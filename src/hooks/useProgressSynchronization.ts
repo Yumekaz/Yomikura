@@ -6,6 +6,7 @@ import { PROGRESS_CHANGED_EVENT } from "../api/suwayomi/progressStorage";
 import { synchronizeProgress } from "../api/suwayomi/progressSync";
 import { invalidateChapterState } from "../api/suwayomi/chapterState";
 import { useDownloadStore } from "../stores/useDownloadStore";
+import { synchronizeTracking } from "../api/suwayomi/trackingSync";
 
 export function useProgressBackend() {
   const { serverBaseUrl, mockMode } = useSettingsStore();
@@ -26,12 +27,16 @@ export function useProgressSynchronization() {
       if (!active) return;
       const settings = useSettingsStore.getState();
       if (!backend.isDemo && settings.connectionStatus === "error") void settings.testConnection();
-      void synchronizeProgress(backend).catch(() => undefined);
+      void synchronizeProgress(backend).then(() => synchronizeTracking(backend)).catch(() => undefined);
     };
     const changed = (event: Event) => {
       const detail = (event as CustomEvent<{ backendKey: string; kind: string }>).detail;
       if (detail?.backendKey !== backend.key) return;
       void client.invalidateQueries({ queryKey: ["progress-sync", backend.key] });
+      if (detail.kind === "tracking") {
+        void client.invalidateQueries({ queryKey: ["manga-trackers"] });
+        return;
+      }
       void client.invalidateQueries({ queryKey: ["progress-local", backend.key] });
       void client.invalidateQueries({ queryKey: ["history", "local", backend.serverBaseUrl] });
       if (detail.kind === "queued") {
@@ -40,6 +45,7 @@ export function useProgressSynchronization() {
       } else if (detail.kind === "changed") {
         void invalidateChapterState(client);
         void useDownloadStore.getState().loadCachedChapters?.();
+        void synchronizeTracking(backend).catch(() => undefined);
       }
     };
     run();

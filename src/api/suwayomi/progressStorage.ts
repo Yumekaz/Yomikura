@@ -12,6 +12,7 @@ export type ProgressIntent = {
   hideHistory?: boolean;
   deleteAfterAck?: boolean;
   expectedSequence?: number;
+  trackCompletion?: boolean;
 };
 export interface ProgressHead {
   entityKey: string;
@@ -30,6 +31,12 @@ export interface ProgressHead {
   dirtyFields: (keyof ProgressPatch)[];
   lastKind: ProgressIntent["kind"];
   serverRevision?: number;
+  trackingDueSequence?: number;
+  trackingAcknowledgedSequence?: number;
+  trackingAttempts?: number;
+  trackingRetryAt?: number;
+  trackingError?: string;
+  trackingCancelledThrough?: number;
 }
 export interface ProgressOperation extends ProgressIntent {
   sequence: number;
@@ -45,7 +52,7 @@ export interface ProgressOperation extends ProgressIntent {
 type Lease = { key: string; owner: string; expires: number };
 const entityKey = (backend: ProgressBackend, chapterId: number) => JSON.stringify([backend.key, chapterId]);
 
-export function progressChanged(backend: ProgressBackend, kind: "queued" | "changed" | "error" = "changed") {
+export function progressChanged(backend: ProgressBackend, kind: "queued" | "changed" | "error" | "tracking" = "changed") {
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(PROGRESS_CHANGED_EVENT, { detail: { backendKey: backend.key, kind } }));
 }
 
@@ -118,6 +125,7 @@ export async function observeChapterProgress(backend: ProgressBackend, chapter: 
       epoch: head.epoch + (identityChanged || head.patch.isRead && !state.isRead ? 1 : 0),
       serverRevision: (head.serverRevision ?? 0) + 1,
       ...(identityChanged ? { hasActivity: false, activityAt: undefined, hideHistory: true, dirtyFields: [] } : {}),
+      ...(identityChanged || !state.isRead ? { trackingAcknowledgedSequence: head.trackingDueSequence ?? 0, trackingError: undefined } : {}),
     };
     store.put(next);
     return { head: next, stale: false };
@@ -186,6 +194,12 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
       dirtyFields: fields,
       lastKind: intent.kind,
       serverRevision: previous?.serverRevision ?? 0,
+      trackingDueSequence: sameChapter ? previous.trackingDueSequence : undefined,
+      trackingAcknowledgedSequence: sameChapter ? intent.kind === "explicit" && intent.patch.isRead === false ? previous.trackingDueSequence : previous.trackingAcknowledgedSequence : undefined,
+      trackingAttempts: sameChapter ? previous.trackingAttempts : undefined,
+      trackingRetryAt: sameChapter ? previous.trackingRetryAt : undefined,
+      trackingError: sameChapter && !(intent.kind === "explicit" && intent.patch.isRead === false) ? previous.trackingError : undefined,
+      trackingCancelledThrough: sameChapter ? previous.trackingCancelledThrough : undefined,
     };
     heads.put(head);
     return { head, accepted: true };
@@ -231,9 +245,12 @@ export async function acknowledgeProgress(operation: ProgressOperation, owner: s
     const head = await read<ProgressHead>(tx.objectStore("heads").get(operation.entityKey));
     if (operation.sequence > head.acknowledgedSequence) {
       const isLatest = head.sequence === operation.sequence;
+      const completed = (operation.kind === "reading" || operation.trackCompletion) && acknowledged.isRead && head.patch.isRead && operation.epoch === head.epoch
+        && operation.sequence > (head.trackingCancelledThrough ?? 0) && !(head.lastAcknowledged?.isRead ?? head.baseline.isRead) && Number.isFinite(operation.chapter.chapterNumber) && operation.chapter.chapterNumber > 0;
       tx.objectStore("heads").put({ ...head, acknowledgedSequence: operation.sequence, lastAcknowledged: acknowledged,
         serverRevision: (head.serverRevision ?? 0) + 1,
         ...(isLatest ? { patch: acknowledged } : {}),
+        ...(completed ? { trackingDueSequence: operation.sequence, trackingAttempts: 0, trackingRetryAt: 0, trackingError: undefined } : {}),
       });
     }
     const older = await read<ProgressOperation[]>(tx.objectStore("operations").index("entity").getAll(operation.entityKey));
@@ -249,4 +266,70 @@ export async function retryBlockedProgress(backend: ProgressBackend) {
     for (const item of operations) if (item.status === "blocked") store.put({ ...item, status: "pending", error: undefined });
   });
   progressChanged(backend, "queued");
+}
+
+const trackingLeaseKey = (backend: ProgressBackend) => JSON.stringify(["tracking", backend.key]);
+export async function acquireTrackingLease(backend: ProgressBackend, owner: string, exclusiveBrowserLock = false) {
+  return transaction(["leases"], "readwrite", async (tx) => {
+    const store = tx.objectStore("leases"); const key = trackingLeaseKey(backend);
+    const lease = await read<Lease | undefined>(store.get(key));
+    if (!exclusiveBrowserLock && lease && lease.owner !== owner && lease.expires > Date.now()) return false;
+    store.put({ key, owner, expires: Date.now() + 60_000 }); return true;
+  });
+}
+export async function releaseTrackingLease(backend: ProgressBackend, owner: string) {
+  await transaction(["leases"], "readwrite", async (tx) => {
+    const store = tx.objectStore("leases"); const key = trackingLeaseKey(backend);
+    if ((await read<Lease | undefined>(store.get(key)))?.owner === owner) store.delete(key);
+  });
+}
+export async function getPendingTracking(backend: ProgressBackend) {
+  return (await getProgressHeads(backend)).filter((head) => (head.trackingDueSequence ?? 0) > (head.trackingAcknowledgedSequence ?? 0));
+}
+export async function recordTrackingResult(backend: ProgressBackend, requests: ProgressHead[], owner: string, error?: string) {
+  await transaction(["heads", "leases"], "readwrite", async (tx) => {
+    const lease = await read<Lease | undefined>(tx.objectStore("leases").get(trackingLeaseKey(backend)));
+    if (lease?.owner !== owner || lease.expires <= Date.now()) return;
+    const store = tx.objectStore("heads");
+    for (const request of requests) {
+      const head = await read<ProgressHead | undefined>(store.get(request.entityKey));
+      if (!head || !chapterIdentityMatches(head.chapter, request.chapter)) continue;
+      if (!error) store.put({ ...head, trackingAcknowledgedSequence: Math.max(head.trackingAcknowledgedSequence ?? 0, request.trackingDueSequence ?? 0),
+        ...(head.trackingDueSequence === request.trackingDueSequence ? { trackingAttempts: 0, trackingRetryAt: 0, trackingError: undefined } : {}),
+      });
+      else if (head.trackingDueSequence === request.trackingDueSequence && (head.trackingDueSequence ?? 0) > (head.trackingAcknowledgedSequence ?? 0)) {
+        const attempts = (head.trackingAttempts ?? 0) + 1;
+        store.put({ ...head, trackingAttempts: attempts, trackingError: error, trackingRetryAt: Date.now() + Math.min(900_000, 15_000 * 2 ** Math.min(attempts - 1, 6)) });
+      }
+    }
+  });
+  progressChanged(backend, "tracking");
+}
+export async function dismissTracking(backend: ProgressBackend, requests: ProgressHead[]) {
+  await transaction(["heads"], "readwrite", async (tx) => {
+    const store = tx.objectStore("heads"); const current: ProgressHead[] = [];
+    for (const request of requests) {
+      const head = await read<ProgressHead | undefined>(store.get(request.entityKey));
+      if (!head || head.backend.key !== backend.key || !chapterIdentityMatches(head.chapter, request.chapter) || head.trackingDueSequence !== request.trackingDueSequence) throw new Error("Tracker progress changed while you were reviewing it. Review the current retry before dismissing it.");
+      current.push(head);
+    }
+    for (const head of current) store.put({ ...head, trackingAcknowledgedSequence: head.trackingDueSequence, trackingError: undefined, trackingRetryAt: 0 });
+  });
+  progressChanged(backend, "tracking");
+}
+
+/** A manual tracker position edit takes precedence over reading intents already present at that time. */
+export async function suppressEarlierTracking(backend: ProgressBackend, requests: ProgressHead[]) {
+  await transaction(["heads"], "readwrite", async (tx) => {
+    const store = tx.objectStore("heads");
+    for (const request of requests) {
+      const head = await read<ProgressHead | undefined>(store.get(request.entityKey));
+      if (!head || head.backend.key !== backend.key || !chapterIdentityMatches(head.chapter, request.chapter)) continue;
+      const through = Math.max(head.trackingCancelledThrough ?? 0, request.sequence);
+      store.put({ ...head, trackingCancelledThrough: through,
+        ...((head.trackingDueSequence ?? 0) <= through ? { trackingAcknowledgedSequence: head.trackingDueSequence, trackingError: undefined, trackingRetryAt: 0 } : {}),
+      });
+    }
+  });
+  progressChanged(backend, "tracking");
 }

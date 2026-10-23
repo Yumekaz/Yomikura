@@ -1,4 +1,5 @@
 import { Sdk } from "./generated/graphql";
+import type { TrackerRecordFieldsFragment } from "./generated/graphql";
 
 // A high-fidelity mock implementation of the Suwayomi SDK
 // Keep sample activity believable whenever Demo Sandbox Mode is opened. A fixed
@@ -6,6 +7,15 @@ import { Sdk } from "./generated/graphql";
 // stale server time.
 const recentDemoTimestamp = () => new Date(Date.now() - 13 * 60_000).toISOString();
 const demoMembership = new Map<number, boolean>();
+const demoTracks = new Map<number, TrackerRecordFieldsFragment[]>();
+function sampleTrack(mangaId: number, trackerId = 1, remoteId = String(mangaId + 100000), title?: string): TrackerRecordFieldsFragment {
+  return { id: mangaId * 10 + trackerId, mangaId, trackerId, remoteId, title: title ?? (mangaId === 10001 ? "Sita's Sister (Synced)" : "Pepper & Carrot (Synced)"),
+    lastChapterRead: 1, totalChapters: 24, score: 9, displayScore: "9", status: 1, remoteUrl: "https://anilist.co", private: false };
+}
+function tracksFor(mangaId: number) {
+  if (!demoTracks.has(mangaId)) demoTracks.set(mangaId, mangaId === 10001 || mangaId === 10002 ? [sampleTrack(mangaId)] : []);
+  return demoTracks.get(mangaId)!;
+}
 
 const mockImpl: any = {
   async ConnectionTest() {
@@ -424,6 +434,8 @@ const mockImpl: any = {
             name: "AniList",
             icon: "https://anilist.co/img/icons/favicon-32x32.png",
             isLoggedIn: true,
+            isTokenExpired: false,
+            supportsPrivateTracking: true,
             authUrl: "",
             scores: ["10", "9", "8", "7", "6", "5"],
             statuses: [
@@ -439,6 +451,8 @@ const mockImpl: any = {
             name: "MyAnimeList",
             icon: "https://myanimelist.net/favicon.ico",
             isLoggedIn: false,
+            isTokenExpired: false,
+            supportsPrivateTracking: false,
             authUrl: "https://myanimelist.net",
             scores: ["10", "9", "8", "7", "6", "5"],
             statuses: [
@@ -451,100 +465,42 @@ const mockImpl: any = {
     };
   },
   async GetMangaTrackers({ mangaId }: any) {
-    return {
-      trackers: {
-        nodes: [
-          {
-            id: 1,
-            name: "AniList",
-            icon: "https://anilist.co/img/icons/favicon-32x32.png",
-            isLoggedIn: true,
-            authUrl: "",
-            scores: ["10", "9", "8", "7", "6", "5"],
-            statuses: [
-              { name: "Reading", value: 1 },
-              { name: "Completed", value: 2 },
-              { name: "On Hold", value: 3 },
-              { name: "Dropped", value: 4 },
-              { name: "Plan to Read", value: 5 },
-            ],
-          },
-          {
-            id: 2,
-            name: "MyAnimeList",
-            icon: "https://myanimelist.net/favicon.ico",
-            isLoggedIn: false,
-            authUrl: "https://myanimelist.net",
-            scores: ["10", "9", "8", "7", "6", "5"],
-            statuses: [
-              { name: "Reading", value: 1 },
-              { name: "Completed", value: 2 },
-            ],
-          },
-        ],
-      },
-      manga: {
-        id: mangaId,
-        trackRecords: {
-          nodes: [
-            {
-              id: 501,
-              trackerId: 1,
-              mangaId: mangaId,
-              title: mangaId === 10001 ? "Sita's Sister (Synced)" : "Pepper & Carrot (Synced)",
-              lastChapterRead: 1,
-              totalChapters: 24,
-              score: 9,
-              status: 1,
-              remoteUrl: "https://anilist.co",
-            },
-          ],
-        },
-      },
-    };
+    const { manga } = await mockImpl.GetMangaDetails({ id: mangaId });
+    return { ...(await mockImpl.GetTrackers()), manga: { id: mangaId, title: manga.title, trackRecords: { nodes: tracksFor(mangaId) } }, chapters: { nodes: mangaId === 10001 || mangaId === 10002 ? [{ chapterNumber: 1 }] : [] } };
+  },
+  async SearchTracker({ input }: any) {
+    return { searchTracker: { trackSearches: [0, 1].map((index) => ({ id: index + 1, trackerId: input.trackerId, remoteId: String(700000 + index), title: `[Demo] ${input.query}${index ? " — alternative edition" : ""}`, coverUrl: "", summary: "Sample search results stay in the demo sandbox.", totalChapters: 24, lastChapterRead: 0, trackingUrl: "https://anilist.co", private: false, publishingType: "Manga", publishingStatus: "Sample" })) } };
+  },
+  async BindTrackerWork({ input }: any) {
+    const record = { ...sampleTrack(input.mangaId, input.trackerId, input.remoteId, "[Demo] Linked work"), private: input.private ?? false };
+    demoTracks.set(input.mangaId, [...tracksFor(input.mangaId).filter((item) => item.trackerId !== input.trackerId), record]);
+    return { bindTrack: { trackRecord: record } };
+  },
+  async RefreshTrackerRecord({ input }: any) {
+    const record = [...demoTracks.values()].flat().find((item) => item.id === input.recordId);
+    if (!record) throw new Error("The demo tracker record is no longer linked.");
+    return { fetchTrack: { trackRecord: record } };
   },
   async TrackProgress({ input }: any) {
-    return {
-      trackProgress: {
-        trackRecords: [
-          {
-            id: 501,
-            trackerId: 1,
-            mangaId: input.mangaId,
-            title: "Synced Manga",
-            lastChapterRead: 1,
-          },
-        ],
-      },
-    };
+    return { trackProgress: { trackRecords: tracksFor(input.mangaId) } };
   },
   async UnbindTrack({ input }: any) {
-    return {
-      unbindTrack: {
-        trackRecord: {
-          id: input.recordId,
-          mangaId: 10001,
-        },
-      },
-    };
+    const record = [...demoTracks.values()].flat().find((item) => item.id === input.recordId);
+    if (record) demoTracks.set(record.mangaId, tracksFor(record.mangaId).filter((item) => item.id !== record.id));
+    return { unbindTrack: { trackRecord: record ? { id: record.id, mangaId: record.mangaId } : null } };
   },
   async UpdateTrack({ input }: any) {
-    return {
-      updateTrack: {
-        trackRecord: {
-          id: input.recordId,
-          trackerId: 1,
-          mangaId: 10001,
-          title: "Demo Manga (Updated)",
-          lastChapterRead: input.lastChapterRead,
-          totalChapters: 24,
-          score: parseInt(input.scoreString) || 9,
-          status: input.status,
-          remoteUrl: "https://anilist.co",
-        },
-      },
-    };
+    const record = [...demoTracks.values()].flat().find((item) => item.id === input.recordId);
+    if (!record) throw new Error("The demo tracker record is no longer linked.");
+    Object.assign(record, {
+      ...(input.lastChapterRead != null ? { lastChapterRead: input.lastChapterRead } : {}),
+      ...(input.status != null ? { status: input.status } : {}),
+      ...(input.scoreString != null ? { score: Number(input.scoreString), displayScore: input.scoreString } : {}),
+      ...(input.private != null ? { private: input.private } : {}),
+    });
+    return { updateTrack: { trackRecord: record } };
   },
+
   async LogoutTracker({ input }: any) {
     return {
       logoutTracker: {
