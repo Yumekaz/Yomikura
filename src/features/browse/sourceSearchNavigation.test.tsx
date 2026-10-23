@@ -12,7 +12,7 @@ import SourceBrowsePage from "./SourceBrowsePage";
 
 const sdk = vi.hoisted(() => ({
   GetInstalledExtensionLangs: vi.fn(), GetSourcesByCondition: vi.fn(),
-  GetSources: vi.fn(), FetchSourceManga: vi.fn(),
+  GetSources: vi.fn(), GetSourceFilters: vi.fn(), FetchSourceManga: vi.fn(),
 }));
 vi.mock("../../api/graphql/client", () => ({ createGraphqlClient: () => sdk }));
 
@@ -60,6 +60,7 @@ beforeEach(() => {
   sdk.GetInstalledExtensionLangs.mockResolvedValue({ extensions: { nodes: [{ lang: "en" }] } });
   sdk.GetSourcesByCondition.mockImplementation(async ({ lang }) => ({ sources: { nodes: lang === "en" ? [source] : [] } }));
   sdk.GetSources.mockResolvedValue({ sources: { nodes: [source] } });
+  sdk.GetSourceFilters.mockResolvedValue({ source: { ...source, filters: [] } });
   sdk.FetchSourceManga.mockResolvedValue({ fetchSourceManga: { mangas: [{ id: 1, title: "Test result" }], hasNextPage: false } });
 });
 

@@ -124,13 +124,13 @@ export default function SourcesPage() {
                 className="yomi-catalog-item"
               >
                 <Link 
-                  to={buildSourceBrowsePath(s.sourceId, s.query)}
+                  to={buildSourceBrowsePath(s.sourceId, s.query, s.filters)}
                   className="flex items-center gap-3 flex-1 overflow-hidden"
                 >
                   <Pin className="h-4 w-4 text-yomi-jade shrink-0" />
                   <div className="flex flex-col flex-1 overflow-hidden">
                     <span className="font-semibold text-slate-200 truncate text-sm">{s.name}</span>
-                    <span className="text-xs text-slate-500 truncate">Query: "{s.query}"</span>
+                    <span className="text-xs text-slate-500 truncate">{s.query ? `Query: “${s.query}”` : "Filtered search"}{s.filters && s.filters !== "{}" ? " · filters saved" : ""}</span>
                   </div>
                 </Link>
                 <button

@@ -4524,6 +4524,58 @@ export type GetServerSettingsQueryVariables = Exact<{ [key: string]: never; }>;
 
 export type GetServerSettingsQuery = { settings: { localSourcePath: string, globalUpdateInterval: number } };
 
+type CatalogFilterFields_CheckBoxFilter_Fragment = { __typename: 'CheckBoxFilter', name: string, checkBoxDefault: boolean };
+
+type CatalogFilterFields_GroupFilter_Fragment = { __typename: 'GroupFilter', name: string };
+
+type CatalogFilterFields_HeaderFilter_Fragment = { __typename: 'HeaderFilter', name: string };
+
+type CatalogFilterFields_SelectFilter_Fragment = { __typename: 'SelectFilter', name: string, values: Array<string>, selectDefault: number };
+
+type CatalogFilterFields_SeparatorFilter_Fragment = { __typename: 'SeparatorFilter', name: string };
+
+type CatalogFilterFields_SortFilter_Fragment = { __typename: 'SortFilter', name: string, values: Array<string>, sortDefault: { index: number, ascending: boolean } | null };
+
+type CatalogFilterFields_TextFilter_Fragment = { __typename: 'TextFilter', name: string, textDefault: string };
+
+type CatalogFilterFields_TriStateFilter_Fragment = { __typename: 'TriStateFilter', name: string, triStateDefault: TriState };
+
+export type CatalogFilterFieldsFragment =
+  | CatalogFilterFields_CheckBoxFilter_Fragment
+  | CatalogFilterFields_GroupFilter_Fragment
+  | CatalogFilterFields_HeaderFilter_Fragment
+  | CatalogFilterFields_SelectFilter_Fragment
+  | CatalogFilterFields_SeparatorFilter_Fragment
+  | CatalogFilterFields_SortFilter_Fragment
+  | CatalogFilterFields_TextFilter_Fragment
+  | CatalogFilterFields_TriStateFilter_Fragment
+;
+
+export type GetSourceFiltersQueryVariables = Exact<{
+  id: unknown;
+}>;
+
+
+export type GetSourceFiltersQuery = { source: { id: unknown, name: string, filters: Array<
+      | { __typename: 'CheckBoxFilter', name: string, checkBoxDefault: boolean }
+      | { __typename: 'GroupFilter', name: string, filters: Array<
+          | { __typename: 'CheckBoxFilter', name: string, checkBoxDefault: boolean }
+          | { __typename: 'GroupFilter', name: string }
+          | { __typename: 'HeaderFilter', name: string }
+          | { __typename: 'SelectFilter', name: string, values: Array<string>, selectDefault: number }
+          | { __typename: 'SeparatorFilter', name: string }
+          | { __typename: 'SortFilter', name: string, values: Array<string>, sortDefault: { index: number, ascending: boolean } | null }
+          | { __typename: 'TextFilter', name: string, textDefault: string }
+          | { __typename: 'TriStateFilter', name: string, triStateDefault: TriState }
+        > }
+      | { __typename: 'HeaderFilter', name: string }
+      | { __typename: 'SelectFilter', name: string, values: Array<string>, selectDefault: number }
+      | { __typename: 'SeparatorFilter', name: string }
+      | { __typename: 'SortFilter', name: string, values: Array<string>, sortDefault: { index: number, ascending: boolean } | null }
+      | { __typename: 'TextFilter', name: string, textDefault: string }
+      | { __typename: 'TriStateFilter', name: string, triStateDefault: TriState }
+    > } };
+
 export type GetSourcePreferencesQueryVariables = Exact<{
   sourceId: unknown;
 }>;
@@ -4633,6 +4685,45 @@ export type GetHistoryQueryVariables = Exact<{
 
 export type GetHistoryQuery = { chapters: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, lastReadAt: unknown, scanlator: string | null, mangaId: number, manga: { id: number, title: string, thumbnailUrl: string | null } } }> } };
 
+export const CatalogFilterFieldsFragmentDoc = gql`
+    fragment CatalogFilterFields on Filter {
+  __typename
+  ... on HeaderFilter {
+    name
+  }
+  ... on SeparatorFilter {
+    name
+  }
+  ... on CheckBoxFilter {
+    name
+    checkBoxDefault: default
+  }
+  ... on TextFilter {
+    name
+    textDefault: default
+  }
+  ... on SelectFilter {
+    name
+    values
+    selectDefault: default
+  }
+  ... on TriStateFilter {
+    name
+    triStateDefault: default
+  }
+  ... on SortFilter {
+    name
+    values
+    sortDefault: default {
+      index
+      ascending
+    }
+  }
+  ... on GroupFilter {
+    name
+  }
+}
+    `;
 export const TrackerRecordFieldsFragmentDoc = gql`
     fragment TrackerRecordFields on TrackRecordType {
   id
@@ -5176,6 +5267,22 @@ export const GetServerSettingsDocument = gql`
   }
 }
     `;
+export const GetSourceFiltersDocument = gql`
+    query GetSourceFilters($id: LongString!) {
+  source(id: $id) {
+    id
+    name
+    filters {
+      ...CatalogFilterFields
+      ... on GroupFilter {
+        filters {
+          ...CatalogFilterFields
+        }
+      }
+    }
+  }
+}
+    ${CatalogFilterFieldsFragmentDoc}`;
 export const GetSourcePreferencesDocument = gql`
     query GetSourcePreferences($sourceId: LongString!) {
   source(id: $sourceId) {
@@ -5565,6 +5672,9 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetServerSettings(variables?: GetServerSettingsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetServerSettingsQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetServerSettingsQuery>({ document: GetServerSettingsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetServerSettings', 'query', variables);
+    },
+    GetSourceFilters(variables: GetSourceFiltersQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetSourceFiltersQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetSourceFiltersQuery>({ document: GetSourceFiltersDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetSourceFilters', 'query', variables);
     },
     GetSourcePreferences(variables: GetSourcePreferencesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetSourcePreferencesQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetSourcePreferencesQuery>({ document: GetSourcePreferencesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetSourcePreferences', 'query', variables);

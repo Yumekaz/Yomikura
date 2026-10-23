@@ -422,6 +422,9 @@ const mockImpl: any = {
   async GetSourcePreferences() {
     return { source: { id: "mock-source", name: "Yomikura Playground", isConfigurable: false, preferences: [] } };
   },
+  async GetSourceFilters({ id }: any) {
+    return { source: { id, name: "Yomikura Playground", filters: [] } };
+  },
   async UpdateSourcePreference() {
     return { updateSourcePreference: { preferences: [] } };
   },

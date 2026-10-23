@@ -1,6 +1,8 @@
 /** Shared by global results, saved searches and the source browse route. */
-export function buildSourceBrowsePath(sourceId: string, query: string): string {
-  return `/browse/${encodeURIComponent(sourceId)}?${new URLSearchParams({ query })}`;
+export function buildSourceBrowsePath(sourceId: string, query: string, filters?: string): string {
+  const params = new URLSearchParams({ query });
+  if (filters && filters !== "{}") params.set("filters", filters);
+  return `/browse/${encodeURIComponent(sourceId)}?${params}`;
 }
 
 export function readSourceBrowseQuery(params: URLSearchParams): string {
