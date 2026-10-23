@@ -5,6 +5,7 @@ import { Sdk } from "./generated/graphql";
 // calendar date made an otherwise healthy history view look as if it were using
 // stale server time.
 const recentDemoTimestamp = () => new Date(Date.now() - 13 * 60_000).toISOString();
+const demoMembership = new Map<number, boolean>();
 
 const mockImpl: any = {
   async ConnectionTest() {
@@ -66,7 +67,7 @@ const mockImpl: any = {
           : "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300",
         status: "COMPLETED",
         genre: ["Demo", "Fantasy", "Indie"],
-        inLibrary: true,
+        inLibrary: demoMembership.get(id) ?? true,
         categories: { edges: [{ node: { id: 1 } }] },
         source: { name: "Yomikura Playground" },
         chapters: {
@@ -111,6 +112,20 @@ const mockImpl: any = {
         },
       },
     };
+  },
+
+  async GetMigrationManga({ id }: any) {
+    const { manga } = await mockImpl.GetMangaDetails({ id });
+    return { manga: { id, title: manga.title, sourceId: "mock-source", inLibrary: demoMembership.get(id) ?? true, categories: manga.categories } };
+  },
+  async GetMigrationChapters({ mangaId }: any) {
+    const { manga } = await mockImpl.GetMangaDetails({ id: mangaId });
+    const nodes = manga.chapters.edges.map(({ node }: any) => ({ ...node, mangaId, pageCount: 4, lastPageRead: 0, sourceOrder: 1 }));
+    return { chapters: { totalCount: nodes.length, pageInfo: { hasNextPage: false, endCursor: null }, nodes } };
+  },
+  async RefreshMigrationTarget({ input }: any) {
+    const { chapters } = await mockImpl.GetMigrationChapters({ mangaId: input.id });
+    return { fetchMangaAndChapters: { manga: { id: input.id }, chapters: chapters.nodes.map(({ id }: any) => ({ id })) } };
   },
 
   async FetchChapterPages() {
@@ -296,7 +311,8 @@ const mockImpl: any = {
     return { restoreBackup: { status: { state: "SUCCESS" } } };
   },
   async ToggleMangaLibrary({ input }: any) {
-    return { updateManga: { manga: { id: input.id, inLibrary: true } } };
+    demoMembership.set(input.id, input.patch.inLibrary);
+    return { updateManga: { manga: { id: input.id, inLibrary: input.patch.inLibrary } } };
   },
   async CreateCategory({ input }: any) {
     return { createCategory: { category: { id: 99, name: input.name, order: 9 } } };

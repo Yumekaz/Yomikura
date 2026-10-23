@@ -1,294 +1,142 @@
-import { useState, useEffect, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { X, Search, Loader2, RefreshCw, AlertTriangle, CheckCircle } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, CheckCircle, Loader2, Search, X } from "lucide-react";
 import { createGraphqlClient } from "../../api/graphql/client";
-import { useSettingsStore } from "../../stores/useSettingsStore";
-import { FetchSourceMangaType } from "../../api/graphql/generated/graphql";
-import { classifySourceProblem } from "../../api/suwayomi/errors";
-import { buildChapterMigrationPlan, runWithConcurrency } from "./chapterMigration";
-import { invalidateChapterState } from "../../api/suwayomi/chapterState";
+import { FetchSourceMangaType, type FetchSourceMangaMutation } from "../../api/graphql/generated/graphql";
 import { progressBackend } from "../../api/suwayomi/backendIdentity";
-import { writeChapterProgress } from "../../api/suwayomi/progressSync";
+import { invalidateChapterState } from "../../api/suwayomi/chapterState";
+import { getErrorMessage } from "../../api/suwayomi/errors";
+import { useSettingsStore } from "../../stores/useSettingsStore";
+import { canReplaceMigration, executeMangaMigration, MigrationError, prepareMangaMigration, type MigrationResult, type MigrationReview } from "./mangaMigration";
+import { MigrationReviewPanel } from "./MigrationReviewPanel";
 
+type Target = { id: number; title: string };
 interface SourceMigrationModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  mangaId: number;
-  mangaTitle: string;
-  sourceName: string;
+  isOpen: boolean; onClose: () => void; mangaId: number; mangaTitle: string; sourceName: string;
+  initialTarget?: Target;
 }
+type Phase = "search" | "results" | "preparing" | "review" | "executing" | "done" | "error";
 
-export function SourceMigrationModal({
-  isOpen,
-  onClose,
-  mangaId,
-  mangaTitle,
-  sourceName,
-}: SourceMigrationModalProps) {
-  const { serverBaseUrl } = useSettingsStore();
+export function SourceMigrationModal({ isOpen, onClose, mangaId, mangaTitle, sourceName, initialTarget }: SourceMigrationModalProps) {
+  const { serverBaseUrl, mockMode } = useSettingsStore();
+  const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
+  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live"), [backend]);
   const queryClient = useQueryClient();
+  const [phase, setPhase] = useState<Phase>("search");
+  const [sourceId, setSourceId] = useState("");
+  const [query, setQuery] = useState(mangaTitle);
+  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<NonNullable<FetchSourceMangaMutation["fetchSourceManga"]>["mangas"]>([]);
+  const [target, setTarget] = useState<Target | undefined>(initialTarget);
+  const [review, setReview] = useState<MigrationReview>();
+  const [selected, setSelected] = useState(new Set<number>());
+  const [replace, setReplace] = useState(false);
+  const [result, setResult] = useState<MigrationResult>();
+  const [failure, setFailure] = useState({ message: "", original: "unchanged" as "unchanged" | "unknown" });
+  const generation = useRef(0);
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const detailId = useId();
+  const busy = phase === "executing";
+  const close = useCallback(() => { if (!busy) { generation.current += 1; onClose(); } }, [busy, onClose]);
 
-  const [selectedSourceId, setSelectedSourceId] = useState<string>("");
-  const [searchQuery, setSearchQuery] = useState(mangaTitle);
-  const [migrationStatus, setMigrationStatus] = useState<"idle" | "searching" | "confirming" | "migrating" | "success" | "error">("idle");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [targetManga, setTargetManga] = useState<any>(null);
-
-  const sdk = useMemo(() => {
-    const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-    return createGraphqlClient(`${cleanUrl}/api/graphql`);
-  }, [serverBaseUrl]);
-
-  // Fetch all installed/available sources
-  const { data: sourcesData, isLoading: loadingSources } = useQuery({
-    queryKey: ["sources", serverBaseUrl],
-    queryFn: () => sdk.GetSources(),
-    enabled: isOpen && !!serverBaseUrl,
+  const { data: sources, isLoading: loadingSources, isError: sourcesError, refetch: retrySources } = useQuery({
+    queryKey: ["sources", backend.key], queryFn: () => sdk.GetSources(), enabled: isOpen,
   });
-
-  const sources = useMemo(() => {
-    if (!sourcesData?.sources?.nodes) return [];
-    return sourcesData.sources.nodes.filter(s => s?.extension?.isInstalled);
-  }, [sourcesData]);
-
-  // Mutation: Search target source
-  const { mutate: searchTarget, data: searchData, isPending: searching } = useMutation({
-    mutationFn: () =>
-      sdk.FetchSourceManga({
-        input: {
-          source: selectedSourceId,
-          page: 1,
-          type: FetchSourceMangaType.Search,
-          query: searchQuery,
-        },
-      }),
-    onSuccess: () => {
-      setMigrationStatus("confirming");
-    },
-    onError: (err: unknown) => {
-      setMigrationStatus("error");
-      setErrorMessage(classifySourceProblem(err).detail);
-    },
-  });
-
-  // Mutation: Execute migration
-  const { mutate: executeMigration, isPending: migrating } = useMutation({
-    mutationFn: async (targetId: number) => {
-      const backend = progressBackend(serverBaseUrl, useSettingsStore.getState().mockMode);
-      setMigrationStatus("migrating");
-      
-      // Keep the original title until every copy operation has succeeded.
-      await sdk.ToggleMangaLibrary({
-        input: {
-          id: targetId,
-          patch: { inLibrary: true },
-        },
-      });
-
-      const sourceDetails = await sdk.GetMangaDetails({ id: mangaId });
-      const targetDetails = await sdk.GetMangaDetails({ id: targetId });
-      if (!sourceDetails.manga || !targetDetails.manga) throw new Error("Yomikura could not load both titles needed for migration. The original title was kept unchanged.");
-
-      const sourceChapters = sourceDetails.manga.chapters.edges.map((edge) => edge.node);
-      const targetChapters = targetDetails.manga.chapters.edges.map((edge) => edge.node);
-      const plan = buildChapterMigrationPlan(sourceChapters, targetChapters);
-      await runWithConcurrency(plan, async (entry) => {
-        await writeChapterProgress(backend, entry.targetId, entry.patch, { requireAcknowledgment: true });
-      });
-
-      const sourceCategoryIds = sourceDetails.manga.categories.edges.map((edge) => edge.node.id);
-      if (sourceCategoryIds.length) {
-        await sdk.UpdateMangaCategories({ input: { id: targetId, patch: { addToCategories: sourceCategoryIds } } });
-      }
-
-      await sdk.ToggleMangaLibrary({
-        input: {
-          id: mangaId,
-          patch: { inLibrary: false },
-        },
-      });
-    },
-    onSuccess: () => {
-      setMigrationStatus("success");
-      void invalidateChapterState(queryClient);
-    },
-    onError: (err: unknown) => {
-      setMigrationStatus("error");
-      setErrorMessage(`${classifySourceProblem(err).detail} The original title was kept in your library.`);
-    },
-  });
-
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedSourceId("");
-      setSearchQuery(mangaTitle);
-      setMigrationStatus("idle");
-      setErrorMessage("");
-      setTargetManga(null);
+  const prepare = useCallback(async (destination: Target, expectedSource?: string) => {
+    const request = ++generation.current;
+    setTarget(destination); setPhase("preparing"); setReplace(false);
+    try {
+      const next = await prepareMangaMigration(backend, mangaId, destination.id, { expectedSourceTitle: mangaTitle, expectedTargetSource: expectedSource });
+      if (request !== generation.current) return;
+      setReview(next);
+      setSelected(new Set(next.rows.filter((row) => row.status === "matched").map((row) => Number(row.source.id))));
+      setPhase("review");
+    } catch (error) {
+      if (request === generation.current) { setFailure({ message: getErrorMessage(error), original: "unchanged" }); setPhase("error"); }
     }
-  }, [isOpen, mangaTitle]);
-
-  const searchResults = searchData?.fetchSourceManga?.mangas || [];
-
+  }, [backend, mangaId, mangaTitle]);
+  useEffect(() => {
+    if (!isOpen) return;
+    generation.current += 1;
+    setPhase("search"); setSourceId(""); setQuery(mangaTitle); setReview(undefined); setResult(undefined); setReplace(false); setSearching(false); setResults([]);
+    if (initialTarget) void prepare(initialTarget);
+    return () => { generation.current += 1; };
+  }, [isOpen, mangaTitle, initialTarget?.id, prepare]);
+  useEffect(() => {
+    if (!isOpen || !dialog.current) return;
+    const previous = document.activeElement as HTMLElement | null;
+    dialog.current.focus();
+    return () => previous?.focus();
+  }, [isOpen]);
+  const search = async () => {
+    const request = ++generation.current;
+    setSearching(true);
+    try {
+      const response = await sdk.FetchSourceManga({ input: { source: sourceId, page: 1, type: FetchSourceMangaType.Search, query: query.trim() } });
+      if (request === generation.current) { setResults(response.fetchSourceManga?.mangas ?? []); setPhase("results"); }
+    } catch (error) {
+      if (request === generation.current) { setFailure({ message: getErrorMessage(error), original: "unchanged" }); setPhase("error"); }
+    } finally { if (request === generation.current) setSearching(false); }
+  };
+  const execute = async () => {
+    if (!review || busy) return;
+    setPhase("executing");
+    try {
+      const completed = await executeMangaMigration(review, selected, replace ? "replace" : "copy");
+      setResult(completed); setPhase("done");
+    } catch (error) {
+      setFailure({ message: getErrorMessage(error), original: error instanceof MigrationError ? error.original : "unchanged" }); setPhase("error");
+    } finally {
+      void invalidateChapterState(queryClient);
+      void queryClient.invalidateQueries({ queryKey: ["library-duplicates"] });
+    }
+  };
   if (!isOpen) return null;
+  const canReplace = !!review && canReplaceMigration(review, selected);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm select-none">
-      <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl flex flex-col max-h-[85vh]">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/5 pb-4 shrink-0">
-          <div className="flex flex-col">
-            <h2 className="text-base font-bold text-white">Source Migration</h2>
-            <p className="text-xs text-slate-500">Migrating: "{mangaTitle}" ({sourceName})</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-full p-1.5 hover:bg-white/10 text-slate-400 hover:text-white transition"
-            aria-label="Close source migration"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
-          {migrationStatus === "idle" && (
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="migration-target-source" className="block text-xs font-semibold text-slate-400 mb-1.5">Select Target Source</label>
-                {loadingSources ? (
-                  <div className="flex items-center justify-center p-4">
-                    <Loader2 className="h-5 w-5 animate-spin text-yomi-jade" />
-                  </div>
-                ) : (
-                  <select
-                    id="migration-target-source"
-                    value={selectedSourceId}
-                    onChange={(e) => setSelectedSourceId(e.target.value)}
-                    className="yomi-select w-full"
-                  >
-                    <option value="">-- Choose source --</option>
-                    {sources.map(s => (
-                      <option key={s!.id as string} value={s!.id as string}>
-                        {s!.name} ({s!.lang.toUpperCase()})
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="migration-search-query" className="block text-xs font-semibold text-slate-400 mb-1.5">Search Query</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
-                  <input
-                    id="migration-search-query"
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Manga title..."
-                    className="w-full rounded-lg bg-ink-950 border border-white/10 py-2 pl-9 pr-4 text-xs text-slate-200 outline-none focus:border-yomi-jade/55 transition"
-                  />
-                </div>
-              </div>
-
-              <button
-                disabled={!selectedSourceId || !searchQuery.trim() || searching}
-                onClick={() => searchTarget()}
-                className="w-full py-2.5 rounded-lg bg-yomi-jade text-ink-950 text-xs font-bold hover:bg-yomi-jade/90 disabled:opacity-50 transition flex items-center justify-center gap-1.5"
-              >
-                {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                Search Matching Titles
-              </button>
-            </div>
-          )}
-
-          {migrationStatus === "confirming" && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-semibold text-slate-400">Search Results</span>
-                <button
-                  onClick={() => setMigrationStatus("idle")}
-                  className="text-yomi-jade hover:underline"
-                >
-                  Change Search
-                </button>
-              </div>
-
-              <div className="space-y-2.5 max-h-60 overflow-y-auto">
-                {searchResults.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => {
-                      setTargetManga(m);
-                      executeMigration(parseInt(String(m.id)));
-                    }}
-                    className="w-full text-left flex items-center gap-3 p-3 rounded-lg border border-white/5 bg-ink-950/40 hover:border-yomi-jade/25 hover:bg-yomi-jade/5 transition"
-                  >
-                    <img
-                      src={m.thumbnailUrl || "/placeholder-cover.svg"}
-                      alt={m.title}
-                      className="h-12 w-9 object-cover rounded-md"
-                    />
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-bold text-slate-200 truncate">{m.title}</span>
-                      <span className="text-xs text-slate-500">ID: {m.id}</span>
-                    </div>
-                  </button>
-                ))}
-
-                {searchResults.length === 0 && (
-                  <div className="text-center py-8 text-xs text-slate-500">
-                    No matching titles found on the target source.
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {migrationStatus === "migrating" && (
-            <div className="flex flex-col items-center justify-center py-10 text-center gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-yomi-jade" />
-              <span className="text-xs font-semibold text-slate-300">Migrating library progress...</span>
-              <p className="text-xs text-slate-500 max-w-xs leading-normal">
-                Adding "{targetManga?.title}" to library, fetching target chapters, matching reading history, and pruning source manga entry.
-              </p>
-            </div>
-          )}
-
-          {migrationStatus === "success" && (
-            <div className="flex flex-col items-center justify-center py-10 text-center gap-3">
-              <CheckCircle className="h-10 w-10 text-yomi-jade animate-pulse" />
-              <span className="text-sm font-bold text-slate-200">Migration Completed!</span>
-              <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
-                Migrated reading progress, bookmarks, partial pages, and category tags to “{targetManga?.title}”.
-              </p>
-              <button
-                onClick={onClose}
-                className="mt-4 px-5 py-2 rounded-lg bg-yomi-jade text-ink-950 text-xs font-bold hover:bg-yomi-jade/90 transition"
-              >
-                Close
-              </button>
-            </div>
-          )}
-
-          {migrationStatus === "error" && (
-            <div className="flex flex-col items-center justify-center py-10 text-center gap-3">
-              <AlertTriangle className="h-10 w-10 text-red-400" />
-              <span className="text-sm font-semibold text-slate-200">Migration Failed</span>
-              <p className="text-xs text-red-400/80 max-w-xs leading-relaxed">
-                {errorMessage}
-              </p>
-              <button
-                onClick={() => setMigrationStatus("idle")}
-                className="mt-4 px-5 py-2 rounded-lg border border-white/10 hover:bg-white/5 text-xs text-slate-300 font-semibold transition"
-              >
-                Go Back
-              </button>
-            </div>
-          )}
-        </div>
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+    <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={detailId} tabIndex={-1}
+      className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl outline-none"
+      onKeyDown={(event) => {
+        event.stopPropagation();
+        if (event.key === "Escape") { event.preventDefault(); close(); }
+        if (event.key !== "Tab") return;
+        const items = [...(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]') ?? [])];
+        const first = items[0], last = items[items.length - 1];
+        if (!first) { event.preventDefault(); return; }
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog.current)) { event.preventDefault(); first.focus(); }
+      }}>
+      <div className="flex shrink-0 items-start justify-between gap-4 border-b border-white/5 pb-4">
+        <div><h2 id={titleId} className="text-base font-bold text-white">Source migration</h2><p id={detailId} className="mt-1 text-xs text-slate-400">{mangaTitle} · {sourceName}</p></div>
+        <button type="button" aria-label="Close source migration" disabled={busy} onClick={close} className="yomi-icon-button"><X className="h-5 w-5" /></button>
+      </div>
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-4 pr-1">
+        {phase === "search" && <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void search(); }}>
+          <label className="block text-xs font-semibold text-slate-400">Target source
+            <select value={sourceId} onChange={(event) => setSourceId(event.target.value)} disabled={searching || loadingSources} className="yomi-select mt-2 w-full">
+              <option value="">Choose source</option>
+              {sources?.sources.nodes.filter((source) => source.extension?.isInstalled || String(source.id) === "0").map((source) => <option key={String(source.id)} value={String(source.id)}>{source.name}</option>)}
+            </select>
+          </label>
+          {sourcesError && <p role="alert" className="text-xs text-red-300">Sources could not be loaded. <button type="button" onClick={() => void retrySources()} className="underline">Retry sources</button></p>}
+          <label className="block text-xs font-semibold text-slate-400">Search query<input value={query} onChange={(event) => setQuery(event.target.value)} disabled={searching} className="yomi-field mt-2 w-full" /></label>
+          <button type="submit" disabled={!sourceId || !query.trim() || searching} className="yomi-button yomi-button-primary w-full">{searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}Search matching titles</button>
+        </form>}
+        {phase === "results" && <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-slate-300">Choose a title to review its chapters</p><button type="button" className="text-xs text-yomi-jade underline" onClick={() => setPhase("search")}>Change search</button></div>
+          {results.map((manga) => <button type="button" key={manga.id} disabled={manga.id === mangaId} onClick={() => void prepare({ id: manga.id, title: manga.title }, sourceId)} className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-ink-950/40 p-3 text-left disabled:opacity-40">
+            <img src={manga.thumbnailUrl || "/placeholder-cover.svg"} alt="" className="h-12 w-9 rounded-md object-cover" /><span className="text-sm text-slate-200">{manga.title}{manga.id === mangaId ? " (current title)" : ""}</span>
+          </button>)}
+          {!results.length && <p className="p-6 text-center text-sm text-slate-400">No matching titles found. Refine the search query.</p>}
+        </div>}
+        {(phase === "preparing" || phase === "executing") && <div role="status" className="flex flex-col items-center gap-3 py-10 text-center text-sm text-slate-300"><Loader2 className="h-8 w-8 animate-spin text-yomi-jade" /><p>{phase === "preparing" ? "Refreshing destination chapters and preparing the review…" : "Copying and verifying selected progress and categories…"}</p><p className="max-w-md text-xs text-slate-400">The original stays in the library unless replacement was selected and every required transfer is confirmed.</p></div>}
+        {phase === "review" && review && <MigrationReviewPanel review={review} selected={selected} onSelected={(next) => { setSelected(next); setReplace(false); }} replace={replace} onReplace={setReplace} canReplace={canReplace}
+          onExecute={() => void execute()} onRefresh={() => void prepare({ id: review.target.id, title: review.target.title }, initialTarget ? undefined : sourceId)} onSearch={() => setPhase("search")} />}
+        {phase === "done" && result && <div className="space-y-4 py-6 text-center"><CheckCircle className="mx-auto h-10 w-10 text-yomi-jade" /><h3 className="text-base font-semibold text-white">Selected progress and categories verified</h3><p className="text-sm text-slate-300">{result.mode === "copy" ? "The original is kept in your library." : "The destination is in your library and the original has left the library. Its source entry and downloads were retained."}</p><button type="button" onClick={close} className="yomi-button yomi-button-primary">Close</button></div>}
+        {phase === "error" && <div role="alert" className="space-y-4 py-6 text-center"><AlertTriangle className="mx-auto h-9 w-9 text-amber-300" /><h3 className="text-base font-semibold text-white">Migration needs attention</h3><p className="text-sm text-slate-300">{failure.message}</p><p className="text-xs text-slate-400">{failure.original === "unknown" ? "The original's library membership could not be confirmed. Reconnect and check both entries before retrying." : "This migration stopped before removing the original. Confirmed copies remain available."}</p><div className="flex flex-wrap justify-center gap-3">{target && <button type="button" onClick={() => void prepare(target, initialTarget ? undefined : sourceId || undefined)} className="yomi-button yomi-button-secondary">Refresh mapping</button>}<button type="button" onClick={() => setPhase("search")} className="yomi-button yomi-button-secondary">Change search</button></div></div>}
       </div>
     </div>
-  );
+  </div>;
 }

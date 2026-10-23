@@ -3873,6 +3873,13 @@ export type FetchExtensionsInput = {
   clientMutationId?: string | null | undefined;
 };
 
+export type FetchMangaAndChaptersInput = {
+  clientMutationId?: string | null | undefined;
+  fetchChapters: boolean;
+  fetchManga: boolean;
+  id: number;
+};
+
 export type FetchSourceMangaInput = {
   clientMutationId?: string | null | undefined;
   filters?: Array<FilterChangeInput> | null | undefined;
@@ -4464,6 +4471,28 @@ export type GetMangaDetailsQueryVariables = Exact<{
 
 export type GetMangaDetailsQuery = { manga: { id: number, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, categories: { edges: Array<{ node: { id: number } }> }, source: { name: string } | null, chapters: { edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, lastPageRead: number, pageCount: number, uploadDate: unknown, scanlator: string | null } }> } } };
 
+export type GetMigrationMangaQueryVariables = Exact<{
+  id: number;
+}>;
+
+
+export type GetMigrationMangaQuery = { manga: { id: number, title: string, sourceId: unknown, inLibrary: boolean, categories: { edges: Array<{ node: { id: number } }> } } };
+
+export type GetMigrationChaptersQueryVariables = Exact<{
+  mangaId: number;
+  after?: unknown;
+}>;
+
+
+export type GetMigrationChaptersQuery = { chapters: { totalCount: number, pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, mangaId: number, name: string, chapterNumber: number, sourceOrder: number, pageCount: number, isRead: boolean, isBookmarked: boolean, lastPageRead: number }> } };
+
+export type RefreshMigrationTargetMutationVariables = Exact<{
+  input: FetchMangaAndChaptersInput;
+}>;
+
+
+export type RefreshMigrationTargetMutation = { fetchMangaAndChapters: { manga: { id: number }, chapters: Array<{ id: number }> } | null };
+
 export type GetChapterQueryVariables = Exact<{
   id: number;
 }>;
@@ -5001,6 +5030,62 @@ export const GetMangaDetailsDocument = gql`
   }
 }
     `;
+export const GetMigrationMangaDocument = gql`
+    query GetMigrationManga($id: Int!) {
+  manga(id: $id) {
+    id
+    title
+    sourceId
+    inLibrary
+    categories {
+      edges {
+        node {
+          id
+        }
+      }
+    }
+  }
+}
+    `;
+export const GetMigrationChaptersDocument = gql`
+    query GetMigrationChapters($mangaId: Int!, $after: Cursor) {
+  chapters(
+    condition: {mangaId: $mangaId}
+    first: 200
+    after: $after
+    order: [{by: ID, byType: ASC}]
+  ) {
+    totalCount
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      id
+      mangaId
+      name
+      chapterNumber
+      sourceOrder
+      pageCount
+      isRead
+      isBookmarked
+      lastPageRead
+    }
+  }
+}
+    `;
+export const RefreshMigrationTargetDocument = gql`
+    mutation RefreshMigrationTarget($input: FetchMangaAndChaptersInput!) {
+  fetchMangaAndChapters(input: $input) {
+    manga {
+      id
+    }
+    chapters {
+      id
+    }
+  }
+}
+    `;
 export const GetChapterDocument = gql`
     query GetChapter($id: Int!) {
   chapter(id: $id) {
@@ -5377,6 +5462,15 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetMangaDetails(variables: GetMangaDetailsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetMangaDetailsQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetMangaDetailsQuery>({ document: GetMangaDetailsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetMangaDetails', 'query', variables);
+    },
+    GetMigrationManga(variables: GetMigrationMangaQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetMigrationMangaQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetMigrationMangaQuery>({ document: GetMigrationMangaDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetMigrationManga', 'query', variables);
+    },
+    GetMigrationChapters(variables: GetMigrationChaptersQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetMigrationChaptersQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetMigrationChaptersQuery>({ document: GetMigrationChaptersDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetMigrationChapters', 'query', variables);
+    },
+    RefreshMigrationTarget(variables: RefreshMigrationTargetMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<RefreshMigrationTargetMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<RefreshMigrationTargetMutation>({ document: RefreshMigrationTargetDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'RefreshMigrationTarget', 'mutation', variables);
     },
     GetChapter(variables: GetChapterQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetChapterQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetChapterQuery>({ document: GetChapterDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetChapter', 'query', variables);
