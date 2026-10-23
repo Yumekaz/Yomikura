@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { persist, StateStorage, createJSONStorage } from "zustand/middleware";
 import { testServerConnection } from "../api/suwayomi/connection";
 import { DEFAULT_SERVER_BASE_URL } from "../config/server";
+import { progressBackend, type ProgressBackend } from "../api/suwayomi/backendIdentity";
+import { legacyMangaSettings, mangaReaderSettingsKey, mergeMangaSettings } from "./mangaReaderSettings";
 
 /** Tauri v2 sets `window.isTauri`; v1 used `__TAURI__` when withGlobalTauri is enabled. */
 export const isTauri = () => {
@@ -127,7 +129,8 @@ interface SettingsState {
   serverDataPath: string;
   
   // Phase 2 features
-  mangaSettingsOverrides: Record<string | number, MangaOverride>;
+  mangaSettingsOverrides: Record<string, MangaOverride>;
+  legacyMangaOverridesBackend: string | null;
   autoScrollSpeed: number;
   imageFilters: ImageFilters;
   cropBorders: boolean;
@@ -179,8 +182,9 @@ interface SettingsState {
   resetAllSettings: () => void;
   
   // Phase 2 actions
-  setMangaOverride: (mangaId: string | number, override: Partial<MangaOverride>) => void;
-  clearMangaOverride: (mangaId: string | number) => void;
+  setMangaOverride: (mangaId: string | number, override: Partial<MangaOverride>, backend?: ProgressBackend) => void;
+  clearMangaOverride: (mangaId: string | number, backend?: ProgressBackend) => void;
+  assignLegacyMangaOverrides: (backend: ProgressBackend) => boolean;
   setAutoScrollSpeed: (speed: number) => void;
   setImageFilters: (filters: Partial<ImageFilters>) => void;
   setCropBorders: (crop: boolean) => void;
@@ -238,6 +242,7 @@ export const useSettingsStore = create<SettingsState>()(
       
       // Phase 2 default state
       mangaSettingsOverrides: {},
+      legacyMangaOverridesBackend: null,
       autoScrollSpeed: 1,
       imageFilters: { grayscale: 0, invert: 0, brightness: 100, contrast: 100 },
       cropBorders: false,
@@ -395,20 +400,31 @@ export const useSettingsStore = create<SettingsState>()(
       setServerDataPath: (path: string) => set({ serverDataPath: path.trim() }),
       
       // Phase 2 actions implementation
-      setMangaOverride: (mangaId, override) => set((state) => ({
-        mangaSettingsOverrides: {
-          ...state.mangaSettingsOverrides,
-          [mangaId]: {
-            ...state.mangaSettingsOverrides[mangaId],
-            ...override
-          }
-        }
-      })),
-      clearMangaOverride: (mangaId) => set((state) => {
+      setMangaOverride: (mangaId, override, backend) => set((state) => {
+        const key = mangaReaderSettingsKey(backend ?? progressBackend(state.serverBaseUrl, state.mockMode), mangaId);
+        return { mangaSettingsOverrides: { ...state.mangaSettingsOverrides, [key]: mergeMangaSettings(state.mangaSettingsOverrides[key], override) } };
+      }),
+      clearMangaOverride: (mangaId, backend) => set((state) => {
         const copy = { ...state.mangaSettingsOverrides };
-        delete copy[mangaId];
+        delete copy[mangaReaderSettingsKey(backend ?? progressBackend(state.serverBaseUrl, state.mockMode), mangaId)];
         return { mangaSettingsOverrides: copy };
       }),
+      assignLegacyMangaOverrides: (backend) => {
+        let assigned = false;
+        set((state) => {
+          if (state.legacyMangaOverridesBackend || progressBackend(state.serverBaseUrl, state.mockMode).key !== backend.key) return state;
+          const legacy = legacyMangaSettings(state.mangaSettingsOverrides);
+          if (!legacy.length) return state;
+          const copy = { ...state.mangaSettingsOverrides };
+          for (const [id, previous] of legacy) {
+            const key = mangaReaderSettingsKey(backend, id);
+            copy[key] = mergeMangaSettings(previous, copy[key] ?? {});
+          }
+          assigned = true;
+          return { mangaSettingsOverrides: copy, legacyMangaOverridesBackend: backend.key };
+        });
+        return assigned;
+      },
       setAutoScrollSpeed: (speed) => set({ autoScrollSpeed: speed }),
       setImageFilters: (filters) => set((state) => ({
         imageFilters: { ...state.imageFilters, ...filters }
@@ -501,6 +517,7 @@ export const useSettingsStore = create<SettingsState>()(
           mockMode: false,
           serverDataPath: "",
           mangaSettingsOverrides: {},
+          legacyMangaOverridesBackend: null,
           autoScrollSpeed: 1,
           imageFilters: { grayscale: 0, invert: 0, brightness: 100, contrast: 100 },
           cropBorders: false,
@@ -563,6 +580,7 @@ export const useSettingsStore = create<SettingsState>()(
         mockMode: state.mockMode,
         serverDataPath: state.serverDataPath,
         mangaSettingsOverrides: state.mangaSettingsOverrides,
+        legacyMangaOverridesBackend: state.legacyMangaOverridesBackend,
         autoScrollSpeed: state.autoScrollSpeed,
         imageFilters: state.imageFilters,
         cropBorders: state.cropBorders,
@@ -619,6 +637,7 @@ export const useSettingsStore = create<SettingsState>()(
           mockMode: persisted?.mockMode ?? currentState.mockMode,
           serverDataPath: persisted?.serverDataPath ?? currentState.serverDataPath,
           mangaSettingsOverrides: persisted?.mangaSettingsOverrides ?? currentState.mangaSettingsOverrides,
+          legacyMangaOverridesBackend: persisted?.legacyMangaOverridesBackend ?? null,
           autoScrollSpeed: persisted?.autoScrollSpeed ?? currentState.autoScrollSpeed,
           imageFilters: persisted?.imageFilters ?? currentState.imageFilters,
           cropBorders: persisted?.cropBorders ?? currentState.cropBorders,

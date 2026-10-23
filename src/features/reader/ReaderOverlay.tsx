@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, ChevronLeft, ChevronRight, Sliders, Settings, Play, Pause, Eye, BookOpen, RefreshCw } from "lucide-react";
-import { FitMode, PageSpread, ReaderMode, useSettingsStore } from "../../stores/useSettingsStore";
+import { FitMode, PageSpread, ReaderMode, type ImageFilters, useSettingsStore } from "../../stores/useSettingsStore";
 import { useReaderImageSource } from "./useReaderImageSource";
 import { ProgressSyncStatus } from "../../components/ProgressSyncStatus";
 
@@ -23,6 +23,14 @@ interface ReaderOverlayProps {
   onFitModeChange: (mode: FitMode) => void;
   pageSpread: PageSpread;
   onPageSpreadChange: (spread: PageSpread) => void;
+  imageFilters: ImageFilters;
+  onImageFiltersChange: (filters: Partial<ImageFilters>) => void;
+  cropBorders: boolean;
+  onCropBordersChange: (crop: boolean) => void;
+  pageTransition: "fade" | "slide" | "none";
+  onPageTransitionChange: (transition: "fade" | "slide" | "none") => void;
+  autoDownloadCount: number;
+  onAutoDownloadCountChange: (count: number) => void;
   nextChapterId?: number;
   prevChapterId?: number;
   hasOverride: boolean;
@@ -47,6 +55,14 @@ export function ReaderOverlay({
   onFitModeChange,
   pageSpread,
   onPageSpreadChange,
+  imageFilters,
+  onImageFiltersChange: setImageFilters,
+  cropBorders,
+  onCropBordersChange: setCropBorders,
+  pageTransition,
+  onPageTransitionChange: setPageTransition,
+  autoDownloadCount,
+  onAutoDownloadCountChange: setAutoDownloadCount,
   nextChapterId,
   prevChapterId,
   hasOverride,
@@ -60,16 +76,8 @@ export function ReaderOverlay({
   const [activeSubTab, setActiveSubTab] = useState<"layout" | "filters" | "scroll" | "none">("none");
 
   const {
-    imageFilters,
-    setImageFilters,
-    cropBorders,
-    setCropBorders,
     autoScrollSpeed,
     setAutoScrollSpeed,
-    pageTransition,
-    setPageTransition,
-    autoDownloadCount,
-    setAutoDownloadCount,
   } = useSettingsStore();
 
   if (!show) return null;
@@ -168,6 +176,7 @@ export function ReaderOverlay({
                 <div className="flex items-center justify-between border-t border-white/5 pt-3">
                   <span className="text-xs font-semibold text-slate-300">Page transition</span>
                   <select
+                    aria-label="Page transition"
                     value={pageTransition}
                     onChange={(e) => setPageTransition(e.target.value as "fade" | "slide" | "none")}
                     className="yomi-select min-w-24"
@@ -181,6 +190,7 @@ export function ReaderOverlay({
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-300">Auto-download ahead</span>
                   <select
+                    aria-label="Auto-download ahead"
                     value={autoDownloadCount}
                     onChange={(e) => setAutoDownloadCount(parseInt(e.target.value, 10))}
                     className="yomi-select min-w-24"
@@ -249,6 +259,7 @@ export function ReaderOverlay({
                   </div>
                   <input
                     type="range"
+                    aria-label="Grayscale effect"
                     min="0"
                     max="100"
                     value={imageFilters.grayscale}
@@ -265,6 +276,7 @@ export function ReaderOverlay({
                   </div>
                   <input
                     type="range"
+                    aria-label="Invert colors"
                     min="0"
                     max="100"
                     value={imageFilters.invert}
@@ -281,6 +293,7 @@ export function ReaderOverlay({
                   </div>
                   <input
                     type="range"
+                    aria-label="Brightness"
                     min="50"
                     max="150"
                     value={imageFilters.brightness}
@@ -297,6 +310,7 @@ export function ReaderOverlay({
                   </div>
                   <input
                     type="range"
+                    aria-label="Contrast"
                     min="50"
                     max="150"
                     value={imageFilters.contrast}
@@ -347,6 +361,7 @@ export function ReaderOverlay({
                   </div>
                   <input
                     type="range"
+                    aria-label="Scrolling speed"
                     min="1"
                     max="10"
                     step="1"

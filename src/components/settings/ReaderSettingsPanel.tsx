@@ -2,10 +2,25 @@ import { useEffect, useState } from "react";
 import { BookOpen, Palette, Plus, Sliders, Trash2 } from "lucide-react";
 import { useTranslation } from "../../hooks/useTranslation";
 import { type ReaderMode, useSettingsStore } from "../../stores/useSettingsStore";
+import { progressBackend, type ProgressBackend } from "../../api/suwayomi/backendIdentity";
+import { legacyMangaSettings } from "../../stores/mangaReaderSettings";
+import { useFeedback } from "../ui/FeedbackProvider";
 
 export function ReaderSettingsPanel() {
   const { t } = useTranslation();
   const store = useSettingsStore();
+  const { confirm, notify } = useFeedback();
+  const legacyCount = legacyMangaSettings(store.mangaSettingsOverrides).length;
+  let legacyTarget: ProgressBackend | undefined;
+  try { legacyTarget = progressBackend(store.serverBaseUrl, store.mockMode); } catch { /* Server setup can contain an incomplete URL. */ }
+  const recoverLegacySettings = async () => {
+    const target = legacyTarget;
+    if (!target) return;
+    const destination = target.isDemo ? "the demo sandbox" : target.serverBaseUrl;
+    if (!await confirm({ title: "Restore earlier title settings?", detail: `Apply the ${legacyCount} earlier title settings to ${destination}? Choose the server these titles belonged to before continuing. Newer settings for this server will be kept.`, confirmLabel: "Apply earlier settings" })) return;
+    const assigned = useSettingsStore.getState().assignLegacyMangaOverrides(target);
+    notify(assigned ? "Earlier title settings are available on this server." : "The selected server or saved settings changed. Review the current server and try again.", assigned ? "success" : "info");
+  };
   const [presetName, setPresetName] = useState("");
   const [addingPreset, setAddingPreset] = useState(false);
   const [recordingAction, setRecordingAction] = useState<string | null>(null);
@@ -27,6 +42,12 @@ export function ReaderSettingsPanel() {
   const resetKeybinds = () => store.setCustomKeybinds({ prevPage: ["arrowleft", "a", "backspace"], nextPage: ["arrowright", "d", " ", "enter"], toggleOverlay: ["escape"], cycleFit: ["w"], cycleSpread: ["s"] });
 
   return <div className="space-y-6">
+    {legacyCount > 0 && !store.legacyMangaOverridesBackend && <section className="rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-panel" aria-labelledby="earlier-reader-settings-title">
+      <h2 id="earlier-reader-settings-title" className="text-lg font-semibold text-white">Earlier title settings</h2>
+      <p className="mt-2 text-sm text-slate-400">{legacyCount} saved title settings came from an earlier version that did not record their server. They are preserved. Select the server they belong to, then apply them here.</p>
+      <p className="mt-3 break-all text-sm text-slate-300">Current server: {legacyTarget?.isDemo ? "Demo sandbox" : legacyTarget?.serverBaseUrl ?? "Enter a valid server URL first"}</p>
+      <button type="button" className="yomi-button yomi-button-secondary mt-4" disabled={!legacyTarget} onClick={() => void recoverLegacySettings()}>Use earlier settings on this server</button>
+    </section>}
     <section className="rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-panel" aria-labelledby="reader-preferences-title">
       <h2 id="reader-preferences-title" className="flex items-center gap-2 text-lg font-semibold text-white"><BookOpen className="h-5 w-5 text-yomi-jade" />Reader preferences</h2>
       <p className="mt-2 text-sm text-slate-400">Defaults apply everywhere unless a title has its own override.</p>

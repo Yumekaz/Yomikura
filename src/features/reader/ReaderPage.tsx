@@ -17,6 +17,8 @@ import { loadReaderChapter, loadReaderChapterDetails, loadReaderChapterPages, re
 import { WebtoonPage } from "./WebtoonPage";
 import { useWebtoonNavigation, type ReaderCursor } from "./useWebtoonNavigation";
 import { isCurrentProgressBackend } from "../../api/suwayomi/progressSync";
+import { mangaReaderSettingsKey } from "../../stores/mangaReaderSettings";
+import type { ImageFilters, MangaOverride } from "../../stores/useSettingsStore";
 
 export default function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>();
@@ -55,8 +57,12 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
     autoDeleteReadChapters,
     infiniteChapterReading,
     imageFilters: globalImageFilters,
+    setImageFilters: setGlobalImageFilters,
     cropBorders: globalCropBorders,
+    setCropBorders: setGlobalCropBorders,
     pageTransition: globalPageTransition,
+    setPageTransition: setGlobalPageTransition,
+    setAutoDownloadCount: setGlobalAutoDownloadCount,
     readerNavigationMode,
   } = useSettingsStore();
 
@@ -107,9 +113,9 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
   const mangaId = activeChapter?.mangaId ?? chapter?.mangaId;
 
   // Resolve Overrides
-  const hasOverride = mangaId !== undefined && mangaSettingsOverrides[mangaId] !== undefined;
-  
-  const override = mangaId !== undefined ? mangaSettingsOverrides[mangaId] : undefined;
+  const overrideKey = mangaId !== undefined ? mangaReaderSettingsKey(progressTarget, mangaId) : undefined;
+  const override = overrideKey !== undefined ? mangaSettingsOverrides[overrideKey] : undefined;
+  const hasOverride = override !== undefined;
   const readerMode = override?.readerMode ?? globalReaderMode;
   const fitMode = override?.fitMode ?? globalFitMode;
   const pageSpread = override?.pageSpread ?? globalPageSpread;
@@ -122,32 +128,42 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
 
   const handleReaderModeChange = useCallback((mode: ReaderMode) => {
     if (mangaId !== undefined && hasOverride) {
-      setMangaOverride(mangaId, { readerMode: mode });
+      setMangaOverride(mangaId, { readerMode: mode }, progressTarget);
     } else {
       setGlobalReaderMode(mode);
     }
-  }, [mangaId, hasOverride, setMangaOverride, setGlobalReaderMode]);
+  }, [mangaId, hasOverride, setMangaOverride, setGlobalReaderMode, progressTarget]);
 
   const handleFitModeChange = useCallback((mode: FitMode) => {
     if (mangaId !== undefined && hasOverride) {
-      setMangaOverride(mangaId, { fitMode: mode });
+      setMangaOverride(mangaId, { fitMode: mode }, progressTarget);
     } else {
       setGlobalFitMode(mode);
     }
-  }, [mangaId, hasOverride, setMangaOverride, setGlobalFitMode]);
+  }, [mangaId, hasOverride, setMangaOverride, setGlobalFitMode, progressTarget]);
 
   const handlePageSpreadChange = useCallback((spread: PageSpread) => {
     if (mangaId !== undefined && hasOverride) {
-      setMangaOverride(mangaId, { pageSpread: spread });
+      setMangaOverride(mangaId, { pageSpread: spread }, progressTarget);
     } else {
       setGlobalPageSpread(spread);
     }
-  }, [mangaId, hasOverride, setMangaOverride, setGlobalPageSpread]);
+  }, [mangaId, hasOverride, setMangaOverride, setGlobalPageSpread, progressTarget]);
+
+  const changeTitleSetting = useCallback((patch: MangaOverride) => {
+    if (mangaId !== undefined && hasOverride) setMangaOverride(mangaId, patch, progressTarget);
+    else {
+      if (patch.imageFilters) setGlobalImageFilters(patch.imageFilters);
+      if (patch.cropBorders !== undefined) setGlobalCropBorders(patch.cropBorders);
+      if (patch.pageTransition !== undefined) setGlobalPageTransition(patch.pageTransition);
+      if (patch.autoDownloadCount !== undefined) setGlobalAutoDownloadCount(patch.autoDownloadCount);
+    }
+  }, [mangaId, hasOverride, progressTarget, setMangaOverride, setGlobalImageFilters, setGlobalCropBorders, setGlobalPageTransition, setGlobalAutoDownloadCount]);
 
   const handleToggleOverride = useCallback(() => {
     if (mangaId === undefined) return;
     if (hasOverride) {
-      clearMangaOverride(mangaId);
+      clearMangaOverride(mangaId, progressTarget);
     } else {
       setMangaOverride(mangaId, {
         readerMode,
@@ -157,7 +173,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
         autoDownloadCount: effectiveAutoDownloadCount,
         imageFilters: effectiveImageFilters,
         cropBorders: effectiveCropBorders,
-      });
+      }, progressTarget);
     }
   }, [
     mangaId,
@@ -171,6 +187,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
     effectiveAutoDownloadCount,
     effectiveImageFilters,
     effectiveCropBorders,
+    progressTarget,
   ]);
 
   const { data: pagesData, isLoading: pagesLoading, isError: pagesError, error: pagesErrorObject } = useQuery({
@@ -770,6 +787,14 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
         onFitModeChange={handleFitModeChange}
         pageSpread={pageSpread}
         onPageSpreadChange={handlePageSpreadChange}
+        imageFilters={effectiveImageFilters}
+        onImageFiltersChange={(filters: Partial<ImageFilters>) => changeTitleSetting({ imageFilters: filters })}
+        cropBorders={effectiveCropBorders}
+        onCropBordersChange={(cropBorders) => changeTitleSetting({ cropBorders })}
+        pageTransition={pageTransition}
+        onPageTransitionChange={(pageTransition) => changeTitleSetting({ pageTransition })}
+        autoDownloadCount={effectiveAutoDownloadCount}
+        onAutoDownloadCountChange={(autoDownloadCount) => changeTitleSetting({ autoDownloadCount })}
         nextChapterId={nextChapterId}
         prevChapterId={prevChapterId}
         hasOverride={hasOverride}

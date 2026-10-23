@@ -77,6 +77,10 @@ Verified on 2026-10-23 with Suwayomi v2.3.2243. The client persists reading inte
 
 Pending state is independent of a Suwayomi library backup. See [offline progress recovery](RELIABILITY_BATCH_2_2026-10-23.md) for the persistence, conflict and verification contract, including the backend durability limit observed during forced-stop testing.
 
+## Client reader settings
+
+Title-specific preferences are scoped by canonical backend endpoint, live/demo mode and manga ID. Reader controls use the effective title setting and write to that scope; inherited controls edit global defaults. Earlier numeric-only entries are preserved for an explicit owning-server association in Settings → Reader. These client preferences remain separate from Suwayomi library backups. See [reader settings verification](RELIABILITY_BATCH_4_2026-10-23.md).
+
 ## Backup export and restore
 
 Verified on 2026-10-23 against the pinned Suwayomi v2.3.2243 server using a disposable local-source library.
