@@ -259,7 +259,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
         const isAlreadyDownloaded = cachedChapters?.some(cc => cc.id === ch.id);
         if (!isAlreadyDownloaded) {
           try {
-            await downloadChapter(ch.id, activeChapter.mangaTitle);
+            await downloadChapter(ch.id, activeChapter.mangaTitle, progressTarget);
           } catch (err) {
             console.error("Failed background auto-download for chapter:", ch.id, err);
           }

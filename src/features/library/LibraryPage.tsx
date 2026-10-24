@@ -209,7 +209,7 @@ export default function LibraryPage() {
         const targetChapters = nodes.filter(n => !n.isRead && !n.isDownloaded);
         
         for (const ch of targetChapters) {
-          await downloadChapter(parseInt(String(ch.id)), details.manga?.title);
+          await downloadChapter(parseInt(String(ch.id)), details.manga?.title, progressBackend(serverBaseUrl, mockMode));
         }
       } catch (err) {
         console.error("Bulk download failed for manga:", mangaId, err);

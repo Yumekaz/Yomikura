@@ -103,7 +103,8 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
   };
 
   const downloadSelected = async () => {
-    for (const id of selected) await downloadChapter(id, mangaTitle);
+    const target = progressBackend(serverBaseUrl, mockMode);
+    for (const id of selected) await downloadChapter(id, mangaTitle, target);
     notify(`${selected.size} chapters added to the persistent download queue.`, "success");
     setSelected(new Set());
   };
@@ -138,10 +139,10 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
               <div className="flex shrink-0 items-center gap-2">
                 {chapter.isBookmarked && <Bookmark className="h-4 w-4 fill-current text-amber-300" aria-label="Bookmarked" />}
                 {chapter.isDownloaded && <span className="grid h-8 w-8 place-items-center rounded-full bg-white/5 text-slate-400" title="Downloaded on server"><Download className="h-4 w-4" /></span>}
-                {isCached ? <button onClick={async () => { if (await confirm({ title: "Remove offline chapter?", detail: `Delete the saved pages for “${chapter.name}” from this device?`, confirmLabel: "Remove download", danger: true })) await deleteChapter(chapterId); }} className="yomi-icon-button" aria-label={`Remove offline download of ${chapter.name}`}><CheckCircle2 /></button>
-                  : download?.status === "downloading" || download?.status === "queued" ? <button onClick={() => cancelDownload(chapterId)} className="yomi-icon-button" aria-label={`Cancel download of ${chapter.name}`}>{download.status === "downloading" ? <Loader2 className="animate-spin" /> : <X />}</button>
-                  : download?.status === "error" ? <button onClick={() => void retryDownload(chapterId, mangaTitle)} className="yomi-icon-button danger" aria-label={`Retry download of ${chapter.name}`}><Download /></button>
-                  : <button onClick={async () => { try { await downloadChapter(chapterId, mangaTitle); if (!keepsLocalCopy) { notify("Chapter added to Suwayomi's download queue.", "success"); queryClient.invalidateQueries({ queryKey: ["downloads"] }); } } catch (error) { notify(error instanceof Error ? error.message : "Download could not be started.", "error"); } }} className="yomi-icon-button" aria-label={keepsLocalCopy ? `Save ${chapter.name} for offline reading` : `Download ${chapter.name} through Suwayomi`}><Download /></button>}
+                {isCached ? <button onClick={async () => { if (await confirm({ title: "Remove offline chapter?", detail: `Delete the saved pages for “${chapter.name}” from this device?`, confirmLabel: "Remove download", danger: true })) await deleteChapter(chapterId, backend ?? undefined); }} className="yomi-icon-button" aria-label={`Remove offline download of ${chapter.name}`}><CheckCircle2 /></button>
+                  : download?.status === "downloading" || download?.status === "queued" ? <button onClick={() => cancelDownload(chapterId, backend ?? undefined)} className="yomi-icon-button" aria-label={`Cancel download of ${chapter.name}`}>{download.status === "downloading" ? <Loader2 className="animate-spin" /> : <X />}</button>
+                  : download?.status === "error" ? <button onClick={() => void retryDownload(chapterId, mangaTitle, backend ?? undefined)} className="yomi-icon-button danger" aria-label={`Retry download of ${chapter.name}`}><Download /></button>
+                  : <button onClick={async () => { try { await downloadChapter(chapterId, mangaTitle, backend ?? undefined); if (!keepsLocalCopy) { notify("Chapter added to Suwayomi's download queue.", "success"); queryClient.invalidateQueries({ queryKey: ["downloads"] }); } } catch (error) { notify(error instanceof Error ? error.message : "Download could not be started.", "error"); } }} className="yomi-icon-button" aria-label={keepsLocalCopy ? `Save ${chapter.name} for offline reading` : `Download ${chapter.name} through Suwayomi`}><Download /></button>}
               </div>
             </div>
           );

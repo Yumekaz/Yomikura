@@ -37,6 +37,7 @@ import { backupErrorMessage, LibraryBackupError } from "../api/suwayomi/backupSt
 import { createLibraryBackup, exportLibraryBackup, restoreWithSafetyBackup } from "../api/suwayomi/libraryBackups";
 import { normalizeCacheServerUrl } from "../api/suwayomi/offlineCache";
 import { restoreBackupUpload } from "../api/suwayomi/backupUpload";
+import { progressBackend } from "../api/suwayomi/backendIdentity";
 
 type SettingsTab = SettingsSection;
 const SETTINGS_TABS: SettingsTab[] = ["connection", "appearance", "reader", "backup", "offline", "advanced", "about"];
@@ -82,6 +83,7 @@ function SettingsPage() {
   
   const { 
     cachedChapters, 
+    activeDownloads,
     loadCachedChapters, 
     deleteChapter, 
     clearAll, 
@@ -643,10 +645,11 @@ function SettingsPage() {
           {activeTab === "offline" && (
             <OfflineSettingsPanel
               cachedChapters={cachedChapters}
+              pendingJobs={Object.keys(activeDownloads).length}
               storageUsage={storageUsage}
               storageQuota={storageQuota}
-              clearAll={clearAll}
-              deleteChapter={deleteChapter}
+              clearAll={() => clearAll(progressBackend(serverBaseUrl, mockMode)).catch((error) => { notify(error instanceof Error ? error.message : "Saved chapters could not be cleared.", "error"); })}
+              deleteChapter={(id) => deleteChapter(id, progressBackend(serverBaseUrl, mockMode)).catch((error) => { notify(error instanceof Error ? error.message : "Saved chapter could not be removed.", "error"); })}
               confirm={confirm}
             />
           )}

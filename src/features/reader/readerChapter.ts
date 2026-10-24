@@ -22,9 +22,9 @@ export async function loadReaderChapterDetails(backend: ProgressBackend, id: num
   try { details = (await client(backend, signal).GetChapter({ id })).chapter; }
   catch (error) {
     if (signal?.aborted) throw error;
-    const cached = await getCachedChapter(backend.serverBaseUrl, id);
+    const cached = await getCachedChapter(backend.serverBaseUrl, id, backend.isDemo);
     if (!cached) throw error;
-    const siblings = await getCachedChaptersForManga(backend.serverBaseUrl, cached.mangaId);
+    const siblings = await getCachedChaptersForManga(backend.serverBaseUrl, cached.mangaId, backend.isDemo);
     details = { id: cached.id, name: cached.name, chapterNumber: cached.chapterNumber, isRead: cached.isRead ?? false,
       lastPageRead: cached.lastPageRead ?? 0, pageCount: cached.pageCount, sourceOrder: cached.sourceOrder, mangaId: cached.mangaId,
       manga: { title: cached.mangaTitle, chapters: { edges: siblings.map((chapter) => ({ node: { id: chapter.id, chapterNumber: chapter.chapterNumber } })) } },
@@ -40,7 +40,7 @@ export async function loadReaderChapterPages(backend: ProgressBackend, id: numbe
     const pages = (await client(backend, signal).FetchChapterPages({ input: { chapterId: id } })).fetchChapterPages?.pages ?? [];
     if (pages.length) return pages;
   } catch (error) { if (signal?.aborted) throw error; failure = error; }
-  const cached = await getCachedChapter(backend.serverBaseUrl, id);
+  const cached = await getCachedChapter(backend.serverBaseUrl, id, backend.isDemo);
   if (cached?.pages.length && chapterIdentityMatches(progressChapterIdentity(details), cachedIdentity(cached))) return cached.pages;
   if (failure) throw failure;
   return [];

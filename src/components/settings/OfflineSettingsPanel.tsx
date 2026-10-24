@@ -9,6 +9,7 @@ type OfflineSettingsPanelProps = {
   clearAll: () => Promise<void>;
   deleteChapter: (chapterId: number) => Promise<void>;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
+  pendingJobs?: number;
 };
 
 function formatBytes(bytes: number, decimals = 2) {
@@ -27,6 +28,7 @@ export function OfflineSettingsPanel({
   clearAll,
   deleteChapter,
   confirm,
+  pendingJobs = 0,
 }: OfflineSettingsPanelProps) {
   return (
     <div className="space-y-6">
@@ -36,7 +38,7 @@ export function OfflineSettingsPanel({
           Offline Storage Space
         </h2>
         <p className="mt-2 text-sm text-slate-400">
-          Manage browser space allocated for cached chapters and reader images.
+          Device usage includes all profiles. Saved chapters below belong to the selected server and mode.
         </p>
 
         <div className="mt-6">
@@ -59,14 +61,14 @@ export function OfflineSettingsPanel({
         <div className="mt-6 border-t border-white/5 pt-5 flex justify-end">
           <button
             onClick={async () => {
-              if (await confirm({ title: "Clear every saved chapter?", detail: "All locally cached chapter pages will be removed from this device. Your library and server data remain intact.", confirmLabel: "Clear saved chapters", danger: true })) {
+              if (await confirm({ title: "Clear this server's saved chapters?", detail: "Saved pages and local download jobs for the selected server and mode will be removed. Other profiles, reading progress and server library data are retained.", confirmLabel: "Clear saved chapters", danger: true })) {
                 await clearAll();
               }
             }}
-            disabled={cachedChapters.length === 0}
+            disabled={cachedChapters.length === 0 && pendingJobs === 0}
             className="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/20 hover:text-red-300 transition disabled:opacity-30 disabled:pointer-events-none"
           >
-            Clear Offline Cache
+            Clear This Server's Offline Cache
           </button>
         </div>
       </div>

@@ -30,7 +30,7 @@ async function mirrorProgress(head: ProgressHead) {
   const { backend, chapter, patch } = head;
   // Demo history/progress lives in its own heads. Never alter a live cache/history row with an overlapping ID.
   if (backend.isDemo) return;
-  const cached = await getCachedChapter(backend.serverBaseUrl, chapter.chapterId);
+  const cached = await getCachedChapter(backend.serverBaseUrl, chapter.chapterId, backend.isDemo);
   if (cached && chapterIdentityMatches(chapter, cachedIdentity(cached))) await saveCachedChapter({ ...cached, lastPageRead: patch.lastPageRead, isRead: patch.isRead });
   const existing = (await getReadingHistory(backend.serverBaseUrl)).find((item) => item.chapterId === chapter.chapterId && !!item.isDemo === backend.isDemo);
   if (!head.hasActivity && !existing) return;
@@ -101,7 +101,7 @@ async function sendOperation(backend: ProgressBackend, operation: ProgressOperat
     // Capture the backend for both operations; deleteChapter() in the UI store resolves the current profile.
     try {
       await client(backend).DeleteDownloadedChapter({ input: { id: operation.chapter.chapterId } });
-      await deleteCachedChapter(backend.serverBaseUrl, operation.chapter.chapterId);
+      await deleteCachedChapter(backend.serverBaseUrl, operation.chapter.chapterId, backend.isDemo);
       progressChanged(backend);
     } catch (error) { console.warn("Progress synchronized; automatic download removal did not finish.", error); }
   }
@@ -154,7 +154,7 @@ export function synchronizeProgress(backend: ProgressBackend): Promise<void> {
 export async function writeChapterProgress(backend: ProgressBackend, chapterId: number, patch: Partial<ProgressPatch>, options: { requireAcknowledgment?: boolean; hideHistory?: boolean; fallback?: ChapterProgressIdentity } = {}) {
   let chapter: ChapterProgressIdentity;
   let baseline: ProgressIntent["baseline"];
-  const cached = await getCachedChapter(backend.serverBaseUrl, chapterId);
+  const cached = await getCachedChapter(backend.serverBaseUrl, chapterId, backend.isDemo);
   const existingHead = await getProgressHead(backend, chapterId);
   const known = options.fallback ?? (cached ? cachedIdentity(cached) : existingHead?.chapter);
   if (known) {
@@ -165,7 +165,7 @@ export async function writeChapterProgress(backend: ProgressBackend, chapterId: 
     chapter = progressChapterIdentity(remote);
     baseline = { isRead: remote.isRead, lastPageRead: remote.lastPageRead };
   } catch {
-    const cached = await getCachedChapter(backend.serverBaseUrl, chapterId);
+    const cached = await getCachedChapter(backend.serverBaseUrl, chapterId, backend.isDemo);
     const head = await getProgressHead(backend, chapterId);
     const fallback = cached ? cachedIdentity(cached) : options.fallback ?? head?.chapter;
     if (!fallback) throw new Error("The chapter could not be identified. Open or save it before changing progress offline.");

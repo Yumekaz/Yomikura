@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
-import { isTauri } from "../../stores/useSettingsStore";
+import { isTauri, useSettingsStore } from "../../stores/useSettingsStore";
+import { getOwnedCachedPage, normalizeCacheServerUrl } from "../../api/suwayomi/offlineCache";
 
 /** Resolve full pages and previews through the same device cache. */
 export function useReaderImageSource(source: string) {
+  const { serverBaseUrl, mockMode } = useSettingsStore();
+  const scope = JSON.stringify([normalizeCacheServerUrl(serverBaseUrl), mockMode]);
   const [attempt, setAttempt] = useState(0);
-  const [resolved, setResolved] = useState({ source: "", attempt: -1, url: "" });
+  const [resolved, setResolved] = useState({ source: "", scope: "", attempt: -1, url: "" });
   const reload = useCallback(() => setAttempt((value) => value + 1), []);
 
   useEffect(() => {
     let active = true;
     let objectUrl: string | undefined;
     const publish = (url: string) => {
-      if (active) setResolved({ source, attempt, url });
+      if (active) setResolved({ source, scope, attempt, url });
     };
     void (async () => {
       if (!source) return publish("");
@@ -23,7 +26,7 @@ export function useReaderImageSource(source: string) {
         } catch { /* Continue through the normal page/cache path. */ }
       }
       try {
-        const match = await (await caches.open("yomikura-page-cache")).match(source);
+        const match = await getOwnedCachedPage(source, serverBaseUrl, mockMode);
         if (match) {
           const blob = await match.blob();
           if (active) {
@@ -39,7 +42,7 @@ export function useReaderImageSource(source: string) {
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [source, attempt]);
+  }, [source, scope, attempt]);
 
-  return { url: resolved.source === source && resolved.attempt === attempt ? resolved.url : "", reload };
+  return { url: resolved.source === source && resolved.scope === scope && resolved.attempt === attempt ? resolved.url : "", reload };
 }
