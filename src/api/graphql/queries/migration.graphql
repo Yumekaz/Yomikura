@@ -4,7 +4,7 @@ query GetMigrationManga($id: Int!) {
     title
     sourceId
     inLibrary
-    categories { edges { node { id } } }
+    categories { nodes { id } }
   }
 }
 

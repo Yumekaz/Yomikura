@@ -26,7 +26,7 @@ beforeEach(() => {
   vi.mocked(getProgressHeads).mockResolvedValue([]);
   mocks.sdk.RefreshMigrationTarget.mockImplementation(async ({ input }) => { events.push("refresh"); return { fetchMangaAndChapters: { manga: { id: input.id }, chapters: [] } }; });
   mocks.sdk.GetMigrationManga.mockImplementation(async ({ id }) => {
-    const { chapters: _chapters, ...manga } = titles.get(id)!; return { manga: structuredClone(manga) };
+    const { chapters: _chapters, ...manga } = titles.get(id)!; return { manga: { ...structuredClone(manga), categories: { nodes: manga.categories.edges.map((edge) => ({ id: edge.node.id })) } } };
   });
   mocks.sdk.GetMigrationChapters.mockImplementation(async ({ mangaId }) => {
     const nodes = structuredClone(titles.get(mangaId)!.chapters); return { chapters: { totalCount: nodes.length, pageInfo: { hasNextPage: false, endCursor: null }, nodes } };
@@ -86,6 +86,13 @@ describe("migration review and safety", () => {
     await executeMangaMigration(review, selected(), "replace");
     expect(events[events.length - 1]).toBe("library:1:false"); expect(titles.get(1)!.inLibrary).toBe(false);
     expect(events.indexOf("categories")).toBeGreaterThan(events.indexOf("progress:202"));
+  });
+
+  it("retains middle categories from the complete node collection", async () => {
+    titles.get(1)!.categories.edges = [5, 6, 7].map((id) => ({ node: { id } }));
+    const review = await prepareMangaMigration(backend, 1, 2);
+    await executeMangaMigration(review, selected(), "copy");
+    expect(titles.get(2)!.categories.edges.map((edge) => edge.node.id)).toEqual([8, 5, 6, 7]);
   });
 
   it("permits a selected partial copy and disables replacement", async () => {

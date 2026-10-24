@@ -3,6 +3,7 @@ import { mockSdk } from "../../src/api/graphql/mockSdk";
 import { chapterConnection } from "./fixtures/chapterConnection";
 const first = "http://127.0.0.1:45677", second = "http://127.0.0.1:45678";
 async function fixture(page: Page) {
+  const queued: number[] = [];
   const chapters = [
     { id: 12, name: "Read chapter A", chapterNumber: 1, sourceOrder: 1, isRead: true, scanlator: "A", isBookmarked: false },
     { id: 13, name: "Duplicate chapter B", chapterNumber: 2, sourceOrder: 2, isRead: false, scanlator: "B", isBookmarked: false },
@@ -19,7 +20,9 @@ async function fixture(page: Page) {
     const chapter = chapters.find((chapter) => chapter.id === (variables.id ?? variables.input?.id ?? variables.input?.chapterId));
     let data: unknown;
     if (name === "GetLibrary") data = { mangas: { nodes: mangas, pageInfo: { hasNextPage: false, endCursor: null } } };
-    else if (name === "GetMangaDetails") { const original = await mockSdk.GetMangaDetails({ id: 42 }); data = { manga: { ...original.manga, title: "Device only", chapters: { edges: chapters.map((node) => ({ node })) } } }; }
+    else if (name === "GetMangaDetails") { const original = await mockSdk.GetMangaDetails({ id: 42 }); data = { manga: { ...original.manga, title: "Device only", chapters: { nodes: chapters, edges: [chapters[0], chapters[chapters.length - 1]].map((node) => ({ node })) } } }; }
+    else if (name === "GetHistory") data = { chapters: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: chapters.map((chapter) => ({ ...chapter, lastReadAt: String(Date.now()), manga: { id: 42, title: "Device only", thumbnailUrl: null } })), edges: [chapters[0], chapters[chapters.length - 1]].map((node) => ({ node })) } };
+    else if (name === "EnqueueChapterDownload") { queued.push(variables.input.id); data = await mockSdk.EnqueueChapterDownload(variables); }
     else if (name === "FetchChapters") data = { fetchChapters: { chapters } };
     else if (name === "GetReadingChapters") data = chapterConnection(42, chapters);
     else if (name === "GetChapter") data = { chapter: { ...chapter, manga: { title: "Device only", chapters: { edges: chapters.map((node) => ({ node })) } } } };
@@ -38,7 +41,7 @@ async function fixture(page: Page) {
     }); } finally { db.close(); }
   }, { first });
   await page.reload(); await expect(page.getByRole("heading", { name: "Library", exact: true })).toBeVisible();
-  return { mangas, chapters };
+  return { mangas, chapters, queued };
 }
 test("library download views cover all four combinations with correct title counts", async ({ page }) => {
   const { mangas } = await fixture(page);
@@ -76,4 +79,17 @@ test("descending policy uses the same equal-number tie-breaker in the list and r
   await expect(page.getByRole("link", { name: "Next", exact: true })).toHaveAttribute("href", "/reader/13");
   await page.getByRole("link", { name: "Next", exact: true }).click();
   await expect(page.getByRole("link", { name: "Next", exact: true })).toHaveAttribute("href", "/reader/12");
+});
+test("bulk library downloads include unread middle chapters when edges contain only boundaries", async ({ page }) => {
+  const state = await fixture(page);
+  await page.getByRole("link", { name: "Device only", exact: true }).click({ button: "right" });
+  await page.getByRole("button", { name: "Download", exact: true }).click();
+  await expect.poll(() => state.queued).toEqual([13, 14, 15]);
+});
+test("history keeps middle entries and its next action follows the shared group/filter policy", async ({ page }) => {
+  await fixture(page); await page.goto("/manga/42");
+  await page.getByLabel("Filter chapter status").selectOption("unread"); await page.getByLabel("Filter scanlator").selectOption("A");
+  await page.goto("/history"); await expect(page.getByRole("button", { name: /^Open next chapter after / })).toHaveCount(4);
+  await page.getByRole("button", { name: "Open next chapter after Read chapter A", exact: true }).click();
+  await expect(page).toHaveURL(/\/reader\/14$/);
 });

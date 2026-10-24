@@ -11,7 +11,7 @@ test("discovery feed paginates beyond 100, keeps failed pages retryable, and sep
       if (variables.after && failNext) return route.fulfill({ status: 503, json: { errors: [{ message: "Temporary next-page failure" }] } });
       const nodes = variables.after ? [chapter(100), ...[101, 102, 103, 104, 105].map(chapter)] : Array.from({ length: 100 }, (_, index) => chapter(index + 1));
       if (!variables.after) nodes[1] = { ...nodes[1], fetchedAt: "1" };
-      data = { chapters: { pageInfo: { hasNextPage: !variables.after, endCursor: variables.after ? null : "next-100" }, edges: nodes.map((node) => ({ node })) } };
+      data = { chapters: { pageInfo: { hasNextPage: !variables.after, endCursor: variables.after ? null : "next-100" }, nodes, edges: [nodes[0], nodes[nodes.length - 1]].map((node) => ({ node })) } };
     } else { const method = (mockSdk as unknown as Record<string, (input: unknown) => Promise<unknown>>)[name!]; data = method ? await method(variables) : { __typename: "Query" }; }
     await route.fulfill({ json: { data } });
   });

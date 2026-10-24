@@ -25,7 +25,7 @@ export default function UpdatesPage() {
     getNextPageParam: (last) => last.next,
   });
   const updates = useMemo(() => {
-    const nodes = feed.data?.pages.flatMap((page) => page.edges.map((edge) => edge.node)) ?? [];
+    const nodes = feed.data?.pages.flatMap((page) => page.nodes) ?? [];
     return [...new Map(nodes.map((node) => [node.id, node])).values()].filter((node) => mode === "published" || isLibraryDiscovery(node));
   }, [feed.data, mode]);
   const groups = useMemo(() => {

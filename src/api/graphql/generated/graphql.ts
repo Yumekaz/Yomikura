@@ -4488,14 +4488,14 @@ export type GetMangaDetailsQueryVariables = Exact<{
 }>;
 
 
-export type GetMangaDetailsQuery = { manga: { id: number, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, categories: { edges: Array<{ node: { id: number } }> }, source: { name: string } | null, chapters: { edges: Array<{ node: { id: number, name: string, chapterNumber: number, sourceOrder: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, lastPageRead: number, pageCount: number, uploadDate: unknown, scanlator: string | null } }> } } };
+export type GetMangaDetailsQuery = { manga: { id: number, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, categories: { nodes: Array<{ id: number }> }, source: { name: string } | null, chapters: { nodes: Array<{ id: number, name: string, chapterNumber: number, sourceOrder: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, lastPageRead: number, pageCount: number, uploadDate: unknown, scanlator: string | null }> } } };
 
 export type GetMigrationMangaQueryVariables = Exact<{
   id: number;
 }>;
 
 
-export type GetMigrationMangaQuery = { manga: { id: number, title: string, sourceId: unknown, inLibrary: boolean, categories: { edges: Array<{ node: { id: number } }> } } };
+export type GetMigrationMangaQuery = { manga: { id: number, title: string, sourceId: unknown, inLibrary: boolean, categories: { nodes: Array<{ id: number }> } } };
 
 export type GetMigrationChaptersQueryVariables = Exact<{
   mangaId: number;
@@ -4517,7 +4517,7 @@ export type GetChapterQueryVariables = Exact<{
 }>;
 
 
-export type GetChapterQuery = { chapter: { id: number, name: string, chapterNumber: number, isRead: boolean, isBookmarked: boolean, scanlator: string | null, uploadDate: unknown, lastPageRead: number, pageCount: number, sourceOrder: number, mangaId: number, manga: { title: string, chapters: { edges: Array<{ node: { id: number, chapterNumber: number } }> } } } };
+export type GetChapterQuery = { chapter: { id: number, name: string, chapterNumber: number, isRead: boolean, isBookmarked: boolean, scanlator: string | null, uploadDate: unknown, lastPageRead: number, pageCount: number, sourceOrder: number, mangaId: number, manga: { title: string } } };
 
 export type GetReadingChaptersQueryVariables = Exact<{
   mangaId: number;
@@ -4681,7 +4681,7 @@ export type GetUpdatesQueryVariables = Exact<{
 }>;
 
 
-export type GetUpdatesQuery = { chapters: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, uploadDate: unknown, fetchedAt: unknown, scanlator: string | null, mangaId: number, manga: { id: number, inLibraryAt: unknown, title: string, thumbnailUrl: string | null } } }> } };
+export type GetUpdatesQuery = { chapters: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, uploadDate: unknown, fetchedAt: unknown, scanlator: string | null, mangaId: number, manga: { id: number, inLibraryAt: unknown, title: string, thumbnailUrl: string | null } }> } };
 
 export type GetHistoryQueryVariables = Exact<{
   filter?: ChapterFilterInput | null | undefined;
@@ -4691,7 +4691,7 @@ export type GetHistoryQueryVariables = Exact<{
 }>;
 
 
-export type GetHistoryQuery = { chapters: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, lastReadAt: unknown, scanlator: string | null, mangaId: number, manga: { id: number, title: string, thumbnailUrl: string | null } } }> } };
+export type GetHistoryQuery = { chapters: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, lastReadAt: unknown, scanlator: string | null, mangaId: number, manga: { id: number, title: string, thumbnailUrl: string | null } }> } };
 
 export const CatalogFilterFieldsFragmentDoc = gql`
     fragment CatalogFilterFields on Filter {
@@ -5158,30 +5158,26 @@ export const GetMangaDetailsDocument = gql`
     genre
     inLibrary
     categories {
-      edges {
-        node {
-          id
-        }
+      nodes {
+        id
       }
     }
     source {
       name
     }
     chapters {
-      edges {
-        node {
-          id
-          name
-          chapterNumber
-          sourceOrder
-          isRead
-          isBookmarked
-          isDownloaded
-          lastPageRead
-          pageCount
-          uploadDate
-          scanlator
-        }
+      nodes {
+        id
+        name
+        chapterNumber
+        sourceOrder
+        isRead
+        isBookmarked
+        isDownloaded
+        lastPageRead
+        pageCount
+        uploadDate
+        scanlator
       }
     }
   }
@@ -5195,10 +5191,8 @@ export const GetMigrationMangaDocument = gql`
     sourceId
     inLibrary
     categories {
-      edges {
-        node {
-          id
-        }
+      nodes {
+        id
       }
     }
   }
@@ -5259,14 +5253,6 @@ export const GetChapterDocument = gql`
     mangaId
     manga {
       title
-      chapters {
-        edges {
-          node {
-            id
-            chapterNumber
-          }
-        }
-      }
     }
   }
 }
@@ -5541,23 +5527,21 @@ export const GetUpdatesDocument = gql`
       hasNextPage
       endCursor
     }
-    edges {
-      node {
+    nodes {
+      id
+      name
+      chapterNumber
+      isRead
+      lastPageRead
+      uploadDate
+      fetchedAt
+      scanlator
+      mangaId
+      manga {
         id
-        name
-        chapterNumber
-        isRead
-        lastPageRead
-        uploadDate
-        fetchedAt
-        scanlator
-        mangaId
-        manga {
-          id
-          inLibraryAt
-          title
-          thumbnailUrl
-        }
+        inLibraryAt
+        title
+        thumbnailUrl
       }
     }
   }
@@ -5570,21 +5554,19 @@ export const GetHistoryDocument = gql`
       hasNextPage
       endCursor
     }
-    edges {
-      node {
+    nodes {
+      id
+      name
+      chapterNumber
+      isRead
+      lastPageRead
+      lastReadAt
+      scanlator
+      mangaId
+      manga {
         id
-        name
-        chapterNumber
-        isRead
-        lastPageRead
-        lastReadAt
-        scanlator
-        mangaId
-        manga {
-          id
-          title
-          thumbnailUrl
-        }
+        title
+        thumbnailUrl
       }
     }
   }

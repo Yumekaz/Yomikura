@@ -25,14 +25,14 @@ async function fixture(page: Page, options: { empty?: boolean; ambiguous?: boole
     let data: unknown;
     if (name === "GetMangaDetails") {
       const base = await mockSdk.GetMangaDetails({ id }); const value = titles.get(id)!;
-      data = { manga: { ...base.manga, id, title: value.title, inLibrary: value.inLibrary, source: { name: "Fixture source" }, categories: { edges: value.categories.map((id) => ({ node: { id } })) }, chapters: { edges: value.chapters.map((node) => ({ node })) } } };
+      data = { manga: { ...base.manga, id, title: value.title, inLibrary: value.inLibrary, source: { name: "Fixture source" }, categories: { nodes: value.categories.map((id) => ({ id })) }, chapters: { nodes: value.chapters } } };
     } else if (name === "GetSources") data = { sources: { totalCount: 1, nodes: [{ id: "fixture-source", name: "Fixture source", lang: "en", extension: { isInstalled: true } }] } };
     else if (name === "GetCategories") data = { categories: { nodes: [{ id: 0, name: "Default", order: 0 }, { id: 5, name: "Original category", order: 1 }, { id: 8, name: "Destination category", order: 2 }] } };
     else if (name === "FetchChapters") data = { fetchChapters: { chapters: titles.get(id)!.chapters } };
     else if (name === "FetchSourceManga") data = { fetchSourceManga: { hasNextPage: false, mangas: [...titles.values()].map((value) => ({ id: value.id, title: value.title, inLibrary: value.inLibrary, thumbnailUrl: "/placeholder-cover.svg" })) } };
     else if (name === "RefreshMigrationTarget") { events.push("refresh"); data = { fetchMangaAndChapters: { manga: { id }, chapters: titles.get(id)!.chapters.map(({ id }) => ({ id })) } }; }
     else if (name === "GetMigrationManga") {
-      const value = titles.get(id)!; data = { manga: { id, title: value.title, sourceId: value.sourceId, inLibrary: value.inLibrary, categories: { edges: value.categories.map((id) => ({ node: { id } })) } } };
+      const value = titles.get(id)!; data = { manga: { id, title: value.title, sourceId: value.sourceId, inLibrary: value.inLibrary, categories: { nodes: value.categories.map((id) => ({ id })) } } };
     } else if (name === "GetMigrationChapters") {
       const value = titles.get(variables.mangaId)!; const after = variables.after; pagination.push({ mangaId: value.id, after });
       const nodes = value.chapters.slice(after ? 1 : 0, after ? undefined : 1);

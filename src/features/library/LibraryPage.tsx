@@ -39,7 +39,7 @@ export default function LibraryPage() {
   // Recreate SDK instance if URL changes
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-    return createGraphqlClient(`${cleanUrl}/api/graphql`);
+    return createGraphqlClient(`${cleanUrl}/api/graphql`, undefined, mockMode ? "demo" : "live");
   }, [serverBaseUrl, mockMode]);
 
   // Fetch Categories
@@ -213,7 +213,7 @@ export default function LibraryPage() {
     for (const mangaId of idArray) {
       try {
         const details = await sdk.GetMangaDetails({ id: parseInt(String(mangaId)) });
-        const nodes = details.manga?.chapters?.edges?.map(e => e?.node).filter(Boolean) || [];
+        const nodes = details.manga?.chapters?.nodes ?? [];
         const targetChapters = nodes.filter(n => !n.isRead && !n.isDownloaded);
         
         for (const ch of targetChapters) {
@@ -234,7 +234,7 @@ export default function LibraryPage() {
     for (const mangaId of idArray) {
       try {
         const details = await sdk.GetMangaDetails({ id: parseInt(String(mangaId)) });
-        const nodes = details.manga?.chapters?.edges?.map(e => e?.node).filter(Boolean) || [];
+        const nodes = details.manga?.chapters?.nodes ?? [];
         const targetChapters = nodes.filter(n => n.isRead !== isRead);
         
         await Promise.all(

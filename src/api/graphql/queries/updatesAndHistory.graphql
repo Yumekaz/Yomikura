@@ -4,8 +4,7 @@ query GetUpdates($filter: ChapterFilterInput, $order: [ChapterOrderInput!], $fir
       hasNextPage
       endCursor
     }
-    edges {
-      node {
+    nodes {
         id
         name
         chapterNumber
@@ -21,7 +20,6 @@ query GetUpdates($filter: ChapterFilterInput, $order: [ChapterOrderInput!], $fir
           title
           thumbnailUrl
         }
-      }
     }
   }
 }
@@ -32,8 +30,7 @@ query GetHistory($filter: ChapterFilterInput, $order: [ChapterOrderInput!], $fir
       hasNextPage
       endCursor
     }
-    edges {
-      node {
+    nodes {
         id
         name
         chapterNumber
@@ -47,7 +44,6 @@ query GetHistory($filter: ChapterFilterInput, $order: [ChapterOrderInput!], $fir
           title
           thumbnailUrl
         }
-      }
     }
   }
 }

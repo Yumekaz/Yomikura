@@ -10,8 +10,11 @@ import { getReadingHistory, hideReadingHistoryItem } from "../../api/suwayomi/of
 import { ChapterOrderBy, SortOrder } from "../../api/graphql/generated/graphql";
 import { invalidateChapterState } from "../../api/suwayomi/chapterState";
 import { progressBackend } from "../../api/suwayomi/backendIdentity";
-import { readProgressHistory, writeChapterProgress } from "../../api/suwayomi/progressSync";
+import { isCurrentProgressBackend, readProgressHistory, writeChapterProgress } from "../../api/suwayomi/progressSync";
 import { setProgressHistoryHidden } from "../../api/suwayomi/progressStorage";
+import { loadReadingSequence } from "../reader/readingSequence";
+import { normalizeChapterPolicy } from "../manga/chapterPolicy";
+import { mangaReaderSettingsKey } from "../../stores/mangaReaderSettings";
 
 interface HistoryItem {
   id: string;
@@ -63,15 +66,15 @@ export default function HistoryPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [openingNextId, setOpeningNextId] = useState<string | null>(null);
-  const { serverBaseUrl, mockMode } = useSettingsStore();
+  const { serverBaseUrl, mockMode, chapterPolicies } = useSettingsStore();
   const queryClient = useQueryClient();
-  const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`), [serverBaseUrl]);
+  const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`, undefined, mockMode ? "demo" : "live"), [serverBaseUrl, mockMode]);
 
   const serverHistory = useInfiniteQuery({
-    queryKey: ["history", "server", serverBaseUrl],
+    queryKey: ["history", "server", serverBaseUrl, mockMode],
     queryFn: ({ pageParam }) => sdk.GetHistory({
       filter: { lastReadAt: { greaterThan: "0" } },
-      order: [{ by: ChapterOrderBy.LastReadAt, byType: SortOrder.Desc }],
+      order: [{ by: ChapterOrderBy.LastReadAt, byType: SortOrder.Desc }, { by: ChapterOrderBy.Id, byType: SortOrder.Desc }],
       first: 40,
       after: pageParam,
     }),
@@ -85,7 +88,7 @@ export default function HistoryPage() {
   });
 
   const localHistory = useQuery({
-    queryKey: ["history", "local", serverBaseUrl],
+    queryKey: ["history", "local", serverBaseUrl, mockMode],
     queryFn: () => readProgressHistory(progressBackend(serverBaseUrl, mockMode)),
     enabled: !!serverBaseUrl,
   });
@@ -94,8 +97,7 @@ export default function HistoryPage() {
     const merged = new Map<string, HistoryItem>();
     const hidden = new Set((localHistory.data ?? []).filter((event) => event.isHidden).map((event) => String(event.chapterId)));
     for (const page of serverHistory.data?.pages ?? []) {
-      for (const edge of page.chapters?.edges ?? []) {
-        const node = edge?.node;
+      for (const node of page.chapters?.nodes ?? []) {
         if (!node) continue;
         if (hidden.has(String(node.id))) continue;
         const readAt = parseHistoryTimestamp(node.lastReadAt);
@@ -166,15 +168,18 @@ export default function HistoryPage() {
   });
 
   const openNextChapter = async (item: HistoryItem) => {
+    const backend = progressBackend(serverBaseUrl, mockMode);
     setOpeningNextId(item.id);
     try {
-      const result = await sdk.GetChapter({ id: Number(item.id) });
-      const chapters = (result.chapter?.manga?.chapters?.edges ?? [])
-        .map((edge) => edge?.node)
-        .filter((chapter): chapter is NonNullable<typeof chapter> => !!chapter)
-        .filter((chapter) => chapter.chapterNumber > item.chapterNumber)
-        .sort((a, b) => a.chapterNumber - b.chapterNumber);
-      navigate(`/reader/${chapters[0]?.id ?? item.id}`);
+      const policy = normalizeChapterPolicy(chapterPolicies[mangaReaderSettingsKey(backend, item.mangaId)]);
+      const { chapters } = await loadReadingSequence(backend, item.mangaId, item.manga.title, Number(item.id), policy);
+      if (!isCurrentProgressBackend(backend)) return;
+      const index = chapters.findIndex((chapter) => chapter.id === Number(item.id));
+      const next = index >= 0 ? chapters[index + 1] : undefined;
+      if (!next) { notify("No next chapter matches this title's order and filters.", "info"); return; }
+      navigate(`/reader/${next.id}`);
+    } catch (error) {
+      if (isCurrentProgressBackend(backend)) notify(error instanceof Error && !("response" in error) ? error.message : getErrorMessage(error), "error");
     } finally {
       setOpeningNextId(null);
     }

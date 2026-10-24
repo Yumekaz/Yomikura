@@ -1,7 +1,7 @@
 import { createGraphqlClient, type SuwayomiSdk } from "../../api/graphql/client";
 import type { ProgressBackend } from "../../api/suwayomi/backendIdentity";
 import { chapterIdentityMatches } from "../../api/suwayomi/backendIdentity";
-import { getCachedChapter, getCachedChaptersForManga } from "../../api/suwayomi/offlineCache";
+import { getCachedChapter } from "../../api/suwayomi/offlineCache";
 import { cachedIdentity, progressChapterIdentity, projectChapterProgress } from "../../api/suwayomi/progressSync";
 import { getProgressHead, progressHeadVersion } from "../../api/suwayomi/progressStorage";
 
@@ -24,11 +24,10 @@ export async function loadReaderChapterDetails(backend: ProgressBackend, id: num
     if (signal?.aborted) throw error;
     const cached = await getCachedChapter(backend.serverBaseUrl, id, backend.isDemo);
     if (!cached) throw error;
-    const siblings = await getCachedChaptersForManga(backend.serverBaseUrl, cached.mangaId, backend.isDemo);
     details = { id: cached.id, name: cached.name, chapterNumber: cached.chapterNumber, isRead: cached.isRead ?? false,
       isBookmarked: cached.isBookmarked ?? false, scanlator: cached.scanlator ?? null, uploadDate: cached.uploadDate ?? null,
       lastPageRead: cached.lastPageRead ?? 0, pageCount: cached.pageCount, sourceOrder: cached.sourceOrder, mangaId: cached.mangaId,
-      manga: { title: cached.mangaTitle, chapters: { edges: siblings.map((chapter) => ({ node: { id: chapter.id, chapterNumber: chapter.chapterNumber } })) } },
+      manga: { title: cached.mangaTitle },
     };
     offline = true;
   }

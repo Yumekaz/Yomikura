@@ -15,7 +15,7 @@ test("bookmark and mark-unread refresh the source chapter list and saved copy", 
     else if (name === "GetReadingChapters") data = chapterConnection(10002, [chapter]);
     else if (name === "GetMangaDetails") {
       const result = await mockSdk.GetMangaDetails({ id: 10002 });
-      data = { manga: { ...result.manga, chapters: { edges: [{ node: { ...chapter, pageCount: 3 } }] } } };
+      data = { manga: { ...result.manga, chapters: { nodes: [{ ...chapter, pageCount: 3 }] } } };
     } else if (name === "FetchChapters") data = { fetchChapters: { chapters: [{ ...chapter }] } };
     else if (name === "UpdateChapterProgress") {
       Object.assign(chapter, variables.input.patch);

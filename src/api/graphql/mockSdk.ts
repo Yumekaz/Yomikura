@@ -133,7 +133,7 @@ const mockImpl: any = {
   },
   async GetMigrationChapters({ mangaId }: any) {
     const { manga } = await mockImpl.GetMangaDetails({ id: mangaId });
-    const nodes = manga.chapters.edges.map(({ node }: any) => ({ ...node, mangaId, pageCount: 4, lastPageRead: 0, sourceOrder: 1 }));
+    const nodes = manga.chapters.nodes.map((node: any) => ({ ...node, mangaId, pageCount: 4, lastPageRead: 0, sourceOrder: 1 }));
     return { chapters: { totalCount: nodes.length, pageInfo: { hasNextPage: false, endCursor: null }, nodes } };
   },
   async GetReadingChapters({ mangaId }: any) {
@@ -525,4 +525,15 @@ const mockImpl: any = {
   },
 };
 
+// These demo records retain their legacy literal layout above; SDK consumers
+// read complete node collections, just as the real backend provides them.
+const demoMangaDetails = mockImpl.GetMangaDetails;
+mockImpl.GetMangaDetails = async (variables: unknown) => {
+  const { manga } = await demoMangaDetails(variables);
+  return { manga: { ...manga, categories: { ...manga.categories, nodes: manga.categories.edges.map((edge: any) => edge.node) }, chapters: { ...manga.chapters, nodes: manga.chapters.edges.map((edge: any) => edge.node) } } };
+};
+for (const name of ["GetUpdates", "GetHistory"]) {
+  const original = mockImpl[name];
+  mockImpl[name] = async (...args: unknown[]) => { const result = await original(...args); return { chapters: { ...result.chapters, nodes: result.chapters.edges.map((edge: any) => edge.node) } }; };
+}
 export const mockSdk: Sdk = mockImpl as unknown as Sdk;

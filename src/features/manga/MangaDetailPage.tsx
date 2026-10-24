@@ -73,15 +73,15 @@ export default function MangaDetailPage() {
   }, [serverBaseUrl]);
 
   const sdk = useMemo(() => {
-    return createGraphqlClient(graphqlEndpoint);
-  }, [graphqlEndpoint]);
+    return createGraphqlClient(graphqlEndpoint, undefined, mockMode ? "demo" : "live");
+  }, [graphqlEndpoint, mockMode]);
 
   const queryClient = useQueryClient();
   const policyBackend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
   const localProgress = useQuery({ queryKey: ["progress-local", policyBackend.key], queryFn: () => getProgressHeads(policyBackend), retry: false });
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["manga", mangaId, serverBaseUrl],
+    queryKey: ["manga", mangaId, serverBaseUrl, mockMode],
     retry: (attempt) => !cachedChapters.some((chapter) => String(chapter.mangaId) === mangaId) && attempt < 2,
     queryFn: () => sdk.GetMangaDetails({ id: parseInt(mangaId!) }),
     enabled: !!serverBaseUrl && !!mangaId,
@@ -109,25 +109,25 @@ export default function MangaDetailPage() {
         source: { name: "Offline Cache" },
         genre: ["Cached"],
         description: "Viewing in offline mode. Only cached chapters are available.",
-        categories: { edges: [] },
-        chapters: { edges: [] },
+        categories: { nodes: [] },
+        chapters: { nodes: [] },
       };
     }
     return data?.manga;
   }, [data?.manga, isOfflineMode, offlineChapters, parsedMangaId]);
 
   const { data: fetchedChaptersData, isLoading: chaptersLoading } = useQuery({
-    queryKey: ["manga-chapters", mangaId, serverBaseUrl],
-    queryFn: async () => {
-      if (useSettingsStore.getState().mockMode) {
+    queryKey: ["manga-chapters", mangaId, serverBaseUrl, mockMode],
+    queryFn: async ({ signal }) => {
+      if (mockMode) {
         return { fetchChapters: null };
       }
-      const client = new GraphQLClient(graphqlEndpoint);
+      const client = new GraphQLClient(graphqlEndpoint, { signal });
       return client.request<FetchChaptersResponse>(FETCH_CHAPTERS_DOCUMENT, {
         input: { mangaId: parseInt(mangaId!) },
       });
     },
-    enabled: !!graphqlEndpoint && !!mangaId && !!manga && !isOfflineMode && !useSettingsStore.getState().mockMode,
+    enabled: !!graphqlEndpoint && !!mangaId && !!manga && !isOfflineMode && !mockMode,
     staleTime: 60_000,
   });
 
@@ -147,9 +147,9 @@ export default function MangaDetailPage() {
   });
 
   const currentCategoryIds = useMemo(() => {
-    if (!manga?.categories?.edges) return [];
-    return manga.categories.edges
-      .map((edge) => edge?.node?.id)
+    if (!manga?.categories?.nodes) return [];
+    return manga.categories.nodes
+      .map((node) => node.id)
       .filter((id): id is number => id != null)
       .map(id => parseInt(String(id)));
   }, [manga]);
@@ -170,9 +170,8 @@ export default function MangaDetailPage() {
     }
 
     const fetchedChapters = fetchedChaptersData?.fetchChapters?.chapters ?? [];
-    const cachedChaptersFromManga = manga?.chapters?.edges
-      ?.map((edge) => edge?.node)
-      .filter((node): node is NonNullable<typeof node> => node != null) ?? [];
+    const cachedChaptersFromManga = manga?.chapters?.nodes
+      ?.filter((node): node is NonNullable<typeof node> => node != null) ?? [];
 
     const sourceChapters = fetchedChapters.length > 0 ? fetchedChapters : cachedChaptersFromManga;
 

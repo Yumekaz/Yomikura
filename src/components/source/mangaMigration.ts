@@ -61,7 +61,7 @@ function structure(title: MigrationTitle) {
     .map((chapter) => [chapter.id, chapter.mangaId, chapter.name, chapter.chapterNumber, chapter.sourceOrder, chapter.pageCount])]);
 }
 function snapshot(title: MigrationTitle) {
-  return JSON.stringify([structure(title), title.inLibrary, title.categories.edges.map((edge) => edge.node.id).sort((a, b) => a - b),
+  return JSON.stringify([structure(title), title.inLibrary, title.categories.nodes.map((node) => node.id).sort((a, b) => a - b),
     [...title.chapters].sort((a, b) => a.id - b.id).map((chapter) => [chapter.id, chapter.isRead, chapter.isBookmarked, chapter.lastPageRead])]);
 }
 
@@ -119,7 +119,7 @@ export async function executeMangaMigration(review: MigrationReview, selected: R
       });
       assertBackend(backend);
     }, 2);
-    const categories = source.categories.edges.map((edge) => edge.node.id).filter((id) => id > 0);
+    const categories = source.categories.nodes.map((node) => node.id).filter((id) => id > 0);
     if (categories.length) {
       assertBackend(backend);
       await sdk.UpdateMangaCategories({ input: { id: target.id, patch: { addToCategories: categories } } });
@@ -127,7 +127,7 @@ export async function executeMangaMigration(review: MigrationReview, selected: R
     }
     const copied = await loadTitle(backend, target.id, false);
     if (structure(copied) !== structure(target)) throw new MigrationError("The destination chapters changed during copying. Refresh the review before replacing the original.");
-    if (!copied.inLibrary || categories.some((id) => !copied.categories.edges.some((edge) => edge.node.id === id))) throw new MigrationError("The destination library membership or categories could not be verified. The copy can be retried.");
+    if (!copied.inLibrary || categories.some((id) => !copied.categories.nodes.some((node) => node.id === id))) throw new MigrationError("The destination library membership or categories could not be verified. The copy can be retried.");
     for (const row of rows) {
       const chapter = copied.chapters.find((item) => item.id === Number(row.target!.id));
       const positionRequired = row.source.lastPageRead > 0 && !row.source.isRead && !row.positionSkipped;

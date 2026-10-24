@@ -13,14 +13,6 @@ query GetChapter($id: Int!) {
     mangaId
     manga {
       title
-      chapters {
-        edges {
-          node {
-            id
-            chapterNumber
-          }
-        }
-      }
     }
   }
 }
