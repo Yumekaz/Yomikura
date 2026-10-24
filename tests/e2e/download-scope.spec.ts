@@ -94,3 +94,26 @@ test("a failing server queue leaves local saved chapters accessible", async ({ p
   await expect(page.getByRole("heading", { name: "Server downloads could not load", exact: true })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("link", { name: "Read", exact: true })).toBeVisible();
 });
+
+test("leaving demo mode never presents its cached queue as a pending live response", async ({ page }) => {
+  await page.addInitScript(({ first }) => localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: first, mockMode: true, connectionStatus: "connected", autoDeleteReadChapters: false, autoDownloadCount: 0 } })), { first });
+  await fixture(page);
+  await expect(page.getByText("Server queue is clear", { exact: true })).toBeVisible();
+  let release!: () => void; let requested = false;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/graphql", async (route) => {
+    const { query, operationName } = route.request().postDataJSON();
+    if ((operationName || /\b(?:query|mutation)\s+(\w+)/.exec(query)?.[1]) !== "GetDownloadStatus") return route.fallback();
+    requested = true; await held;
+    await route.fulfill({ json: { data: { downloadStatus: { state: "STOPPED", queue: [{ position: 1, progress: 0, state: "PENDING", tries: 0, chapter: { id: "12", name: "Live queue chapter", chapterNumber: 1 }, manga: { id: "42", title: "Live queue title", thumbnailUrl: null } }] } } } });
+  });
+  try {
+    await page.getByRole("button", { name: "Connect a server", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Downloads", exact: true }).click();
+    await expect.poll(() => requested).toBe(true);
+    await expect(page.getByText("Loading the server queue…", { exact: true })).toBeVisible();
+    await expect(page.getByText("Server queue is clear", { exact: true })).toHaveCount(0);
+    release(); await expect(page.getByText("Live queue title", { exact: true })).toBeVisible();
+  } finally { release(); }
+});

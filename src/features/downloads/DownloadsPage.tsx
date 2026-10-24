@@ -8,7 +8,9 @@ import { getErrorMessage } from "../../api/suwayomi/errors";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { useDownloadStore } from "../../stores/useDownloadStore";
 import type { CachedChapter } from "../../api/suwayomi/offlineCache";
-import { progressBackend } from "../../api/suwayomi/backendIdentity";
+import { progressBackend, type ProgressBackend } from "../../api/suwayomi/backendIdentity";
+
+const downloadClient = (backend: ProgressBackend) => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live");
 
 interface DownloadItem {
   position: number;
@@ -37,15 +39,10 @@ export default function DownloadsPage() {
 
   useEffect(() => { void loadCachedChapters(); }, [loadCachedChapters, serverBaseUrl]);
 
-  const sdk = useMemo(() => {
-    const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-    return createGraphqlClient(`${cleanUrl}/api/graphql`, undefined, mockMode ? "demo" : "live");
-  }, [serverBaseUrl, mockMode]);
-
   // Fetch Download Queue and Downloader state
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["downloads", serverBaseUrl],
-    queryFn: () => sdk.GetDownloadStatus(),
+    queryKey: ["downloads", target.key],
+    queryFn: ({ signal }) => createGraphqlClient(`${target.serverBaseUrl}/api/graphql`, { signal }, target.isDemo ? "demo" : "live").GetDownloadStatus(),
     enabled: !!serverBaseUrl && !isUnconnected,
     refetchInterval: isUnconnected ? undefined : 3000, // Poll every 3 seconds while active
   });
@@ -55,29 +52,29 @@ export default function DownloadsPage() {
 
   // Mutations to control downloader
   const { mutate: startDownloader, isPending: starting } = useMutation({
-    mutationFn: () => sdk.StartDownloader({ input: {} }),
+    mutationFn: (backend: ProgressBackend) => downloadClient(backend).StartDownloader({ input: {} }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["downloads"] });
     },
   });
 
   const { mutate: stopDownloader, isPending: stopping } = useMutation({
-    mutationFn: () => sdk.StopDownloader({ input: {} }),
+    mutationFn: (backend: ProgressBackend) => downloadClient(backend).StopDownloader({ input: {} }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["downloads"] });
     },
   });
 
   const { mutate: clearDownloader, isPending: clearing } = useMutation({
-    mutationFn: () => sdk.ClearDownloader({ input: {} }),
+    mutationFn: (backend: ProgressBackend) => downloadClient(backend).ClearDownloader({ input: {} }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["downloads"] });
     },
   });
 
   const { mutate: dequeueChapter, isPending: dequeuing } = useMutation({
-    mutationFn: (chapterId: string) =>
-      sdk.DequeueChapterDownload({
+    mutationFn: ({ chapterId, backend }: { chapterId: string; backend: ProgressBackend }) =>
+      downloadClient(backend).DequeueChapterDownload({
         input: { id: parseInt(chapterId) },
       }),
     onSuccess: () => {
@@ -133,7 +130,7 @@ export default function DownloadsPage() {
         {queue.length > 0 && <div className="flex items-center gap-2 shrink-0">
           {downloaderState === "STARTED" ? (
             <button
-              onClick={() => stopDownloader()}
+              onClick={() => stopDownloader(target)}
               disabled={isActionPending}
               className="yomi-button yomi-button-secondary text-red-200 disabled:opacity-50"
             >
@@ -142,7 +139,7 @@ export default function DownloadsPage() {
             </button>
           ) : (
             <button
-              onClick={() => startDownloader()}
+              onClick={() => startDownloader(target)}
               disabled={isActionPending}
               className="yomi-button yomi-button-primary disabled:opacity-50"
             >
@@ -153,7 +150,7 @@ export default function DownloadsPage() {
 
           <button
             onClick={async () => {
-              if (await confirm({ title: "Clear the server queue?", detail: "This asks Suwayomi to remove every item from its active download queue, including unfinished items.", confirmLabel: "Clear queue", danger: true })) clearDownloader();
+              if (await confirm({ title: "Clear the server queue?", detail: "This asks Suwayomi to remove every item from its active download queue, including unfinished items.", confirmLabel: "Clear queue", danger: true })) clearDownloader(target);
             }}
             disabled={isActionPending || queue.length === 0}
             className="yomi-button yomi-button-secondary disabled:opacity-50"
@@ -234,7 +231,7 @@ export default function DownloadsPage() {
                 {/* Dequeue Button */}
                 <button
                   onClick={async () => {
-                    if (await confirm({ title: "Remove this download?", detail: `Remove “${item.chapter.name}” from the server queue?`, confirmLabel: "Remove", danger: true })) dequeueChapter(item.chapter.id);
+                    if (await confirm({ title: "Remove this download?", detail: `Remove “${item.chapter.name}” from the server queue?`, confirmLabel: "Remove", danger: true })) dequeueChapter({ chapterId: item.chapter.id, backend: target });
                   }}
                   disabled={isActionPending}
                   className="yomi-utility-button danger disabled:opacity-50"

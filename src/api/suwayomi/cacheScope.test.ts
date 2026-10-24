@@ -28,6 +28,16 @@ it("retains a shared page while another backend still references it", async () =
   await saveCachedChapter({ ...record(false), serverBaseUrl: "http://other.example", cachedUrls: [url] }); objects.set(url, new Response("SHARED"));
   await deleteCachedChapter(server, 12); expect(objects.has(url)).toBe(true); expect(await getCachedChapter("http://other.example", 12)).not.toBeNull();
 });
+it("refreshes page ownership immediately when an explicit live record replaces a legacy demo key", async () => {
+  const legacy = { ...record(true), cacheKey: getChapterCacheKey(server, 12), isDemo: undefined };
+  const db = await openDB();
+  await new Promise<void>((resolve) => { const tx = db.transaction("chapters", "readwrite"); tx.oncomplete = () => resolve(); tx.objectStore("chapters").put(legacy); }); db.close();
+  objects.set(legacy.cachedUrls[0], new Response("SHARED LEGACY"));
+  expect(await getOwnedCachedPage(legacy.pages[0], server, false)).toBeUndefined();
+  await saveCachedChapter({ ...legacy, isDemo: false });
+  expect(await (await getOwnedCachedPage(legacy.pages[0], server, false))!.text()).toBe("SHARED LEGACY");
+  expect((await getCachedChapter(server, 12, true))!.isDemo).toBe(true);
+});
 it("isolates durable job mode while retaining existing URL-only keys", async () => {
   for (const isDemo of [false, true]) await saveDownloadJob({ serverBaseUrl: server, chapterId: 12, isDemo, status: "queued", progress: 0, total: 1, attempts: 0, updatedAt: 1 });
   expect(await getDownloadJobs(server, false)).toHaveLength(1); expect(await getDownloadJobs(server, true)).toHaveLength(1);

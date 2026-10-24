@@ -28,10 +28,10 @@ function client(backend: ProgressBackend) {
 
 async function mirrorProgress(head: ProgressHead) {
   const { backend, chapter, patch } = head;
-  // Demo history/progress lives in its own heads. Never alter a live cache/history row with an overlapping ID.
-  if (backend.isDemo) return;
   const cached = await getCachedChapter(backend.serverBaseUrl, chapter.chapterId, backend.isDemo);
-  if (cached && chapterIdentityMatches(chapter, cachedIdentity(cached))) await saveCachedChapter({ ...cached, lastPageRead: patch.lastPageRead, isRead: patch.isRead });
+  if (cached && chapterIdentityMatches(chapter, cachedIdentity(cached))) await saveCachedChapter({ ...cached, isDemo: backend.isDemo, lastPageRead: patch.lastPageRead, isRead: patch.isRead });
+  // Cached chapters have mode-specific keys; legacy history still shares URL/ID keys.
+  if (backend.isDemo) return;
   const existing = (await getReadingHistory(backend.serverBaseUrl)).find((item) => item.chapterId === chapter.chapterId && !!item.isDemo === backend.isDemo);
   if (!head.hasActivity && !existing) return;
   const event = { chapterId: chapter.chapterId, chapterName: chapter.chapterName, chapterNumber: chapter.chapterNumber, mangaId: chapter.mangaId, mangaTitle: chapter.mangaTitle, lastPageRead: patch.lastPageRead, pageCount: chapter.pageCount, isRead: patch.isRead, isDemo: backend.isDemo, readAt: head.activityAt ?? existing?.readAt, isHidden: head.hideHistory };

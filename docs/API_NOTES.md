@@ -103,6 +103,14 @@ The pinned dispatcher supports root checkbox/text/select/tri-state/sort and one 
 
 Suwayomi v2.3.2243's built-in Local-source search advertises Date sorting but ignores the selected field index. The client disables that known option only for that source/version. See [catalog filter verification and binary evidence](RELIABILITY_BATCH_7_2026-10-24.md).
 
+## Download and device-cache ownership
+
+Live web downloads remain Suwayomi-managed through `enqueueChapterDownload`. Native/device-cache work captures endpoint, live/demo mode and chapter ID before queuing; a profile change cannot retarget a running job or its cancellation/deletion. Local queue persistence must complete before fetching begins.
+
+Completed page metadata retains original page paths, actual network URLs and unique attempt-specific CacheStorage keys separately. The attempt/owner query markers are local storage keys and are never added to a network image request. Cache lookup requires matching endpoint/mode metadata; reference-safe cleanup retains bytes still used by another completed record. Selected-server clearing is scoped to that endpoint/mode, including its identifiable orphan attempts. Live/demo server queue queries also have separate keys.
+
+See [download/cache verification and native limits](RELIABILITY_BATCH_8_2026-10-24.md) and the [current reliability handoff](RELIABILITY_STATUS_2026-10-24.md). Device caches, queue jobs and pending progress are independent of a Suwayomi library backup.
+
 ## Backup export and restore
 
 Verified on 2026-10-23 against the pinned Suwayomi v2.3.2243 server using a disposable local-source library.

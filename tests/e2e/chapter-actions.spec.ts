@@ -36,7 +36,9 @@ test("bookmark and mark-unread refresh the source chapter list and saved copy", 
         const transaction = db.transaction("chapters", "readwrite");
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error);
-        transaction.objectStore("chapters").put({ cacheKey: `${backend}::20002`, serverBaseUrl: backend, id: 20002, name: "Chapter action fixture", chapterNumber: 1, mangaId: 10002, mangaTitle: "[Demo] Pepper & Carrot", sourceOrder: 1, pageCount: 3, pages: ["/0", "/1", "/2"], cachedUrls: [], totalSizeBytes: 0, cachedAt: Date.now(), isRead: true, lastPageRead: 2 });
+        const saved = { serverBaseUrl: backend, id: 20002, name: "Chapter action fixture", chapterNumber: 1, mangaId: 10002, mangaTitle: "[Demo] Pepper & Carrot", sourceOrder: 1, pageCount: 3, pages: ["/0", "/1", "/2"], cachedUrls: [], totalSizeBytes: 0, cachedAt: Date.now(), isRead: true, lastPageRead: 2 };
+        transaction.objectStore("chapters").put({ ...saved, cacheKey: `${backend}::20002`, isDemo: false });
+        transaction.objectStore("chapters").put({ ...saved, cacheKey: `demo::${backend}::20002`, isDemo: true });
       });
     } finally { db.close(); }
   }, { backend });
@@ -65,4 +67,16 @@ test("bookmark and mark-unread refresh the source chapter list and saved copy", 
   }, { backend });
   expect(cached.isRead).toBe(false);
   expect(cached.lastPageRead).toBe(0);
+  const demoCopy = await page.evaluate(async ({ backend }) => {
+    const open = indexedDB.open("yomikura-offline", 4);
+    const db = await new Promise<IDBDatabase>((resolve) => { open.onsuccess = () => resolve(open.result); });
+    try {
+      return await new Promise<{ isRead: boolean; lastPageRead: number }>((resolve, reject) => {
+        const request = db.transaction("chapters", "readonly").objectStore("chapters").get(`demo::${backend}::20002`);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    } finally { db.close(); }
+  }, { backend });
+  expect(demoCopy).toMatchObject({ isRead: true, lastPageRead: 2 });
 });

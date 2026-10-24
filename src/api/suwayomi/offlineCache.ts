@@ -274,7 +274,7 @@ export async function saveCachedChapter(chapter: CachedChapter, signal?: AbortSi
       if (!await offlineRead(store.get(preserved))) store.put({ ...previous, cacheKey: preserved, isDemo: isDemoCacheRecord(previous) });
     }
     store.put(record);
-    return JSON.stringify([previous?.pages, previous?.cachedUrls, previous?.networkUrls]) !== JSON.stringify([record.pages, record.cachedUrls, record.networkUrls]);
+    return (!!previous && isDemoCacheRecord(previous) !== isDemo) || JSON.stringify([previous?.pages, previous?.cachedUrls, previous?.networkUrls]) !== JSON.stringify([record.pages, record.cachedUrls, record.networkUrls]);
   }, signal);
   if (changed) invalidatePageIndexes(serverBaseUrl);
 }

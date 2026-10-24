@@ -208,9 +208,11 @@ describe("progress replay and acknowledgement", () => {
     await saveCachedChapter({ cacheKey: `${first.serverBaseUrl}::12`, serverBaseUrl: first.serverBaseUrl, id: 12, name: chapter.chapterName, chapterNumber: 1, mangaId: 42, mangaTitle: "Fixture", sourceOrder: 1, pageCount: 4, pages: ["0", "1", "2", "3"], cachedUrls: [], cachedAt: Date.now(), totalSizeBytes: 0, lastPageRead: 0, isRead: false });
     await saveProgressIntent(first, reading(1));
     const demo = progressBackend(first.serverBaseUrl, true); mocks.active.mockMode = true;
+    await saveCachedChapter({ cacheKey: `demo::${first.serverBaseUrl}::12`, serverBaseUrl: first.serverBaseUrl, isDemo: true, id: 12, name: chapter.chapterName, chapterNumber: 1, mangaId: 42, mangaTitle: "[Demo] Fixture", sourceOrder: 1, pageCount: 4, pages: ["0", "1", "2", "3"], cachedUrls: [], cachedAt: Date.now(), totalSizeBytes: 0, lastPageRead: 0, isRead: false });
     await saveProgressIntent(demo, { ...reading(3), chapter: { ...chapter, mangaTitle: "[Demo] Fixture" } });
     await synchronizeProgress(demo);
     expect(await getCachedChapter(first.serverBaseUrl, 12)).toMatchObject({ isRead: false, lastPageRead: 1, mangaTitle: "Fixture" });
+    expect(await getCachedChapter(first.serverBaseUrl, 12, true)).toMatchObject({ isRead: true, lastPageRead: 3, mangaTitle: "[Demo] Fixture" });
     expect((await getReadingHistory(first.serverBaseUrl))[0]).toMatchObject({ isDemo: false, lastPageRead: 1 });
     expect(await projectChapterProgress(demo, { ...remoteChapter(), manga: { title: "[Demo] Fixture" } })).toMatchObject({ isRead: true, lastPageRead: 3 });
     expect(mocks.update).not.toHaveBeenCalled();
