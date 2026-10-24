@@ -82,6 +82,7 @@ export default function MangaDetailPage() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["manga", mangaId, serverBaseUrl],
+    retry: (attempt) => !cachedChapters.some((chapter) => String(chapter.mangaId) === mangaId) && attempt < 2,
     queryFn: () => sdk.GetMangaDetails({ id: parseInt(mangaId!) }),
     enabled: !!serverBaseUrl && !!mangaId,
   });

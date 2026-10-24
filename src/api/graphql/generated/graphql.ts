@@ -4681,7 +4681,7 @@ export type GetUpdatesQueryVariables = Exact<{
 }>;
 
 
-export type GetUpdatesQuery = { chapters: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, uploadDate: unknown, scanlator: string | null, mangaId: number, manga: { id: number, title: string, thumbnailUrl: string | null } } }> } };
+export type GetUpdatesQuery = { chapters: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, uploadDate: unknown, fetchedAt: unknown, scanlator: string | null, mangaId: number, manga: { id: number, inLibraryAt: unknown, title: string, thumbnailUrl: string | null } } }> } };
 
 export type GetHistoryQueryVariables = Exact<{
   filter?: ChapterFilterInput | null | undefined;
@@ -5549,10 +5549,12 @@ export const GetUpdatesDocument = gql`
         isRead
         lastPageRead
         uploadDate
+        fetchedAt
         scanlator
         mangaId
         manga {
           id
+          inLibraryAt
           title
           thumbnailUrl
         }

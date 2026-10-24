@@ -1,212 +1,53 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Loader2, Clock3, Play, BookOpen, RefreshCw } from "lucide-react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { Clock3, RefreshCw, Play, BookOpen } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
-import { getErrorMessage } from "../../api/suwayomi/errors";
 import { ChapterOrderBy, SortOrder } from "../../api/graphql/generated/graphql";
-import { useTranslation } from "../../hooks/useTranslation";
-import { formatChapterDate, parseChapterTimestamp } from "../manga/chapterDate";
-
-interface UpdateItem {
-  id: string;
-  name: string;
-  chapterNumber: number;
-  uploadDate: string;
-  scanlator?: string | null;
-  mangaId: number;
-  manga: {
-    id: number;
-    title: string;
-    thumbnailUrl?: string | null;
-  };
-}
+import { progressBackend } from "../../api/suwayomi/backendIdentity";
+import { getErrorMessage } from "../../api/suwayomi/errors";
+import { formatChapterDate } from "../manga/chapterDate";
+import { LibraryUpdateButton } from "../../components/library/LibraryUpdateButton";
+import { isLibraryDiscovery, updateTimestamp, nextUpdatePage, type UpdateDateMode, type UpdateCursor } from "./updateFeed";
 
 export default function UpdatesPage() {
-  const { serverBaseUrl } = useSettingsStore();
-  const { t, language } = useTranslation();
-
-  const sdk = useMemo(() => {
-    const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-    return createGraphqlClient(`${cleanUrl}/api/graphql`);
-  }, [serverBaseUrl]);
-
-  const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["updates", serverBaseUrl],
-    queryFn: () =>
-      sdk.GetUpdates({
-        filter: {
-          inLibrary: { equalTo: true },
-        },
-        order: [
-          {
-            by: ChapterOrderBy.UploadDate,
-            byType: SortOrder.Desc,
-          },
-        ],
-        first: 100,
-      }),
-    enabled: !!serverBaseUrl,
+  const { serverBaseUrl, mockMode } = useSettingsStore();
+  const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
+  const [mode, setMode] = useState<UpdateDateMode>("discovered");
+  const feed = useInfiniteQuery({
+    queryKey: ["updates", backend.key, mode], initialPageParam: { after: undefined, seen: [] } as UpdateCursor, enabled: !!serverBaseUrl,
+    queryFn: async ({ pageParam, signal }) => {
+      const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { signal }, backend.isDemo ? "demo" : "live");
+      const connection = (await sdk.GetUpdates({ filter: { inLibrary: { equalTo: true } }, order: [{ by: mode === "discovered" ? ChapterOrderBy.FetchedAt : ChapterOrderBy.UploadDate, byType: SortOrder.Desc }, { by: ChapterOrderBy.Id, byType: SortOrder.Desc }], first: 100, after: pageParam.after })).chapters;
+      return { ...connection, next: nextUpdatePage(connection.pageInfo, pageParam) };
+    },
+    getNextPageParam: (last) => last.next,
   });
-
   const updates = useMemo(() => {
-    if (!data?.chapters?.edges) return [];
-    return data.chapters.edges
-      .map((edge) => edge?.node)
-      .filter((node): node is NonNullable<typeof node> => node != null) as unknown as UpdateItem[];
-  }, [data]);
-
-  // Group updates by date
-  const groupedUpdates = useMemo(() => {
-    const groups: Record<string, UpdateItem[]> = {};
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
-    const startOfWeek = startOfToday - 7 * 24 * 60 * 60 * 1000;
-
-    updates.forEach((item) => {
-      const time = parseChapterTimestamp(item.uploadDate);
-      if (time === null) {
-        const key = "Unknown Date";
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(item);
-        return;
-      }
-
-      let key = "Older";
-      if (time >= startOfToday) {
-        key = t("today");
-      } else if (time >= startOfYesterday) {
-        key = t("yesterday");
-      } else if (time >= startOfWeek) {
-        key = "This Week";
-      }
-
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(item);
-    });
-
-    return groups;
-  }, [updates, language]);
-
-  if (!serverBaseUrl) {
-    return (
-      <div className="yomi-workspace">
-        <div className="yomi-route-empty"><div>
-          <Clock3 />
-          <h2>Updates need a local engine</h2>
-          <p>{t("no_server")}</p>
-        </div></div>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="yomi-workspace flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-yomi-jade" />
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <div className="yomi-workspace"><div className="yomi-route-empty"><div>
-        <Clock3 />
-        <h2>Updates could not load</h2>
-        <p>{getErrorMessage(error)}</p>
-        <button onClick={() => refetch()} className="yomi-button yomi-button-primary mt-5"><RefreshCw />{t("retry")}</button>
-      </div></div></div>
-    );
-  }
-
-  if (updates.length === 0) {
-    return (
-      <div className="yomi-workspace"><div className="yomi-route-empty"><div>
-        <Clock3 />
-        <h2>{t("no_updates")}</h2>
-        <p>When a source publishes a new chapter for a title in your library, it will appear here.</p>
-      </div></div></div>
-    );
-  }
-
-  return (
-    <div className="yomi-workspace">
-      <div className="yomi-workspace-head">
-        <div>
-          <span className="yomi-eyebrow">Library activity</span>
-          <h1 className="yomi-workspace-title"><Clock3 />{t("updates")}</h1>
-          <p className="yomi-workspace-subtitle">New chapters from titles you follow, arranged by when they reached your library.</p>
-        </div>
-        <span className="yomi-status-chip"><span className="yomi-status-dot" />{updates.length} recent chapters</span>
-      </div>
-
-      <div className="space-y-9">
-        {[t("today"), t("yesterday"), "This Week", "Older"].map((groupName) => {
-          const groupItems = groupedUpdates[groupName] || [];
-          if (groupItems.length === 0) return null;
-
-          return (
-            <section key={groupName}>
-              <h2 className="yomi-section-label">{groupName}</h2>
-              <div className="yomi-surface">
-                {groupItems.map((item) => {
-                  let coverUrl = "/placeholder-cover.svg";
-                  if (item.manga.thumbnailUrl) {
-                    coverUrl = item.manga.thumbnailUrl.startsWith("http")
-                      ? item.manga.thumbnailUrl
-                      : `${serverBaseUrl.replace(/\/$/, "")}${item.manga.thumbnailUrl}`;
-                  }
-
-                  return (
-                    <div
-                      key={item.id}
-                      className="yomi-surface-row"
-                    >
-                      <Link
-                        to={`/manga/${item.manga.id}`}
-                        className="yomi-cover-sm"
-                      >
-                        <img src={coverUrl} alt={item.manga.title} className="h-full w-full object-cover" />
-                      </Link>
-
-                      <div className="yomi-row-copy">
-                        <div className="yomi-row-overline"><strong>New chapter</strong><span>{item.scanlator || "Library update"}</span></div>
-                        <Link
-                          to={`/manga/${item.manga.id}`}
-                          className="yomi-row-title"
-                        >
-                          {item.manga.title}
-                        </Link>
-                        <p>{item.name}</p>
-                        <small>{formatChapterDate(item.uploadDate)}</small>
-                      </div>
-
-                      <div className="yomi-row-actions">
-                        <Link
-                          to={`/reader/${item.id}`}
-                          className="yomi-icon-button"
-                          title="Read Chapter"
-                        >
-                          <Play className="h-4 w-4 fill-current ml-0.5" />
-                        </Link>
-                        <Link
-                          to={`/manga/${item.manga.id}`}
-                          className="yomi-icon-button hidden sm:inline-grid"
-                          title="Manga Details"
-                        >
-                          <BookOpen className="h-4 w-4" />
-                        </Link>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
-      </div>
-    </div>
-  );
+    const nodes = feed.data?.pages.flatMap((page) => page.edges.map((edge) => edge.node)) ?? [];
+    return [...new Map(nodes.map((node) => [node.id, node])).values()].filter((node) => mode === "published" || isLibraryDiscovery(node));
+  }, [feed.data, mode]);
+  const groups = useMemo(() => {
+    const result = new Map<string, typeof updates>(); const now = new Date(); const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    for (const item of updates) { const time = updateTimestamp(item, mode); const key = time === null || time <= 0 ? "Unknown Date" : time >= today ? "Today" : time >= today - 86400000 ? "Yesterday" : time >= today - 7 * 86400000 ? "This Week" : "Older"; result.set(key, [...(result.get(key) ?? []), item]); }
+    return result;
+  }, [updates, mode]);
+  return <div className="yomi-workspace">
+    <div className="yomi-workspace-head"><div><span className="yomi-eyebrow">Library activity</span><h1 className="yomi-workspace-title"><Clock3 />Updates</h1><p className="yomi-workspace-subtitle">{mode === "discovered" ? "Chapters discovered by your server for library titles. Known discoveries before library addition are excluded." : "Chapters ordered by their source publication date."}</p></div><span className="yomi-status-chip">{updates.length} chapters loaded</span></div>
+    <div className="mb-5 flex flex-wrap items-center gap-3"><LibraryUpdateButton /><label className="flex items-center gap-2 text-sm text-slate-300">Update date<select aria-label="Update date" className="yomi-field" value={mode} onChange={(event) => setMode(event.target.value as UpdateDateMode)}><option value="discovered">Discovery date</option><option value="published">Publication date</option></select></label><button type="button" className="yomi-button yomi-button-secondary" onClick={() => void feed.refetch()} disabled={feed.isFetching}><RefreshCw />Refresh feed</button></div>
+    {feed.isLoading && <p role="status" className="py-10 text-center text-slate-400">Loading library updates…</p>}
+    {feed.isError && <div role="alert" className="yomi-surface mb-4 p-4 text-sm text-amber-200"><p>{getErrorMessage(feed.error)}</p><button type="button" className="yomi-button yomi-button-secondary mt-3" onClick={() => void (feed.isFetchNextPageError ? feed.fetchNextPage() : feed.refetch())}>Retry updates</button></div>}
+    {!feed.isLoading && !feed.isError && !updates.length && <div className="yomi-surface p-6"><h2 className="text-lg text-slate-200">No matching chapters in the loaded pages</h2><p className="mt-2 text-sm text-slate-400">Update your library to fetch chapters from its sources. Older pages remain available below.</p></div>}
+    <div className="space-y-9">{["Today", "Yesterday", "This Week", "Older", "Unknown Date"].map((name) => {
+      const items = groups.get(name); if (!items?.length) return null;
+      return <section key={name}><h2 className="yomi-section-label">{name}</h2><div className="yomi-surface">{items.map((item) => {
+        const cover = item.manga.thumbnailUrl ? /^https?:\/\//i.test(item.manga.thumbnailUrl) ? item.manga.thumbnailUrl : `${backend.serverBaseUrl}${item.manga.thumbnailUrl.startsWith("/") ? "" : "/"}${item.manga.thumbnailUrl}` : "/placeholder-cover.svg";
+        const time = updateTimestamp(item, mode);
+        return <div key={item.id} className="yomi-surface-row"><Link to={`/manga/${item.manga.id}`} className="yomi-cover-sm" aria-label={`Details for ${item.manga.title}`}><img src={cover} alt="" className="h-full w-full object-cover" /></Link><div className="yomi-row-copy"><div className="yomi-row-overline"><strong>{mode === "discovered" ? "Discovered chapter" : "Published chapter"}</strong><span>{item.scanlator || "Library update"}</span></div><Link to={`/manga/${item.manga.id}`} className="yomi-row-title">{item.manga.title}</Link><p>{item.name}</p><small>{time && time > 0 ? formatChapterDate(String(time)) : "Unknown Date"}</small></div><div className="yomi-row-actions"><Link to={`/reader/${item.id}`} className="yomi-icon-button" aria-label={`Read ${item.name}`}><Play className="h-4 w-4 fill-current" /></Link><Link to={`/manga/${item.manga.id}`} className="yomi-icon-button hidden sm:inline-grid" aria-label={`Manga details for ${item.name}`}><BookOpen className="h-4 w-4" /></Link></div></div>;
+      })}</div></section>;
+    })}</div>
+    {feed.hasNextPage && <button type="button" className="yomi-button yomi-button-secondary mt-6" disabled={feed.isFetchingNextPage} onClick={() => void feed.fetchNextPage()}>{feed.isFetchingNextPage ? "Loading older chapters…" : "Load older chapters"}</button>}
+    {!feed.hasNextPage && updates.length > 0 && <p className="mt-5 text-sm text-slate-400">All matching server pages loaded.</p>}
+  </div>;
 }

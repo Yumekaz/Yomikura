@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { browseNav, primaryNav, utilityNav, type NavItem } from "../../app/navigation";
 import { useSettingsStore, isTauri } from "../../stores/useSettingsStore";
 import { useDownloadStore } from "../../stores/useDownloadStore";
+import { PwaUpdateNotice } from "./PwaUpdateNotice";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { useTranslation } from "../../hooks/useTranslation";
 import { UpdateNotificationBanner } from "../UpdateNotificationBanner";
@@ -262,6 +263,7 @@ function AppShell() {
         <div className="px-4 pt-2 lg:px-0">
           <UpdateNotificationBanner />
         </div>
+        <PwaUpdateNotice />
         {mockMode && !location.pathname.startsWith("/reader/") && (
           <div className="mx-auto my-3 flex max-w-3xl flex-col items-start justify-between gap-3 rounded-xl border border-[rgba(var(--yomi-signature),.28)] bg-[rgba(var(--yomi-signature),.08)] px-4 py-3 sm:flex-row sm:items-center">
             <div className="flex min-w-0 items-start gap-2 text-sm"><Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[rgb(var(--yomi-signature))]" /><p className="text-slate-200"><strong>Demo Sandbox is active.</strong> You are viewing sample titles only; your server library, history, extensions, and downloads are not shown.</p></div>

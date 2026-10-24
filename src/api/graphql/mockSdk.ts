@@ -279,11 +279,13 @@ const mockImpl: any = {
               isRead: false,
               lastPageRead: 0,
               uploadDate: "2026-06-01T10:00:00Z",
+              fetchedAt: recentDemoTimestamp(),
               scanlator: "Yomikura",
               mangaId: 10001,
               manga: {
                 id: 10001,
                 title: "[Demo] Sita's Sister",
+                inLibraryAt: String(Date.now() - 86400000),
                 thumbnailUrl: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300",
               },
             },

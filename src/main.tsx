@@ -15,15 +15,16 @@ if ("serviceWorker" in navigator && runningInTauri) {
   });
   if ("caches" in window) {
     void caches.keys().then((keys) => {
-      keys.filter((key) => key.startsWith("yomikura-v")).forEach((key) => void caches.delete(key));
+      keys.filter((key) => /^yomikura-v\d+$/.test(key) || key.startsWith("yomikura-shell-")).forEach((key) => void caches.delete(key));
     });
   }
 } else if ("serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/sw.js")
+      .register("/sw.js", { updateViaCache: "none" })
       .then((reg) => {
         console.log("ServiceWorker registered successfully: ", reg.scope);
+        window.dispatchEvent(new Event("yomikura:sw-ready"));
       })
       .catch((err) => {
         console.error("ServiceWorker registration failed: ", err);

@@ -12,10 +12,12 @@ query GetUpdates($filter: ChapterFilterInput, $order: [ChapterOrderInput!], $fir
         isRead
         lastPageRead
         uploadDate
+        fetchedAt
         scanlator
         mangaId
         manga {
           id
+          inLibraryAt
           title
           thumbnailUrl
         }

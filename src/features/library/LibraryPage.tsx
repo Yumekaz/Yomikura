@@ -46,6 +46,7 @@ export default function LibraryPage() {
   const { data: catData, isLoading: catLoading } = useQuery({
     queryKey: ["categories", serverBaseUrl, mockMode],
     queryFn: () => sdk.GetCategories(),
+    retry: (attempt) => cachedChapters.length === 0 && attempt < 2,
     enabled: !!serverBaseUrl,
     staleTime: 1000 * 60 * 5,
   });
@@ -58,6 +59,7 @@ export default function LibraryPage() {
     refetch: refetchLibrary,
   } = useQuery({
     queryKey: ["library", serverBaseUrl, mockMode],
+    retry: (attempt) => cachedChapters.length === 0 && attempt < 2,
     queryFn: async () => {
       const nodes = await fetchAllLibrary(sdk, {
         inLibrary: { equalTo: true },
