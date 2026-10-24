@@ -118,6 +118,7 @@ export function ReaderOverlay({
                     {(["WEBTOON", "LTR", "RTL"] as ReaderMode[]).map((mode) => (
                       <button
                         key={mode}
+                        aria-pressed={readerMode === mode}
                         onClick={() => onModeChange(mode)}
                         className={`rounded px-3 py-1.5 text-xs font-semibold transition ${
                           readerMode === mode
@@ -139,6 +140,7 @@ export function ReaderOverlay({
                         {(["FIT_SCREEN", "FIT_WIDTH", "FIT_HEIGHT"] as FitMode[]).map((mode) => (
                           <button
                             key={mode}
+                            aria-pressed={fitMode === mode}
                             onClick={() => onFitModeChange(mode)}
                             className={`rounded px-2.5 py-1 text-xs font-semibold transition ${
                               fitMode === mode
@@ -158,6 +160,7 @@ export function ReaderOverlay({
                         {(["SINGLE", "DOUBLE", "DOUBLE_COVER"] as PageSpread[]).map((spread) => (
                           <button
                             key={spread}
+                            aria-pressed={pageSpread === spread}
                             onClick={() => onPageSpreadChange(spread)}
                             className={`rounded px-2.5 py-1 text-xs font-semibold transition ${
                               pageSpread === spread
@@ -233,11 +236,12 @@ export function ReaderOverlay({
             {activeSubTab === "filters" && (
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-300">Crop White Borders</span>
+                  <span className="text-xs font-semibold text-slate-300">Fixed page crop</span>
                   <button
                     type="button"
                     onClick={() => setCropBorders(!cropBorders)}
-                    aria-label="Crop white borders"
+                    aria-label="Fixed page crop"
+                    aria-describedby="fixed-crop-description"
                     aria-pressed={cropBorders}
                     className={`relative inline-flex h-5.5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                       cropBorders ? "bg-yomi-jade" : "bg-ink-950 border-white/10"
@@ -251,6 +255,7 @@ export function ReaderOverlay({
                   </button>
                 </div>
 
+                <p id="fixed-crop-description" className="text-xs text-slate-400">Magnifies every page by 12% and clips its edges. Turn it off to show the full artwork.</p>
                 {/* Grayscale Slider */}
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between text-xs text-slate-400">

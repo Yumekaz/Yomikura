@@ -5,6 +5,7 @@ import { createGraphqlClient } from "../../api/graphql/client";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { getErrorMessage } from "../../api/suwayomi/errors";
 import { useFeedback } from "../ui/FeedbackProvider";
+import { useModalFocus } from "../../hooks/useModalFocus";
 
 interface BulkCategoryModalProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ export function BulkCategoryModal({
   onClose,
   mangaIds,
 }: BulkCategoryModalProps) {
+  const modal = useModalFocus(isOpen, onClose);
   const { confirm } = useFeedback();
   const { serverBaseUrl } = useSettingsStore();
   const queryClient = useQueryClient();
@@ -118,7 +120,7 @@ export function BulkCategoryModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm select-none">
-      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-panel" role="dialog" aria-modal="true" aria-labelledby="bulk-category-title">
+      <div {...modal} className="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-panel" role="dialog" aria-modal="true" aria-labelledby="bulk-category-title">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/5 pb-4">
           <div className="flex flex-col">

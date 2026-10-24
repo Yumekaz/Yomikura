@@ -21,6 +21,7 @@ import { mangaReaderSettingsKey } from "../../stores/mangaReaderSettings";
 import type { ImageFilters, MangaOverride } from "../../stores/useSettingsStore";
 import { normalizeChapterPolicy } from "../manga/chapterPolicy";
 import { loadReadingSequence } from "./readingSequence";
+import { readerShortcutAllowed } from "./readerKeyboard";
 
 export default function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>();
@@ -629,7 +630,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
   // Keyboard binding listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="alertdialog"]'))) {
+      if (!readerShortcutAllowed(e)) {
         return;
       }
 

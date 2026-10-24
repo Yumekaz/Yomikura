@@ -4,6 +4,7 @@ import { X, Loader2, Save } from "lucide-react";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { getErrorMessage } from "../../api/suwayomi/errors";
+import { useModalFocus } from "../../hooks/useModalFocus";
 
 interface MangaCategoryModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export function MangaCategoryModal({
   mangaId,
   currentCategoryIds,
 }: MangaCategoryModalProps) {
+  const modal = useModalFocus(isOpen, onClose);
   const { serverBaseUrl } = useSettingsStore();
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -106,12 +108,13 @@ export function MangaCategoryModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-panel">
+      <div {...modal} role="dialog" aria-modal="true" aria-labelledby="manga-category-title" className="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-panel">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/5 pb-4">
-          <h2 className="text-lg font-semibold text-white">Select Categories</h2>
+          <h2 id="manga-category-title" className="text-lg font-semibold text-white">Select Categories</h2>
           <button
             onClick={onClose}
+            aria-label="Close manga category editor"
             className="rounded-full p-1.5 hover:bg-white/10 text-slate-400 hover:text-white transition"
           >
             <X className="h-5 w-5" />

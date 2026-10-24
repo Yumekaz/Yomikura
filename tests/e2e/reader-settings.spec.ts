@@ -61,7 +61,7 @@ test("title controls retain their own values across backend switches, reload and
   await page.getByRole("combobox", { name: "Auto-download ahead", exact: true }).selectOption("3");
   await page.getByRole("button", { name: "Filters", exact: true }).click();
   await page.getByRole("slider", { name: "Grayscale effect", exact: true }).fill("65");
-  await page.getByRole("button", { name: "Crop white borders", exact: true }).click();
+  await page.getByRole("button", { name: "Fixed page crop", exact: true }).click();
   await expect(pagedImage(page)).toHaveCSS("filter", /grayscale\(0\.65\)/);
   const firstSaved = await saved(page);
   expect(firstSaved).toMatchObject({ readerMode: "WEBTOON", pageTransition: "none", cropBorders: false, autoDownloadCount: 0, imageFilters: { grayscale: 0 } });

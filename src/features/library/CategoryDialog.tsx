@@ -5,6 +5,7 @@ import { createGraphqlClient } from "../../api/graphql/client";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { getErrorMessage } from "../../api/suwayomi/errors";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
+import { useModalFocus } from "../../hooks/useModalFocus";
 
 interface Category {
   id: string | number;
@@ -18,6 +19,7 @@ interface CategoryDialogProps {
 }
 
 export function CategoryDialog({ isOpen, onClose, categories }: CategoryDialogProps) {
+  const modal = useModalFocus(isOpen, onClose);
   const { confirm } = useFeedback();
   const { serverBaseUrl } = useSettingsStore();
   const queryClient = useQueryClient();
@@ -105,7 +107,7 @@ export function CategoryDialog({ isOpen, onClose, categories }: CategoryDialogPr
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-panel" role="dialog" aria-modal="true" aria-labelledby="category-dialog-title">
+      <div {...modal} className="w-full max-w-md rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-panel" role="dialog" aria-modal="true" aria-labelledby="category-dialog-title">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/5 pb-4">
           <h2 id="category-dialog-title" className="text-lg font-semibold text-white">Manage Categories</h2>
@@ -135,6 +137,7 @@ export function CategoryDialog({ isOpen, onClose, categories }: CategoryDialogPr
                   onChange={(e) => setEditingName(e.target.value)}
                   className="flex-1 rounded bg-ink-900 px-2 py-1 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-yomi-jade/50 border border-white/5"
                   autoFocus
+                  aria-label={`Rename category ${cat.name}`}
                 />
               ) : (
                 <span className="text-sm font-medium text-slate-200 truncate">{cat.name}</span>
@@ -187,6 +190,7 @@ export function CategoryDialog({ isOpen, onClose, categories }: CategoryDialogPr
           <input
             type="text"
             placeholder="New category name..."
+            aria-label="New category name"
             value={newCatName}
             onChange={(e) => setNewCatName(e.target.value)}
             className="flex-1 rounded-lg bg-ink-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-yomi-jade/50 border border-white/5"
