@@ -44,7 +44,7 @@ const accessibleRoutes = [
     { path: "/settings/advanced", heading: "Settings" },
     { path: "/extensions", heading: "Extensions" },
     { path: "/extensions/repos", heading: "Stores" },
-    { path: "/manga/10002", heading: "[Demo] Pepper & Carrot" },
+    { path: "/manga/10002", heading: "[Demo] Moonlit Courier" },
 ];
 
 for (const route of accessibleRoutes) {
@@ -61,12 +61,12 @@ test("reader journey survives search, offline save, history, and reload", async 
 
   await page.goto("/browse/search");
   const search = page.getByPlaceholder("Search manga title globally...");
-  await search.fill("Pepper");
+  await search.fill("Moonlit");
   await page.getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.getByText("[Demo] Pepper & Carrot", { exact: true }).first()).toBeVisible();
-  await page.getByRole("link", { name: /\[Demo\] Pepper & Carrot/ }).first().click();
+  await expect(page.getByText("[Demo] Moonlit Courier", { exact: true }).first()).toBeVisible();
+  await page.getByRole("link", { name: /\[Demo\] Moonlit Courier/ }).first().click();
 
-  await expect(page.getByRole("heading", { name: "[Demo] Pepper & Carrot", exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: "[Demo] Moonlit Courier", exact: true })).toBeVisible({ timeout: 15_000 });
   const saveButton = page.getByRole("button", { name: "Save Chapter 1: The Journey Begins for offline reading" });
   await saveButton.click();
   await expect(page.getByRole("button", { name: "Remove offline download of Chapter 1: The Journey Begins" })).toBeVisible({ timeout: 15_000 });
@@ -76,10 +76,10 @@ test("reader journey survives search, offline save, history, and reload", async 
   await page.keyboard.press("ArrowRight");
 
   await page.goto("/history");
-  await expect(page.getByText("[Demo] Pepper & Carrot", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("[Demo] Moonlit Courier", { exact: true }).first()).toBeVisible();
 
   await page.goto("/downloads");
-  await expect(page.getByText("[Demo] Pepper & Carrot", { exact: true })).toBeVisible();
+  await expect(page.getByText("[Demo] Moonlit Courier", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Read", exact: true }).click();
   await expect(page.getByText("Chapter 1: The Journey Begins", { exact: true })).toBeVisible();
   await page.reload();

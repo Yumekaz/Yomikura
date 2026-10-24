@@ -98,9 +98,9 @@ test("pagination retains applied filters and a new query always starts at page o
   await expect(page.getByRole("link", { name: "Result SEARCH all page 1", exact: true })).toBeVisible(); const applied = structuredClone(last(state.calls).filters);
   await page.getByRole("button", { name: "Next Page", exact: true }).click(); await expect(page.getByRole("link", { name: "Result SEARCH all page 2", exact: true })).toBeVisible();
   expect(last(state.calls)).toMatchObject({ page: 2, filters: applied });
-  await page.getByRole("textbox", { name: "Search manga in source", exact: true }).fill("Pepper & Carrot"); await page.getByRole("textbox", { name: "Search manga in source", exact: true }).press("Enter");
-  await expect(page.getByRole("link", { name: "Result SEARCH Pepper & Carrot page 1", exact: true })).toBeVisible();
-  expect(state.calls.filter((input) => input.query === "Pepper & Carrot").map((input) => input.page)).toEqual([1]); expect(last(state.calls).filters).toEqual(applied);
+  await page.getByRole("textbox", { name: "Search manga in source", exact: true }).fill("Moonlit Courier"); await page.getByRole("textbox", { name: "Search manga in source", exact: true }).press("Enter");
+  await expect(page.getByRole("link", { name: "Result SEARCH Moonlit Courier page 1", exact: true })).toBeVisible();
+  expect(state.calls.filter((input) => input.query === "Moonlit Courier").map((input) => input.page)).toEqual([1]); expect(last(state.calls).filters).toEqual(applied);
 });
 
 test("pinned filter-only searches retain choices through catalog navigation and reload", async ({ page }) => {

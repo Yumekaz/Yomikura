@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 export function PwaUpdateNotice() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
+    if (import.meta.env.DEV || !("serviceWorker" in navigator)) return;
     let active = true; let cleanup = () => {};
     const inspect = async () => {
       const registration = await navigator.serviceWorker.getRegistration(); if (!active || !registration) return;

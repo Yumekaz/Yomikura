@@ -6,10 +6,11 @@ import type { TrackerRecordFieldsFragment } from "./generated/graphql";
 // calendar date made an otherwise healthy history view look as if it were using
 // stale server time.
 const recentDemoTimestamp = () => new Date(Date.now() - 13 * 60_000).toISOString();
+const demoCover = (name: string) => new URL(`/demo/${name}.webp`, typeof window === "undefined" ? "http://localhost" : window.location.origin).href;
 const demoMembership = new Map<number, boolean>();
 const demoTracks = new Map<number, TrackerRecordFieldsFragment[]>();
 function sampleTrack(mangaId: number, trackerId = 1, remoteId = String(mangaId + 100000), title?: string): TrackerRecordFieldsFragment {
-  return { id: mangaId * 10 + trackerId, mangaId, trackerId, remoteId, title: title ?? (mangaId === 10001 ? "Sita's Sister (Synced)" : "Pepper & Carrot (Synced)"),
+  return { id: mangaId * 10 + trackerId, mangaId, trackerId, remoteId, title: title ?? (mangaId === 10001 ? "The Paper Garden (Synced)" : "Moonlit Courier (Synced)"),
     lastChapterRead: 1, totalChapters: 24, score: 9, displayScore: "9", status: 1, remoteUrl: "https://anilist.co", private: false };
 }
 function tracksFor(mangaId: number) {
@@ -40,18 +41,18 @@ const mockImpl: any = {
         nodes: [
           {
             id: 10001,
-            title: "[Demo] Sita's Sister",
-            thumbnailUrl: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300",
-            unreadCount: 3,
+            title: "[Demo] The Paper Garden",
+            thumbnailUrl: demoCover("paper-garden"),
+            unreadCount: 1,
             downloadCount: 0,
             lastReadChapter: null,
             categories: { nodes: [{ id: 1 }] },
           },
           {
             id: 10002,
-            title: "[Demo] Pepper & Carrot",
-            thumbnailUrl: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300",
-            unreadCount: 5,
+            title: "[Demo] Moonlit Courier",
+            thumbnailUrl: demoCover("moonlit-courier"),
+            unreadCount: 1,
             downloadCount: 0,
             lastReadChapter: { id: 20002 },
             categories: { nodes: [{ id: 1 }] },
@@ -62,19 +63,19 @@ const mockImpl: any = {
   },
 
   async GetMangaDetails({ id }: any) {
-    const isSita = id === 10001;
+    const isGarden = id === 10001;
     return {
       manga: {
         id,
-        title: isSita ? "[Demo] Sita's Sister" : "[Demo] Pepper & Carrot",
-        author: isSita ? "Amit Tayal" : "David Revoy",
-        artist: isSita ? "Amit Tayal" : "David Revoy",
-        description: isSita
-          ? "A beautiful graphic novel set in ancient India following the story of Sita's lesser known sister."
-          : "The webcomic about Pepper, a young witch, and her cat, Carrot. It's free, open-source, and funded directly by its patrons.",
-        thumbnailUrl: isSita
-          ? "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300"
-          : "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300",
+        title: isGarden ? "[Demo] The Paper Garden" : "[Demo] Moonlit Courier",
+        author: isGarden ? "Yomikura" : "Yomikura",
+        artist: isGarden ? "Yomikura" : "Yomikura",
+        description: isGarden
+          ? "Above the old city, a gardener folds a small paper bird. By afternoon, the rooftop garden has a little more life than she remembers. An original illustrated sample, created for the Yomikura demo library."
+          : "At the last mountain station, a courier receives a letter with no address. The night train is waiting. An original illustrated sample, created for the Yomikura demo library.",
+        thumbnailUrl: isGarden
+          ? demoCover("paper-garden")
+          : demoCover("moonlit-courier"),
         status: "COMPLETED",
         genre: ["Demo", "Fantasy", "Indie"],
         inLibrary: demoMembership.get(id) ?? true,
@@ -84,7 +85,7 @@ const mockImpl: any = {
           edges: [
             {
               node: {
-                id: isSita ? 20001 : 20002,
+                id: isGarden ? 20001 : 20002,
                 name: "Chapter 1: The Journey Begins",
                 chapterNumber: 1,
                 isRead: false,
@@ -101,7 +102,7 @@ const mockImpl: any = {
   },
 
   async GetChapter({ id }: any) {
-    const isSita = id === 20001;
+    const isGarden = id === 20001;
     return {
       chapter: {
         id,
@@ -112,11 +113,11 @@ const mockImpl: any = {
         chapterNumber: 1,
         isRead: false,
         lastPageRead: 0,
-        pageCount: 4,
+        pageCount: 2,
         sourceOrder: 1,
-        mangaId: isSita ? 10001 : 10002,
+        mangaId: isGarden ? 10001 : 10002,
         manga: {
-          title: isSita ? "[Demo] Sita's Sister" : "[Demo] Pepper & Carrot",
+          title: isGarden ? "[Demo] The Paper Garden" : "[Demo] Moonlit Courier",
           chapters: {
             edges: [
               { node: { id, chapterNumber: 1 } },
@@ -133,7 +134,7 @@ const mockImpl: any = {
   },
   async GetMigrationChapters({ mangaId }: any) {
     const { manga } = await mockImpl.GetMangaDetails({ id: mangaId });
-    const nodes = manga.chapters.nodes.map((node: any) => ({ ...node, mangaId, pageCount: 4, lastPageRead: 0, sourceOrder: 1 }));
+    const nodes = manga.chapters.nodes.map((node: any) => ({ ...node, mangaId, pageCount: 2, lastPageRead: 0, sourceOrder: 1 }));
     return { chapters: { totalCount: nodes.length, pageInfo: { hasNextPage: false, endCursor: null }, nodes } };
   },
   async GetReadingChapters({ mangaId }: any) {
@@ -145,14 +146,13 @@ const mockImpl: any = {
     return { fetchMangaAndChapters: { manga: { id: input.id }, chapters: chapters.nodes.map(({ id }: any) => ({ id })) } };
   },
 
-  async FetchChapterPages() {
+  async FetchChapterPages({ input }: any) {
+    const title = input.chapterId === 20001 ? "paper-garden" : "moonlit-courier";
     return {
       fetchChapterPages: {
         pages: [
-          "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800",
-          "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=800",
-          "https://images.unsplash.com/photo-1605721911519-3dfeb3be25e7?w=800",
-          "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=800",
+          demoCover(title),
+          demoCover(`${title}-page`),
         ],
       },
     };
@@ -249,15 +249,15 @@ const mockImpl: any = {
         mangas: [
           {
             id: 10001,
-            title: "[Demo] Sita's Sister",
-            thumbnailUrl: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300",
+            title: "[Demo] The Paper Garden",
+            thumbnailUrl: demoCover("paper-garden"),
             inLibrary: true,
             status: "COMPLETED",
           },
           {
             id: 10002,
-            title: "[Demo] Pepper & Carrot",
-            thumbnailUrl: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300",
+            title: "[Demo] Moonlit Courier",
+            thumbnailUrl: demoCover("moonlit-courier"),
             inLibrary: true,
             status: "ONGOING",
           },
@@ -284,9 +284,9 @@ const mockImpl: any = {
               mangaId: 10001,
               manga: {
                 id: 10001,
-                title: "[Demo] Sita's Sister",
+                title: "[Demo] The Paper Garden",
                 inLibraryAt: String(Date.now() - 86400000),
-                thumbnailUrl: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300",
+                thumbnailUrl: demoCover("paper-garden"),
               },
             },
           },
@@ -305,15 +305,15 @@ const mockImpl: any = {
               id: 20002,
               name: "Chapter 1: The Journey Begins",
               chapterNumber: 1,
-              isRead: true,
-              lastPageRead: 1,
+              isRead: false,
+              lastPageRead: 0,
               lastReadAt: recentDemoTimestamp(),
               scanlator: "Yomikura",
               mangaId: 10002,
               manga: {
                 id: 10002,
-                title: "[Demo] Pepper & Carrot",
-                thumbnailUrl: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300",
+                title: "[Demo] Moonlit Courier",
+                thumbnailUrl: demoCover("moonlit-courier"),
               },
             },
           },

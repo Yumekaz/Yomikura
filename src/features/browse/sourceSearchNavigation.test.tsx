@@ -71,7 +71,7 @@ afterEach(async () => {
 });
 
 describe("global-to-source search navigation", () => {
-  it.each(["Pepper & Carrot", "海賊 / #1? +100%"])("keeps %s through Show all and history navigation", async (query) => {
+  it.each(["Moonlit Courier", "海賊 / #1? +100%"])("keeps %s through Show all and history navigation", async (query) => {
     await open(`/browse/search?q=${encodeURIComponent(query)}`);
     await waitForRender(() => expect(showAllLink()).toBeDefined());
     const href = new URL(showAllLink()!.href);

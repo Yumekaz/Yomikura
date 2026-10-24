@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, RotateCcw, ServerCrash, Settings } from "lucide-react";
+import { Loader2, Plus, RotateCcw, Search, ServerCrash, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useDownloadStore } from "../../stores/useDownloadStore";
@@ -11,6 +11,7 @@ import { LibraryGrid, LibraryManga } from "./LibraryGrid";
 import { CategoryDialog } from "./CategoryDialog";
 import { BulkCategoryModal } from "../../components/library/BulkCategoryModal";
 import { LibraryList } from "./LibraryList";
+import { ContinueReading } from "./ContinueReading";
 import { invalidateChapterState } from "../../api/suwayomi/chapterState";
 import { progressBackend } from "../../api/suwayomi/backendIdentity";
 import { writeChapterProgress } from "../../api/suwayomi/progressSync";
@@ -257,12 +258,12 @@ export default function LibraryPage() {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center bg-ink-950 p-6 text-center text-slate-300">
         <ServerCrash className="mb-4 h-12 w-12 text-slate-600" />
-        <p className="text-lg font-medium">Suwayomi server not configured</p>
+        <p className="text-lg font-medium">Connect your library</p>
         <p className="mt-2 max-w-md text-sm text-slate-500">
-          Yomikura expects a Suwayomi-compatible server. Set the server URL in Settings.
+          Set up a connection in Settings to bring your books into Yomikura.
         </p>
         <Link
-          to="/settings"
+          to="/settings/connection"
           className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-yomi-jade px-4 text-sm font-semibold text-ink-950 transition hover:bg-yomi-jade/90"
         >
           <Settings className="h-4 w-4" />
@@ -276,9 +277,9 @@ export default function LibraryPage() {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center bg-ink-950 p-6 text-center text-red-400">
         <ServerCrash className="mb-4 h-12 w-12 opacity-80" />
-        <p className="text-lg font-medium">Suwayomi is not reachable</p>
+        <p className="text-lg font-medium">Your library couldn’t be reached</p>
         <p className="mt-2 max-w-md text-sm leading-6 text-red-400/70">
-          Yomikura tried {serverBaseUrl}. Start Suwayomi, then retry, or change the URL in Settings.
+          Check your connection and try again. You can review connection details in Settings.
         </p>
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
           <button
@@ -289,7 +290,7 @@ export default function LibraryPage() {
             Retry
           </button>
           <Link
-            to="/settings"
+            to="/settings/connection"
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-white/10 px-4 text-sm font-semibold text-red-200 transition hover:bg-white/5"
           >
             <Settings className="h-4 w-4" />
@@ -301,14 +302,15 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-transparent relative px-4 py-7 lg:px-10 lg:py-10">
-      <header className="mb-6 flex items-end justify-between gap-6">
+    <div className="yomi-library-page">
+      <header className="yomi-library-header">
         <div>
-          <span className="yomi-eyebrow">Your collection</span>
-          <h1 className="mt-1 text-3xl font-semibold tracking-[-0.04em] text-white lg:text-4xl">Library</h1>
-          <p className="mt-2 text-sm text-slate-400">{isOfflineMode && activeCategoryId === "smart:on_server" ? "Reconnect to check server availability. Select On this device to read saved copies." : `${displayMangas.length} title${displayMangas.length === 1 ? "" : "s"} ready to read`}</p>
+          <h1>Library</h1>
+          <p>{isOfflineMode && activeCategoryId === "smart:on_server" ? "Reconnect to check server availability. Select On this device to read saved copies." : `${displayMangas.length} book${displayMangas.length === 1 ? "" : "s"}${isOfflineMode ? " saved on this device" : " in your collection"}`}</p>
         </div>
+        <div className="yomi-library-header-actions"><label className="yomi-search"><Search aria-hidden="true" /><input type="search" aria-label="Search library" placeholder="Search library..." value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label><Link className="yomi-button yomi-button-primary" to="/browse/sources"><Plus aria-hidden="true" />Add books</Link></div>
       </header>
+      {!isSelectMode && !searchQuery && activeCategoryId === null && <ContinueReading libraryIds={isOfflineMode ? [...new Set(cachedChapters.map((chapter) => Number(chapter.mangaId)))] : (libData?.mangas.nodes ?? []).map((manga) => Number(manga.id))} />}
       {/* Filters Bar */}
       <LibraryFilters
         serverAvailable={!isOfflineMode}
@@ -316,13 +318,12 @@ export default function LibraryPage() {
         categories={categories}
         activeCategoryId={activeCategoryId}
         onCategorySelect={setActiveCategoryId}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
         onManageCategories={() => setIsCategoryDialogOpen(true)}
         isSelectMode={isSelectMode}
         selectedCount={selectedMangaIds.size}
         onSelectAll={handleSelectAll}
         onCancelSelect={handleClearSelection}
+        onStartSelect={() => setIsSelectMode(true)}
         viewMode={libraryViewMode}
         sortMode={librarySortMode}
         sortDescending={librarySortDescending}
@@ -351,7 +352,7 @@ export default function LibraryPage() {
             <Loader2 className="h-8 w-8 animate-spin text-yomi-jade/60" />
           </div>
         ) : (
-          libraryViewMode === "grid" ? <LibraryGrid mangas={displayMangas} serverBaseUrl={serverBaseUrl} isSelectMode={isSelectMode} selectedMangaIds={selectedMangaIds} onToggleSelectManga={handleToggleSelectManga} /> : <LibraryList mangas={displayMangas} serverBaseUrl={serverBaseUrl} isSelectMode={isSelectMode} selectedMangaIds={selectedMangaIds} onToggleSelectManga={handleToggleSelectManga} />
+          libraryViewMode === "grid" ? <LibraryGrid mangas={displayMangas} filtered={!!searchQuery || activeCategoryId !== null} onClearFilters={() => { setSearchQuery(""); setActiveCategoryId(null); }} serverBaseUrl={serverBaseUrl} isSelectMode={isSelectMode} selectedMangaIds={selectedMangaIds} onToggleSelectManga={handleToggleSelectManga} /> : <LibraryList mangas={displayMangas} serverBaseUrl={serverBaseUrl} isSelectMode={isSelectMode} selectedMangaIds={selectedMangaIds} onToggleSelectManga={handleToggleSelectManga} />
         )}
       </div>
 

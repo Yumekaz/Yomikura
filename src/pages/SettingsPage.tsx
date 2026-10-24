@@ -40,7 +40,7 @@ import { restoreBackupUpload } from "../api/suwayomi/backupUpload";
 import { progressBackend } from "../api/suwayomi/backendIdentity";
 
 type SettingsTab = SettingsSection;
-const SETTINGS_TABS: SettingsTab[] = ["connection", "appearance", "reader", "backup", "offline", "advanced", "about"];
+const SETTINGS_TABS: SettingsTab[] = ["appearance", "reader", "offline", "backup", "connection", "advanced", "about"];
 
 function SettingsPage() {
   const navigate = useNavigate();
@@ -69,7 +69,7 @@ function SettingsPage() {
 
 
   const [localUrl, setLocalUrl] = useState(serverBaseUrl);
-  const routeTab = SETTINGS_TABS.includes(section as SettingsTab) ? section as SettingsTab : "connection";
+  const routeTab = SETTINGS_TABS.includes(section as SettingsTab) ? section as SettingsTab : "appearance";
   const [activeTab, setActiveTab] = useState<SettingsTab>(routeTab);
   const [backupMessage, setBackupMessage] = useState<BackupMessage | null>(null);
   useEffect(() => setBackupMessage(null), [serverBaseUrl]);
@@ -78,7 +78,7 @@ function SettingsPage() {
 
   const selectSettingsTab = (tab: SettingsTab) => {
     setActiveTab(tab);
-    navigate(tab === "connection" ? "/settings" : `/settings/${tab}`);
+    navigate(`/settings/${tab}`);
   };
   
   const { 
@@ -350,7 +350,7 @@ function SettingsPage() {
         <div>
           <p className="yomi-eyebrow">Workspace</p>
           <h1>Settings</h1>
-          <p>Reader preferences, storage, and server controls.</p>
+          <p>Make yourself at home.</p>
         </div>
         <SettingsSearch onSelect={selectSettingsTab} />
       </header>
@@ -366,12 +366,12 @@ function SettingsPage() {
                   : ""
               }`}
             >
-              {tab === "appearance" ? t("theme") : tab === "offline" ? t("offline") : tab}
+              {tab === "appearance" ? "Appearance" : tab === "offline" ? "Storage" : tab}
             </button>
           ))}
         </div>
 
-      <div className="mt-4"><SettingsStatusPanel connectionStatus={connectionStatus} mockMode={mockMode} /></div>
+      {activeTab === "connection" && <div className="mt-4"><SettingsStatusPanel connectionStatus={connectionStatus} mockMode={mockMode} /></div>}
 
       <div className="mt-6">
         {/* Main Content Area based on active tab */}

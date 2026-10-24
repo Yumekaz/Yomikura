@@ -3,7 +3,7 @@ import {
   Clock3,
   Compass,
   Library,
-  BookOpen,
+  History,
   Settings,
   Download,
 } from "lucide-react";
@@ -16,23 +16,22 @@ export type NavItem = {
 
 export const primaryNav: NavItem[] = [
   { label: "Library", path: "/library", icon: Library },
-  { label: "Continue", path: "/history", icon: BookOpen },
+  { label: "Discover", path: "/browse/sources", icon: Compass },
   { label: "Updates", path: "/updates", icon: Clock3 },
-];
-
-export const browseNav: NavItem[] = [
-  { label: "Browse", path: "/browse/sources", icon: Compass },
   { label: "Downloads", path: "/downloads", icon: Download },
 ];
 
+export const browseNav: NavItem[] = [];
+
 export const utilityNav: NavItem[] = [
+  { label: "History", path: "/history", icon: History },
   { label: "Settings", path: "/settings", icon: Settings },
 ];
 
 export const routeCopy: Record<string, { title: string; detail: string }> = {
   "/library": {
     title: "Library",
-    detail: "Your saved manga appears here from the connected Suwayomi server.",
+    detail: "A home for everything you love to read.",
   },
   "/updates": {
     title: "Updates",

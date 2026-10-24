@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Download, Play, Pause, Trash2, CheckCircle2, RefreshCw, BookOpen, X } from "lucide-react";
-import { useSettingsStore } from "../../stores/useSettingsStore";
+import { isTauri, useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
@@ -126,7 +126,7 @@ export default function DownloadsPage() {
   return (
     <div className="yomi-workspace space-y-7">
       <div className="yomi-workspace-head">
-        <div><span className="yomi-eyebrow">Offline reading</span><h1 className="yomi-workspace-title"><Download />Downloads</h1><p className="yomi-workspace-subtitle">Saved chapters and server activity, together in one workspace.</p></div>
+        <div><h1>Downloads</h1><p>Keep your next chapter close.</p></div>
         {queue.length > 0 && <div className="flex items-center gap-2 shrink-0">
           {downloaderState === "STARTED" ? (
             <button
@@ -249,7 +249,7 @@ export default function DownloadsPage() {
 }
 
 function DownloadsHeader({ savedCount, storageUsage }: { savedCount: number; storageUsage: number }) {
-  return <div className="yomi-workspace-head"><div><span className="yomi-eyebrow">Offline reading</span><h1 className="yomi-workspace-title"><Download />Downloads</h1><p className="yomi-workspace-subtitle">Saved chapters stay readable even when the local engine is unavailable.</p></div><span className="yomi-status-chip">{savedCount} saved · {formatBytes(storageUsage)}</span></div>;
+  return <div className="yomi-workspace-head"><div><span className="yomi-eyebrow">Offline reading</span><h1 className="yomi-workspace-title"><Download />Downloads</h1><p className="yomi-workspace-subtitle">Your saved chapters are ready whenever you are.</p></div><span className="yomi-status-chip">{savedCount} saved · {formatBytes(storageUsage)}</span></div>;
 }
 
 function SavedDownloads({ chapters, activeDownloads, onCancel, onRetry, onDelete }: { chapters: CachedChapter[]; activeDownloads: ReturnType<typeof useDownloadStore.getState>["activeDownloads"]; onCancel: (id: number) => void; onRetry: (id: number) => Promise<void>; onDelete: (chapter: CachedChapter) => Promise<void> }) {
@@ -257,7 +257,7 @@ function SavedDownloads({ chapters, activeDownloads, onCancel, onRetry, onDelete
   return <section className="space-y-3" aria-labelledby="saved-downloads-title">
     <div className="flex items-end justify-between gap-4"><div><span className="yomi-eyebrow">On this device</span><h2 id="saved-downloads-title" className="text-lg font-semibold text-slate-100">Saved chapters</h2></div><span className="text-sm text-slate-400">{chapters.length} available offline</span></div>
     {active.map(([id, progress]) => <div key={id} className="yomi-commandbar"><div className="yomi-commandbar-copy"><span className={`status ${progress.status === "error" ? "is-error" : progress.status === "queued" ? "is-idle" : ""}`} /><div><strong>{progress.status === "queued" ? "Queued" : progress.status === "error" ? "Download needs attention" : "Saving"} chapter {id}</strong><span>{progress.total ? `${progress.progress} of ${progress.total} pages` : "Preparing pages"}{progress.attempts ? ` · attempt ${progress.attempts}` : ""}{progress.error ? ` · ${progress.error}` : ""}</span></div></div><div className="flex items-center gap-2">{progress.status === "error" && <button className="yomi-button yomi-button-secondary" onClick={() => void onRetry(Number(id))}>Retry</button>}<button className="yomi-icon-button danger" aria-label={`Cancel chapter ${id} download`} onClick={() => onCancel(Number(id))}><X /></button></div></div>)}
-    {chapters.length === 0 && active.length === 0 ? <div className="yomi-route-empty"><div><BookOpen /><h2>No saved chapters yet</h2><p>Use Yomikura Desktop to keep chapters on this device. Website downloads are managed by the connected Suwayomi server and appear below.</p></div></div> : chapters.length > 0 && <div className="yomi-surface">{chapters.map((chapter) => <div className="yomi-surface-row" key={chapter.cacheKey}><div className="yomi-catalog-icon"><BookOpen /></div><div className="yomi-row-copy"><Link className="yomi-row-title" to={`/manga/${chapter.mangaId}`}>{chapter.mangaTitle}</Link><p>{chapter.name} · {chapter.pageCount} pages · {chapter.totalSizeBytes ? formatBytes(chapter.totalSizeBytes) : "size managed by browser"}</p></div><Link className="yomi-button yomi-button-secondary" to={`/reader/${chapter.id}`}>Read</Link><button className="yomi-icon-button danger" aria-label={`Remove offline download ${chapter.name}`} onClick={() => void onDelete(chapter)}><Trash2 /></button></div>)}</div>}
+    {chapters.length === 0 && active.length === 0 ? <div className="yomi-route-empty"><div><BookOpen /><h2>No saved chapters yet</h2><p>{isTauri() ? "Save chapters from a book’s chapter list to read here, even without a connection." : "Downloads from the website are saved on your connected server. To keep books on this device for offline reading, use Yomikura Desktop."}</p><Link to="/library" className="yomi-button yomi-button-primary mt-5">Choose a book</Link></div></div> : chapters.length > 0 && <div className="yomi-surface">{chapters.map((chapter) => <div className="yomi-surface-row" key={chapter.cacheKey}><div className="yomi-catalog-icon"><BookOpen /></div><div className="yomi-row-copy"><Link className="yomi-row-title" to={`/manga/${chapter.mangaId}`}>{chapter.mangaTitle}</Link><p>{chapter.name} · {chapter.pageCount} pages · {chapter.totalSizeBytes ? formatBytes(chapter.totalSizeBytes) : "size managed by browser"}</p></div><Link className="yomi-button yomi-button-secondary" to={`/reader/${chapter.id}`}>Read</Link><button className="yomi-icon-button danger" aria-label={`Remove offline download ${chapter.name}`} onClick={() => void onDelete(chapter)}><Trash2 /></button></div>)}</div>}
   </section>;
 }
 

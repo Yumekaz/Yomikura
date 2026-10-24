@@ -262,16 +262,16 @@ export default function MangaDetailPage() {
         </div>
 
         {/* Content Container */}
-        <div className="relative z-10 mx-auto max-w-6xl px-6 pb-10 pt-4 lg:px-12 lg:pt-10">
+        <div className="yomi-detail-summary relative z-10 mx-auto max-w-6xl px-6 pb-8 pt-2 lg:px-10 lg:pt-4">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
             {/* Cover Image */}
-            <div className="yomi-manga-cover relative mx-auto w-48 aspect-[2/3] shrink-0 overflow-hidden sm:mx-0 sm:w-56 md:w-64">
+            <div className="yomi-manga-cover relative mx-auto w-44 aspect-[2/3] shrink-0 overflow-hidden sm:mx-0 sm:w-48 md:w-52">
               <img src={imageUrl} alt={manga.title} className="absolute inset-0 h-full w-full object-cover" />
             </div>
 
             {/* Manga Info */}
             <div className="flex flex-col justify-end">
-              <h1 className="max-w-3xl text-3xl font-semibold tracking-[-0.035em] text-white sm:text-4xl lg:text-5xl">
+              <h1 className="max-w-3xl text-3xl font-semibold tracking-[-0.035em] text-white lg:text-4xl">
                 {manga.title}
               </h1>
 

@@ -196,7 +196,7 @@ export default function HistoryPage() {
     <section className="yomi-page yomi-history">
       <header className="yomi-page-header">
         <div><span className="yomi-eyebrow">Reading activity</span><h1>History</h1><p>{items.length} chapter{items.length === 1 ? "" : "s"} in your recent timeline</p></div>
-        <div className="flex w-full max-w-sm flex-col gap-2"><label className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><span className="sr-only">Search reading history</span><input className="yomi-field w-full pl-10" type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search history…" /></label>{serverHistory.isError && <div className="yomi-status-chip" title={getErrorMessage(serverHistory.error)}><span className="yomi-status-dot is-warning" /> Local history shown</div>}</div>
+        <div className="flex w-full max-w-xs flex-col gap-2"><label className="yomi-search !w-full"><Search aria-hidden="true" /><span className="sr-only">Search reading history</span><input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search history…" /></label>{serverHistory.isError && <div className="yomi-status-chip" title={getErrorMessage(serverHistory.error)}><span className="yomi-status-dot is-warning" /> Local history shown</div>}</div>
       </header>
 
       <div className="yomi-timeline">
