@@ -44,6 +44,7 @@ test("a never-visited reader deep link and lazy settings route work with all bro
   await expect(image).toHaveAttribute("src", /^blob:/, { timeout: 15000 }); await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(600);
   await page.goto(`${origin}/settings/reader`); await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
   await page.goto(`${origin}/library`); await expect(page.getByText("Offline PWA fixture", { exact: true })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole("button", { name: "On server", exact: true })).toBeDisabled();
   await context.setOffline(false);
 });
 test("incomplete shell updates leave the active generation and saved pages intact", async ({ page, context }) => {
@@ -70,6 +71,8 @@ test("switching offline inside the running app still queries device-backed route
   await prepare(page); await context.setOffline(true);
   await page.getByRole("link", { name: "Library", exact: true }).click();
   await expect(page.getByRole("link", { name: "Offline PWA fixture", exact: true })).toBeVisible({ timeout: 15000 });
+  await page.getByRole("button", { name: "Reconnect to this server", exact: true }).click();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("yomikura-settings")!).state.serverBaseUrl)).toBe(backend);
   await page.getByRole("link", { name: "Offline PWA fixture", exact: true }).click();
   await page.getByRole("link", { name: "Resume", exact: true }).click();
   await expect(page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 1", exact: true })).toHaveAttribute("src", /^blob:/, { timeout: 15000 });

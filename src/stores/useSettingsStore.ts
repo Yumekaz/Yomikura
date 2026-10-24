@@ -1,10 +1,11 @@
 import { create } from "zustand";
-import { persist, StateStorage, createJSONStorage } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { testServerConnection } from "../api/suwayomi/connection";
 import { DEFAULT_SERVER_BASE_URL } from "../config/server";
 import { progressBackend, type ProgressBackend } from "../api/suwayomi/backendIdentity";
 import { legacyMangaSettings, mangaReaderSettingsKey, mergeMangaSettings } from "./mangaReaderSettings";
 import { normalizeChapterPolicy, type ChapterPolicy } from "../features/manga/chapterPolicy";
+import { createSettingsStorage } from "./settingsStorage";
 
 /** Tauri v2 sets `window.isTauri`; v1 used `__TAURI__` when withGlobalTauri is enabled. */
 export const isTauri = () => {
@@ -17,53 +18,7 @@ export const isTauri = () => {
   return !!(w.isTauri || w.__TAURI__ || w.__TAURI_INTERNALS__);
 };
 
-const customTauriStorage: StateStorage = {
-  getItem: async (name: string): Promise<string | null> => {
-    if (isTauri()) {
-      try {
-        const { readTextFile, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
-        const fileExists = await exists(name + ".json", { baseDir: BaseDirectory.AppConfig });
-        if (fileExists) {
-          return await readTextFile(name + ".json", { baseDir: BaseDirectory.AppConfig });
-        }
-      } catch (err) {
-        console.error("Failed to read settings from Tauri FS:", err);
-      }
-    }
-    return localStorage.getItem(name);
-  },
-  setItem: async (name: string, value: string): Promise<void> => {
-    if (isTauri()) {
-      try {
-        const { writeTextFile, mkdir, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
-        const dirExists = await exists("", { baseDir: BaseDirectory.AppConfig });
-        if (!dirExists) {
-          await mkdir("", { baseDir: BaseDirectory.AppConfig, recursive: true });
-        }
-        await writeTextFile(name + ".json", value, { baseDir: BaseDirectory.AppConfig });
-        return;
-      } catch (err) {
-        console.error("Failed to write settings to Tauri FS:", err);
-      }
-    }
-    localStorage.setItem(name, value);
-  },
-  removeItem: async (name: string): Promise<void> => {
-    if (isTauri()) {
-      try {
-        const { remove, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
-        const fileExists = await exists(name + ".json", { baseDir: BaseDirectory.AppConfig });
-        if (fileExists) {
-          await remove(name + ".json", { baseDir: BaseDirectory.AppConfig });
-          return;
-        }
-      } catch (err) {
-        console.error("Failed to remove settings in Tauri FS:", err);
-      }
-    }
-    localStorage.removeItem(name);
-  }
-};
+const customTauriStorage = createSettingsStorage(isTauri);
 
 export type ConnectionStatus = "disconnected" | "connected" | "error" | "testing";
 export type ReaderMode = "WEBTOON" | "LTR" | "RTL";

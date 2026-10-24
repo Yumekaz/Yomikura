@@ -486,6 +486,13 @@ select.yomi-field option,
 .yomi-route-empty h2 { margin: 0; color: var(--text-strong); font-size: 18px; font-weight: 680; letter-spacing: -.02em; }
 .yomi-route-empty p { margin: 8px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
 
+[data-reader-session] :focus-visible,
+[aria-modal="true"] :focus-visible {
+  outline: 2px solid rgb(var(--yomi-signature));
+  outline-offset: 2px;
+}
+[data-reader-session] [aria-label="Reading surface"]:focus-visible { outline-offset: -3px; }
+
 @media (max-width: 720px) {
   .yomi-workspace { padding: 28px 16px 96px; }
   .yomi-workspace-head { align-items: flex-start; flex-direction: column; gap: 17px; margin-bottom: 23px; }

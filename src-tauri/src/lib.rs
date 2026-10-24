@@ -10,6 +10,7 @@ use tauri::{Manager, State};
 mod local_import;
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DownloadedPage {
     bytes: Vec<u8>,
     content_type: String,
@@ -1143,6 +1144,16 @@ mod tests {
         disable_suwayomi_browser_autolaunch, sha256_file, verified_jar, verified_jar_is_unchanged,
     };
 
+    #[test]
+    fn native_page_response_matches_the_frontend_contract() {
+        let json = serde_json::to_value(super::DownloadedPage {
+            bytes: vec![1, 2],
+            content_type: "image/png".into(),
+        })
+        .unwrap();
+        assert_eq!(json["contentType"], "image/png");
+        assert!(json.get("content_type").is_none());
+    }
     #[test]
     fn sha256_file_matches_known_digest() {
         let path = std::env::temp_dir().join(format!(

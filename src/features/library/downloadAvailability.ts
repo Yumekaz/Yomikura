@@ -15,8 +15,10 @@ export function matchesAvailability(filter: AvailabilityFilter, onDevice: boolea
 }
 export function availabilityCounts(mangas: { id: string | number; downloadCount?: number | null }[], localCounts: Map<string, number>) {
   const result = { "smart:downloaded": 0, "smart:on_device": 0, "smart:on_server": 0 };
-  for (const manga of mangas) for (const filter of Object.keys(result) as AvailabilityFilter[]) {
-    if (matchesAvailability(filter, (localCounts.get(String(manga.id)) ?? 0) > 0, (manga.downloadCount ?? 0) > 0)) result[filter] += 1;
+  const seen = new Set<string>();
+  for (const manga of mangas) {
+    if (seen.has(String(manga.id))) continue; seen.add(String(manga.id));
+    for (const filter of Object.keys(result) as AvailabilityFilter[]) if (matchesAvailability(filter, (localCounts.get(String(manga.id)) ?? 0) > 0, (manga.downloadCount ?? 0) > 0)) result[filter] += 1;
   }
   return result;
 }

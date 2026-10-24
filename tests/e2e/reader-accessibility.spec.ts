@@ -23,6 +23,9 @@ test("reader shortcuts leave controls and editable content alone; crop has a tru
   await page.evaluate(() => { const editor = document.createElement("div"); editor.contentEditable = "plaintext-only"; editor.id = "editable-fixture"; document.body.append(editor); editor.focus(); });
   await page.keyboard.press("ArrowRight"); await expect(page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 1", exact: true })).toBeVisible();
   await page.evaluate(() => document.getElementById("editable-fixture")?.remove());
+  await layout.focus(); const surface = page.getByRole("region", { name: "Reading surface", exact: true });
+  for (let step = 0; step < 10 && !await surface.evaluate((element) => document.activeElement === element); step += 1) await page.keyboard.press("Tab");
+  await expect(surface).toBeFocused(); await page.keyboard.press("ArrowRight"); await expect(page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 2", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Filters", exact: true }).click();
   await expect(page.getByRole("button", { name: "Fixed page crop", exact: true })).toBeVisible(); await expect(page.getByText("Magnifies every page by 12% and clips its edges. Turn it off to show the full artwork.", { exact: true })).toBeVisible();
   const violations = (await new AxeBuilder({ page }).analyze()).violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical"); expect(violations).toEqual([]);

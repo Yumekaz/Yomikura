@@ -19,7 +19,7 @@ import { availabilityCounts, deviceChapterCounts, isAvailabilityFilter, matchesA
 
 export default function LibraryPage() {
   const { notify } = useFeedback();
-  const { serverBaseUrl, setServerBaseUrl, testConnection, mockMode, libraryViewMode, setLibraryViewMode, librarySortMode, setLibrarySortMode, librarySortDescending, setLibrarySortDescending } = useSettingsStore();
+  const { serverBaseUrl, testConnection, mockMode, libraryViewMode, setLibraryViewMode, librarySortMode, setLibrarySortMode, librarySortDescending, setLibrarySortDescending } = useSettingsStore();
   const { cachedChapters, loadCachedChapters, downloadChapter } = useDownloadStore();
   const queryClient = useQueryClient();
 
@@ -90,9 +90,9 @@ export default function LibraryPage() {
 
   const isOfflineMode = !!(libError && cachedChapters && cachedChapters.length > 0);
   const localDownloadCounts = useMemo(() => deviceChapterCounts(cachedChapters), [cachedChapters]);
-  const downloadCounts = useMemo(() => availabilityCounts(isOfflineMode
+  const downloadCounts = useMemo(() => ({ ...availabilityCounts(isOfflineMode
     ? [...new Set(cachedChapters.map((chapter) => chapter.mangaId))].map((id) => ({ id, downloadCount: 0 }))
-    : (libData?.mangas.nodes ?? []).filter((manga): manga is NonNullable<typeof manga> => !!manga), localDownloadCounts), [isOfflineMode, cachedChapters, libData, localDownloadCounts]);
+    : (libData?.mangas.nodes ?? []).filter((manga): manga is NonNullable<typeof manga> => !!manga), localDownloadCounts), ...(isOfflineMode ? { "smart:on_server": undefined } : {}) }), [isOfflineMode, cachedChapters, libData, localDownloadCounts]);
 
   // Extract and filter mangas
   const mangas: LibraryManga[] = useMemo(() => {
@@ -306,11 +306,12 @@ export default function LibraryPage() {
         <div>
           <span className="yomi-eyebrow">Your collection</span>
           <h1 className="mt-1 text-3xl font-semibold tracking-[-0.04em] text-white lg:text-4xl">Library</h1>
-          <p className="mt-2 text-sm text-slate-400">{displayMangas.length} title{displayMangas.length === 1 ? "" : "s"} ready to read</p>
+          <p className="mt-2 text-sm text-slate-400">{isOfflineMode && activeCategoryId === "smart:on_server" ? "Reconnect to check server availability. Select On this device to read saved copies." : `${displayMangas.length} title${displayMangas.length === 1 ? "" : "s"} ready to read`}</p>
         </div>
       </header>
       {/* Filters Bar */}
       <LibraryFilters
+        serverAvailable={!isOfflineMode}
         downloadCounts={downloadCounts}
         categories={categories}
         activeCategoryId={activeCategoryId}
@@ -337,12 +338,11 @@ export default function LibraryPage() {
             <span>Offline Mode — Showing cached titles</span>
             <button
               onClick={async () => {
-                setServerBaseUrl("http://127.0.0.1:4567");
                 await testConnection();
               }}
               className="rounded-full bg-yomi-jade/20 border border-yomi-jade/30 px-3 py-0.5 text-xs font-semibold text-yomi-mint hover:bg-yomi-jade/35 transition"
             >
-              Reconnect to Live Server (127.0.0.1:4567)
+              Reconnect to this server
             </button>
           </div>
         )}

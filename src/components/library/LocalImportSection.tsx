@@ -16,7 +16,7 @@ export function LocalImportSection() {
   const settings = useQuery({ queryKey: ["import-server-settings", backend.key], enabled: !mockMode,
     queryFn: ({ signal }) => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { signal }, "live").GetServerSettings() });
   const localSourcePath = settings.data?.settings?.localSourcePath ?? "";
-  const destination = useQuery({ queryKey: ["managed-import-target", backend.key, localSourcePath], enabled: isTauri() && !mockMode && !!localSourcePath,
+  const destination = useQuery({ queryKey: ["managed-import-target", backend.key, localSourcePath], enabled: isTauri() && !mockMode && settings.isSuccess,
     queryFn: async () => { const { invoke } = await import("@tauri-apps/api/core"); return invoke<string | null>("get_local_import_target", { serverBaseUrl: backend.serverBaseUrl, reportedPath: localSourcePath }); }, retry: false });
   const applyFiles = (files: File[]) => {
     try { validateImportSelection(files); setSelectedFiles(files); setMessage(""); setStatus("idle");
@@ -48,16 +48,16 @@ export function LocalImportSection() {
   return <section className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel" aria-labelledby="local-import-heading">
     <h2 id="local-import-heading" className="flex items-center gap-2 text-lg font-semibold text-white"><FolderOpen className="h-5 w-5 text-yomi-jade" />Local archive import</h2>
     <p className="mt-2 text-sm text-slate-400">Supported files: CBZ/ZIP, CBR/RAR and EPUB. PDF is not supported by this server. Original files are retained; existing files are never overwritten.</p>
-    {settings.isLoading ? <p role="status" className="mt-4 text-sm text-slate-400">Checking the server's Local source directory…</p> : <div className="mt-4 rounded-lg border border-white/5 bg-ink-950/40 p-3 text-sm text-slate-300"><strong>Directory on the server</strong><p className="mt-1 break-all font-mono text-xs">{localSourcePath || "No directory could be confirmed. Configure Local source on the server and retry."}</p></div>}
+    {settings.isLoading ? <p role="status" className="mt-4 text-sm text-slate-400">Checking the server's Local source directory…</p> : <div className="mt-4 rounded-lg border border-white/5 bg-ink-950/40 p-3 text-sm text-slate-300"><strong>Directory on the server</strong><p className="mt-1 break-all font-mono text-xs">{destination.data || localSourcePath || "No directory could be confirmed. Configure Local source on the server and retry."}</p></div>}
     {destination.data ? <form onSubmit={importFiles} className="mt-5 max-w-xl space-y-4">
       <p className="text-sm text-slate-400">This app owns the running local engine and has verified its import directory. Up to 128 MiB per archive and 256 MiB per batch.</p>
       <label className="block text-sm text-slate-300">Manga title<input className="yomi-field mt-2 w-full" required value={mangaTitle} onChange={(event) => setMangaTitle(event.target.value)} disabled={status === "importing"} /></label>
-      <label className="block text-sm text-slate-300">Archive files<input className="yomi-field mt-2 w-full" type="file" multiple accept=".cbz,.zip,.cbr,.rar,.epub" disabled={status === "importing"} onChange={(event) => applyFiles(Array.from(event.target.files ?? []))} /></label>
+      <label className="block text-sm text-slate-300">Archive files<input className="yomi-field mt-2 w-full" type="file" multiple accept=".cbz,.zip,.cbr,.rar,.epub" disabled={status === "importing"} onChange={(event) => { applyFiles(Array.from(event.target.files ?? [])); event.currentTarget.value = ""; }} /></label>
       {selectedFiles.length > 0 && <p className="text-xs text-slate-400">{selectedFiles.map((file) => file.name).join(", ")}</p>}
       <button type="submit" className="yomi-button yomi-button-primary" disabled={status === "importing" || !selectedFiles.length || !mangaTitle.trim()}>{status === "importing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}{status === "importing" ? "Copying archives…" : "Import to Local source"}</button>
     </form> : <div className="mt-5 space-y-2 text-sm text-slate-300"><p>{isTauri() ? "Direct import is available only for this app's managed local engine and verified default Local directory." : "The web app cannot write to a server's filesystem."}</p><ol className="list-decimal space-y-2 pl-5"><li>On the computer running Suwayomi, open its Local source directory.</li><li>Create a folder for the manga title and copy supported chapter archives into it.</li><li>In Yomikura, open Browse → Sources → Local source and refresh.</li></ol><p className="text-xs text-slate-400">A remote server's directory belongs to that server; it is not a destination on this device.</p></div>}
     {(settings.isError || destination.isError) && <p role="alert" className="mt-4 text-sm text-amber-200">The import destination could not be verified. Direct import is disabled; check the server and its directory permissions.</p>}
     {message && <p role={status === "error" ? "alert" : "status"} className={`mt-4 text-sm ${status === "error" ? "text-amber-200" : "text-slate-200"}`}>{message}</p>}
-    <button type="button" className="yomi-button yomi-button-secondary mt-4" disabled={status === "importing"} onClick={() => { void settings.refetch(); if (isTauri() && localSourcePath) void destination.refetch(); }}>Refresh import destination</button>
+    <button type="button" className="yomi-button yomi-button-secondary mt-4" disabled={status === "importing"} onClick={() => { void settings.refetch(); if (isTauri() && settings.isSuccess) void destination.refetch(); }}>Refresh import destination</button>
   </section>;
 }

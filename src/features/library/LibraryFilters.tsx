@@ -10,6 +10,7 @@ export interface Category {
 
 interface LibraryFiltersProps {
   downloadCounts?: Partial<Record<string, number>>;
+  serverAvailable?: boolean;
   categories: Category[];
   activeCategoryId: string | number | null;
   onCategorySelect: (id: string | number | null) => void;
@@ -32,6 +33,7 @@ interface LibraryFiltersProps {
 
 export function LibraryFilters({
   downloadCounts = {},
+  serverAvailable = true,
   categories,
   activeCategoryId,
   onCategorySelect,
@@ -113,6 +115,8 @@ export function LibraryFilters({
           <button
             key={smartCat.id}
             aria-label={smartCat.name}
+            disabled={smartCat.id === "smart:on_server" && !serverAvailable}
+            title={smartCat.id === "smart:on_server" && !serverAvailable ? "Reconnect to check server availability" : undefined}
             aria-pressed={activeCategoryId === smartCat.id}
             onClick={() => onCategorySelect(smartCat.id)}
             className={`flex-shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${

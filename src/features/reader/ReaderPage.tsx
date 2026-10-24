@@ -774,7 +774,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
   }
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-black" data-reader-session>
       {readingSequence.isError && <div role="alert" className="fixed bottom-5 left-4 z-[60] max-w-md rounded-lg border border-amber-300/30 bg-ink-950 p-3 text-sm text-slate-200"><p>Chapter continuation could not be confirmed. This chapter remains readable.</p><button type="button" className="mt-2 text-yomi-jade underline" onClick={() => void readingSequence.refetch()}>Retry chapter list</button></div>}
       {readingSequence.data?.offline && <p role="status" className="fixed bottom-3 left-3 z-30 rounded bg-ink-950/90 px-3 py-1 text-xs text-slate-300">Offline continuation uses saved chapters only.</p>}
       {progressSaveError && <div role="alert" className="fixed left-4 top-20 z-[60] max-w-md rounded-lg border border-red-400/30 bg-ink-950 p-3 text-sm text-slate-200">
@@ -826,8 +826,13 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
               ? "h-screen overflow-y-auto flex justify-center items-start"
               : "flex h-screen items-center justify-center overflow-hidden"
         } ${transitionClass}`}
+        role="region"
+        aria-label="Reading surface"
+        aria-describedby="reader-keyboard-help"
+        tabIndex={0}
         onClick={handlePageClick}
       >
+        <p id="reader-keyboard-help" className="sr-only">Reader shortcuts work here. Use Tab and Shift+Tab to reach the controls.</p>
         {readerMode === "WEBTOON" ? (
           <div className="flex flex-col w-full" style={{ paddingTop: webtoon.headerInset, paddingBottom: `calc(100vh - ${webtoon.headerInset}px)` }}>
             {streamChapters.map((streamCh, ci) => (

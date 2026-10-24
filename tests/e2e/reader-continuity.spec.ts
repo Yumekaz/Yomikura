@@ -144,7 +144,9 @@ test("paged mode and thumbnails use the active appended chapter", async ({ page 
   await page.getByRole("button", { name: "Layout", exact: true }).click();
   const first = page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 1", exact: true });
   await expect(first).toHaveAttribute("src", /chapter\/2\/page\/0/);
-  await page.getByRole("main").focus();
+  const readingSurface = page.getByRole("region", { name: "Reading surface", exact: true });
+  for (let step = 0; step < 8 && !await readingSurface.evaluate((element) => document.activeElement === element); step += 1) await page.keyboard.press("Tab");
+  await expect(readingSurface).toBeFocused();
   await page.keyboard.press("ArrowRight");
   const next = page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 2", exact: true });
   await expect(next).toHaveCSS("opacity", "1");
