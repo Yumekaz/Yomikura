@@ -7,6 +7,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri::Emitter;
 use tauri::WindowEvent;
 use tauri::{Manager, State};
+mod local_import;
 
 #[derive(serde::Serialize)]
 struct DownloadedPage {
@@ -1015,7 +1016,9 @@ pub fn run() {
             download_suwayomi_jar,
             get_portable_data_path,
             open_logs_folder,
-            fetch_local_page
+            fetch_local_page,
+            local_import::get_local_import_target,
+            local_import::import_local_archives
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
