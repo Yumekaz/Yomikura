@@ -69,6 +69,12 @@ ame\, \iconUrl\, and \lang\.
 ### \updateManga(input: UpdateMangaInput!)\ mutation (Toggle Library)
 - Used to toggle the \inLibrary\ status of a manga. Used when viewing a newly discovered manga in MangaDetailPage.
 
+## Complete connection collections
+
+On the released v2.3.2243 chapter query, `nodes` contains the full result page while `edges` contains boundary records. Full list consumers use nodes and `pageInfo` for cursor continuation; chapter/category snapshots, history and bulk actions also select node collections. The real four-record response contained four nodes and two edges. [Released implementation](https://github.com/Suwayomi/Suwayomi-Server/blob/v2.3.2243/server/src/main/kotlin/suwayomi/tachidesk/graphql/queries/ChapterQuery.kt#L250-L280).
+
+Updates select `fetchedAt`, `uploadDate` and `manga.inLibraryAt`, with matching date mode and an ID tie-breaker. See the [completion report](RELIABILITY_COMPLETION_2026-10-24.md) for actual timestamp, pagination and native evidence.
+
 ## Client progress recovery
 
 Verified on 2026-10-23 with Suwayomi v2.3.2243. The client persists reading intents before attempting `updateChapter`, captures their endpoint, and replays them through a serialized backend worker. Reset/unread are explicit barriers; earlier acknowledgements cannot remove a newer client intent.

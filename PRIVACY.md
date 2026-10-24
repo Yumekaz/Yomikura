@@ -5,6 +5,7 @@ Yomikura contains no project analytics, advertising SDK, account system, or tele
 ## Data stored locally
 
 - Interface preferences and configured server profiles.
+- On desktop, the current preference copy is retained in WebView storage and mirrored in order to the application's scoped settings file for recovery.
 - Reading progress, pending reading/tracker synchronization, local download jobs, and offline chapter metadata/page bytes retained by the client.
 - Verified library backup artifacts retained on this device for export and recovery. These can include library metadata, categories and history.
 - In desktop local-engine mode: the Suwayomi database, extensions, covers, downloads, logs, and optional private Java runtime in the selected storage folder.
