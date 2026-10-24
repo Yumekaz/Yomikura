@@ -4,6 +4,7 @@ import { testServerConnection } from "../api/suwayomi/connection";
 import { DEFAULT_SERVER_BASE_URL } from "../config/server";
 import { progressBackend, type ProgressBackend } from "../api/suwayomi/backendIdentity";
 import { legacyMangaSettings, mangaReaderSettingsKey, mergeMangaSettings } from "./mangaReaderSettings";
+import { normalizeChapterPolicy, type ChapterPolicy } from "../features/manga/chapterPolicy";
 
 /** Tauri v2 sets `window.isTauri`; v1 used `__TAURI__` when withGlobalTauri is enabled. */
 export const isTauri = () => {
@@ -130,6 +131,7 @@ interface SettingsState {
   
   // Phase 2 features
   mangaSettingsOverrides: Record<string, MangaOverride>;
+  chapterPolicies: Record<string, ChapterPolicy>;
   legacyMangaOverridesBackend: string | null;
   autoScrollSpeed: number;
   imageFilters: ImageFilters;
@@ -183,6 +185,7 @@ interface SettingsState {
   
   // Phase 2 actions
   setMangaOverride: (mangaId: string | number, override: Partial<MangaOverride>, backend?: ProgressBackend) => void;
+  setChapterPolicy: (mangaId: string | number, policy: ChapterPolicy, backend: ProgressBackend) => void;
   clearMangaOverride: (mangaId: string | number, backend?: ProgressBackend) => void;
   assignLegacyMangaOverrides: (backend: ProgressBackend) => boolean;
   setAutoScrollSpeed: (speed: number) => void;
@@ -242,6 +245,7 @@ export const useSettingsStore = create<SettingsState>()(
       
       // Phase 2 default state
       mangaSettingsOverrides: {},
+      chapterPolicies: {},
       legacyMangaOverridesBackend: null,
       autoScrollSpeed: 1,
       imageFilters: { grayscale: 0, invert: 0, brightness: 100, contrast: 100 },
@@ -400,6 +404,7 @@ export const useSettingsStore = create<SettingsState>()(
       setServerDataPath: (path: string) => set({ serverDataPath: path.trim() }),
       
       // Phase 2 actions implementation
+      setChapterPolicy: (mangaId, policy, backend) => set((state) => ({ chapterPolicies: { ...state.chapterPolicies, [mangaReaderSettingsKey(backend, mangaId)]: normalizeChapterPolicy(policy) } })),
       setMangaOverride: (mangaId, override, backend) => set((state) => {
         const key = mangaReaderSettingsKey(backend ?? progressBackend(state.serverBaseUrl, state.mockMode), mangaId);
         return { mangaSettingsOverrides: { ...state.mangaSettingsOverrides, [key]: mergeMangaSettings(state.mangaSettingsOverrides[key], override) } };
@@ -517,6 +522,7 @@ export const useSettingsStore = create<SettingsState>()(
           mockMode: false,
           serverDataPath: "",
           mangaSettingsOverrides: {},
+          chapterPolicies: {},
           legacyMangaOverridesBackend: null,
           autoScrollSpeed: 1,
           imageFilters: { grayscale: 0, invert: 0, brightness: 100, contrast: 100 },
@@ -580,6 +586,7 @@ export const useSettingsStore = create<SettingsState>()(
         mockMode: state.mockMode,
         serverDataPath: state.serverDataPath,
         mangaSettingsOverrides: state.mangaSettingsOverrides,
+        chapterPolicies: state.chapterPolicies,
         legacyMangaOverridesBackend: state.legacyMangaOverridesBackend,
         autoScrollSpeed: state.autoScrollSpeed,
         imageFilters: state.imageFilters,
@@ -637,6 +644,7 @@ export const useSettingsStore = create<SettingsState>()(
           mockMode: persisted?.mockMode ?? currentState.mockMode,
           serverDataPath: persisted?.serverDataPath ?? currentState.serverDataPath,
           mangaSettingsOverrides: persisted?.mangaSettingsOverrides ?? currentState.mangaSettingsOverrides,
+          chapterPolicies: persisted?.chapterPolicies ?? currentState.chapterPolicies,
           legacyMangaOverridesBackend: persisted?.legacyMangaOverridesBackend ?? null,
           autoScrollSpeed: persisted?.autoScrollSpeed ?? currentState.autoScrollSpeed,
           imageFilters: persisted?.imageFilters ?? currentState.imageFilters,

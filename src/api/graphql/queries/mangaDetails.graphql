@@ -25,6 +25,7 @@ query GetMangaDetails($id: Int!) {
           id
           name
           chapterNumber
+          sourceOrder
           isRead
           isBookmarked
           isDownloaded

@@ -26,6 +26,7 @@ export async function loadReaderChapterDetails(backend: ProgressBackend, id: num
     if (!cached) throw error;
     const siblings = await getCachedChaptersForManga(backend.serverBaseUrl, cached.mangaId, backend.isDemo);
     details = { id: cached.id, name: cached.name, chapterNumber: cached.chapterNumber, isRead: cached.isRead ?? false,
+      isBookmarked: cached.isBookmarked ?? false, scanlator: cached.scanlator ?? null, uploadDate: cached.uploadDate ?? null,
       lastPageRead: cached.lastPageRead ?? 0, pageCount: cached.pageCount, sourceOrder: cached.sourceOrder, mangaId: cached.mangaId,
       manga: { title: cached.mangaTitle, chapters: { edges: siblings.map((chapter) => ({ node: { id: chapter.id, chapterNumber: chapter.chapterNumber } })) } },
     };

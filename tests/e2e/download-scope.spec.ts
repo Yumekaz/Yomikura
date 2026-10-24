@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
+import { chapterConnection } from "./fixtures/chapterConnection";
 
 const first = "http://127.0.0.1:45677", second = "http://127.0.0.1:45678";
 const owner = (url: string, demo = false) => JSON.stringify([demo ? "demo" : "live", url]);
@@ -16,6 +17,7 @@ async function fixture(page: Page, failQueue = false) {
     const title = backend === first ? "First cached title" : "Second cached title"; let data: unknown;
     if (name === "GetDownloadStatus" && failQueue) return route.fulfill({ status: 503, json: { errors: [{ message: "Fixture server queue unavailable" }] } });
     if (name === "GetChapter") data = { chapter: { id: 12, name: "Shared chapter ID", chapterNumber: 1, mangaId: 42, sourceOrder: 1, pageCount: 1, isRead: true, lastPageRead: 0, manga: { title, chapters: { edges: [{ node: { id: 12, chapterNumber: 1 } }] } } } };
+    else if (name === "GetReadingChapters") data = chapterConnection(42, [{ id: 12, chapterNumber: 1, name: "Shared chapter ID", isRead: true }]);
     else if (name === "FetchChapterPages") data = { fetchChapterPages: { pages: [pageUrl(backend)] } };
     else if (name === "UpdateChapterProgress") data = { updateChapter: { chapter: { id: 12, isRead: true, lastPageRead: variables.input.patch.lastPageRead ?? 0 } } };
     else { const method = (mockSdk as unknown as Record<string, (args: unknown) => Promise<unknown>>)[name]; data = method ? await method(variables) : { __typename: "Query" }; }

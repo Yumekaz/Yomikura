@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
+import { chapterConnection } from "./fixtures/chapterConnection";
 
 test("bookmark and mark-unread refresh the source chapter list and saved copy", async ({ page }) => {
   const backend = "http://127.0.0.1:45679";
@@ -11,6 +12,7 @@ test("bookmark and mark-unread refresh the source chapter list and saved copy", 
     const name = operationName || /\b(?:query|mutation)\s+(\w+)/.exec(query)?.[1] || "ConnectionTest";
     let data: unknown;
     if (name === "GetChapter") data = { chapter: { ...chapter, mangaId: 10002, sourceOrder: 1, pageCount: 3, manga: { title: "[Demo] Pepper & Carrot", chapters: { edges: [{ node: { id: chapter.id, chapterNumber: 1 } }] } } } };
+    else if (name === "GetReadingChapters") data = chapterConnection(10002, [chapter]);
     else if (name === "GetMangaDetails") {
       const result = await mockSdk.GetMangaDetails({ id: 10002 });
       data = { manga: { ...result.manga, chapters: { edges: [{ node: { ...chapter, pageCount: 3 } }] } } };

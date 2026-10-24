@@ -4488,7 +4488,7 @@ export type GetMangaDetailsQueryVariables = Exact<{
 }>;
 
 
-export type GetMangaDetailsQuery = { manga: { id: number, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, categories: { edges: Array<{ node: { id: number } }> }, source: { name: string } | null, chapters: { edges: Array<{ node: { id: number, name: string, chapterNumber: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, lastPageRead: number, pageCount: number, uploadDate: unknown, scanlator: string | null } }> } } };
+export type GetMangaDetailsQuery = { manga: { id: number, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, categories: { edges: Array<{ node: { id: number } }> }, source: { name: string } | null, chapters: { edges: Array<{ node: { id: number, name: string, chapterNumber: number, sourceOrder: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, lastPageRead: number, pageCount: number, uploadDate: unknown, scanlator: string | null } }> } } };
 
 export type GetMigrationMangaQueryVariables = Exact<{
   id: number;
@@ -4517,7 +4517,15 @@ export type GetChapterQueryVariables = Exact<{
 }>;
 
 
-export type GetChapterQuery = { chapter: { id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, pageCount: number, sourceOrder: number, mangaId: number, manga: { title: string, chapters: { edges: Array<{ node: { id: number, chapterNumber: number } }> } } } };
+export type GetChapterQuery = { chapter: { id: number, name: string, chapterNumber: number, isRead: boolean, isBookmarked: boolean, scanlator: string | null, uploadDate: unknown, lastPageRead: number, pageCount: number, sourceOrder: number, mangaId: number, manga: { title: string, chapters: { edges: Array<{ node: { id: number, chapterNumber: number } }> } } } };
+
+export type GetReadingChaptersQueryVariables = Exact<{
+  mangaId: number;
+  after?: unknown;
+}>;
+
+
+export type GetReadingChaptersQuery = { chapters: { totalCount: number, pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, mangaId: number, name: string, chapterNumber: number, sourceOrder: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, uploadDate: unknown, scanlator: string | null }> } };
 
 export type GetServerSettingsQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -5165,6 +5173,7 @@ export const GetMangaDetailsDocument = gql`
           id
           name
           chapterNumber
+          sourceOrder
           isRead
           isBookmarked
           isDownloaded
@@ -5241,6 +5250,9 @@ export const GetChapterDocument = gql`
     name
     chapterNumber
     isRead
+    isBookmarked
+    scanlator
+    uploadDate
     lastPageRead
     pageCount
     sourceOrder
@@ -5255,6 +5267,34 @@ export const GetChapterDocument = gql`
           }
         }
       }
+    }
+  }
+}
+    `;
+export const GetReadingChaptersDocument = gql`
+    query GetReadingChapters($mangaId: Int!, $after: Cursor) {
+  chapters(
+    condition: {mangaId: $mangaId}
+    first: 200
+    after: $after
+    order: [{by: ID, byType: ASC}]
+  ) {
+    totalCount
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      id
+      mangaId
+      name
+      chapterNumber
+      sourceOrder
+      isRead
+      isBookmarked
+      isDownloaded
+      uploadDate
+      scanlator
     }
   }
 }
@@ -5672,6 +5712,9 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetChapter(variables: GetChapterQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetChapterQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetChapterQuery>({ document: GetChapterDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetChapter', 'query', variables);
+    },
+    GetReadingChapters(variables: GetReadingChaptersQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetReadingChaptersQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetReadingChaptersQuery>({ document: GetReadingChaptersDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetReadingChapters', 'query', variables);
     },
     GetServerSettings(variables?: GetServerSettingsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetServerSettingsQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetServerSettingsQuery>({ document: GetServerSettingsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetServerSettings', 'query', variables);

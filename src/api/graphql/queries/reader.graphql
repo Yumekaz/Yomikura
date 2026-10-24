@@ -4,6 +4,9 @@ query GetChapter($id: Int!) {
     name
     chapterNumber
     isRead
+    isBookmarked
+    scanlator
+    uploadDate
     lastPageRead
     pageCount
     sourceOrder

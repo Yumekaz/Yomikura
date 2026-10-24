@@ -12,6 +12,10 @@ import { MangaCategoryModal } from "./MangaCategoryModal";
 import { TrackerPanel } from "./TrackerPanel";
 import { useDownloadStore } from "../../stores/useDownloadStore";
 import { SourceMigrationModal } from "../../components/source/SourceMigrationModal";
+import { normalizeChapterPolicy, selectChapters } from "./chapterPolicy";
+import { progressBackend } from "../../api/suwayomi/backendIdentity";
+import { mangaReaderSettingsKey } from "../../stores/mangaReaderSettings";
+import { getProgressHeads } from "../../api/suwayomi/progressStorage";
 
 
 const FETCH_CHAPTERS_DOCUMENT = gql`
@@ -21,6 +25,7 @@ const FETCH_CHAPTERS_DOCUMENT = gql`
         id
         name
         chapterNumber
+        sourceOrder
         isRead
         isBookmarked
         isDownloaded
@@ -35,6 +40,7 @@ type ChapterNode = {
   id: number;
   name: string;
   chapterNumber: number;
+  sourceOrder?: number;
   isRead: boolean;
   isBookmarked: boolean;
   isDownloaded: boolean;
@@ -50,12 +56,12 @@ type FetchChaptersResponse = {
 
 export default function MangaDetailPage() {
   const { mangaId } = useParams<{ mangaId: string }>();
-  const { serverBaseUrl } = useSettingsStore();
+  const { serverBaseUrl, mockMode, chapterPolicies } = useSettingsStore();
   const coverAccentEnabled = useCoverAccentEnabled();
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isMigrationOpen, setIsMigrationOpen] = useState(false);
 
-  const { loadCachedChapters, cachedChapters } = useDownloadStore();
+  const { loadCachedChapters, cachedChapters, cachedChapterIds } = useDownloadStore();
 
   useEffect(() => {
     void loadCachedChapters();
@@ -71,6 +77,8 @@ export default function MangaDetailPage() {
   }, [graphqlEndpoint]);
 
   const queryClient = useQueryClient();
+  const policyBackend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
+  const localProgress = useQuery({ queryKey: ["progress-local", policyBackend.key], queryFn: () => getProgressHeads(policyBackend), retry: false });
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["manga", mangaId, serverBaseUrl],
@@ -151,11 +159,12 @@ export default function MangaDetailPage() {
         id: c.id,
         name: c.name,
         chapterNumber: c.chapterNumber,
+        sourceOrder: c.sourceOrder,
         isRead: !!c.isRead,
-        isBookmarked: false,
+        isBookmarked: c.isBookmarked ?? false,
         isDownloaded: true,
-        uploadDate: String(c.cachedAt),
-        scanlator: "Offline",
+        uploadDate: String(c.uploadDate ?? ""),
+        scanlator: c.scanlator ?? null,
       }));
     }
 
@@ -171,6 +180,7 @@ export default function MangaDetailPage() {
         id: c.id,
         name: c.name,
         chapterNumber: c.chapterNumber,
+        sourceOrder: c.sourceOrder,
         isRead: c.isRead,
         isBookmarked: c.isBookmarked,
         isDownloaded: c.isDownloaded,
@@ -183,9 +193,14 @@ export default function MangaDetailPage() {
 
   // Find the first unread chapter to resume reading
   const firstUnreadChapter = useMemo(() => {
-    const sorted = [...chapters].sort((a, b) => a.chapterNumber - b.chapterNumber);
+    const policy = normalizeChapterPolicy(chapterPolicies[mangaReaderSettingsKey(progressBackend(serverBaseUrl, mockMode), mangaId!)]);
+    const projected = chapters.map((chapter) => {
+      const head = localProgress.data?.find((head) => head.chapter.chapterId === Number(chapter.id) && head.chapter.mangaId === Number(mangaId) && head.chapter.chapterName === chapter.name && head.chapter.mangaTitle === manga?.title);
+      return head && (isOfflineMode || mockMode || head.sequence > head.acknowledgedSequence) ? { ...chapter, isRead: head.patch.isRead } : chapter;
+    });
+    const sorted = selectChapters(projected, policy, cachedChapterIds);
     return sorted.find((c) => !c.isRead) || sorted[0];
-  }, [chapters]);
+  }, [chapters, chapterPolicies, serverBaseUrl, mockMode, mangaId, cachedChapterIds, localProgress.data, manga?.title, isOfflineMode]);
 
   const imageUrl = useMemo(() => {
     if (!manga?.thumbnailUrl) return "/placeholder-cover.svg";

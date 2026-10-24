@@ -19,6 +19,8 @@ import { useWebtoonNavigation, type ReaderCursor } from "./useWebtoonNavigation"
 import { isCurrentProgressBackend } from "../../api/suwayomi/progressSync";
 import { mangaReaderSettingsKey } from "../../stores/mangaReaderSettings";
 import type { ImageFilters, MangaOverride } from "../../stores/useSettingsStore";
+import { normalizeChapterPolicy } from "../manga/chapterPolicy";
+import { loadReadingSequence } from "./readingSequence";
 
 export default function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>();
@@ -49,6 +51,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
     pageSpread: globalPageSpread, 
     setPageSpread: setGlobalPageSpread,
     mangaSettingsOverrides,
+    chapterPolicies,
     setMangaOverride,
     clearMangaOverride,
     autoScrollSpeed,
@@ -226,14 +229,19 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
     navigate(`/reader/${routeChapterId}`, { replace: true, state: null });
   }, [navigate, routeChapterId]);
 
-  // Compute Sibling Chapters
+  // Freeze the eligible sequence at entry: completing an unread chapter must not remove its anchor.
+  const sequencePolicy = useRef<ReturnType<typeof normalizeChapterPolicy>>();
+  if (chapter && !sequencePolicy.current) sequencePolicy.current = normalizeChapterPolicy(chapterPolicies[mangaReaderSettingsKey(progressTarget, chapter.mangaId)]);
+  const readingSequence = useQuery({
+    queryKey: ["reading-sequence", progressTarget.key, sessionToken],
+    queryFn: ({ signal }) => loadReadingSequence(progressTarget, chapter!.mangaId, chapter!.manga?.title ?? "Unknown Manga", Number(chapterId), sequencePolicy.current!, signal),
+    enabled: !!chapter,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
   const siblingChapters = useMemo(() => {
-    if (!chapter?.manga?.chapters?.edges) return [];
-    return chapter.manga.chapters.edges
-      .map(e => e?.node)
-      .filter((n): n is NonNullable<typeof n> => n != null)
-      .sort((a, b) => a.chapterNumber - b.chapterNumber);
-  }, [chapter]);
+    return readingSequence.data?.chapters ?? [];
+  }, [readingSequence.data]);
 
   const { prevChapterId, nextChapterId } = useMemo(() => {
     if (!activeChapter || siblingChapters.length === 0) return {};
@@ -766,6 +774,8 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
 
   return (
     <div className="min-h-screen bg-black">
+      {readingSequence.isError && <div role="alert" className="fixed bottom-5 left-4 z-[60] max-w-md rounded-lg border border-amber-300/30 bg-ink-950 p-3 text-sm text-slate-200"><p>Chapter continuation could not be confirmed. This chapter remains readable.</p><button type="button" className="mt-2 text-yomi-jade underline" onClick={() => void readingSequence.refetch()}>Retry chapter list</button></div>}
+      {readingSequence.data?.offline && <p role="status" className="fixed bottom-3 left-3 z-30 rounded bg-ink-950/90 px-3 py-1 text-xs text-slate-300">Offline continuation uses saved chapters only.</p>}
       {progressSaveError && <div role="alert" className="fixed left-4 top-20 z-[60] max-w-md rounded-lg border border-red-400/30 bg-ink-950 p-3 text-sm text-slate-200">
         <p>{progressSaveError}</p>
         <button type="button" className="mt-2 text-yomi-jade underline" onClick={() => {

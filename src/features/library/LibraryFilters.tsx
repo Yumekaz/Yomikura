@@ -9,6 +9,7 @@ export interface Category {
 }
 
 interface LibraryFiltersProps {
+  downloadCounts?: Partial<Record<string, number>>;
   categories: Category[];
   activeCategoryId: string | number | null;
   onCategorySelect: (id: string | number | null) => void;
@@ -30,6 +31,7 @@ interface LibraryFiltersProps {
 }
 
 export function LibraryFilters({
+  downloadCounts = {},
   categories,
   activeCategoryId,
   onCategorySelect,
@@ -105,9 +107,13 @@ export function LibraryFilters({
           { id: "smart:plan_to_read", name: t("plan_to_read") },
           { id: "smart:completed", name: t("completed") },
           { id: "smart:downloaded", name: t("downloaded") },
+          { id: "smart:on_device", name: "On this device" },
+          { id: "smart:on_server", name: "On server" },
         ].map((smartCat) => (
           <button
             key={smartCat.id}
+            aria-label={smartCat.name}
+            aria-pressed={activeCategoryId === smartCat.id}
             onClick={() => onCategorySelect(smartCat.id)}
             className={`flex-shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
               activeCategoryId === smartCat.id
@@ -116,6 +122,7 @@ export function LibraryFilters({
             }`}
           >
             {smartCat.name}
+            {downloadCounts[smartCat.id] !== undefined && <span aria-hidden="true" className="ml-1.5 opacity-75">{downloadCounts[smartCat.id]}</span>}
           </button>
         ))}
 

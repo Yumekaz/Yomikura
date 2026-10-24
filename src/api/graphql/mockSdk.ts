@@ -106,6 +106,9 @@ const mockImpl: any = {
       chapter: {
         id,
         name: "Chapter 1: The Journey Begins",
+        isBookmarked: false,
+        scanlator: null,
+        uploadDate: recentDemoTimestamp(),
         chapterNumber: 1,
         isRead: false,
         lastPageRead: 0,
@@ -132,6 +135,10 @@ const mockImpl: any = {
     const { manga } = await mockImpl.GetMangaDetails({ id: mangaId });
     const nodes = manga.chapters.edges.map(({ node }: any) => ({ ...node, mangaId, pageCount: 4, lastPageRead: 0, sourceOrder: 1 }));
     return { chapters: { totalCount: nodes.length, pageInfo: { hasNextPage: false, endCursor: null }, nodes } };
+  },
+  async GetReadingChapters({ mangaId }: any) {
+    const { chapters } = await mockImpl.GetMigrationChapters({ mangaId });
+    return { chapters };
   },
   async RefreshMigrationTarget({ input }: any) {
     const { chapters } = await mockImpl.GetMigrationChapters({ mangaId: input.id });

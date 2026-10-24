@@ -279,6 +279,7 @@ export function LibraryGrid({
 
           return (
             <Link
+              aria-label={manga.title}
               key={manga.id}
               to={`/manga/${manga.id}`}
               onContextMenu={handleCardLongPress}

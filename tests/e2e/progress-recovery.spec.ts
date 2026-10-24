@@ -2,6 +2,7 @@ import { chromium, expect, test, type BrowserContext, type Page } from "@playwri
 import { mkdir, mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
+import { chapterConnection } from "./fixtures/chapterConnection";
 
 const first = "http://127.0.0.1:45679";
 const second = "http://127.0.0.1:45678";
@@ -34,6 +35,7 @@ async function configure(context: BrowserContext, servers: Record<string, Server
     let data: unknown;
     const chapter = () => ({ id: 12, name: "Progress chapter", chapterNumber: 1, sourceOrder: 1, mangaId: 42, pageCount: 4, lastPageRead: state.page, isRead: state.read, isBookmarked: false, isDownloaded: false, uploadDate: String(Date.now()), manga: { title: state.title, chapters: { edges: [{ node: { id: 12, chapterNumber: 1 } }] } } });
     if (name === "GetChapter") data = { chapter: chapter() };
+    else if (name === "GetReadingChapters") data = chapterConnection(42, [chapter()]);
     else if (name === "FetchChapterPages") data = { fetchChapterPages: { pages: Array.from({ length: 4 }, (_, i) => `${server}/api/v1/manga/42/chapter/1/page/${i}`) } };
     else if (name === "UpdateChapterProgress") {
       const patch = variables.input.patch;

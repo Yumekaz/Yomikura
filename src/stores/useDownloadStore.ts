@@ -89,6 +89,7 @@ export function createDownloadStore() {
         const previous = await getCachedChapter(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo); check(entry);
         await saveCachedChapter({ cacheKey: getChapterCacheKey(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo), serverBaseUrl: entry.backend.serverBaseUrl, isDemo: entry.backend.isDemo,
           id: details.id, name: details.name, chapterNumber: details.chapterNumber, mangaId: details.mangaId, mangaTitle, sourceOrder: details.sourceOrder,
+          isBookmarked: details.isBookmarked, scanlator: details.scanlator, uploadDate: String(details.uploadDate ?? ""),
           pageCount: pages.length, pages, networkUrls, cachedUrls: created, totalSizeBytes, cachedAt: Date.now(), isRead: progress.isRead, lastPageRead: Math.max(0, Math.min(progress.lastPageRead, pages.length - 1)),
         }, entry.controller.signal);
         await deleteDownloadJob(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo);

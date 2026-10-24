@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
+import { chapterConnection } from "./fixtures/chapterConnection";
 
 const backend = "http://127.0.0.1:45677";
 const title = "Reader continuity fixture";
@@ -34,6 +35,8 @@ async function fixture(page: Page, options: { saved?: number; single?: boolean; 
       if (!record) throw new Error(`Unknown continuity fixture chapter ${id}`);
       data = { chapter: { id, name: record.name, chapterNumber: record.number, mangaId: 42, sourceOrder: record.number, pageCount: record.heights.length, isRead: record.read, lastPageRead: record.page,
         manga: { title, chapters: { edges: [...records].map(([id, value]) => ({ node: { id, chapterNumber: value.number } })) } } } };
+    } else if (name === "GetReadingChapters") {
+      data = chapterConnection(42, [...records].map(([id, record]) => ({ id, chapterNumber: record.number, name: record.name, isRead: record.read })));
     } else if (name === "FetchChapterPages") {
       pageFetches.push(id);
       data = { fetchChapterPages: { pages: record!.heights.map((_height, index) => `${backend}/api/v1/manga/42/chapter/${record!.number}/page/${index}`) } };

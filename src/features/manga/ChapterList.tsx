@@ -12,6 +12,8 @@ import { progressBackend } from "../../api/suwayomi/backendIdentity";
 import { writeChapterProgress } from "../../api/suwayomi/progressSync";
 import { getProgressHeads } from "../../api/suwayomi/progressStorage";
 import { useProgressBackend } from "../../hooks/useProgressSynchronization";
+import { mangaReaderSettingsKey } from "../../stores/mangaReaderSettings";
+import { normalizeChapterPolicy, selectChapters, type ChapterFilter } from "./chapterPolicy";
 
 export interface Chapter {
   id: string | number;
@@ -22,6 +24,7 @@ export interface Chapter {
   isDownloaded: boolean;
   uploadDate: string | number;
   scanlator?: string | null;
+  sourceOrder?: number;
 }
 
 interface ChapterListProps {
@@ -31,28 +34,27 @@ interface ChapterListProps {
   offline?: boolean;
 }
 
-type ChapterFilter = "all" | "unread" | "bookmarked" | "downloaded";
-
 export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: ChapterListProps) {
   const { confirm, notify } = useFeedback();
   const queryClient = useQueryClient();
-  const { serverBaseUrl, mockMode } = useSettingsStore();
+  const { serverBaseUrl, mockMode, chapterPolicies, setChapterPolicy } = useSettingsStore();
   const keepsLocalCopy = isTauri() || mockMode;
   const { activeDownloads, cachedChapterIds, downloadChapter, retryDownload, cancelDownload, deleteChapter } = useDownloadStore();
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<ChapterFilter>("all");
-  const [scanlator, setScanlator] = useState("all");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
 
   const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`), [serverBaseUrl]);
   const backend = useProgressBackend();
+  const policy = normalizeChapterPolicy(backend && mangaId !== undefined ? chapterPolicies[mangaReaderSettingsKey(backend, mangaId)] : undefined);
+  const { filter, scanlator } = policy;
+  const changePolicy = (patch: Partial<typeof policy>) => { if (backend && mangaId !== undefined) setChapterPolicy(mangaId, { ...policy, ...patch }, backend); setSelected(new Set()); };
   const localProgress = useQuery({ queryKey: ["progress-local", backend?.key], queryFn: () => getProgressHeads(backend!), enabled: !!backend, retry: false });
   const sortedChapters = useMemo(() => chapters.map((chapter) => {
     const saved = localProgress.data?.find((head) => head.chapter.chapterId === Number(chapter.id) && head.chapter.mangaId === mangaId
       && head.chapter.mangaTitle === mangaTitle && head.chapter.chapterName === chapter.name && head.chapter.chapterNumber === chapter.chapterNumber);
     return saved && (offline || backend?.isDemo || saved.sequence > saved.acknowledgedSequence) ? { ...chapter, isRead: saved.patch.isRead } : chapter;
-  }).sort((a, b) => b.chapterNumber - a.chapterNumber), [chapters, localProgress.data, mangaId, mangaTitle, offline, backend]);
+  }), [chapters, localProgress.data, mangaId, mangaTitle, offline, backend]);
   const scanlators = useMemo(() => [...new Set(chapters.map((chapter) => chapter.scanlator).filter((value): value is string => !!value))].sort(), [chapters]);
   const missingCount = useMemo(() => {
     const wholeNumbers = [...new Set(chapters.map((chapter) => chapter.chapterNumber).filter(Number.isInteger))].sort((a, b) => a - b);
@@ -62,15 +64,11 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
   }, [chapters]);
   const visibleChapters = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return sortedChapters.filter((chapter) => {
+    return selectChapters(sortedChapters, policy, cachedChapterIds).filter((chapter) => {
       if (normalized && !`${chapter.name} ${chapter.chapterNumber} ${chapter.scanlator || ""}`.toLowerCase().includes(normalized)) return false;
-      if (scanlator !== "all" && chapter.scanlator !== scanlator) return false;
-      if (filter === "unread" && chapter.isRead) return false;
-      if (filter === "bookmarked" && !chapter.isBookmarked) return false;
-      if (filter === "downloaded" && !chapter.isDownloaded && !cachedChapterIds.has(Number(chapter.id))) return false;
       return true;
     });
-  }, [cachedChapterIds, filter, query, scanlator, sortedChapters]);
+  }, [cachedChapterIds, policy.sort, policy.descending, filter, query, scanlator, sortedChapters]);
 
   const toggleSelected = (chapterId: number) => setSelected((current) => {
     const next = new Set(current);
@@ -118,9 +116,10 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
         </div>
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_150px_170px]">
           <label className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><span className="sr-only">Search chapters</span><input className="yomi-field w-full !pl-10" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search chapters…" /></label>
-          <select className="yomi-field" aria-label="Filter chapter status" value={filter} onChange={(event) => setFilter(event.target.value as ChapterFilter)}><option value="all">All chapters</option><option value="unread">Unread</option><option value="bookmarked">Bookmarked</option><option value="downloaded">Downloaded</option></select>
-          <select className="yomi-field" aria-label="Filter scanlator" value={scanlator} onChange={(event) => setScanlator(event.target.value)}><option value="all">All scanlators</option>{scanlators.map((name) => <option key={name} value={name}>{name}</option>)}</select>
+          <select className="yomi-field" aria-label="Filter chapter status" value={filter} onChange={(event) => changePolicy({ filter: event.target.value as ChapterFilter })}><option value="all">All chapters</option><option value="unread">Unread</option><option value="bookmarked">Bookmarked</option><option value="downloaded">Downloaded</option></select>
+          <select className="yomi-field" aria-label="Filter scanlator" value={scanlator} onChange={(event) => changePolicy({ scanlator: event.target.value })}><option value="all">All scanlators</option>{scanlators.map((name) => <option key={name} value={name}>{name}</option>)}</select>
         </div>
+        <div className="flex flex-wrap items-center gap-2"><select className="yomi-field" aria-label="Chapter reading order" value={policy.sort} onChange={(event) => changePolicy({ sort: event.target.value as typeof policy.sort })}><option value="number">Chapter number</option><option value="source">Source order</option><option value="date">Publication date</option></select><button type="button" className="yomi-button yomi-button-secondary" aria-pressed={policy.descending} onClick={() => changePolicy({ descending: !policy.descending })}>{policy.descending ? "Descending chapters" : "Ascending chapters"}</button><span className="text-xs text-slate-400">Order and status/group filters also apply to Continue and next/previous. Text search only narrows this list.</span></div>
         {selected.size > 0 && <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-ink-950/50 p-3"><span className="mr-2 text-xs font-semibold text-slate-300">{selected.size} selected</span><button type="button" disabled={bulkBusy} className="yomi-button yomi-button-secondary" onClick={() => void updateSelected({ isRead: true })}>Mark read</button><button type="button" disabled={bulkBusy} className="yomi-button yomi-button-secondary" onClick={() => void updateSelected({ isRead: false, lastPageRead: 0 })}>Mark unread</button><button type="button" disabled={bulkBusy} className="yomi-button yomi-button-secondary" onClick={() => void updateSelected({ isBookmarked: true })}><Bookmark />Bookmark</button><button type="button" disabled={bulkBusy} className="yomi-button yomi-button-primary" onClick={() => void downloadSelected()}><Download />Download</button></div>}
       </div>
 

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
+import { chapterConnection } from "./fixtures/chapterConnection";
 
 const first = "http://127.0.0.1:45677";
 const second = "http://127.0.0.1:45678";
@@ -27,6 +28,7 @@ async function fixture(page: Page, earlier = false) {
     if (name === "GetChapter") data = { chapter: { id: 12, name: "Reader settings chapter", mangaId: 42, chapterNumber: 1, sourceOrder: 1, pageCount: 1,
       ...records.get(server), manga: { title: server === first ? "First server title" : "Second server title", chapters: { edges: [{ node: { id: 12, chapterNumber: 1 } }] } } } };
     else if (name === "FetchChapterPages") data = { fetchChapterPages: { pages: [`${server}/api/v1/manga/42/chapter/1/page/0`] } };
+    else if (name === "GetReadingChapters") data = chapterConnection(42, [{ id: 12, chapterNumber: 1, name: "Reader settings chapter", ...records.get(server) }]);
     else if (name === "UpdateChapterProgress") {
       Object.assign(records.get(server)!, variables.input.patch);
       data = { updateChapter: { chapter: { id: 12, ...records.get(server) } } };

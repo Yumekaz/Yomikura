@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { mockSdk } from "../../../src/api/graphql/mockSdk";
+import { chapterConnection } from "./chapterConnection";
 import type { BoundTrackerRecord } from "../../../src/api/suwayomi/trackingActions";
 
 export const trackerBackend = "http://127.0.0.1:45677";
@@ -46,6 +47,7 @@ export async function installTrackerFixture(page: Page, states: TrackerFixture[]
       record.lastChapterRead = Math.max(record.lastChapterRead, highest); state.records = [...state.records.filter((item) => item.trackerId !== input.trackerId), record]; state.remote.set(record.id, record.lastChapterRead);
       data = { bindTrack: { trackRecord: record } };
     } else if (name === "GetChapter") data = { chapter: { ...state.chapter, manga: { title: state.title, chapters: { edges: [{ node: { id: 12, chapterNumber: state.chapter.chapterNumber } }] } } } };
+    else if (name === "GetReadingChapters") data = chapterConnection(42, [state.chapter]);
     else if (name === "FetchChapterPages") data = { fetchChapterPages: { pages: [0, 1].map((index) => `${state.backend}/api/v1/manga/42/chapter/1/page/${index}`) } };
     else if (name === "UpdateChapterProgress") {
       Object.assign(state.chapter, variables.input.patch);

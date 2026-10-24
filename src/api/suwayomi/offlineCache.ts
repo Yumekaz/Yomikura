@@ -16,6 +16,9 @@ export interface CachedChapter {
   lastPageRead?: number;
   isRead?: boolean;
   isDemo?: boolean;
+  isBookmarked?: boolean;
+  scanlator?: string | null;
+  uploadDate?: string | number;
 }
 
 export interface ReadingHistoryEvent {

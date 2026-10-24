@@ -15,6 +15,7 @@ import { invalidateChapterState } from "../../api/suwayomi/chapterState";
 import { progressBackend } from "../../api/suwayomi/backendIdentity";
 import { writeChapterProgress } from "../../api/suwayomi/progressSync";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
+import { availabilityCounts, deviceChapterCounts, isAvailabilityFilter, matchesAvailability } from "./downloadAvailability";
 
 export default function LibraryPage() {
   const { notify } = useFeedback();
@@ -86,6 +87,10 @@ export default function LibraryPage() {
   }, [catData]);
 
   const isOfflineMode = !!(libError && cachedChapters && cachedChapters.length > 0);
+  const localDownloadCounts = useMemo(() => deviceChapterCounts(cachedChapters), [cachedChapters]);
+  const downloadCounts = useMemo(() => availabilityCounts(isOfflineMode
+    ? [...new Set(cachedChapters.map((chapter) => chapter.mangaId))].map((id) => ({ id, downloadCount: 0 }))
+    : (libData?.mangas.nodes ?? []).filter((manga): manga is NonNullable<typeof manga> => !!manga), localDownloadCounts), [isOfflineMode, cachedChapters, libData, localDownloadCounts]);
 
   // Extract and filter mangas
   const mangas: LibraryManga[] = useMemo(() => {
@@ -106,6 +111,7 @@ export default function LibraryPage() {
         unreadCount: 0,
         hasStartedReading: false,
       }));
+      if (isAvailabilityFilter(activeCategoryId)) filtered = filtered.filter((manga) => matchesAvailability(activeCategoryId, (localDownloadCounts.get(String(manga.id)) ?? 0) > 0, false));
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         filtered = filtered.filter((m) => m.title.toLowerCase().includes(q));
@@ -131,8 +137,8 @@ export default function LibraryPage() {
         filtered = filtered.filter((m) => m.lastReadChapter === null || m.lastReadChapter === undefined);
       } else if (activeCategoryId === "smart:completed") {
         filtered = filtered.filter((m) => m.unreadCount === 0);
-      } else if (activeCategoryId === "smart:downloaded") {
-        filtered = filtered.filter((m) => (m.downloadCount || 0) > 0);
+      } else if (isAvailabilityFilter(activeCategoryId)) {
+        filtered = filtered.filter((m) => matchesAvailability(activeCategoryId, (localDownloadCounts.get(String(m.id)) ?? 0) > 0, (m.downloadCount ?? 0) > 0));
       } else {
         filtered = filtered.filter((m) => {
           const catIds = m.categories?.nodes?.map(c => c?.id) || [];
@@ -158,7 +164,7 @@ export default function LibraryPage() {
       unreadCount: m.unreadCount,
       hasStartedReading: !!m.lastReadChapter?.id,
     }));
-  }, [libData, searchQuery, isOfflineMode, cachedChapters, activeCategoryId]);
+  }, [libData, searchQuery, isOfflineMode, cachedChapters, activeCategoryId, localDownloadCounts]);
 
   const displayMangas = useMemo(() => {
     const direction = librarySortDescending ? -1 : 1;
@@ -303,6 +309,7 @@ export default function LibraryPage() {
       </header>
       {/* Filters Bar */}
       <LibraryFilters
+        downloadCounts={downloadCounts}
         categories={categories}
         activeCategoryId={activeCategoryId}
         onCategorySelect={setActiveCategoryId}

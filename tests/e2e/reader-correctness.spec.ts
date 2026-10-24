@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
+import { chapterConnection } from "./fixtures/chapterConnection";
 
 const backend = "http://127.0.0.1:45679";
 const image = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="480"><rect width="320" height="480" fill="#264653"/></svg>';
@@ -26,6 +27,8 @@ async function fixture(page: Page, options: { read?: boolean; pages?: number; sp
     let data: unknown;
     if (name === "GetChapter") {
       data = { chapter: { id: 12, name: "Reader correctness fixture", chapterNumber: 1, isRead: read, lastPageRead, pageCount: count, sourceOrder: 1, mangaId: 10002, manga: { title: "Reader fixture", chapters: { edges: [{ node: { id: 12, chapterNumber: 1 } }] } } } };
+    } else if (name === "GetReadingChapters") {
+      data = chapterConnection(10002, [{ id: 12, chapterNumber: 1, name: "Reader correctness fixture", isRead: read }]);
     } else if (name === "FetchChapterPages") {
       data = { fetchChapterPages: { pages: Array.from({ length: count }, (_, i) => `${backend}/api/v1/manga/10002/chapter/1/page/${i}`) } };
     } else if (name === "UpdateChapterProgress") {
