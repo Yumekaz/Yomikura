@@ -52,3 +52,16 @@ No actionable P0/P1/P2 differences remain in this batch.
 - [x] Retain failed attempts and source evidence locally.
 
 **Follow-up polish:** no additional refinement is required for this handoff.
+
+## Sidebar atmosphere follow-up · 2026-10-25
+
+The user subsequently requested a more integrated mascot treatment. The target and prior implementation are retained as `.cache/sidebar-atmosphere-2026-10-25/reference-target.png` and `reference-before.png`.
+
+- The floating sidebar cutout was replaced with a coherent painted reading nook: black spirit, books, lantern and shared reflected light. Eight palette/mode assets use soft peripheral colors, with intersecting runtime masks feathering them into the actual sidebar surface.
+- Full matched comparison: `screens/sidebar-before-after.png` under that evidence folder. Both halves are 216×464 crops from actual 1440×1024, scale-factor-1 browser captures, using the same sidebar region and theme. Left is the earlier implementation; right is the revised scene.
+- Palette comparison: `screens/sidebar-palette-comparison.png`, four dark treatments over their corresponding four light treatments. Inspected together at readable scale for silhouette, lighting, seams, caption contrast and navigation spacing.
+- 34 focused browser checks passed, covering all palette/mode combinations, automated accessibility, visibility preference, system appearance, reduced motion, desktop workflows and short 600/683px navigation layouts. Production build, strict browser-spec checking and bundle checks passed.
+- The actual isolated Tauri window decoded the Sakura/light scene, applied the mask and retained visible Library/History/Settings navigation at the laptop's scaled native viewport. Its backend remained stopped. Evidence: `native-scene-check.json` and `screens/native-sakura-light.png`.
+- Current frontend output: 2,933,446 bytes; JavaScript 845,500 bytes; identity artwork 737,260 bytes. Existing budgets pass.
+
+No actionable P0/P1/P2 issue remains in this follow-up. The earlier full regression baseline remains documented above; it was not represented as a newly rerun full suite for this presentation-only change.

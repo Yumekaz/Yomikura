@@ -15,7 +15,7 @@ import { useScheduledLibraryUpdate } from "../../hooks/useScheduledLibraryUpdate
 import { getCachedChapters } from "../../api/suwayomi/offlineCache";
 import { useProgressSynchronization } from "../../hooks/useProgressSynchronization";
 import { ProgressSyncStatus } from "../ProgressSyncStatus";
-import { BrandLogo, ReadingSpirit, SanctuaryArt } from "../Brand";
+import { BrandLogo, SidebarCompanion, SanctuaryArt } from "../Brand";
 import { applyPalette } from "../../theme/palettes";
 
 function ProfileSwitcher() {
@@ -238,7 +238,7 @@ function AppShell() {
           ))}
         </nav>
         <div className="yomi-sidebar-footer">
-          <div className="yomi-sidebar-companion"><ReadingSpirit /><p>Between the pages.</p></div>
+          <SidebarCompanion />
           {utilityNav.map((item) => <ShellNavLink key={item.path} item={item} />)}
           <BackendHealthBadge />
           <ProgressSyncStatus />

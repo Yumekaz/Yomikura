@@ -12,3 +12,9 @@ Assets were created with the built-in image-generation tool: the official mark, 
 Untouched generated PNG originals, prompts, source-board copies and failed attempts are retained in the local identity evidence folder. Production derivatives use ordinary alpha-margin trimming, resizing and WebP compression; their visual content was not redrawn in code.
 
 The external desktop/PWA icon uses the fixed Ember mark. Runtime palette changes only select the in-app artwork and theme tokens; they never rewrite installed icon files. Native icon formats were generated with Tauri's icon tooling from the same Ember master.
+
+## Integrated sidebar nook
+
+`sidebar-{ember,sakura,forest,moonstone}-{dark,light}.webp` are eight original 384×384 atmosphere paintings. They place the same spirit, books and lantern in a single shared lighting environment. Each palette has both a night and daylight treatment with matching peripheral colors.
+
+The application feathers these paintings into the sidebar using intersecting edge masks and a restrained palette-aware ambient wash. They are not framed cards or floating cutouts. They remain decorative, static, optional and absent from the reader. The standalone spirit poses are retained for other quiet states and palette previews.

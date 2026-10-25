@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mkdir } from "node:fs/promises";
 
-const evidence = ".cache/identity-2026-10-25/screens";
+const evidence = ".cache/sidebar-atmosphere-2026-10-25/screens";
 async function demo(page: Page, palette = "ember", mode = "dark") {
   await page.addInitScript(({ palette, mode }) => {
     if (!localStorage.getItem("yomikura-settings")) localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { mockMode: true, colorPalette: palette, themeMode: mode, autoDownloadCount: 0, pageTransition: "none" } }));
@@ -23,8 +23,9 @@ for (const palette of ["ember", "sakura", "forest", "moonstone"]) for (const mod
     await page.setViewportSize({ width: 1440, height: 1024 });
     await demo(page, palette, mode);
     await expect(page.locator("html")).toHaveAttribute("data-palette", palette);
-    await expect(page.locator(".yomi-sidebar-companion img")).toHaveAttribute("src", `/identity/spirit-reading-${palette}.webp`);
-    await expect.poll(() => page.locator(".yomi-sidebar-companion img").evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+    const scene = page.locator(".yomi-sidebar-companion img:visible");
+    await expect(scene).toHaveAttribute("src", `/identity/sidebar-${palette}-${mode}.webp`);
+    await expect.poll(() => scene.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
     await noSeriousViolations(page);
     await page.screenshot({ path: `${evidence}/library-${palette}-${mode}.png` });
     await page.getByRole("link", { name: "Settings", exact: true }).click();
@@ -48,6 +49,15 @@ test("palette and companion preferences persist after reload without changing th
   await expect(page.locator(".yomi-sidebar-companion img")).toHaveCount(0);
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", icon!);
   await expect(page.locator(".yomi-logo-image").first()).toHaveAttribute("src", "/identity/logo-forest.webp");
+});
+for (const height of [600, 683]) test(`sidebar scene leaves utility navigation visible at ${height}px`, async ({ page }) => {
+  await page.setViewportSize({ width: 1234, height });
+  await demo(page);
+  for (const name of ["Library", "Downloads", "History", "Settings"]) await expect(page.getByRole("link", { name, exact: true })).toBeInViewport();
+  const scene = page.locator(".yomi-sidebar-scene");
+  await expect(scene).toBeInViewport();
+  expect(await scene.evaluate((element) => getComputedStyle(element.querySelector("img")!).maskImage)).toContain("linear-gradient");
+  await page.screenshot({ path: `${evidence}/sidebar-short-${height}.png` });
 });
 test("system mode follows changes in the preferred appearance", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
