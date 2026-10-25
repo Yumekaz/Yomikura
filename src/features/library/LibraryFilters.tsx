@@ -1,26 +1,22 @@
-import { ArrowDownAZ, ArrowUpAZ, FolderEdit, Grid2X2, List, Search, X } from "lucide-react";
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
+import { ArrowDownAZ, ArrowUpAZ, FolderEdit, Grid2X2, List, X } from "lucide-react";
 import type { LibrarySortMode, LibraryViewMode } from "../../stores/useSettingsStore";
 import { useTranslation } from "../../hooks/useTranslation";
 import { LibraryUpdateButton } from "../../components/library/LibraryUpdateButton";
 
-export interface Category {
-  id: string | number;
-  name: string;
-}
-
+export interface Category { id: string | number; name: string }
 interface LibraryFiltersProps {
+  downloadCounts?: Partial<Record<string, number>>;
+  serverAvailable?: boolean;
   categories: Category[];
   activeCategoryId: string | number | null;
   onCategorySelect: (id: string | number | null) => void;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
   onManageCategories: () => void;
-  
-  // Selection mode additions
   isSelectMode?: boolean;
   selectedCount?: number;
   onSelectAll?: () => void;
   onCancelSelect?: () => void;
+  onStartSelect?: () => void;
   viewMode: LibraryViewMode;
   sortMode: LibrarySortMode;
   sortDescending: boolean;
@@ -28,140 +24,46 @@ interface LibraryFiltersProps {
   onSortModeChange: (mode: LibrarySortMode) => void;
   onSortDirectionChange: (descending: boolean) => void;
 }
-
-export function LibraryFilters({
-  categories,
-  activeCategoryId,
-  onCategorySelect,
-  searchQuery,
-  onSearchChange,
-  onManageCategories,
-  isSelectMode = false,
-  selectedCount = 0,
-  onSelectAll,
-  onCancelSelect,
-  viewMode,
-  sortMode,
-  sortDescending,
-  onViewModeChange,
-  onSortModeChange,
-  onSortDirectionChange,
-}: LibraryFiltersProps) {
+export function LibraryFilters({ downloadCounts = {}, serverAvailable = true, categories, activeCategoryId, onCategorySelect, onManageCategories, isSelectMode, selectedCount, onSelectAll, onCancelSelect, onStartSelect, viewMode, sortMode, sortDescending, onViewModeChange, onSortModeChange, onSortDirectionChange }: LibraryFiltersProps) {
   const { t } = useTranslation();
+  if (isSelectMode) return <div className="yomi-selection-bar">
+    <button className="yomi-icon-button" onClick={onCancelSelect} aria-label="Cancel selection"><X /></button>
+    <strong>{selectedCount} selected</strong>
+    <div className="ml-auto flex gap-2"><button className="yomi-button yomi-button-secondary" onClick={onSelectAll}>Select All</button><button className="yomi-button yomi-button-primary" onClick={onCancelSelect}>Done</button></div>
+  </div>;
 
-  if (isSelectMode) {
-    return (
-      <div className="flex items-center justify-between rounded-2xl border border-yomi-jade/30 bg-yomi-jade/10 px-5 py-3 mx-4 lg:mx-0 mt-2 lg:mt-0 mb-6 animate-fade-in transition-[border-color,background-color] duration-150">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onCancelSelect}
-            className="rounded-full p-1.5 text-slate-300 hover:bg-white/10 hover:text-white transition"
-          >
-            <X className="h-4 w-4" />
-          </button>
-          <span className="text-sm font-bold text-slate-200">
-            {selectedCount} Selected
-          </span>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          {onSelectAll && (
-            <button
-              onClick={onSelectAll}
-              className="rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 px-3.5 py-1.5 text-xs font-bold text-slate-200 transition"
-            >
-              Select All
-            </button>
-          )}
-          <button
-            onClick={onCancelSelect}
-            className="rounded-lg bg-yomi-jade px-3.5 py-1.5 text-xs font-bold text-ink-950 hover:bg-yomi-jade/90 transition"
-          >
-            Done
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-white/[0.07] bg-ink-900 px-4 py-3">
-      {/* Category Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide lg:pb-0 order-2 lg:order-1 flex-1">
-        <button
-          onClick={() => onCategorySelect(null)}
-          className={`flex-shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-            activeCategoryId === null
-              ? "bg-yomi-jade text-ink-950"
-              : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
-          }`}
-        >
-          {t("all")}
-        </button>
-
-        {/* Smart Categories */}
-        {[
-          { id: "smart:reading", name: t("reading") },
-          { id: "smart:plan_to_read", name: t("plan_to_read") },
-          { id: "smart:completed", name: t("completed") },
-          { id: "smart:downloaded", name: t("downloaded") },
-        ].map((smartCat) => (
-          <button
-            key={smartCat.id}
-            onClick={() => onCategorySelect(smartCat.id)}
-            className={`flex-shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-              activeCategoryId === smartCat.id
-                ? "bg-yomi-jade text-ink-950"
-                : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
-            }`}
-          >
-            {smartCat.name}
-          </button>
-        ))}
-
-        {categories.map((cat) => (
-          <button
-            key={cat.id}
-            onClick={() => onCategorySelect(cat.id)}
-            className={`flex-shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-              activeCategoryId === cat.id
-                ? "bg-yomi-jade text-ink-950"
-                : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
-            }`}
-          >
-            {cat.name}
-          </button>
-        ))}
-        
-        {/* Manage Categories Action */}
-        <button
-          onClick={onManageCategories}
-          className="flex-shrink-0 rounded-lg border border-white/10 p-2 text-slate-400 hover:bg-white/5 hover:text-white transition-colors active:scale-[.97]"
-          title="Manage Categories"
-        >
-          <FolderEdit className="h-4 w-4" />
-        </button>
-      </div>
-
-      <div className="order-1 flex w-full flex-wrap items-center gap-2 lg:order-2">
-        <LibraryUpdateButton />
-        <select className="yomi-field min-w-28" aria-label="Sort library" value={sortMode} onChange={(event) => onSortModeChange(event.target.value as LibrarySortMode)}><option value="title">Title</option><option value="unread">Unread</option><option value="status">Reading status</option></select>
-        <button type="button" className="yomi-icon-button" aria-label={sortDescending ? "Sort ascending" : "Sort descending"} onClick={() => onSortDirectionChange(!sortDescending)}>{sortDescending ? <ArrowDownAZ /> : <ArrowUpAZ />}</button>
-        <div className="flex rounded-xl border border-white/10 bg-ink-950/60 p-1" role="group" aria-label="Library view">
-          <button type="button" className={`yomi-icon-button h-8 w-8 border-0 ${viewMode === "grid" ? "bg-white/10 text-white" : ""}`} aria-label="Grid view" aria-pressed={viewMode === "grid"} onClick={() => onViewModeChange("grid")}><Grid2X2 /></button>
-          <button type="button" className={`yomi-icon-button h-8 w-8 border-0 ${viewMode === "list" ? "bg-white/10 text-white" : ""}`} aria-label="List view" aria-pressed={viewMode === "list"} onClick={() => onViewModeChange("list")}><List /></button>
-        </div>
-        <div className="flex min-w-56 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-ink-950/60 px-3.5 py-2.5 transition-colors focus-within:border-yomi-jade/50">
-          <Search className="h-4 w-4 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Search library..."
-            className="flex-1 bg-transparent text-sm text-slate-200 outline-none placeholder:text-slate-500"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-          />
-        </div>
-      </div>
+  const smartCategories = [
+    { id: "smart:reading", name: t("reading") },
+    { id: "smart:plan_to_read", name: t("plan_to_read") },
+    { id: "smart:completed", name: t("completed") },
+    { id: "smart:downloaded", name: t("downloaded") },
+    { id: "smart:on_device", name: "On this device" },
+    { id: "smart:on_server", name: "On server" },
+  ];
+  return <div className="yomi-library-tools">
+    <div className="yomi-shelf-tabs" role="group" aria-label="Filter library">
+      <button aria-pressed={activeCategoryId === null} onClick={() => onCategorySelect(null)}>All books</button>
+      {smartCategories.map((cat) => <button key={cat.id} aria-label={cat.name} aria-pressed={activeCategoryId === cat.id} disabled={cat.id === "smart:on_server" && !serverAvailable} title={cat.id === "smart:on_server" && !serverAvailable ? "Reconnect to check server availability" : undefined} onClick={() => onCategorySelect(cat.id)}>
+        {cat.name}{downloadCounts[cat.id] !== undefined && <span aria-hidden="true">{downloadCounts[cat.id]}</span>}
+      </button>)}
     </div>
-  );
+    <div className="yomi-shelf-controls">
+      <label className="sr-only" htmlFor="library-collection">Collection</label>
+      <ThemedSelect aria-label="Collection" id="library-collection" className="yomi-field yomi-collection-select" value={activeCategoryId !== null && !String(activeCategoryId).startsWith("smart:") ? String(activeCategoryId) : ""} onValueChange={(value) => onCategorySelect(value === "" ? null : value)}>
+        <option value="">Collections</option>{categories.map((cat) => <option key={cat.id} value={String(cat.id)}>{cat.name}</option>)}
+      </ThemedSelect>
+      <button className="yomi-icon-button" aria-label="Manage Categories" title="Manage collections" onClick={onManageCategories}><FolderEdit /></button>
+      <LibraryUpdateButton />
+      <span className="yomi-control-divider" aria-hidden="true" />
+      <ThemedSelect className="yomi-field yomi-sort-select" aria-label="Sort library" value={sortMode} onValueChange={(value) => onSortModeChange(value as LibrarySortMode)}>
+        <option value="title">Title</option><option value="unread">Unread</option><option value="status">Reading status</option>
+      </ThemedSelect>
+      <button className="yomi-icon-button" aria-label={sortDescending ? "Sort ascending" : "Sort descending"} title={sortDescending ? "Sort ascending" : "Sort descending"} onClick={() => onSortDirectionChange(!sortDescending)}>{sortDescending ? <ArrowDownAZ /> : <ArrowUpAZ />}</button>
+      <div className="yomi-view-switch" role="group" aria-label="Library view">
+        <button className="yomi-icon-button" aria-label="Grid view" aria-pressed={viewMode === "grid"} onClick={() => onViewModeChange("grid")}><Grid2X2 /></button>
+        <button className="yomi-icon-button" aria-label="List view" aria-pressed={viewMode === "list"} onClick={() => onViewModeChange("list")}><List /></button>
+      </div>
+      <button className="yomi-button yomi-button-secondary yomi-select-books" onClick={onStartSelect}>Select</button>
+    </div>
+  </div>;
 }

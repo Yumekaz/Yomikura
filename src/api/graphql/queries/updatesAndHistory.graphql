@@ -4,22 +4,22 @@ query GetUpdates($filter: ChapterFilterInput, $order: [ChapterOrderInput!], $fir
       hasNextPage
       endCursor
     }
-    edges {
-      node {
+    nodes {
         id
         name
         chapterNumber
         isRead
         lastPageRead
         uploadDate
+        fetchedAt
         scanlator
         mangaId
         manga {
           id
+          inLibraryAt
           title
           thumbnailUrl
         }
-      }
     }
   }
 }
@@ -30,8 +30,7 @@ query GetHistory($filter: ChapterFilterInput, $order: [ChapterOrderInput!], $fir
       hasNextPage
       endCursor
     }
-    edges {
-      node {
+    nodes {
         id
         name
         chapterNumber
@@ -45,7 +44,6 @@ query GetHistory($filter: ChapterFilterInput, $order: [ChapterOrderInput!], $fir
           title
           thumbnailUrl
         }
-      }
     }
   }
 }

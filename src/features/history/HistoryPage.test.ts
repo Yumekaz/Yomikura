@@ -29,9 +29,9 @@ describe("offline identity", () => {
 
 describe("demo history isolation", () => {
   it("never presents sandbox chapters as live-server activity", () => {
-    expect(shouldShowReadingEvent({ mangaTitle: "[Demo] Pepper & Carrot" }, false)).toBe(false);
+    expect(shouldShowReadingEvent({ mangaTitle: "[Demo] Moonlit Courier" }, false)).toBe(false);
     expect(shouldShowReadingEvent({ mangaTitle: "A real library chapter", isDemo: true }, false)).toBe(false);
     expect(shouldShowReadingEvent({ mangaTitle: "A real library chapter" }, false)).toBe(true);
-    expect(shouldShowReadingEvent({ mangaTitle: "[Demo] Pepper & Carrot" }, true)).toBe(true);
+    expect(shouldShowReadingEvent({ mangaTitle: "[Demo] Moonlit Courier" }, true)).toBe(true);
   });
 });

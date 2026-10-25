@@ -16,6 +16,6 @@ describe("backup restore lifecycle", () => {
   });
 
   it("stops on an explicit server failure", async () => {
-    await expect(waitForRestoreStatus(async () => ({ restoreStatus: { state: "FAILURE", mangaProgress: 1, totalManga: 3 } }), "job", { pause: noWait })).rejects.toThrow("safety backup");
+    await expect(waitForRestoreStatus(async () => ({ restoreStatus: { state: "FAILURE", mangaProgress: 1, totalManga: 3 } }), "job", { pause: noWait })).rejects.toThrow("restore failed");
   });
 });

@@ -1,3 +1,4 @@
+import { chooseOption } from "./fixtures/themedSelect";
 import { expect, test } from "@playwright/test";
 
 const tinyImage = Buffer.from(
@@ -16,26 +17,26 @@ async function enterDemo(page: import("@playwright/test").Page) {
   await expect(demoButton).toBeVisible({ timeout: 15_000 });
   await demoButton.click();
   await expect(page.getByRole("heading", { name: "Library", exact: true })).toBeVisible();
-  await expect(page.getByText("[Demo] Pepper & Carrot", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "[Demo] Moonlit Courier", exact: true })).toBeVisible();
 }
 
-test("default onboarding keeps the ivory and bookmark-red brand palette", async ({ page }) => {
+test("default onboarding uses the Ink and Ember identity", async ({ page }) => {
   // A real local engine may be running on a developer machine. This test is
   // specifically about the clean first-run surface, not that machine's state.
   await page.route("**/api/graphql", (route) => route.abort());
   await page.goto("/library");
   const demoButton = page.getByRole("button", { name: "Explore Demo Library" });
   await expect(demoButton).toBeVisible({ timeout: 15_000 });
-  await expect(demoButton).toHaveCSS("background-color", "rgb(239, 234, 226)");
-  const brandAccent = await page.locator(".text-\\[rgb\\(var\\(--yomi-signature\\)\\)\\]").first().evaluate((element) => getComputedStyle(element).color);
-  expect(brandAccent).toBe("rgb(229, 72, 63)");
+  await expect(demoButton).toHaveCSS("background-color", "rgb(182, 60, 45)");
+  const brandAccent = await page.locator("html").evaluate((element) => getComputedStyle(element).getPropertyValue("--yomi-signature").trim());
+  expect(brandAccent).toBe("240, 153, 118");
 });
 
 test("desktop shell keeps one clear navigation hierarchy", async ({ page }) => {
   await enterDemo(page);
   await expect(page.getByRole("link", { name: "Library", exact: true })).toHaveCount(1);
-  await expect(page.getByRole("link", { name: "Continue", exact: true })).toHaveCount(1);
-  await expect(page.getByRole("link", { name: "Browse", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "History", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "Discover", exact: true })).toHaveCount(1);
   await expect(page.getByRole("link", { name: "Extensions", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Settings", exact: true })).toHaveCount(1);
 
@@ -47,18 +48,18 @@ test("desktop shell keeps one clear navigation hierarchy", async ({ page }) => {
       bodyBackground: getComputedStyle(document.body).backgroundColor,
     };
   });
-  expect(layout.sidebarWidth).toBe(232);
+  expect(layout.sidebarWidth).toBe(216);
   expect(layout.overflow).toBeLessThanOrEqual(0);
-  expect(layout.bodyBackground).toBe("rgb(9, 10, 12)");
+  expect(layout.bodyBackground).toBe("rgb(17, 15, 13)");
 });
 
 test("demo mode explains its boundary and exits directly into server setup", async ({ page }) => {
   await enterDemo(page);
-  await expect(page.getByText("Demo Sandbox is active.")).toBeVisible();
-  await page.getByRole("button", { name: "Connect a server" }).click();
-  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.locator(".yomi-demo-notice")).toBeVisible();
+  await page.getByRole("button", { name: "Connect your library" }).click();
+  await expect(page).toHaveURL(/\/settings\/connection$/);
   await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
-  await expect(page.getByText("Demo Sandbox is active.")).toHaveCount(0);
+  await expect(page.locator(".yomi-demo-notice")).toHaveCount(0);
 });
 
 test("keyboard users can skip directly to the main content", async ({ page }) => {
@@ -72,7 +73,7 @@ test("keyboard users can skip directly to the main content", async ({ page }) =>
 
 test("history and settings remain usable through real navigation", async ({ page }) => {
   await enterDemo(page);
-  await page.getByRole("link", { name: "Continue", exact: true }).click();
+  await page.getByRole("link", { name: "History", exact: true }).click();
   await expect(page.getByRole("heading", { name: "History", exact: true })).toBeVisible();
   await expect(page.locator("article.yomi-history-row").first()).toBeVisible();
 
@@ -115,7 +116,7 @@ test("reader opens a demo chapter and exposes a usable page", async ({ page }) =
   await enterDemo(page);
   await page.goto("/reader/20002");
   await expect(page.getByText("Chapter 1: The Journey Begins", { exact: true })).toBeVisible({ timeout: 15_000 });
-  const firstPage = page.locator("#reader-page-0 img");
+  const firstPage = page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 1", exact: true }).first();
   await expect(firstPage).toBeVisible({ timeout: 15_000 });
   await expect.poll(() => firstPage.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
 });
@@ -123,7 +124,7 @@ test("reader opens a demo chapter and exposes a usable page", async ({ page }) =
 test("manga details renders valid dates without horizontal overflow", async ({ page }) => {
   await enterDemo(page);
   await page.goto("/manga/10002");
-  await expect(page.getByRole("heading", { name: "[Demo] Pepper & Carrot", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "[Demo] Moonlit Courier", exact: true })).toBeVisible();
   await expect(page.getByText("1/1/1970", { exact: true })).toHaveCount(0);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
@@ -149,11 +150,11 @@ test("settings search opens an addressable section", async ({ page }) => {
 test("history search and removal persist without resetting progress", async ({ page }) => {
   await enterDemo(page);
   await page.goto("/reader/20002");
-  const firstPage = page.locator("#reader-page-0 img");
+  const firstPage = page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 1", exact: true }).first();
   await expect.poll(() => firstPage.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
   await page.goto("/history");
-  await page.getByPlaceholder("Search history…").fill("Pepper");
-  const historyTitle = page.getByText("[Demo] Pepper & Carrot", { exact: true }).first();
+  await page.getByPlaceholder("Search history…").fill("Moonlit");
+  const historyTitle = page.getByText("[Demo] Moonlit Courier", { exact: true }).first();
   await expect(historyTitle).toBeVisible();
   await page.getByRole("button", { name: /Remove .* from history/ }).click();
   await page.getByRole("button", { name: "Remove", exact: true }).click();
@@ -163,7 +164,7 @@ test("history search and removal persist without resetting progress", async ({ p
 test("an interrupted local download resumes after reload", async ({ page }) => {
   await enterDemo(page);
   await page.unroute("https://images.unsplash.com/**");
-  await page.route("https://images.unsplash.com/**", async (route) => {
+  await page.route("**/demo/*.webp", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 350));
     await route.fulfill({ status: 200, contentType: "image/svg+xml", body: tinyImage });
   });
@@ -177,21 +178,21 @@ test("an interrupted local download resumes after reload", async ({ page }) => {
 test("library view and sort preferences survive reload", async ({ page }) => {
   await enterDemo(page);
   await page.getByRole("button", { name: "List view" }).click();
-  await page.getByLabel("Sort library").selectOption("unread");
+  await chooseOption(page.getByLabel("Sort library"), "unread");
   await page.reload();
   await expect(page.getByRole("button", { name: "List view" })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByLabel("Sort library")).toHaveValue("unread");
-  await expect(page.getByText("[Demo] Pepper & Carrot", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Sort library")).toHaveAttribute("data-value", "unread");
+  await expect(page.getByText("[Demo] Moonlit Courier", { exact: true })).toBeVisible();
 });
 
 test("automatic backup and update schedules persist", async ({ page }) => {
   await enterDemo(page);
   await page.goto("/settings/backup");
-  await page.getByLabel("Automatic backup schedule").selectOption("24");
-  await page.getByLabel("Automatic library updates").selectOption("12");
+  await chooseOption(page.getByLabel("Automatic backup schedule"), "24");
+  await chooseOption(page.getByLabel("Automatic library updates"), "12");
   await page.reload();
-  await expect(page.getByLabel("Automatic backup schedule")).toHaveValue("24");
-  await expect(page.getByLabel("Automatic library updates")).toHaveValue("12");
+  await expect(page.getByLabel("Automatic backup schedule")).toHaveAttribute("data-value", "24");
+  await expect(page.getByLabel("Automatic library updates")).toHaveAttribute("data-value", "12");
 });
 
 test("chapter filtering and bulk actions are discoverable", async ({ page }) => {
@@ -199,6 +200,7 @@ test("chapter filtering and bulk actions are discoverable", async ({ page }) => 
   await page.goto("/manga/10002");
   await expect(page.getByLabel("Filter chapter status")).toBeVisible();
   await expect(page.getByLabel("Filter scanlator")).toBeVisible();
+  await page.getByRole("button", { name: "Select chapters", exact: true }).click();
   await page.getByRole("button", { name: "Select visible" }).click();
   await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Mark read" })).toBeVisible();

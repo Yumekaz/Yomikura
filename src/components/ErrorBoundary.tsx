@@ -32,18 +32,16 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex min-h-[50vh] flex-col items-center justify-center p-6 text-center">
           <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-8 max-w-md w-full">
-            <h2 className="text-xl font-semibold text-red-200">Something went wrong</h2>
+            <h2 className="text-xl font-semibold text-slate-100">We couldn’t open this screen</h2>
             <p className="mt-2 text-sm text-slate-400">
-              An unexpected error has occurred.
+              Try reloading. If the problem continues, you can include the details below when reporting it.
             </p>
             {this.state.error && (
-              <div className="mt-4 rounded bg-black/40 p-3 text-left font-mono text-xs text-red-400 overflow-auto max-h-40">
-                {this.state.error.message || this.state.error.toString()}
-              </div>
+              <details className="yomi-error-details mt-4"><summary>Technical details</summary><pre>{this.state.error.message || this.state.error.toString()}</pre></details>
             )}
             <button
               onClick={this.handleReload}
-              className="mt-6 inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
+              className="yomi-button yomi-button-primary mt-6"
             >
               Reload Page
             </button>

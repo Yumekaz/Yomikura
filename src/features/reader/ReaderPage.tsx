@@ -1,99 +1,44 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useSettingsStore, FitMode, PageSpread, ReaderMode } from "../../stores/useSettingsStore";
 import { useDownloadStore } from "../../stores/useDownloadStore";
-import { createGraphqlClient } from "../../api/graphql/client";
-import { classifySourceProblem } from "../../api/suwayomi/errors";
+import { classifySourceProblem, getErrorMessage } from "../../api/suwayomi/errors";
 import { buildSuwayomiPageUrl, resolveBackendUrl } from "../../api/suwayomi/pageUrls";
 import { SourceRecoveryPanel } from "../../components/source/SourceRecoveryPanel";
 import { useTranslation } from "../../hooks/useTranslation";
 import { ReaderImage } from "./ReaderImage";
 import { ReaderOverlay } from "./ReaderOverlay";
 import { createProgressSnapshot, type ProgressSnapshot } from "./readerProgress";
-import { 
-  getCachedChapter, 
-  getCachedChaptersForManga, 
-  recordReadingActivity,
-  updateCachedChapterProgress 
-} from "../../api/suwayomi/offlineCache";
-
-interface WebtoonPageWrapperProps {
-  pageIndex: number;
-  children: React.ReactNode;
-}
-
-function WebtoonPageWrapper({ pageIndex, children }: WebtoonPageWrapperProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
-  const [measuredHeight, setMeasuredHeight] = useState<number>(800);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        setIsVisible(entry.isIntersecting);
-      },
-      {
-        rootMargin: "1200px 0px",
-        threshold: 0,
-      }
-    );
-
-    observer.observe(el);
-    return () => {
-      observer.unobserve(el);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isVisible || !containerRef.current) return;
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) {
-        const h = entry.contentRect.height;
-        if (h > 0) {
-          setMeasuredHeight(h);
-        }
-      }
-    });
-
-    resizeObserver.observe(containerRef.current);
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [isVisible]);
-
-  return (
-    <div
-      ref={containerRef}
-      style={{
-        height: isVisible ? "auto" : `${measuredHeight}px`,
-        contentVisibility: isVisible ? "visible" : "auto",
-        containIntrinsicSize: `auto ${measuredHeight}px`,
-      }}
-      className="w-full bg-black relative min-h-[100px]"
-    >
-      {isVisible ? children : (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-          <div className="h-1 w-12 bg-white/10 rounded overflow-hidden">
-            <div className="h-full bg-yomi-jade/30 animate-pulse" />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+import { progressBackend, type ProgressBackend } from "../../api/suwayomi/backendIdentity";
+import { saveProgressIntent } from "../../api/suwayomi/progressSync";
+import { loadReaderChapter, loadReaderChapterDetails, loadReaderChapterPages, readerChapter, type ReaderChapter } from "./readerChapter";
+import { WebtoonPage } from "./WebtoonPage";
+import { useWebtoonNavigation, type ReaderCursor } from "./useWebtoonNavigation";
+import { isCurrentProgressBackend } from "../../api/suwayomi/progressSync";
+import { mangaReaderSettingsKey } from "../../stores/mangaReaderSettings";
+import type { ImageFilters, MangaOverride } from "../../stores/useSettingsStore";
+import { normalizeChapterPolicy } from "../manga/chapterPolicy";
+import { loadReadingSequence } from "./readingSequence";
+import { readerShortcutAllowed } from "./readerKeyboard";
 
 export default function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>();
+  const location = useLocation();
+  const newToken = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+  const [session, setSession] = useState(() => ({ startId: chapterId!, token: newToken(), entryKey: location.key }));
+  if (location.key !== session.entryKey && location.state?.readerSession !== session.token) {
+    setSession({ startId: chapterId!, token: newToken(), entryKey: location.key });
+    return null;
+  }
+  return <ReaderSession key={session.token} startChapterId={session.startId} sessionToken={session.token} />;
+}
+
+function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapterId: string; sessionToken: string }) {
+  const { chapterId: routeChapterId } = useParams<{ chapterId: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { t } = useTranslation();
   
   // Settings store global values & setters
@@ -107,6 +52,7 @@ export default function ReaderPage() {
     pageSpread: globalPageSpread, 
     setPageSpread: setGlobalPageSpread,
     mangaSettingsOverrides,
+    chapterPolicies,
     setMangaOverride,
     clearMangaOverride,
     autoScrollSpeed,
@@ -115,88 +61,65 @@ export default function ReaderPage() {
     autoDeleteReadChapters,
     infiniteChapterReading,
     imageFilters: globalImageFilters,
+    setImageFilters: setGlobalImageFilters,
     cropBorders: globalCropBorders,
+    setCropBorders: setGlobalCropBorders,
     pageTransition: globalPageTransition,
+    setPageTransition: setGlobalPageTransition,
+    setAutoDownloadCount: setGlobalAutoDownloadCount,
     readerNavigationMode,
   } = useSettingsStore();
 
-  const { downloadChapter, deleteChapter, cachedChapters } = useDownloadStore();
+  const { downloadChapter, cachedChapters } = useDownloadStore();
 
   const [showOverlay, setShowOverlay] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isAutoScrolling, setIsAutoScrolling] = useState(false);
   const lastSavedPagesRef = useRef(new Map<number, number>());
-  const debouncedUpdatesRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  const [progressSaveError, setProgressSaveError] = useState("");
+  const failedProgressRef = useRef<{ backend: ProgressBackend; progress: ProgressSnapshot } | null>(null);
   const scrollRef = useRef<number | null>(null);
   const autoScrollEndTriggered = useRef(false);
   const bingeLoadingRef = useRef(false);
 
-  type StreamChapter = {
-    id: number;
-    name: string;
-    chapterNumber: number;
-    mangaId: number;
-    sourceOrder: number;
-    pages: string[];
-  };
-  const streamChaptersRef = useRef<StreamChapter[]>([]);
-  const mangaTitleRef = useRef("Unknown Manga");
+  type StreamChapter = ReaderChapter;
+  const readyPagesRef = useRef(new Set<string>());
+  const [readyPageVersion, setReadyPageVersion] = useState(0);
+  const pageIdentity = useCallback((id: number, index: number) => `${serverBaseUrl}::${id}::${index}`, [serverBaseUrl]);
   const [streamChapters, setStreamChapters] = useState<StreamChapter[]>([]);
-
-  const sdk = useMemo(() => {
-    const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-    return createGraphqlClient(`${cleanUrl}/api/graphql`);
-  }, [serverBaseUrl]);
+  const [activeChapterId, setActiveChapterId] = useState<number | null>(null);
+  const activeChapter = streamChapters.find((item) => item.id === activeChapterId) ?? streamChapters[0];
+  const initialized = useRef(false);
+  const streamRef = useRef(streamChapters); streamRef.current = streamChapters;
+  const cursorRef = useRef<ReaderCursor>({ chapterId: Number(chapterId), pageIndex: 0 });
+  const locationRef = useRef(location); locationRef.current = location;
+  const lastWrittenCursor = useRef("");
+  const transitionTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [appendError, setAppendError] = useState("");
+  const [appending, setAppending] = useState(false);
+  const tailAnchor = useRef<HTMLDivElement>(null);
+  const sessionController = useRef<AbortController | null>(null);
+  useEffect(() => {
+    const controller = new AbortController(); sessionController.current = controller;
+    return () => { controller.abort(); if (sessionController.current === controller) sessionController.current = null; };
+  }, []);
+  const progressTarget = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
 
   // Fetch chapter details
-  const { data: chapterData, isLoading: chapterLoading, isError: chapterError, error: chapterErrorObject, refetch: refetchChapter } = useQuery({
-    queryKey: ["chapter", chapterId, serverBaseUrl],
-    queryFn: async () => {
-      try {
-        return await sdk.GetChapter({ id: parseInt(chapterId!) });
-      } catch (err) {
-        console.warn("Failed to fetch chapter from server, checking offline cache...", err);
-        const cached = await getCachedChapter(serverBaseUrl, parseInt(chapterId!));
-        if (cached) {
-          const allCached = await getCachedChaptersForManga(serverBaseUrl, cached.mangaId);
-          return {
-            chapter: {
-              id: cached.id,
-              name: cached.name,
-              chapterNumber: cached.chapterNumber,
-              isRead: cached.isRead || false,
-              lastPageRead: cached.lastPageRead ?? 0,
-              pageCount: cached.pageCount,
-              sourceOrder: cached.sourceOrder,
-              mangaId: cached.mangaId,
-              manga: {
-                title: cached.mangaTitle,
-                chapters: {
-                  edges: allCached.map(c => ({
-                    node: {
-                      id: c.id,
-                      chapterNumber: c.chapterNumber,
-                    }
-                  }))
-                }
-              }
-            }
-          };
-        }
-        throw err;
-      }
-    },
+  const { data: chapterData, isLoading: chapterLoading, isError: chapterError, error: chapterErrorObject } = useQuery({
+    queryKey: ["chapter", chapterId, progressTarget.key, sessionToken],
+    queryFn: async ({ signal }) => ({ chapter: await loadReaderChapterDetails(progressTarget, Number(chapterId), signal) }),
     enabled: !!serverBaseUrl && !!chapterId,
   });
 
   const chapter = chapterData?.chapter;
-  const mangaId = chapter?.mangaId;
+  const mangaId = activeChapter?.mangaId ?? chapter?.mangaId;
 
   // Resolve Overrides
-  const hasOverride = mangaId !== undefined && mangaSettingsOverrides[mangaId] !== undefined;
-  
-  const override = mangaId !== undefined ? mangaSettingsOverrides[mangaId] : undefined;
+  const overrideKey = mangaId !== undefined ? mangaReaderSettingsKey(progressTarget, mangaId) : undefined;
+  const override = overrideKey !== undefined ? mangaSettingsOverrides[overrideKey] : undefined;
+  const hasOverride = override !== undefined;
   const readerMode = override?.readerMode ?? globalReaderMode;
   const fitMode = override?.fitMode ?? globalFitMode;
   const pageSpread = override?.pageSpread ?? globalPageSpread;
@@ -209,32 +132,42 @@ export default function ReaderPage() {
 
   const handleReaderModeChange = useCallback((mode: ReaderMode) => {
     if (mangaId !== undefined && hasOverride) {
-      setMangaOverride(mangaId, { readerMode: mode });
+      setMangaOverride(mangaId, { readerMode: mode }, progressTarget);
     } else {
       setGlobalReaderMode(mode);
     }
-  }, [mangaId, hasOverride, setMangaOverride, setGlobalReaderMode]);
+  }, [mangaId, hasOverride, setMangaOverride, setGlobalReaderMode, progressTarget]);
 
   const handleFitModeChange = useCallback((mode: FitMode) => {
     if (mangaId !== undefined && hasOverride) {
-      setMangaOverride(mangaId, { fitMode: mode });
+      setMangaOverride(mangaId, { fitMode: mode }, progressTarget);
     } else {
       setGlobalFitMode(mode);
     }
-  }, [mangaId, hasOverride, setMangaOverride, setGlobalFitMode]);
+  }, [mangaId, hasOverride, setMangaOverride, setGlobalFitMode, progressTarget]);
 
   const handlePageSpreadChange = useCallback((spread: PageSpread) => {
     if (mangaId !== undefined && hasOverride) {
-      setMangaOverride(mangaId, { pageSpread: spread });
+      setMangaOverride(mangaId, { pageSpread: spread }, progressTarget);
     } else {
       setGlobalPageSpread(spread);
     }
-  }, [mangaId, hasOverride, setMangaOverride, setGlobalPageSpread]);
+  }, [mangaId, hasOverride, setMangaOverride, setGlobalPageSpread, progressTarget]);
+
+  const changeTitleSetting = useCallback((patch: MangaOverride) => {
+    if (mangaId !== undefined && hasOverride) setMangaOverride(mangaId, patch, progressTarget);
+    else {
+      if (patch.imageFilters) setGlobalImageFilters(patch.imageFilters);
+      if (patch.cropBorders !== undefined) setGlobalCropBorders(patch.cropBorders);
+      if (patch.pageTransition !== undefined) setGlobalPageTransition(patch.pageTransition);
+      if (patch.autoDownloadCount !== undefined) setGlobalAutoDownloadCount(patch.autoDownloadCount);
+    }
+  }, [mangaId, hasOverride, progressTarget, setMangaOverride, setGlobalImageFilters, setGlobalCropBorders, setGlobalPageTransition, setGlobalAutoDownloadCount]);
 
   const handleToggleOverride = useCallback(() => {
     if (mangaId === undefined) return;
     if (hasOverride) {
-      clearMangaOverride(mangaId);
+      clearMangaOverride(mangaId, progressTarget);
     } else {
       setMangaOverride(mangaId, {
         readerMode,
@@ -244,7 +177,7 @@ export default function ReaderPage() {
         autoDownloadCount: effectiveAutoDownloadCount,
         imageFilters: effectiveImageFilters,
         cropBorders: effectiveCropBorders,
-      });
+      }, progressTarget);
     }
   }, [
     mangaId,
@@ -258,168 +191,84 @@ export default function ReaderPage() {
     effectiveAutoDownloadCount,
     effectiveImageFilters,
     effectiveCropBorders,
+    progressTarget,
   ]);
 
-  // Fetch pages mutation
-  const { mutate: fetchPages, data: pagesData, isPending: pagesLoading, isError: pagesError, error: pagesErrorObject } = useMutation({
-    mutationFn: async () => {
-      try {
-        return await sdk.FetchChapterPages({ input: { chapterId: parseInt(chapterId!) } });
-      } catch (err) {
-        console.warn("Failed to fetch pages from server, checking offline cache...", err);
-        const cached = await getCachedChapter(serverBaseUrl, parseInt(chapterId!));
-        if (cached) {
-          return {
-            fetchChapterPages: {
-              pages: cached.pages
-            }
-          };
-        }
-        throw err;
-      }
-    }
+  const { data: pagesData, isLoading: pagesLoading, isError: pagesError, error: pagesErrorObject } = useQuery({
+    queryKey: ["reader-pages", chapterId, progressTarget.key, sessionToken],
+    queryFn: ({ signal }) => loadReaderChapterPages(progressTarget, Number(chapterId), chapter!, signal),
+    enabled: !!chapter, staleTime: Infinity, refetchOnWindowFocus: false,
   });
 
-  // Update progress mutation
-  const { mutate: updateProgress } = useMutation({
-    mutationFn: async (progress: ProgressSnapshot) => {
-      const isRead = progress.pageCount > 0 && progress.pageIndex >= progress.pageCount - 1;
-
-      await recordReadingActivity(serverBaseUrl, {
-        chapterId: progress.chapterId,
-        chapterName: progress.chapterName,
-        chapterNumber: progress.chapterNumber,
-        mangaId: progress.mangaId,
-        mangaTitle: progress.mangaTitle,
-        lastPageRead: progress.pageIndex,
-        pageCount: progress.pageCount,
-        isRead,
-        isDemo: mockMode,
+  const updateProgress = useCallback(async (backend: ProgressBackend, progress: ProgressSnapshot) => {
+    try {
+      const atEnd = progress.pageCount > 0 && progress.pageIndex >= progress.pageCount - 1;
+      const result = await saveProgressIntent(backend, {
+        kind: "reading", chapter: { chapterId: progress.chapterId, chapterName: progress.chapterName, chapterNumber: progress.chapterNumber, mangaId: progress.mangaId, mangaTitle: progress.mangaTitle, pageCount: progress.pageCount, sourceOrder: progress.sourceOrder },
+        epoch: progress.progressEpoch, baseline: progress.baseline,
+        patch: { lastPageRead: progress.pageIndex, isRead: progress.wasRead || atEnd },
+        deleteAfterAck: autoDeleteReadChapters && atEnd,
       });
-
-      try {
-        await updateCachedChapterProgress(serverBaseUrl, progress.chapterId, progress.pageIndex, isRead);
-      } catch (err) {
-        console.error("Failed to update offline progress cache:", err);
+      if (!result.accepted) {
+        setProgressSaveError(result.reason === "identity" ? "The saved progress belongs to an earlier chapter record. Review pending progress before saving this chapter." : "Progress was reset in another view. Reopen this chapter to begin a new reading session.");
+        return;
       }
-
-      try {
-        const result = await sdk.UpdateChapterProgress({ 
-          input: { 
-            id: progress.chapterId,
-            patch: { 
-              lastPageRead: progress.pageIndex,
-              isRead 
-            } 
-          } 
-        });
-
-        if (isRead && autoDeleteReadChapters) {
-          try {
-            await sdk.DeleteDownloadedChapter({
-              input: {
-                id: progress.chapterId
-              }
-            });
-            await deleteChapter(progress.chapterId);
-          } catch (deleteErr) {
-            console.error("Failed to auto-delete read downloaded chapter:", deleteErr);
-          }
-        }
-
-        return result;
-      } catch (err) {
-        console.warn("Failed to update progress on server (saved locally):", err);
-        return null;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["chapter"] });
-      queryClient.invalidateQueries({ queryKey: ["manga"] });
-      queryClient.invalidateQueries({ queryKey: ["library"] });
-      queryClient.invalidateQueries({ queryKey: ["updates"] });
-      queryClient.invalidateQueries({ queryKey: ["history"] });
+      failedProgressRef.current = null;
+      setProgressSaveError("");
+    } catch {
+      failedProgressRef.current = { backend, progress };
+      lastSavedPagesRef.current.delete(progress.chapterId);
+      setProgressSaveError("Reading progress could not be saved on this device. Check storage and retry before closing the reader.");
     }
-  });
+  }, [autoDeleteReadChapters]);
 
-  useEffect(() => {
-    if (chapterId && serverBaseUrl) {
-      setCurrentPage(0);
-      setIsAutoScrolling(false);
-      autoScrollEndTriggered.current = false;
-      for (const timer of debouncedUpdatesRef.current.values()) clearTimeout(timer);
-      debouncedUpdatesRef.current.clear();
-      lastSavedPagesRef.current.clear();
-      fetchPages();
-    }
-  }, [chapterId, serverBaseUrl, fetchPages, updateProgress]);
-
-  const pages = pagesData?.fetchChapterPages?.pages || [];
+  const rootPages = pagesData ?? [];
+  const pages = activeChapter?.pages ?? rootPages;
   const pageProblem = chapterError || pagesError ? classifySourceProblem(chapterErrorObject ?? pagesErrorObject) : null;
 
   const retryReaderLoad = useCallback(() => {
-    void refetchChapter();
-    fetchPages();
-  }, [fetchPages, refetchChapter]);
+    navigate(`/reader/${routeChapterId}`, { replace: true, state: null });
+  }, [navigate, routeChapterId]);
 
-  useEffect(() => {
-    if (!chapter || pages.length === 0) return;
-    const savedPage = Math.min(Math.max(chapter.lastPageRead || 0, 0), pages.length - 1);
-    setCurrentPage(savedPage);
-    // Let the initial reader load create a history record even if the user
-    // leaves before scrolling far enough to trigger an intersection callback.
-    lastSavedPagesRef.current.delete(chapter.id);
-  }, [chapter?.id, chapter?.lastPageRead, pages.length]);
-
-  useEffect(() => {
-    if (!chapter || pages.length === 0) return;
-    setStreamChapters([
-      {
-        id: chapter.id,
-        name: chapter.name,
-        chapterNumber: chapter.chapterNumber,
-        mangaId: chapter.mangaId,
-        sourceOrder: chapter.sourceOrder,
-        pages,
-      },
-    ]);
-    autoScrollEndTriggered.current = false;
-    bingeLoadingRef.current = false;
-  }, [chapter?.id, pages, chapter]);
-
-  // Compute Sibling Chapters
+  // Freeze the eligible sequence at entry: completing an unread chapter must not remove its anchor.
+  const sequencePolicy = useRef<ReturnType<typeof normalizeChapterPolicy>>();
+  if (chapter && !sequencePolicy.current) sequencePolicy.current = normalizeChapterPolicy(chapterPolicies[mangaReaderSettingsKey(progressTarget, chapter.mangaId)]);
+  const readingSequence = useQuery({
+    queryKey: ["reading-sequence", progressTarget.key, sessionToken],
+    queryFn: ({ signal }) => loadReadingSequence(progressTarget, chapter!.mangaId, chapter!.manga?.title ?? "Unknown Manga", Number(chapterId), sequencePolicy.current!, signal),
+    enabled: !!chapter,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
   const siblingChapters = useMemo(() => {
-    if (!chapter?.manga?.chapters?.edges) return [];
-    return chapter.manga.chapters.edges
-      .map(e => e?.node)
-      .filter((n): n is NonNullable<typeof n> => n != null)
-      .sort((a, b) => a.chapterNumber - b.chapterNumber);
-  }, [chapter]);
+    return readingSequence.data?.chapters ?? [];
+  }, [readingSequence.data]);
 
   const { prevChapterId, nextChapterId } = useMemo(() => {
-    if (!chapter || siblingChapters.length === 0) return {};
-    const idx = siblingChapters.findIndex(c => c.id === chapter.id);
+    if (!activeChapter || siblingChapters.length === 0) return {};
+    const idx = siblingChapters.findIndex(c => c.id === activeChapter.id);
     return {
       prevChapterId: idx > 0 ? siblingChapters[idx - 1].id : undefined,
       nextChapterId: idx >= 0 && idx < siblingChapters.length - 1 ? siblingChapters[idx + 1].id : undefined,
     };
-  }, [chapter, siblingChapters]);
+  }, [activeChapter, siblingChapters]);
 
   // Auto-Download Queue effect
   useEffect(() => {
-    if (!chapter || effectiveAutoDownloadCount <= 0 || siblingChapters.length === 0) return;
+    if (!activeChapter || effectiveAutoDownloadCount <= 0 || siblingChapters.length === 0) return;
 
-    const idx = siblingChapters.findIndex(c => c.id === chapter.id);
+    const idx = siblingChapters.findIndex(c => c.id === activeChapter.id);
     if (idx === -1) return;
 
     const nextChapters = siblingChapters.slice(idx + 1, idx + 1 + effectiveAutoDownloadCount);
 
     const triggerDownloads = async () => {
       for (const ch of nextChapters) {
+        if (!isCurrentProgressBackend(progressTarget)) break;
         const isAlreadyDownloaded = cachedChapters?.some(cc => cc.id === ch.id);
         if (!isAlreadyDownloaded) {
           try {
-            await downloadChapter(ch.id, chapter.manga?.title);
+            await downloadChapter(ch.id, activeChapter.mangaTitle, progressTarget);
           } catch (err) {
             console.error("Failed background auto-download for chapter:", ch.id, err);
           }
@@ -428,7 +277,7 @@ export default function ReaderPage() {
     };
 
     void triggerDownloads();
-  }, [chapter?.id, effectiveAutoDownloadCount, siblingChapters, cachedChapters, downloadChapter]);
+  }, [activeChapter?.id, effectiveAutoDownloadCount, siblingChapters, cachedChapters, downloadChapter, progressTarget]);
 
   const getNextSiblingId = useCallback(
     (afterChapterId: number) => {
@@ -444,96 +293,113 @@ export default function ReaderPage() {
     if (!tail || bingeLoadingRef.current) return;
     const nextId = getNextSiblingId(tail.id);
     if (!nextId) return;
+    const signal = sessionController.current?.signal;
 
     bingeLoadingRef.current = true;
+    setAppending(true);
+    setAppendError("");
     try {
-      const chRes = await sdk.GetChapter({ id: nextId });
-      const pgRes = await sdk.FetchChapterPages({ input: { chapterId: nextId } });
-      const newPages = pgRes.fetchChapterPages?.pages || [];
-      if (newPages.length === 0) return;
-
-      setStreamChapters((prev) => [
-        ...prev,
-        {
-          id: nextId,
-          name: chRes.chapter.name,
-          chapterNumber: chRes.chapter.chapterNumber,
-          mangaId: chRes.chapter.mangaId,
-          sourceOrder: chRes.chapter.sourceOrder,
-          pages: newPages,
-        },
-      ]);
+      const next = await loadReaderChapter(progressTarget, nextId, signal);
+      const root = streamRef.current[0];
+      if (root && (next.mangaId !== root.mangaId || next.mangaTitle !== root.mangaTitle)) throw new Error("The title changed while loading the next chapter. Reopen the reader to continue.");
+      setStreamChapters((prev) => prev.some((item) => item.id === nextId) ? prev : [...prev, next]);
       autoScrollEndTriggered.current = false;
     } catch (err) {
+      if (signal?.aborted) return;
       console.error("Failed to append binge chapter:", err);
+      setAppendError(err instanceof Error && !(err as Error & { response?: unknown }).response ? err.message : getErrorMessage(err));
     } finally {
       bingeLoadingRef.current = false;
+      setAppending(false);
     }
-  }, [streamChapters, getNextSiblingId, sdk]);
+  }, [streamChapters, getNextSiblingId, progressTarget]);
 
-  // Debounced progress saver
+  // Commit immediately. Only network synchronization is debounced by the app shell.
   const saveProgress = useCallback((streamChapter: StreamChapter, pageIndex: number) => {
+    if (!readyPagesRef.current.has(pageIdentity(streamChapter.id, pageIndex))) return;
     if (lastSavedPagesRef.current.get(streamChapter.id) === pageIndex) return;
     lastSavedPagesRef.current.set(streamChapter.id, pageIndex);
 
-    const existingTimer = debouncedUpdatesRef.current.get(streamChapter.id);
-    if (existingTimer) clearTimeout(existingTimer);
+    const progress = createProgressSnapshot(streamChapter, streamChapter.mangaTitle, pageIndex);
+    void updateProgress(progressTarget, progress);
+  }, [updateProgress, pageIdentity, progressTarget]);
 
-    const progress = createProgressSnapshot(streamChapter, chapter?.manga?.title || "Unknown Manga", pageIndex);
-    const timer = setTimeout(() => {
-      debouncedUpdatesRef.current.delete(streamChapter.id);
-      updateProgress(progress);
-    }, 750);
-    debouncedUpdatesRef.current.set(streamChapter.id, timer);
-  }, [chapter?.manga?.title, updateProgress]);
+  const publishCursor = useCallback((cursor: ReaderCursor, ready: boolean) => {
+    const owner = streamRef.current.find((item) => item.id === cursor.chapterId);
+    if (!owner) return;
+    const previous = cursorRef.current;
+    cursorRef.current = cursor;
+    if (previous.chapterId !== cursor.chapterId) setActiveChapterId(cursor.chapterId);
+    if (previous.pageIndex !== cursor.pageIndex) setCurrentPage(cursor.pageIndex);
+    const key = `${cursor.chapterId}:${cursor.pageIndex}`;
+    if (lastWrittenCursor.current !== key || locationRef.current.state?.readerSession !== sessionToken) {
+      lastWrittenCursor.current = key;
+      navigate(`/reader/${cursor.chapterId}`, { replace: true, preventScrollReset: true, state: { readerSession: sessionToken, readerPage: cursor.pageIndex } });
+    }
+    if (ready) saveProgress(owner, cursor.pageIndex);
+  }, [navigate, saveProgress, sessionToken]);
+  const webtoon = useWebtoonNavigation(readerMode === "WEBTOON", publishCursor);
+
+  useLayoutEffect(() => {
+    if (initialized.current || !chapter || !rootPages.length) return;
+    initialized.current = true;
+    const root = readerChapter(chapter, rootPages);
+    streamRef.current = [root];
+    setStreamChapters([root]);
+    setActiveChapterId(root.id); setCurrentPage(root.lastPageRead);
+    cursorRef.current = { chapterId: root.id, pageIndex: root.lastPageRead };
+    if (readerMode === "WEBTOON") webtoon.jump(root.id, root.lastPageRead);
+    else publishCursor(cursorRef.current, false);
+  }, [chapter, rootPages, readerMode, webtoon.jump, publishCursor]);
+
+  const previousMode = useRef(readerMode);
+  useLayoutEffect(() => {
+    if (previousMode.current === readerMode) return;
+    previousMode.current = readerMode;
+    clearTimeout(transitionTimer.current); setIsTransitioning(false);
+    const cursor = cursorRef.current;
+    if (readerMode === "WEBTOON") webtoon.jump(cursor.chapterId, cursor.pageIndex);
+    else webtoon.cancel();
+  }, [readerMode, webtoon.jump, webtoon.cancel]);
 
   useEffect(() => {
-    streamChaptersRef.current = streamChapters;
-    mangaTitleRef.current = chapter?.manga?.title || "Unknown Manga";
-  }, [chapter?.manga?.title, streamChapters]);
+    if (!initialized.current || location.state?.readerSession !== sessionToken) return;
+    const id = Number(routeChapterId);
+    const page = Number(location.state.readerPage ?? 0);
+    if (!streamRef.current.some((item) => item.id === id)) return;
+    if (cursorRef.current.chapterId === id && cursorRef.current.pageIndex === page) return;
+    lastWrittenCursor.current = "";
+    cursorRef.current = { chapterId: id, pageIndex: page }; setActiveChapterId(id); setCurrentPage(page);
+    if (readerMode === "WEBTOON") webtoon.jump(id, page);
+  }, [routeChapterId, location.key, location.state, readerMode, sessionToken, webtoon.jump]);
+  useEffect(() => () => clearTimeout(transitionTimer.current), []);
 
-  useEffect(() => {
-    if (!chapter || pages.length === 0) return;
-    const initialPage = Math.min(Math.max(chapter.lastPageRead || 0, 0), pages.length - 1);
-    const initialChapter = streamChapters.find((item) => item.id === chapter.id);
-    if (initialChapter) saveProgress(initialChapter, initialPage);
-  }, [chapter?.id, pages.length, saveProgress, streamChapters]);
-
-  // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
-      for (const [streamChapterId, timer] of debouncedUpdatesRef.current) {
-        clearTimeout(timer);
-        const streamChapter = streamChaptersRef.current.find((item) => item.id === streamChapterId);
-        const pageIndex = lastSavedPagesRef.current.get(streamChapterId);
-        if (streamChapter && pageIndex !== undefined) {
-          updateProgress(createProgressSnapshot(streamChapter, mangaTitleRef.current, pageIndex));
-        }
-      }
-      debouncedUpdatesRef.current.clear();
-    };
-  }, [updateProgress]);
-
-  const handleIntersect = useCallback((streamChapter: StreamChapter, pageIndex: number) => {
-    setCurrentPage(pageIndex);
-    saveProgress(streamChapter, pageIndex);
-  }, [saveProgress]);
+  const handlePageReady = useCallback((owner: StreamChapter, index: number, ready: boolean) => {
+    const key = pageIdentity(owner.id, index);
+    if (readyPagesRef.current.has(key) === ready) return;
+    if (ready) readyPagesRef.current.add(key); else readyPagesRef.current.delete(key);
+    setReadyPageVersion((value) => value + 1);
+  }, [pageIdentity]);
 
   // Page Transitions Engine
   const changePageWithTransition = useCallback((nextIndex: number) => {
+    if (readerMode === "WEBTOON" && activeChapter) { webtoon.jump(activeChapter.id, nextIndex); return; }
+    clearTimeout(transitionTimer.current);
     if (pageTransition === "none") {
       setCurrentPage(nextIndex);
+      if (activeChapter) publishCursor({ chapterId: activeChapter.id, pageIndex: nextIndex }, false);
       window.scrollTo(0, 0);
       return;
     }
 
     setIsTransitioning(true);
-    setTimeout(() => {
+    transitionTimer.current = setTimeout(() => {
       setCurrentPage(nextIndex);
+      if (activeChapter) publishCursor({ chapterId: activeChapter.id, pageIndex: nextIndex }, false);
       window.scrollTo(0, 0);
       setIsTransitioning(false);
     }, 150);
-  }, [pageTransition]);
+  }, [pageTransition, readerMode, activeChapter, webtoon.jump, publishCursor]);
 
   // Compute current spread indices A and B
   const { idxA, idxB } = useMemo(() => {
@@ -558,9 +424,13 @@ export default function ReaderPage() {
   useEffect(() => {
     if (readerMode === "WEBTOON" || pages.length === 0) return;
     const activePage = idxB !== null && idxB < pages.length ? idxB : idxA;
-    const initialChapter = streamChapters[0];
-    if (initialChapter) saveProgress(initialChapter, activePage);
-  }, [idxA, idxB, readerMode, pages.length, saveProgress, streamChapters]);
+    const initialChapter = activeChapter;
+    if (!initialChapter) return;
+    const displayed = [idxA, idxB].filter((index): index is number => index !== null && index < pages.length);
+    if (displayed.every((index) => readyPagesRef.current.has(pageIdentity(initialChapter.id, index)))) {
+      saveProgress(initialChapter, activePage);
+    }
+  }, [idxA, idxB, readerMode, pages.length, saveProgress, activeChapter, readyPageVersion, pageIdentity]);
 
   // Navigation Logic
   const navigatePage = useCallback((dir: number) => {
@@ -630,7 +500,7 @@ export default function ReaderPage() {
 
   // Preload next 3 images dynamically
   useEffect(() => {
-    if (pages.length === 0 || !chapter || !serverBaseUrl) return;
+    if (pages.length === 0 || !activeChapter || !serverBaseUrl) return;
 
     const preloadedImages: HTMLImageElement[] = [];
     const preloadCount = 3;
@@ -642,8 +512,8 @@ export default function ReaderPage() {
           ? resolveBackendUrl(serverBaseUrl, pages[nextIdx])
           : buildSuwayomiPageUrl({
               serverBaseUrl,
-              mangaId: chapter.mangaId,
-              chapterSourceOrder: chapter.sourceOrder,
+              mangaId: activeChapter.mangaId,
+              chapterSourceOrder: activeChapter.sourceOrder,
               pageIndex: nextIdx,
             });
 
@@ -658,15 +528,25 @@ export default function ReaderPage() {
         img.src = "";
       });
     };
-  }, [currentPage, pages, chapter, mockMode, serverBaseUrl]);
+  }, [currentPage, pages, activeChapter, mockMode, serverBaseUrl]);
 
   // Webtoon infinite-scroll binge (append chapters or navigate)
   useEffect(() => {
     if (readerMode !== "WEBTOON") return;
     const tail = streamChapters[streamChapters.length - 1];
-    const hasMore = tail ? !!getNextSiblingId(tail.id) : !!nextChapterId;
-    if (!hasMore) return;
+    const nextId = tail ? getNextSiblingId(tail.id) : undefined;
+    if (!nextId || webtoon.target) return;
 
+    if (infiniteChapterReading) {
+      if (!tailAnchor.current || appendError) return;
+      const observer = new IntersectionObserver(([entry]) => {
+        if (entry.isIntersecting && !bingeLoadingRef.current) void appendNextBingeChapter();
+      }, { rootMargin: "0px 0px 800px 0px", threshold: 0 });
+      observer.observe(tailAnchor.current);
+      return () => observer.disconnect();
+    }
+
+    let nextTimer: ReturnType<typeof setTimeout> | undefined;
     const handleWebtoonScroll = () => {
       const isNearBottom =
         window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 80;
@@ -675,23 +555,21 @@ export default function ReaderPage() {
       autoScrollEndTriggered.current = true;
       setIsAutoScrolling(false);
 
-      if (infiniteChapterReading) {
-        void appendNextBingeChapter();
-      } else if (nextChapterId) {
-        setTimeout(() => navigate(`/reader/${nextChapterId}`), 800);
-      }
+      nextTimer = setTimeout(() => { if (isCurrentProgressBackend(progressTarget)) navigate(`/reader/${nextId}`); }, 800);
     };
 
     window.addEventListener("scroll", handleWebtoonScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleWebtoonScroll);
+    return () => { window.removeEventListener("scroll", handleWebtoonScroll); clearTimeout(nextTimer); };
   }, [
     readerMode,
-    nextChapterId,
     navigate,
     infiniteChapterReading,
     appendNextBingeChapter,
     streamChapters,
     getNextSiblingId,
+    appendError,
+    webtoon.target,
+    progressTarget,
   ]);
 
   // Auto-scroll loop
@@ -752,11 +630,12 @@ export default function ReaderPage() {
   // Keyboard binding listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      if (!readerShortcutAllowed(e)) {
         return;
       }
 
       const key = e.key.toLowerCase();
+      if ((key === "enter" || key === " ") && e.target instanceof Element && e.target.closest("button, a")) return;
 
       const isNext = customKeybinds?.nextPage?.includes(key);
       const isPrev = customKeybinds?.prevPage?.includes(key);
@@ -765,22 +644,27 @@ export default function ReaderPage() {
       const isCycleSpread = customKeybinds?.cycleSpread?.includes(key);
 
       if (isNext) {
+        e.preventDefault();
         const dir = readerMode === "RTL" ? -1 : 1;
         navigatePage(dir);
       } else if (isPrev) {
+        e.preventDefault();
         const dir = readerMode === "RTL" ? 1 : -1;
         navigatePage(dir);
       } else if (isExit) {
+        e.preventDefault();
         if (showOverlay) {
-          navigate(chapter?.mangaId ? `/manga/${chapter.mangaId}` : "/library");
+          navigate(activeChapter?.mangaId ? `/manga/${activeChapter.mangaId}` : "/library");
         } else {
           setShowOverlay(true);
         }
       } else if (isCycleFit) {
+        e.preventDefault();
         const modes: FitMode[] = ["FIT_SCREEN", "FIT_WIDTH", "FIT_HEIGHT"];
         const nextIdx = (modes.indexOf(fitMode) + 1) % modes.length;
         handleFitModeChange(modes[nextIdx]);
       } else if (isCycleSpread) {
+        e.preventDefault();
         if (readerMode !== "WEBTOON") {
           const spreads: PageSpread[] = ["SINGLE", "DOUBLE", "DOUBLE_COVER"];
           const nextIdx = (spreads.indexOf(pageSpread) + 1) % spreads.length;
@@ -799,7 +683,7 @@ export default function ReaderPage() {
     pages.length, 
     navigatePage, 
     navigate, 
-    chapter?.mangaId, 
+    activeChapter?.mangaId,
     handleFitModeChange, 
     handlePageSpreadChange, 
     customKeybinds, 
@@ -825,7 +709,7 @@ export default function ReaderPage() {
     );
   }
 
-  if (chapterLoading || pagesLoading) {
+  if (!activeChapter && (chapterLoading || pagesLoading || !!rootPages.length)) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-black">
         <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
@@ -834,7 +718,7 @@ export default function ReaderPage() {
     );
   }
 
-  if (chapterError || pagesError || !chapter) {
+  if (!activeChapter && (chapterError || pagesError || !chapter)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black px-6 py-10 text-slate-300">
         <SourceRecoveryPanel
@@ -849,14 +733,14 @@ export default function ReaderPage() {
     );
   }
 
-  if (pages.length === 0) {
+  if (!activeChapter || pages.length === 0) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black px-6 py-10 text-slate-300">
         <SourceRecoveryPanel
           title="No pages returned."
           detail="Suwayomi returned the chapter, but the source did not provide any page URLs. Try another source for this title."
-          searchedTitle={chapter.manga?.title || null}
-          onRetry={() => fetchPages()}
+          searchedTitle={chapter?.manga?.title || null}
+          onRetry={retryReaderLoad}
           retryLabel="Retry pages"
           className="bg-ink-950/90"
         />
@@ -873,8 +757,8 @@ export default function ReaderPage() {
     if (mockMode) return resolveBackendUrl(serverBaseUrl, pages[pageIndex]);
     return buildSuwayomiPageUrl({
       serverBaseUrl,
-      mangaId: chapter.mangaId,
-      chapterSourceOrder: chapter.sourceOrder,
+      mangaId: activeChapter.mangaId,
+      chapterSourceOrder: activeChapter.sourceOrder,
       pageIndex,
     });
   };
@@ -890,12 +774,22 @@ export default function ReaderPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-black" data-reader-session>
+      {readingSequence.isError && <div role="alert" className="fixed bottom-5 left-4 z-[60] max-w-md rounded-lg border border-amber-300/30 bg-ink-950 p-3 text-sm text-slate-200"><p>Chapter continuation could not be confirmed. This chapter remains readable.</p><button type="button" className="mt-2 text-yomi-jade underline" onClick={() => void readingSequence.refetch()}>Retry chapter list</button></div>}
+      {readingSequence.data?.offline && <p role="status" className="fixed bottom-3 left-3 z-30 rounded bg-ink-950/90 px-3 py-1 text-xs text-slate-300">Offline continuation uses saved chapters only.</p>}
+      {progressSaveError && <div role="alert" className="fixed left-4 top-20 z-[60] max-w-md rounded-lg border border-red-400/30 bg-ink-950 p-3 text-sm text-slate-200">
+        <p>{progressSaveError}</p>
+        <button type="button" className="mt-2 text-yomi-jade underline" onClick={() => {
+          const failed = failedProgressRef.current;
+          if (failed) void updateProgress(failed.backend, failed.progress);
+          else window.location.reload();
+        }}>{failedProgressRef.current ? "Retry saving progress" : "Reopen chapter"}</button>
+      </div>}
       <ReaderOverlay
         show={showOverlay}
-        mangaId={chapter.mangaId}
-        mangaTitle={chapter.manga?.title || "Unknown Manga"}
-        chapterName={chapter.name}
+        mangaId={activeChapter.mangaId}
+        mangaTitle={activeChapter.mangaTitle}
+        chapterName={activeChapter.name}
         currentPage={currentPage}
         totalPages={pages.length}
         readerMode={readerMode}
@@ -904,12 +798,21 @@ export default function ReaderPage() {
         onFitModeChange={handleFitModeChange}
         pageSpread={pageSpread}
         onPageSpreadChange={handlePageSpreadChange}
+        imageFilters={effectiveImageFilters}
+        onImageFiltersChange={(filters: Partial<ImageFilters>) => changeTitleSetting({ imageFilters: filters })}
+        cropBorders={effectiveCropBorders}
+        onCropBordersChange={(cropBorders) => changeTitleSetting({ cropBorders })}
+        pageTransition={pageTransition}
+        onPageTransitionChange={(pageTransition) => changeTitleSetting({ pageTransition })}
+        autoDownloadCount={effectiveAutoDownloadCount}
+        onAutoDownloadCountChange={(autoDownloadCount) => changeTitleSetting({ autoDownloadCount })}
         nextChapterId={nextChapterId}
         prevChapterId={prevChapterId}
         hasOverride={hasOverride}
         onToggleOverride={handleToggleOverride}
         buildPageUrl={buildPageUrl}
         onJumpToPage={handleJumpToPage}
+        onHeaderRef={webtoon.onHeaderRef}
         isAutoScrolling={isAutoScrolling}
         onToggleAutoScroll={() => setIsAutoScrolling(!isAutoScrolling)}
       />
@@ -923,10 +826,15 @@ export default function ReaderPage() {
               ? "h-screen overflow-y-auto flex justify-center items-start"
               : "flex h-screen items-center justify-center overflow-hidden"
         } ${transitionClass}`}
+        role="region"
+        aria-label="Reading surface"
+        aria-describedby="reader-keyboard-help"
+        tabIndex={0}
         onClick={handlePageClick}
       >
+        <p id="reader-keyboard-help" className="sr-only">Reader shortcuts work here. Use Tab and Shift+Tab to reach the controls.</p>
         {readerMode === "WEBTOON" ? (
-          <div className="flex flex-col w-full">
+          <div className="flex flex-col w-full" style={{ paddingTop: webtoon.headerInset, paddingBottom: `calc(100vh - ${webtoon.headerInset}px)` }}>
             {streamChapters.map((streamCh, ci) => (
               <div key={streamCh.id} className="flex w-full flex-col">
                 {ci > 0 && (
@@ -935,7 +843,9 @@ export default function ReaderPage() {
                   </div>
                 )}
                 {streamCh.pages.map((url, i) => (
-                  <WebtoonPageWrapper key={`${streamCh.id}-${i}`} pageIndex={i}>
+                  <WebtoonPage key={`${streamCh.id}-${i}`} chapterId={streamCh.id} pageIndex={i}
+                    forceVisible={webtoon.target?.chapterId === streamCh.id && webtoon.target.pageIndex === i}
+                    onAnchor={webtoon.onAnchor} onLayout={webtoon.onLayout}>
                     <ReaderImage
                       url={mockMode
                         ? resolveBackendUrl(serverBaseUrl, url)
@@ -947,14 +857,20 @@ export default function ReaderPage() {
                           })}
                       fallbackUrl={resolveBackendUrl(serverBaseUrl, url)}
                       pageNumber={i}
-                      onIntersect={(pageIndex) => handleIntersect(streamCh, pageIndex)}
+                      onReadyChange={(ready) => handlePageReady(streamCh, i, ready)}
+                      onLoadStateChange={(state) => webtoon.onImageState(streamCh.id, i, state)}
                       imageFilters={effectiveImageFilters}
                       cropBorders={effectiveCropBorders}
                     />
-                  </WebtoonPageWrapper>
+                  </WebtoonPage>
                 ))}
               </div>
             ))}
+            <div ref={tailAnchor} aria-hidden="true" className="h-px" />
+            {appending && <p role="status" className="p-5 text-center text-sm text-slate-400">Loading next chapter…</p>}
+            {appendError && <div role="alert" className="space-y-3 border-t border-white/10 bg-ink-950 p-5 text-center text-sm text-slate-300">
+              <p>{appendError}</p><button type="button" className="yomi-button yomi-button-secondary" onClick={(event) => { event.stopPropagation(); void appendNextBingeChapter(); }}>Retry next chapter</button>
+            </div>}
 
             {!infiniteChapterReading && nextChapterId && (
               <div className="flex w-full flex-col items-center justify-center gap-3 border-t border-white/5 bg-ink-950 p-8 text-center">
@@ -987,6 +903,10 @@ export default function ReaderPage() {
                     url={buildPageUrl(idx)}
                     fallbackUrl={resolveBackendUrl(serverBaseUrl, pages[idx])}
                     pageNumber={idx}
+                    onReadyChange={(ready) => {
+                      const owner = activeChapter;
+                      if (owner) handlePageReady(owner, idx, ready);
+                    }}
                     mode="single"
                     fitMode={fitMode}
                     imageFilters={effectiveImageFilters}

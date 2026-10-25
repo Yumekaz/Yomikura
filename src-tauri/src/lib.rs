@@ -7,8 +7,11 @@ use tauri::tray::TrayIconBuilder;
 use tauri::Emitter;
 use tauri::WindowEvent;
 use tauri::{Manager, State};
+mod local_import;
+mod window_layout;
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DownloadedPage {
     bytes: Vec<u8>,
     content_type: String,
@@ -1015,9 +1018,16 @@ pub fn run() {
             download_suwayomi_jar,
             get_portable_data_path,
             open_logs_folder,
-            fetch_local_page
+            fetch_local_page,
+            local_import::get_local_import_target,
+            local_import::import_local_archives
         ])
         .setup(|app| {
+            if let Some(window) = app.get_webview_window("main") {
+                if let Err(error) = window_layout::fit_initial_window(&window) {
+                    eprintln!("Initial window could not be fitted to the display: {error}");
+                }
+            }
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -1140,6 +1150,16 @@ mod tests {
         disable_suwayomi_browser_autolaunch, sha256_file, verified_jar, verified_jar_is_unchanged,
     };
 
+    #[test]
+    fn native_page_response_matches_the_frontend_contract() {
+        let json = serde_json::to_value(super::DownloadedPage {
+            bytes: vec![1, 2],
+            content_type: "image/png".into(),
+        })
+        .unwrap();
+        assert_eq!(json["contentType"], "image/png");
+        assert!(json.get("content_type").is_none());
+    }
     #[test]
     fn sha256_file_matches_known_digest() {
         let path = std::env::temp_dir().join(format!(

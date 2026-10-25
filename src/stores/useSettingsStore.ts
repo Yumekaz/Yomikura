@@ -1,7 +1,12 @@
 import { create } from "zustand";
-import { persist, StateStorage, createJSONStorage } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { testServerConnection } from "../api/suwayomi/connection";
 import { DEFAULT_SERVER_BASE_URL } from "../config/server";
+import { progressBackend, type ProgressBackend } from "../api/suwayomi/backendIdentity";
+import { legacyMangaSettings, mangaReaderSettingsKey, mergeMangaSettings } from "./mangaReaderSettings";
+import { normalizeChapterPolicy, type ChapterPolicy } from "../features/manga/chapterPolicy";
+import { createSettingsStorage } from "./settingsStorage";
+import { legacyPalette, paletteFor, type PaletteId } from "../theme/palettes";
 
 /** Tauri v2 sets `window.isTauri`; v1 used `__TAURI__` when withGlobalTauri is enabled. */
 export const isTauri = () => {
@@ -14,53 +19,7 @@ export const isTauri = () => {
   return !!(w.isTauri || w.__TAURI__ || w.__TAURI_INTERNALS__);
 };
 
-const customTauriStorage: StateStorage = {
-  getItem: async (name: string): Promise<string | null> => {
-    if (isTauri()) {
-      try {
-        const { readTextFile, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
-        const fileExists = await exists(name + ".json", { baseDir: BaseDirectory.AppConfig });
-        if (fileExists) {
-          return await readTextFile(name + ".json", { baseDir: BaseDirectory.AppConfig });
-        }
-      } catch (err) {
-        console.error("Failed to read settings from Tauri FS:", err);
-      }
-    }
-    return localStorage.getItem(name);
-  },
-  setItem: async (name: string, value: string): Promise<void> => {
-    if (isTauri()) {
-      try {
-        const { writeTextFile, mkdir, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
-        const dirExists = await exists("", { baseDir: BaseDirectory.AppConfig });
-        if (!dirExists) {
-          await mkdir("", { baseDir: BaseDirectory.AppConfig, recursive: true });
-        }
-        await writeTextFile(name + ".json", value, { baseDir: BaseDirectory.AppConfig });
-        return;
-      } catch (err) {
-        console.error("Failed to write settings to Tauri FS:", err);
-      }
-    }
-    localStorage.setItem(name, value);
-  },
-  removeItem: async (name: string): Promise<void> => {
-    if (isTauri()) {
-      try {
-        const { remove, exists, BaseDirectory } = await import("@tauri-apps/plugin-fs");
-        const fileExists = await exists(name + ".json", { baseDir: BaseDirectory.AppConfig });
-        if (fileExists) {
-          await remove(name + ".json", { baseDir: BaseDirectory.AppConfig });
-          return;
-        }
-      } catch (err) {
-        console.error("Failed to remove settings in Tauri FS:", err);
-      }
-    }
-    localStorage.removeItem(name);
-  }
-};
+const customTauriStorage = createSettingsStorage(isTauri);
 
 export type ConnectionStatus = "disconnected" | "connected" | "error" | "testing";
 export type ReaderMode = "WEBTOON" | "LTR" | "RTL";
@@ -121,13 +80,17 @@ interface SettingsState {
   activeProfileId: string;
   showNsfw: boolean;
   accentColor: "jade" | "mint" | "gold" | "plum" | "coral";
+  colorPalette: PaletteId;
+  showReadingSpirit: boolean;
   coverDensity: "compact" | "normal" | "spacious";
   themeMode: "dark" | "light" | "system";
   mockMode: boolean;
   serverDataPath: string;
   
   // Phase 2 features
-  mangaSettingsOverrides: Record<string | number, MangaOverride>;
+  mangaSettingsOverrides: Record<string, MangaOverride>;
+  chapterPolicies: Record<string, ChapterPolicy>;
+  legacyMangaOverridesBackend: string | null;
   autoScrollSpeed: number;
   imageFilters: ImageFilters;
   cropBorders: boolean;
@@ -172,6 +135,8 @@ interface SettingsState {
   setActiveProfileId: (id: string) => void;
   setShowNsfw: (show: boolean) => void;
   setAccentColor: (color: "jade" | "mint" | "gold" | "plum" | "coral") => void;
+  setColorPalette: (palette: PaletteId) => void;
+  setShowReadingSpirit: (visible: boolean) => void;
   setCoverDensity: (density: "compact" | "normal" | "spacious") => void;
   setThemeMode: (mode: "dark" | "light" | "system") => void;
   setMockMode: (mock: boolean) => void;
@@ -179,8 +144,10 @@ interface SettingsState {
   resetAllSettings: () => void;
   
   // Phase 2 actions
-  setMangaOverride: (mangaId: string | number, override: Partial<MangaOverride>) => void;
-  clearMangaOverride: (mangaId: string | number) => void;
+  setMangaOverride: (mangaId: string | number, override: Partial<MangaOverride>, backend?: ProgressBackend) => void;
+  setChapterPolicy: (mangaId: string | number, policy: ChapterPolicy, backend: ProgressBackend) => void;
+  clearMangaOverride: (mangaId: string | number, backend?: ProgressBackend) => void;
+  assignLegacyMangaOverrides: (backend: ProgressBackend) => boolean;
   setAutoScrollSpeed: (speed: number) => void;
   setImageFilters: (filters: Partial<ImageFilters>) => void;
   setCropBorders: (crop: boolean) => void;
@@ -188,7 +155,7 @@ interface SettingsState {
   setAutoDownloadCount: (count: number) => void;
   setDownloadConcurrency: (count: number) => void;
   setBackupIntervalHours: (hours: number) => void;
-  setScheduledBackupResult: (status: "idle" | "running" | "success" | "error", error?: string) => void;
+  setScheduledBackupResult: (status: "idle" | "running" | "success" | "error", error?: string, savedAt?: number) => void;
   setLibraryUpdateIntervalHours: (hours: number) => void;
   setScheduledLibraryUpdateResult: (status: "idle" | "running" | "success" | "error", error?: string) => void;
   setReaderNavigationMode: (mode: ReaderNavigationMode) => void;
@@ -231,6 +198,8 @@ export const useSettingsStore = create<SettingsState>()(
       activeProfileId: "default",
       showNsfw: false,
       accentColor: "jade",
+      colorPalette: "ember",
+      showReadingSpirit: true,
       coverDensity: "normal",
       themeMode: "dark",
       mockMode: false,
@@ -238,6 +207,8 @@ export const useSettingsStore = create<SettingsState>()(
       
       // Phase 2 default state
       mangaSettingsOverrides: {},
+      chapterPolicies: {},
+      legacyMangaOverridesBackend: null,
       autoScrollSpeed: 1,
       imageFilters: { grayscale: 0, invert: 0, brightness: 100, contrast: 100 },
       cropBorders: false,
@@ -293,7 +264,8 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       testConnection: async () => {
-        const { serverBaseUrl } = get();
+        const { serverBaseUrl, mockMode: requestedMockMode } = get();
+        const stillCurrent = () => get().serverBaseUrl === serverBaseUrl && get().mockMode === requestedMockMode;
         if (!serverBaseUrl) {
           set({ connectionStatus: "error", errorMessage: "Server URL cannot be empty." });
           return false;
@@ -303,6 +275,7 @@ export const useSettingsStore = create<SettingsState>()(
 
         try {
           const success = await testServerConnection(serverBaseUrl);
+          if (!stillCurrent()) return false;
           if (success) {
             set({ connectionStatus: "connected", errorMessage: "", mockMode: false });
             return true;
@@ -313,6 +286,7 @@ export const useSettingsStore = create<SettingsState>()(
           });
           return false;
         } catch (error: any) {
+          if (!stillCurrent()) return false;
           set({ connectionStatus: "error", errorMessage: error.message || "Connection failed" });
           return false;
         }
@@ -385,27 +359,41 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       setShowNsfw: (show: boolean) => set({ showNsfw: show }),
-      setAccentColor: (color) => set({ accentColor: color }),
+      setAccentColor: (color) => set({ accentColor: color, colorPalette: legacyPalette(color) }),
+      setColorPalette: (palette) => set({ colorPalette: paletteFor(palette).id }),
+      setShowReadingSpirit: (visible) => set({ showReadingSpirit: visible }),
       setCoverDensity: (density) => set({ coverDensity: density }),
       setThemeMode: (mode) => set({ themeMode: mode }),
-      setMockMode: (mock: boolean) => set({ mockMode: mock }),
+      setMockMode: (mock: boolean) => set({ mockMode: mock, ...(mock ? { connectionStatus: "disconnected", errorMessage: "" } : {}) }),
       setServerDataPath: (path: string) => set({ serverDataPath: path.trim() }),
       
       // Phase 2 actions implementation
-      setMangaOverride: (mangaId, override) => set((state) => ({
-        mangaSettingsOverrides: {
-          ...state.mangaSettingsOverrides,
-          [mangaId]: {
-            ...state.mangaSettingsOverrides[mangaId],
-            ...override
-          }
-        }
-      })),
-      clearMangaOverride: (mangaId) => set((state) => {
+      setChapterPolicy: (mangaId, policy, backend) => set((state) => ({ chapterPolicies: { ...state.chapterPolicies, [mangaReaderSettingsKey(backend, mangaId)]: normalizeChapterPolicy(policy) } })),
+      setMangaOverride: (mangaId, override, backend) => set((state) => {
+        const key = mangaReaderSettingsKey(backend ?? progressBackend(state.serverBaseUrl, state.mockMode), mangaId);
+        return { mangaSettingsOverrides: { ...state.mangaSettingsOverrides, [key]: mergeMangaSettings(state.mangaSettingsOverrides[key], override) } };
+      }),
+      clearMangaOverride: (mangaId, backend) => set((state) => {
         const copy = { ...state.mangaSettingsOverrides };
-        delete copy[mangaId];
+        delete copy[mangaReaderSettingsKey(backend ?? progressBackend(state.serverBaseUrl, state.mockMode), mangaId)];
         return { mangaSettingsOverrides: copy };
       }),
+      assignLegacyMangaOverrides: (backend) => {
+        let assigned = false;
+        set((state) => {
+          if (state.legacyMangaOverridesBackend || progressBackend(state.serverBaseUrl, state.mockMode).key !== backend.key) return state;
+          const legacy = legacyMangaSettings(state.mangaSettingsOverrides);
+          if (!legacy.length) return state;
+          const copy = { ...state.mangaSettingsOverrides };
+          for (const [id, previous] of legacy) {
+            const key = mangaReaderSettingsKey(backend, id);
+            copy[key] = mergeMangaSettings(previous, copy[key] ?? {});
+          }
+          assigned = true;
+          return { mangaSettingsOverrides: copy, legacyMangaOverridesBackend: backend.key };
+        });
+        return assigned;
+      },
       setAutoScrollSpeed: (speed) => set({ autoScrollSpeed: speed }),
       setImageFilters: (filters) => set((state) => ({
         imageFilters: { ...state.imageFilters, ...filters }
@@ -415,10 +403,10 @@ export const useSettingsStore = create<SettingsState>()(
       setAutoDownloadCount: (count) => set({ autoDownloadCount: count }),
       setDownloadConcurrency: (count) => set({ downloadConcurrency: Math.min(4, Math.max(1, Math.round(count))) }),
       setBackupIntervalHours: (hours) => set({ backupIntervalHours: Math.max(0, Math.round(hours)) }),
-      setScheduledBackupResult: (status, error = "") => set({
+      setScheduledBackupResult: (status, error = "", savedAt) => set({
         scheduledBackupStatus: status,
         scheduledBackupError: error,
-        ...(status === "success" ? { lastScheduledBackupAt: Date.now() } : {}),
+        ...(savedAt !== undefined ? { lastScheduledBackupAt: savedAt } : status === "success" ? { lastScheduledBackupAt: Date.now() } : {}),
       }),
       setLibraryUpdateIntervalHours: (hours) => set({ libraryUpdateIntervalHours: Math.max(0, Math.round(hours)) }),
       setScheduledLibraryUpdateResult: (status, error = "") => set({
@@ -493,11 +481,15 @@ export const useSettingsStore = create<SettingsState>()(
           activeProfileId: "default",
           showNsfw: false,
           accentColor: "jade",
+          colorPalette: "ember",
+          showReadingSpirit: true,
           coverDensity: "normal",
           themeMode: "dark",
           mockMode: false,
           serverDataPath: "",
           mangaSettingsOverrides: {},
+          chapterPolicies: {},
+          legacyMangaOverridesBackend: null,
           autoScrollSpeed: 1,
           imageFilters: { grayscale: 0, invert: 0, brightness: 100, contrast: 100 },
           cropBorders: false,
@@ -555,11 +547,15 @@ export const useSettingsStore = create<SettingsState>()(
         activeProfileId: state.activeProfileId,
         showNsfw: state.showNsfw,
         accentColor: state.accentColor,
+        colorPalette: state.colorPalette,
+        showReadingSpirit: state.showReadingSpirit,
         coverDensity: state.coverDensity,
         themeMode: state.themeMode,
         mockMode: state.mockMode,
         serverDataPath: state.serverDataPath,
         mangaSettingsOverrides: state.mangaSettingsOverrides,
+        chapterPolicies: state.chapterPolicies,
+        legacyMangaOverridesBackend: state.legacyMangaOverridesBackend,
         autoScrollSpeed: state.autoScrollSpeed,
         imageFilters: state.imageFilters,
         cropBorders: state.cropBorders,
@@ -611,11 +607,15 @@ export const useSettingsStore = create<SettingsState>()(
           errorMessage: persisted?.errorMessage || "",
           showNsfw: persisted?.showNsfw ?? currentState.showNsfw,
           accentColor: persisted?.accentColor ?? currentState.accentColor,
+          colorPalette: persisted?.colorPalette ? paletteFor(persisted.colorPalette).id : legacyPalette(persisted?.accentColor),
+          showReadingSpirit: persisted?.showReadingSpirit ?? currentState.showReadingSpirit,
           coverDensity: persisted?.coverDensity ?? currentState.coverDensity,
           themeMode: persisted?.themeMode ?? currentState.themeMode,
           mockMode: persisted?.mockMode ?? currentState.mockMode,
           serverDataPath: persisted?.serverDataPath ?? currentState.serverDataPath,
           mangaSettingsOverrides: persisted?.mangaSettingsOverrides ?? currentState.mangaSettingsOverrides,
+          chapterPolicies: persisted?.chapterPolicies ?? currentState.chapterPolicies,
+          legacyMangaOverridesBackend: persisted?.legacyMangaOverridesBackend ?? null,
           autoScrollSpeed: persisted?.autoScrollSpeed ?? currentState.autoScrollSpeed,
           imageFilters: persisted?.imageFilters ?? currentState.imageFilters,
           cropBorders: persisted?.cropBorders ?? currentState.cropBorders,

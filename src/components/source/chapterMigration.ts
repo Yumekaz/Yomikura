@@ -5,6 +5,7 @@ export type MigrationChapter = {
   isRead: boolean;
   isBookmarked: boolean;
   lastPageRead: number;
+  pageCount?: number;
 };
 
 export type ChapterMigration = {
@@ -12,48 +13,68 @@ export type ChapterMigration = {
   patch: { isRead?: boolean; isBookmarked?: boolean; lastPageRead?: number };
 };
 
-function titleKey(value: string) {
-  return value.trim().toLocaleLowerCase().replace(/\s+/g, " ");
+export type ChapterMapping = {
+  source: MigrationChapter;
+  target?: MigrationChapter;
+  status: "matched" | "unmatched" | "ambiguous";
+  patch: ChapterMigration["patch"];
+  positionSkipped: boolean;
+};
+const titleKey = (value: string) => value.normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ");
+const validNumber = (value: number) => Number.isFinite(value) && value >= 0;
+export const hasChapterState = (chapter: MigrationChapter) => chapter.isRead || chapter.isBookmarked || chapter.lastPageRead > 0;
+
+/** Refuse ambiguous numbers/names rather than assigning progress to the first search result. */
+export function reviewChapterMigration(source: MigrationChapter[], target: MigrationChapter[]): ChapterMapping[] {
+  const targets = target.filter((chapter) => Number.isSafeInteger(Number(chapter.id)));
+  const proposals = source.map((chapter) => {
+    const numbered = validNumber(chapter.chapterNumber) ? targets.filter((candidate) => candidate.chapterNumber === chapter.chapterNumber) : [];
+    const name = titleKey(chapter.name);
+    const named = name ? targets.filter((candidate) => titleKey(candidate.name) === name) : [];
+    const exact = numbered.filter((candidate) => named.includes(candidate));
+    const candidates = exact.length ? exact : numbered.length ? numbered : named;
+    return { chapter, candidates };
+  });
+  const claims = new Map<number, number>();
+  for (const item of proposals) if (item.candidates.length === 1) {
+    const id = Number(item.candidates[0].id); claims.set(id, (claims.get(id) ?? 0) + 1);
+  }
+  return proposals.map(({ chapter, candidates }) => {
+    const match = candidates.length === 1 && claims.get(Number(candidates[0].id)) === 1 ? candidates[0] : undefined;
+    const patch: ChapterMigration["patch"] = {};
+    let positionSkipped = false;
+    if (match) {
+      if (chapter.isRead && !match.isRead) patch.isRead = true;
+      if (chapter.isBookmarked && !match.isBookmarked) patch.isBookmarked = true;
+      if (chapter.lastPageRead > 0 && !match.isRead) {
+        const samePages = !!chapter.pageCount && chapter.pageCount === match.pageCount;
+        const validPosition = Number.isSafeInteger(chapter.lastPageRead) && chapter.lastPageRead >= 0 && chapter.lastPageRead < (match.pageCount ?? 0);
+        const validTargetPosition = Number.isSafeInteger(match.lastPageRead) && match.lastPageRead >= 0 && match.lastPageRead < (match.pageCount ?? 0);
+        if (samePages && validPosition) {
+          if (!validTargetPosition || chapter.lastPageRead > match.lastPageRead) patch.lastPageRead = chapter.lastPageRead;
+        }
+        else if (!chapter.isRead) positionSkipped = true;
+      }
+    }
+    return { source: chapter, target: match, status: match ? "matched" : candidates.length ? "ambiguous" : "unmatched", patch, positionSkipped };
+  });
 }
 
 export function buildChapterMigrationPlan(source: MigrationChapter[], target: MigrationChapter[]): ChapterMigration[] {
-  const usedTargetIds = new Set<number>();
-  const plan: ChapterMigration[] = [];
-
-  for (const sourceChapter of source) {
-    if (!sourceChapter.isRead && !sourceChapter.isBookmarked && sourceChapter.lastPageRead <= 0) continue;
-    const numberMatch = target.find((candidate) =>
-      !usedTargetIds.has(Number(candidate.id)) && Number.isFinite(sourceChapter.chapterNumber) &&
-      candidate.chapterNumber === sourceChapter.chapterNumber,
-    );
-    const nameMatch = target.find((candidate) =>
-      !usedTargetIds.has(Number(candidate.id)) && titleKey(candidate.name) === titleKey(sourceChapter.name),
-    );
-    const targetChapter = numberMatch ?? nameMatch;
-    if (!targetChapter) continue;
-
-    const targetId = Number(targetChapter.id);
-    if (!Number.isSafeInteger(targetId)) continue;
-    usedTargetIds.add(targetId);
-
-    const patch = {
-      ...(sourceChapter.isRead && !targetChapter.isRead ? { isRead: true } : {}),
-      ...(sourceChapter.isBookmarked && !targetChapter.isBookmarked ? { isBookmarked: true } : {}),
-      ...(sourceChapter.lastPageRead > targetChapter.lastPageRead ? { lastPageRead: sourceChapter.lastPageRead } : {}),
-    };
-    if (Object.keys(patch).length) plan.push({ targetId, patch });
-  }
-
-  return plan;
+  return reviewChapterMigration(source, target).flatMap((row) => row.target && Object.keys(row.patch).length ? [{ targetId: Number(row.target.id), patch: row.patch }] : []);
 }
 
 export async function runWithConcurrency<T>(items: T[], worker: (item: T) => Promise<unknown>, concurrency = 4) {
   let next = 0;
+  let failed = false;
   const workers = Array.from({ length: Math.min(Math.max(1, concurrency), items.length) }, async () => {
-    while (next < items.length) {
+    while (!failed && next < items.length) {
       const item = items[next++];
-      await worker(item);
+      try { await worker(item); } catch (error) { failed = true; throw error; }
     }
   });
-  await Promise.all(workers);
+  // Wait for every in-flight write before reporting failure or allowing a retry.
+  const results = await Promise.allSettled(workers);
+  const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
+  if (failure) throw failure.reason;
 }

@@ -1,6 +1,7 @@
 query GetMangaDetails($id: Int!) {
   manga(id: $id) {
     id
+    initialized
     title
     author
     artist
@@ -10,21 +11,17 @@ query GetMangaDetails($id: Int!) {
     genre
     inLibrary
     categories {
-      edges {
-        node {
-          id
-        }
-      }
+      nodes { id }
     }
     source {
       name
     }
     chapters {
-      edges {
-        node {
+      nodes {
           id
           name
           chapterNumber
+          sourceOrder
           isRead
           isBookmarked
           isDownloaded
@@ -32,7 +29,6 @@ query GetMangaDetails($id: Int!) {
           pageCount
           uploadDate
           scanlator
-        }
       }
     }
   }

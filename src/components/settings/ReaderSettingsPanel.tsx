@@ -1,11 +1,27 @@
+import { ThemedSelect } from "../ui/ThemedSelect";
 import { useEffect, useState } from "react";
 import { BookOpen, Palette, Plus, Sliders, Trash2 } from "lucide-react";
 import { useTranslation } from "../../hooks/useTranslation";
 import { type ReaderMode, useSettingsStore } from "../../stores/useSettingsStore";
+import { progressBackend, type ProgressBackend } from "../../api/suwayomi/backendIdentity";
+import { legacyMangaSettings } from "../../stores/mangaReaderSettings";
+import { useFeedback } from "../ui/FeedbackProvider";
 
 export function ReaderSettingsPanel() {
   const { t } = useTranslation();
   const store = useSettingsStore();
+  const { confirm, notify } = useFeedback();
+  const legacyCount = legacyMangaSettings(store.mangaSettingsOverrides).length;
+  let legacyTarget: ProgressBackend | undefined;
+  try { legacyTarget = progressBackend(store.serverBaseUrl, store.mockMode); } catch { /* Server setup can contain an incomplete URL. */ }
+  const recoverLegacySettings = async () => {
+    const target = legacyTarget;
+    if (!target) return;
+    const destination = target.isDemo ? "the demo sandbox" : target.serverBaseUrl;
+    if (!await confirm({ title: "Restore earlier title settings?", detail: `Apply the ${legacyCount} earlier title settings to ${destination}? Choose the server these titles belonged to before continuing. Newer settings for this server will be kept.`, confirmLabel: "Apply earlier settings" })) return;
+    const assigned = useSettingsStore.getState().assignLegacyMangaOverrides(target);
+    notify(assigned ? "Earlier title settings are available on this server." : "The selected server or saved settings changed. Review the current server and try again.", assigned ? "success" : "info");
+  };
   const [presetName, setPresetName] = useState("");
   const [addingPreset, setAddingPreset] = useState(false);
   const [recordingAction, setRecordingAction] = useState<string | null>(null);
@@ -27,15 +43,21 @@ export function ReaderSettingsPanel() {
   const resetKeybinds = () => store.setCustomKeybinds({ prevPage: ["arrowleft", "a", "backspace"], nextPage: ["arrowright", "d", " ", "enter"], toggleOverlay: ["escape"], cycleFit: ["w"], cycleSpread: ["s"] });
 
   return <div className="space-y-6">
+    {legacyCount > 0 && !store.legacyMangaOverridesBackend && <section className="rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-panel" aria-labelledby="earlier-reader-settings-title">
+      <h2 id="earlier-reader-settings-title" className="text-lg font-semibold text-white">Earlier title settings</h2>
+      <p className="mt-2 text-sm text-slate-400">{legacyCount} saved title settings came from an earlier version that did not record their server. They are preserved. Select the server they belong to, then apply them here.</p>
+      <p className="mt-3 break-all text-sm text-slate-300">Current server: {legacyTarget?.isDemo ? "Demo sandbox" : legacyTarget?.serverBaseUrl ?? "Enter a valid server URL first"}</p>
+      <button type="button" className="yomi-button yomi-button-secondary mt-4" disabled={!legacyTarget} onClick={() => void recoverLegacySettings()}>Use earlier settings on this server</button>
+    </section>}
     <section className="rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-panel" aria-labelledby="reader-preferences-title">
       <h2 id="reader-preferences-title" className="flex items-center gap-2 text-lg font-semibold text-white"><BookOpen className="h-5 w-5 text-yomi-jade" />Reader preferences</h2>
       <p className="mt-2 text-sm text-slate-400">Defaults apply everywhere unless a title has its own override.</p>
       <div className="mt-6 grid gap-5 sm:grid-cols-2">
-        <label className="text-sm text-slate-300">Reading mode<select value={store.readerMode} onChange={(event) => store.setReaderMode(event.target.value as ReaderMode)} className="yomi-field mt-2 w-full"><option value="WEBTOON">Vertical webtoon</option><option value="LTR">Left to right</option><option value="RTL">Right to left</option></select></label>
-        <label className="text-sm text-slate-300">Navigation zones<select value={store.readerNavigationMode} onChange={(event) => store.setReaderNavigationMode(event.target.value as typeof store.readerNavigationMode)} className="yomi-field mt-2 w-full"><option value="edge">Edge zones</option><option value="wide">Wide zones</option><option value="disabled">Click toggles controls</option></select></label>
-        <label className="text-sm text-slate-300">Page transitions<select value={store.pageTransition} onChange={(event) => store.setPageTransition(event.target.value as typeof store.pageTransition)} className="yomi-field mt-2 w-full"><option value="none">None</option><option value="fade">Fade</option><option value="slide">Slide</option></select></label>
-        <label className="text-sm text-slate-300">Download ahead<select value={store.autoDownloadCount} onChange={(event) => store.setAutoDownloadCount(Number(event.target.value))} className="yomi-field mt-2 w-full"><option value={0}>Disabled</option><option value={1}>Next chapter</option><option value={3}>Next 3 chapters</option><option value={5}>Next 5 chapters</option><option value={10}>Next 10 chapters</option></select></label>
-        <label className="text-sm text-slate-300">Concurrent chapter downloads<select value={store.downloadConcurrency} onChange={(event) => store.setDownloadConcurrency(Number(event.target.value))} className="yomi-field mt-2 w-full"><option value={1}>1 — conservative</option><option value={2}>2 — recommended</option><option value={3}>3 — faster</option><option value={4}>4 — maximum</option></select></label>
+        <label className="text-sm text-slate-300">Reading mode<ThemedSelect aria-label="Reading mode" value={store.readerMode} onValueChange={(value) => store.setReaderMode(value as ReaderMode)} className="yomi-field mt-2 w-full"><option value="WEBTOON">Vertical webtoon</option><option value="LTR">Left to right</option><option value="RTL">Right to left</option></ThemedSelect></label>
+        <label className="text-sm text-slate-300">Navigation zones<ThemedSelect aria-label="Navigation zones" value={store.readerNavigationMode} onValueChange={(value) => store.setReaderNavigationMode(value as typeof store.readerNavigationMode)} className="yomi-field mt-2 w-full"><option value="edge">Edge zones</option><option value="wide">Wide zones</option><option value="disabled">Click toggles controls</option></ThemedSelect></label>
+        <label className="text-sm text-slate-300">Page transitions<ThemedSelect aria-label="Page transitions" value={store.pageTransition} onValueChange={(value) => store.setPageTransition(value as typeof store.pageTransition)} className="yomi-field mt-2 w-full"><option value="none">None</option><option value="fade">Fade</option><option value="slide">Slide</option></ThemedSelect></label>
+        <label className="text-sm text-slate-300">Download ahead<ThemedSelect aria-label="Download ahead" value={store.autoDownloadCount} onValueChange={(value) => store.setAutoDownloadCount(Number(value))} className="yomi-field mt-2 w-full"><option value={0}>Disabled</option><option value={1}>Next chapter</option><option value={3}>Next 3 chapters</option><option value={5}>Next 5 chapters</option><option value={10}>Next 10 chapters</option></ThemedSelect></label>
+        <label className="text-sm text-slate-300">Concurrent chapter downloads<ThemedSelect aria-label="Concurrent chapter downloads" value={store.downloadConcurrency} onValueChange={(value) => store.setDownloadConcurrency(Number(value))} className="yomi-field mt-2 w-full"><option value={1}>1 — conservative</option><option value={2}>2 — recommended</option><option value={3}>3 — faster</option><option value={4}>4 — maximum</option></ThemedSelect></label>
       </div>
       <div className="mt-6 space-y-3 border-t border-white/10 pt-6"><label className="flex items-center gap-3 text-sm text-slate-300"><input type="checkbox" checked={store.infiniteChapterReading} onChange={(event) => store.setInfiniteChapterReading(event.target.checked)} />{t("infinite_reading")}</label><label className="flex items-center gap-3 text-sm text-slate-300"><input type="checkbox" checked={store.autoDeleteReadChapters} onChange={(event) => store.setAutoDeleteReadChapters(event.target.checked)} />{t("auto_delete_read")}</label></div>
     </section>

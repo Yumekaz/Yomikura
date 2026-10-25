@@ -14,6 +14,7 @@ export async function validateBackupFile(file: File): Promise<string | null> {
   if (metadataError) return metadataError;
   const header = new Uint8Array(await file.slice(0, 64).arrayBuffer());
   const lower = file.name.toLowerCase();
+  if (lower.endsWith(".tachibk") && !(header[0] === 0x1f && header[1] === 0x8b)) return "This file does not have a valid gzip backup header.";
   if (lower.endsWith(".zip") && !(header[0] === 0x50 && header[1] === 0x4b)) return "This file does not have a valid ZIP header.";
   if (lower.endsWith(".json") && ![0x7b, 0x5b].includes(header.find((byte) => ![0x09, 0x0a, 0x0d, 0x20].includes(byte)) ?? -1)) return "This file does not begin with valid JSON content.";
   return null;

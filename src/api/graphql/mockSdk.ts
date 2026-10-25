@@ -1,10 +1,22 @@
 import { Sdk } from "./generated/graphql";
+import type { TrackerRecordFieldsFragment } from "./generated/graphql";
 
 // A high-fidelity mock implementation of the Suwayomi SDK
 // Keep sample activity believable whenever Demo Sandbox Mode is opened. A fixed
 // calendar date made an otherwise healthy history view look as if it were using
 // stale server time.
 const recentDemoTimestamp = () => new Date(Date.now() - 13 * 60_000).toISOString();
+const demoCover = (name: string) => new URL(`/demo/${name}.webp`, typeof window === "undefined" ? "http://localhost" : window.location.origin).href;
+const demoMembership = new Map<number, boolean>();
+const demoTracks = new Map<number, TrackerRecordFieldsFragment[]>();
+function sampleTrack(mangaId: number, trackerId = 1, remoteId = String(mangaId + 100000), title?: string): TrackerRecordFieldsFragment {
+  return { id: mangaId * 10 + trackerId, mangaId, trackerId, remoteId, title: title ?? (mangaId === 10001 ? "The Paper Garden (Synced)" : "Moonlit Courier (Synced)"),
+    lastChapterRead: 1, totalChapters: 24, score: 9, displayScore: "9", status: 1, remoteUrl: "https://anilist.co", private: false };
+}
+function tracksFor(mangaId: number) {
+  if (!demoTracks.has(mangaId)) demoTracks.set(mangaId, mangaId === 10001 || mangaId === 10002 ? [sampleTrack(mangaId)] : []);
+  return demoTracks.get(mangaId)!;
+}
 
 const mockImpl: any = {
   async ConnectionTest() {
@@ -29,18 +41,18 @@ const mockImpl: any = {
         nodes: [
           {
             id: 10001,
-            title: "[Demo] Sita's Sister",
-            thumbnailUrl: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300",
-            unreadCount: 3,
+            title: "[Demo] The Paper Garden",
+            thumbnailUrl: demoCover("paper-garden"),
+            unreadCount: 1,
             downloadCount: 0,
             lastReadChapter: null,
             categories: { nodes: [{ id: 1 }] },
           },
           {
             id: 10002,
-            title: "[Demo] Pepper & Carrot",
-            thumbnailUrl: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300",
-            unreadCount: 5,
+            title: "[Demo] Moonlit Courier",
+            thumbnailUrl: demoCover("moonlit-courier"),
+            unreadCount: 1,
             downloadCount: 0,
             lastReadChapter: { id: 20002 },
             categories: { nodes: [{ id: 1 }] },
@@ -51,29 +63,30 @@ const mockImpl: any = {
   },
 
   async GetMangaDetails({ id }: any) {
-    const isSita = id === 10001;
+    const isGarden = id === 10001;
     return {
       manga: {
         id,
-        title: isSita ? "[Demo] Sita's Sister" : "[Demo] Pepper & Carrot",
-        author: isSita ? "Amit Tayal" : "David Revoy",
-        artist: isSita ? "Amit Tayal" : "David Revoy",
-        description: isSita
-          ? "A beautiful graphic novel set in ancient India following the story of Sita's lesser known sister."
-          : "The webcomic about Pepper, a young witch, and her cat, Carrot. It's free, open-source, and funded directly by its patrons.",
-        thumbnailUrl: isSita
-          ? "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300"
-          : "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300",
+        title: isGarden ? "[Demo] The Paper Garden" : "[Demo] Moonlit Courier",
+        initialized: true,
+        author: isGarden ? "Yomikura" : "Yomikura",
+        artist: isGarden ? "Yomikura" : "Yomikura",
+        description: isGarden
+          ? "Above the old city, a gardener folds a small paper bird. By afternoon, the rooftop garden has a little more life than she remembers. An original illustrated sample, created for the Yomikura demo library."
+          : "At the last mountain station, a courier receives a letter with no address. The night train is waiting. An original illustrated sample, created for the Yomikura demo library.",
+        thumbnailUrl: isGarden
+          ? demoCover("paper-garden")
+          : demoCover("moonlit-courier"),
         status: "COMPLETED",
         genre: ["Demo", "Fantasy", "Indie"],
-        inLibrary: true,
+        inLibrary: demoMembership.get(id) ?? true,
         categories: { edges: [{ node: { id: 1 } }] },
         source: { name: "Yomikura Playground" },
         chapters: {
           edges: [
             {
               node: {
-                id: isSita ? 20001 : 20002,
+                id: isGarden ? 20001 : 20002,
                 name: "Chapter 1: The Journey Begins",
                 chapterNumber: 1,
                 isRead: false,
@@ -90,19 +103,22 @@ const mockImpl: any = {
   },
 
   async GetChapter({ id }: any) {
-    const isSita = id === 20001;
+    const isGarden = id === 20001;
     return {
       chapter: {
         id,
         name: "Chapter 1: The Journey Begins",
+        isBookmarked: false,
+        scanlator: null,
+        uploadDate: recentDemoTimestamp(),
         chapterNumber: 1,
         isRead: false,
         lastPageRead: 0,
-        pageCount: 4,
+        pageCount: 2,
         sourceOrder: 1,
-        mangaId: isSita ? 10001 : 10002,
+        mangaId: isGarden ? 10001 : 10002,
         manga: {
-          title: isSita ? "[Demo] Sita's Sister" : "[Demo] Pepper & Carrot",
+          title: isGarden ? "[Demo] The Paper Garden" : "[Demo] Moonlit Courier",
           chapters: {
             edges: [
               { node: { id, chapterNumber: 1 } },
@@ -113,14 +129,31 @@ const mockImpl: any = {
     };
   },
 
-  async FetchChapterPages() {
+  async GetMigrationManga({ id }: any) {
+    const { manga } = await mockImpl.GetMangaDetails({ id });
+    return { manga: { id, title: manga.title, sourceId: "mock-source", inLibrary: demoMembership.get(id) ?? true, categories: manga.categories } };
+  },
+  async GetMigrationChapters({ mangaId }: any) {
+    const { manga } = await mockImpl.GetMangaDetails({ id: mangaId });
+    const nodes = manga.chapters.nodes.map((node: any) => ({ ...node, mangaId, pageCount: 2, lastPageRead: 0, sourceOrder: 1 }));
+    return { chapters: { totalCount: nodes.length, pageInfo: { hasNextPage: false, endCursor: null }, nodes } };
+  },
+  async GetReadingChapters({ mangaId }: any) {
+    const { chapters } = await mockImpl.GetMigrationChapters({ mangaId });
+    return { chapters };
+  },
+  async RefreshMigrationTarget({ input }: any) {
+    const { chapters } = await mockImpl.GetMigrationChapters({ mangaId: input.id });
+    return { fetchMangaAndChapters: { manga: { id: input.id }, chapters: chapters.nodes.map(({ id }: any) => ({ id })) } };
+  },
+
+  async FetchChapterPages({ input }: any) {
+    const title = input.chapterId === 20001 ? "paper-garden" : "moonlit-courier";
     return {
       fetchChapterPages: {
         pages: [
-          "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800",
-          "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=800",
-          "https://images.unsplash.com/photo-1605721911519-3dfeb3be25e7?w=800",
-          "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=800",
+          demoCover(title),
+          demoCover(`${title}-page`),
         ],
       },
     };
@@ -217,15 +250,15 @@ const mockImpl: any = {
         mangas: [
           {
             id: 10001,
-            title: "[Demo] Sita's Sister",
-            thumbnailUrl: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300",
+            title: "[Demo] The Paper Garden",
+            thumbnailUrl: demoCover("paper-garden"),
             inLibrary: true,
             status: "COMPLETED",
           },
           {
             id: 10002,
-            title: "[Demo] Pepper & Carrot",
-            thumbnailUrl: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300",
+            title: "[Demo] Moonlit Courier",
+            thumbnailUrl: demoCover("moonlit-courier"),
             inLibrary: true,
             status: "ONGOING",
           },
@@ -247,12 +280,14 @@ const mockImpl: any = {
               isRead: false,
               lastPageRead: 0,
               uploadDate: "2026-06-01T10:00:00Z",
+              fetchedAt: recentDemoTimestamp(),
               scanlator: "Yomikura",
               mangaId: 10001,
               manga: {
                 id: 10001,
-                title: "[Demo] Sita's Sister",
-                thumbnailUrl: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300",
+                title: "[Demo] The Paper Garden",
+                inLibraryAt: String(Date.now() - 86400000),
+                thumbnailUrl: demoCover("paper-garden"),
               },
             },
           },
@@ -271,15 +306,15 @@ const mockImpl: any = {
               id: 20002,
               name: "Chapter 1: The Journey Begins",
               chapterNumber: 1,
-              isRead: true,
-              lastPageRead: 1,
+              isRead: false,
+              lastPageRead: 0,
               lastReadAt: recentDemoTimestamp(),
               scanlator: "Yomikura",
               mangaId: 10002,
               manga: {
                 id: 10002,
-                title: "[Demo] Pepper & Carrot",
-                thumbnailUrl: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300",
+                title: "[Demo] Moonlit Courier",
+                thumbnailUrl: demoCover("moonlit-courier"),
               },
             },
           },
@@ -296,7 +331,8 @@ const mockImpl: any = {
     return { restoreBackup: { status: { state: "SUCCESS" } } };
   },
   async ToggleMangaLibrary({ input }: any) {
-    return { updateManga: { manga: { id: input.id, inLibrary: true } } };
+    demoMembership.set(input.id, input.patch.inLibrary);
+    return { updateManga: { manga: { id: input.id, inLibrary: input.patch.inLibrary } } };
   },
   async CreateCategory({ input }: any) {
     return { createCategory: { category: { id: 99, name: input.name, order: 9 } } };
@@ -396,6 +432,9 @@ const mockImpl: any = {
   async GetSourcePreferences() {
     return { source: { id: "mock-source", name: "Yomikura Playground", isConfigurable: false, preferences: [] } };
   },
+  async GetSourceFilters({ id }: any) {
+    return { aboutServer: { version: "demo" }, source: { id, name: "Yomikura Playground", filters: [] } };
+  },
   async UpdateSourcePreference() {
     return { updateSourcePreference: { preferences: [] } };
   },
@@ -408,6 +447,8 @@ const mockImpl: any = {
             name: "AniList",
             icon: "https://anilist.co/img/icons/favicon-32x32.png",
             isLoggedIn: true,
+            isTokenExpired: false,
+            supportsPrivateTracking: true,
             authUrl: "",
             scores: ["10", "9", "8", "7", "6", "5"],
             statuses: [
@@ -423,6 +464,8 @@ const mockImpl: any = {
             name: "MyAnimeList",
             icon: "https://myanimelist.net/favicon.ico",
             isLoggedIn: false,
+            isTokenExpired: false,
+            supportsPrivateTracking: false,
             authUrl: "https://myanimelist.net",
             scores: ["10", "9", "8", "7", "6", "5"],
             statuses: [
@@ -435,100 +478,42 @@ const mockImpl: any = {
     };
   },
   async GetMangaTrackers({ mangaId }: any) {
-    return {
-      trackers: {
-        nodes: [
-          {
-            id: 1,
-            name: "AniList",
-            icon: "https://anilist.co/img/icons/favicon-32x32.png",
-            isLoggedIn: true,
-            authUrl: "",
-            scores: ["10", "9", "8", "7", "6", "5"],
-            statuses: [
-              { name: "Reading", value: 1 },
-              { name: "Completed", value: 2 },
-              { name: "On Hold", value: 3 },
-              { name: "Dropped", value: 4 },
-              { name: "Plan to Read", value: 5 },
-            ],
-          },
-          {
-            id: 2,
-            name: "MyAnimeList",
-            icon: "https://myanimelist.net/favicon.ico",
-            isLoggedIn: false,
-            authUrl: "https://myanimelist.net",
-            scores: ["10", "9", "8", "7", "6", "5"],
-            statuses: [
-              { name: "Reading", value: 1 },
-              { name: "Completed", value: 2 },
-            ],
-          },
-        ],
-      },
-      manga: {
-        id: mangaId,
-        trackRecords: {
-          nodes: [
-            {
-              id: 501,
-              trackerId: 1,
-              mangaId: mangaId,
-              title: mangaId === 10001 ? "Sita's Sister (Synced)" : "Pepper & Carrot (Synced)",
-              lastChapterRead: 1,
-              totalChapters: 24,
-              score: 9,
-              status: 1,
-              remoteUrl: "https://anilist.co",
-            },
-          ],
-        },
-      },
-    };
+    const { manga } = await mockImpl.GetMangaDetails({ id: mangaId });
+    return { ...(await mockImpl.GetTrackers()), manga: { id: mangaId, title: manga.title, trackRecords: { nodes: tracksFor(mangaId) } }, chapters: { nodes: mangaId === 10001 || mangaId === 10002 ? [{ chapterNumber: 1 }] : [] } };
+  },
+  async SearchTracker({ input }: any) {
+    return { searchTracker: { trackSearches: [0, 1].map((index) => ({ id: index + 1, trackerId: input.trackerId, remoteId: String(700000 + index), title: `[Demo] ${input.query}${index ? " — alternative edition" : ""}`, coverUrl: "", summary: "Sample search results stay in the demo sandbox.", totalChapters: 24, lastChapterRead: 0, trackingUrl: "https://anilist.co", private: false, publishingType: "Manga", publishingStatus: "Sample" })) } };
+  },
+  async BindTrackerWork({ input }: any) {
+    const record = { ...sampleTrack(input.mangaId, input.trackerId, input.remoteId, "[Demo] Linked work"), private: input.private ?? false };
+    demoTracks.set(input.mangaId, [...tracksFor(input.mangaId).filter((item) => item.trackerId !== input.trackerId), record]);
+    return { bindTrack: { trackRecord: record } };
+  },
+  async RefreshTrackerRecord({ input }: any) {
+    const record = [...demoTracks.values()].flat().find((item) => item.id === input.recordId);
+    if (!record) throw new Error("The demo tracker record is no longer linked.");
+    return { fetchTrack: { trackRecord: record } };
   },
   async TrackProgress({ input }: any) {
-    return {
-      trackProgress: {
-        trackRecords: [
-          {
-            id: 501,
-            trackerId: 1,
-            mangaId: input.mangaId,
-            title: "Synced Manga",
-            lastChapterRead: 1,
-          },
-        ],
-      },
-    };
+    return { trackProgress: { trackRecords: tracksFor(input.mangaId) } };
   },
   async UnbindTrack({ input }: any) {
-    return {
-      unbindTrack: {
-        trackRecord: {
-          id: input.recordId,
-          mangaId: 10001,
-        },
-      },
-    };
+    const record = [...demoTracks.values()].flat().find((item) => item.id === input.recordId);
+    if (record) demoTracks.set(record.mangaId, tracksFor(record.mangaId).filter((item) => item.id !== record.id));
+    return { unbindTrack: { trackRecord: record ? { id: record.id, mangaId: record.mangaId } : null } };
   },
   async UpdateTrack({ input }: any) {
-    return {
-      updateTrack: {
-        trackRecord: {
-          id: input.recordId,
-          trackerId: 1,
-          mangaId: 10001,
-          title: "Demo Manga (Updated)",
-          lastChapterRead: input.lastChapterRead,
-          totalChapters: 24,
-          score: parseInt(input.scoreString) || 9,
-          status: input.status,
-          remoteUrl: "https://anilist.co",
-        },
-      },
-    };
+    const record = [...demoTracks.values()].flat().find((item) => item.id === input.recordId);
+    if (!record) throw new Error("The demo tracker record is no longer linked.");
+    Object.assign(record, {
+      ...(input.lastChapterRead != null ? { lastChapterRead: input.lastChapterRead } : {}),
+      ...(input.status != null ? { status: input.status } : {}),
+      ...(input.scoreString != null ? { score: Number(input.scoreString), displayScore: input.scoreString } : {}),
+      ...(input.private != null ? { private: input.private } : {}),
+    });
+    return { updateTrack: { trackRecord: record } };
   },
+
   async LogoutTracker({ input }: any) {
     return {
       logoutTracker: {
@@ -541,4 +526,15 @@ const mockImpl: any = {
   },
 };
 
+// These demo records retain their legacy literal layout above; SDK consumers
+// read complete node collections, just as the real backend provides them.
+const demoMangaDetails = mockImpl.GetMangaDetails;
+mockImpl.GetMangaDetails = async (variables: unknown) => {
+  const { manga } = await demoMangaDetails(variables);
+  return { manga: { ...manga, categories: { ...manga.categories, nodes: manga.categories.edges.map((edge: any) => edge.node) }, chapters: { ...manga.chapters, nodes: manga.chapters.edges.map((edge: any) => edge.node) } } };
+};
+for (const name of ["GetUpdates", "GetHistory"]) {
+  const original = mockImpl[name];
+  mockImpl[name] = async (...args: unknown[]) => { const result = await original(...args); return { chapters: { ...result.chapters, nodes: result.chapters.edges.map((edge: any) => edge.node) } }; };
+}
 export const mockSdk: Sdk = mockImpl as unknown as Sdk;

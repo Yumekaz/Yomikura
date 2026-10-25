@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -204,15 +205,13 @@ export default function SourcePrefsPage() {
 
                   {isSelect && (
                     /* Select Dropdown */
-                    <select
+                    <ThemedSelect aria-label={pref.title}
                       value={currentValue as string || ""}
-                      onChange={(e) =>
-                        updatePreference({
+                      onValueChange={(value) => updatePreference({
                           position: index,
                           typename: pref.__typename,
-                          value: e.target.value,
-                        })
-                      }
+                          value: value,
+                        })}
                       disabled={!pref.enabled || updating}
                       className="yomi-select w-full"
                     >
@@ -224,7 +223,7 @@ export default function SourcePrefsPage() {
                           </option>
                         );
                       })}
-                    </select>
+                    </ThemedSelect>
                   )}
 
                   {isText && (() => {

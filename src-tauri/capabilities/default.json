@@ -7,7 +7,31 @@
   ],
   "permissions": [
     "core:default",
+    "core:window:allow-set-theme",
     "fs:default",
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "$APPCONFIG/yomikura-settings.json" }]
+    },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [
+        { "path": "$APPLOCALDATA/library-backups/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-rename",
+      "allow": [
+        { "path": "$APPLOCALDATA/library-backups/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-remove",
+      "allow": [
+        { "path": "$APPCONFIG/yomikura-settings.json" },
+        { "path": "$APPLOCALDATA/library-backups/**" }
+      ]
+    },
     "process:allow-restart",
     {
       "identifier": "fs:scope-appdata-recursive",

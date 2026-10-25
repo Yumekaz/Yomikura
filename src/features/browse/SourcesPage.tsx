@@ -1,9 +1,10 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Globe, Settings, Pin, X, Compass, Puzzle, RadioTower, Search } from "lucide-react";
+import { BookOpen, Loader2, Globe, Settings, Pin, X, Compass, Puzzle, RadioTower, Search } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
+import { buildSourceBrowsePath } from "./sourceBrowseRoute";
 
 /**
  * SourcesPage - Lists all installed sources.
@@ -88,7 +89,7 @@ export default function SourcesPage() {
 
   if (isError) {
     return (
-      <div className="yomi-workspace"><div className="yomi-route-empty"><div><Globe /><h2>Sources could not load</h2><p>Reconnect your local engine and try again.</p></div></div></div>
+      <div className="yomi-workspace"><div className="yomi-route-empty"><div><Globe /><h2>Sources could not load</h2><p>Check your connection in Settings and try again.</p><Link className="yomi-button yomi-button-secondary mt-5" to="/settings/connection">Connection settings</Link></div></div></div>
     );
   }
 
@@ -101,13 +102,15 @@ export default function SourcesPage() {
   return (
     <div className="yomi-workspace space-y-9 select-none">
       <div className="yomi-workspace-head">
-        <div><span className="yomi-eyebrow">Discover</span><h1 className="yomi-workspace-title"><Compass />Sources</h1><p className="yomi-workspace-subtitle">Choose where to discover your next series. Installed sources remain local to this device and server.</p></div>
+        <div><h1>Discover</h1><p>Find your next story in the places you love.</p></div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Link to="/browse/search" className="yomi-button yomi-button-primary"><Search />Search all</Link>
-          <Link to="/browse/extensions" className="yomi-button yomi-button-secondary"><Puzzle />Extensions</Link>
+          <Link to="/browse/extensions" className="yomi-button yomi-button-secondary"><Puzzle />Add sources</Link>
           <Link to="/browse/extension-repos" className="yomi-icon-button" aria-label="Manage extension repositories" title="Extension repositories"><RadioTower /></Link>
         </div>
       </div>
+
+      {sources.every((source) => source.lang === "localsourcelang") && <div className="yomi-discover-guide"><BookOpen aria-hidden="true" /><div><h2>Bring your bookshelf along</h2><p>Open your own comic archives, or add a reading source to discover more books.</p></div><Link className="yomi-button yomi-button-secondary" to="/settings/advanced">Import options</Link></div>}
 
       {/* Pinned Catalog Searches Section */}
       {savedSearches && savedSearches.length > 0 && (
@@ -123,13 +126,13 @@ export default function SourcesPage() {
                 className="yomi-catalog-item"
               >
                 <Link 
-                  to={`/browse/${s.sourceId}?query=${encodeURIComponent(s.query)}`}
+                  to={buildSourceBrowsePath(s.sourceId, s.query, s.filters)}
                   className="flex items-center gap-3 flex-1 overflow-hidden"
                 >
                   <Pin className="h-4 w-4 text-yomi-jade shrink-0" />
                   <div className="flex flex-col flex-1 overflow-hidden">
                     <span className="font-semibold text-slate-200 truncate text-sm">{s.name}</span>
-                    <span className="text-xs text-slate-500 truncate">Query: "{s.query}"</span>
+                    <span className="text-xs text-slate-500 truncate">{s.query ? `Query: “${s.query}”` : "Filtered search"}{s.filters && s.filters !== "{}" ? " · filters saved" : ""}</span>
                   </div>
                 </Link>
                 <button
@@ -180,7 +183,7 @@ export default function SourcesPage() {
                     <strong>{source.name}</strong>
                     <div className="flex items-center gap-2">
                       {source.supportsLatest && (
-                        <span className="text-xs text-yomi-jade font-semibold">Supports Latest</span>
+                        <small>New releases available</small>
                       )}
                     </div>
                   </div>

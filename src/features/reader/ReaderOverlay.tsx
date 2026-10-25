@@ -1,7 +1,15 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, ChevronLeft, ChevronRight, Sliders, Settings, Play, Pause, Eye, BookOpen, RefreshCw } from "lucide-react";
-import { FitMode, PageSpread, ReaderMode, useSettingsStore } from "../../stores/useSettingsStore";
+import { FitMode, PageSpread, ReaderMode, type ImageFilters, useSettingsStore } from "../../stores/useSettingsStore";
+import { useReaderImageSource } from "./useReaderImageSource";
+import { ProgressSyncStatus } from "../../components/ProgressSyncStatus";
+
+function ReaderThumbnail({ url, number }: { url: string; number: number }) {
+  const { url: resolvedUrl } = useReaderImageSource(url);
+  return <img src={resolvedUrl || undefined} alt={`Page ${number}`} className="h-full w-full object-cover" loading="lazy" />;
+}
 
 interface ReaderOverlayProps {
   show: boolean;
@@ -16,12 +24,21 @@ interface ReaderOverlayProps {
   onFitModeChange: (mode: FitMode) => void;
   pageSpread: PageSpread;
   onPageSpreadChange: (spread: PageSpread) => void;
+  imageFilters: ImageFilters;
+  onImageFiltersChange: (filters: Partial<ImageFilters>) => void;
+  cropBorders: boolean;
+  onCropBordersChange: (crop: boolean) => void;
+  pageTransition: "fade" | "slide" | "none";
+  onPageTransitionChange: (transition: "fade" | "slide" | "none") => void;
+  autoDownloadCount: number;
+  onAutoDownloadCountChange: (count: number) => void;
   nextChapterId?: number;
   prevChapterId?: number;
   hasOverride: boolean;
   onToggleOverride: () => void;
   buildPageUrl: (pageIndex: number) => string;
   onJumpToPage: (pageIndex: number) => void;
+  onHeaderRef?: (element: HTMLDivElement | null) => void;
   isAutoScrolling: boolean;
   onToggleAutoScroll: () => void;
 }
@@ -39,28 +56,29 @@ export function ReaderOverlay({
   onFitModeChange,
   pageSpread,
   onPageSpreadChange,
+  imageFilters,
+  onImageFiltersChange: setImageFilters,
+  cropBorders,
+  onCropBordersChange: setCropBorders,
+  pageTransition,
+  onPageTransitionChange: setPageTransition,
+  autoDownloadCount,
+  onAutoDownloadCountChange: setAutoDownloadCount,
   nextChapterId,
   prevChapterId,
   hasOverride,
   onToggleOverride,
   buildPageUrl,
   onJumpToPage,
+  onHeaderRef,
   isAutoScrolling,
   onToggleAutoScroll,
 }: ReaderOverlayProps) {
   const [activeSubTab, setActiveSubTab] = useState<"layout" | "filters" | "scroll" | "none">("none");
 
   const {
-    imageFilters,
-    setImageFilters,
-    cropBorders,
-    setCropBorders,
     autoScrollSpeed,
     setAutoScrollSpeed,
-    pageTransition,
-    setPageTransition,
-    autoDownloadCount,
-    setAutoDownloadCount,
   } = useSettingsStore();
 
   if (!show) return null;
@@ -68,7 +86,7 @@ export function ReaderOverlay({
   return (
     <div className="fixed inset-0 z-50 pointer-events-none flex flex-col justify-between select-none">
       {/* Top Nav */}
-      <div className="yomi-reader-top pointer-events-auto flex items-center justify-between px-4 py-3">
+      <div ref={onHeaderRef} className="yomi-reader-top pointer-events-auto flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-4">
           <Link
             to={mangaId ? `/manga/${mangaId}` : "/library"}
@@ -82,6 +100,7 @@ export function ReaderOverlay({
             <span className="text-xs sm:text-sm font-semibold text-slate-200 line-clamp-1">{chapterName}</span>
           </div>
         </div>
+        <ProgressSyncStatus />
       </div>
 
       {/* Bottom Nav */}
@@ -100,6 +119,7 @@ export function ReaderOverlay({
                     {(["WEBTOON", "LTR", "RTL"] as ReaderMode[]).map((mode) => (
                       <button
                         key={mode}
+                        aria-pressed={readerMode === mode}
                         onClick={() => onModeChange(mode)}
                         className={`rounded px-3 py-1.5 text-xs font-semibold transition ${
                           readerMode === mode
@@ -121,6 +141,7 @@ export function ReaderOverlay({
                         {(["FIT_SCREEN", "FIT_WIDTH", "FIT_HEIGHT"] as FitMode[]).map((mode) => (
                           <button
                             key={mode}
+                            aria-pressed={fitMode === mode}
                             onClick={() => onFitModeChange(mode)}
                             className={`rounded px-2.5 py-1 text-xs font-semibold transition ${
                               fitMode === mode
@@ -140,6 +161,7 @@ export function ReaderOverlay({
                         {(["SINGLE", "DOUBLE", "DOUBLE_COVER"] as PageSpread[]).map((spread) => (
                           <button
                             key={spread}
+                            aria-pressed={pageSpread === spread}
                             onClick={() => onPageSpreadChange(spread)}
                             className={`rounded px-2.5 py-1 text-xs font-semibold transition ${
                               pageSpread === spread
@@ -157,29 +179,31 @@ export function ReaderOverlay({
 
                 <div className="flex items-center justify-between border-t border-white/5 pt-3">
                   <span className="text-xs font-semibold text-slate-300">Page transition</span>
-                  <select
+                  <ThemedSelect
+                    aria-label="Page transition"
                     value={pageTransition}
-                    onChange={(e) => setPageTransition(e.target.value as "fade" | "slide" | "none")}
+                    onValueChange={(value) => setPageTransition(value as "fade" | "slide" | "none")}
                     className="yomi-select min-w-24"
                   >
                     <option value="none">None</option>
                     <option value="fade">Fade</option>
                     <option value="slide">Slide</option>
-                  </select>
+                  </ThemedSelect>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-300">Auto-download ahead</span>
-                  <select
+                  <ThemedSelect
+                    aria-label="Auto-download ahead"
                     value={autoDownloadCount}
-                    onChange={(e) => setAutoDownloadCount(parseInt(e.target.value, 10))}
+                    onValueChange={(value) => setAutoDownloadCount(parseInt(value, 10))}
                     className="yomi-select min-w-24"
                   >
                     <option value={0}>Off</option>
                     <option value={1}>1</option>
                     <option value={3}>3</option>
                     <option value={5}>5</option>
-                  </select>
+                  </ThemedSelect>
                 </div>
 
                 {/* Overrides Toggle */}
@@ -213,11 +237,12 @@ export function ReaderOverlay({
             {activeSubTab === "filters" && (
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-300">Crop White Borders</span>
+                  <span className="text-xs font-semibold text-slate-300">Fixed page crop</span>
                   <button
                     type="button"
                     onClick={() => setCropBorders(!cropBorders)}
-                    aria-label="Crop white borders"
+                    aria-label="Fixed page crop"
+                    aria-describedby="fixed-crop-description"
                     aria-pressed={cropBorders}
                     className={`relative inline-flex h-5.5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                       cropBorders ? "bg-yomi-jade" : "bg-ink-950 border-white/10"
@@ -231,6 +256,7 @@ export function ReaderOverlay({
                   </button>
                 </div>
 
+                <p id="fixed-crop-description" className="text-xs text-slate-400">Magnifies every page by 12% and clips its edges. Turn it off to show the full artwork.</p>
                 {/* Grayscale Slider */}
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between text-xs text-slate-400">
@@ -239,6 +265,7 @@ export function ReaderOverlay({
                   </div>
                   <input
                     type="range"
+                    aria-label="Grayscale effect"
                     min="0"
                     max="100"
                     value={imageFilters.grayscale}
@@ -255,6 +282,7 @@ export function ReaderOverlay({
                   </div>
                   <input
                     type="range"
+                    aria-label="Invert colors"
                     min="0"
                     max="100"
                     value={imageFilters.invert}
@@ -271,6 +299,7 @@ export function ReaderOverlay({
                   </div>
                   <input
                     type="range"
+                    aria-label="Brightness"
                     min="50"
                     max="150"
                     value={imageFilters.brightness}
@@ -287,6 +316,7 @@ export function ReaderOverlay({
                   </div>
                   <input
                     type="range"
+                    aria-label="Contrast"
                     min="50"
                     max="150"
                     value={imageFilters.contrast}
@@ -337,6 +367,7 @@ export function ReaderOverlay({
                   </div>
                   <input
                     type="range"
+                    aria-label="Scrolling speed"
                     min="1"
                     max="10"
                     step="1"
@@ -360,19 +391,16 @@ export function ReaderOverlay({
                   <button
                     key={idx}
                     onClick={() => onJumpToPage(idx)}
+                    aria-label={`Go to page ${idx + 1}`}
+                    aria-current={isCurrent ? "page" : undefined}
                     className={`relative h-14 w-10 flex-shrink-0 overflow-hidden rounded border transition-[border-color,opacity,transform] duration-150 ${
                       isCurrent
                         ? "border-yomi-jade opacity-100"
                         : "border-white/5 opacity-60 hover:opacity-100"
                     }`}
                   >
-                    <img
-                      src={buildPageUrl(idx)}
-                      alt={`Page ${idx + 1}`}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-x-0 bottom-0 bg-black/75 py-0.2 text-xs font-black text-slate-300 text-center">
+                    <ReaderThumbnail url={buildPageUrl(idx)} number={idx + 1} />
+                    <div className="yomi-reader-thumbnail-index absolute inset-x-0 bottom-0 py-0.2 text-xs font-semibold text-center">
                       {idx + 1}
                     </div>
                   </button>

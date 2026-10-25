@@ -1,0 +1,5 @@
+mutation FetchMangaDetails($input: FetchMangaInput!) {
+  fetchManga(input: $input) {
+    manga { id initialized }
+  }
+}

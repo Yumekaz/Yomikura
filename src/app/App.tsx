@@ -20,7 +20,9 @@ const UpdatesPage = lazy(() => import("../features/updates/UpdatesPage"));
 const HistoryPage = lazy(() => import("../features/history/HistoryPage"));
 const DownloadsPage = lazy(() => import("../features/downloads/DownloadsPage"));
 
-const queryClient = new QueryClient();
+// Device caches and a loopback/LAN engine can remain usable when the browser
+// reports offline. Let the actual request and each feature's fallback decide.
+const queryClient = new QueryClient({ defaultOptions: { queries: { networkMode: "always" }, mutations: { networkMode: "always" } } });
 
 function App() {
   return (

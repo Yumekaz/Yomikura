@@ -4,20 +4,15 @@ query GetChapter($id: Int!) {
     name
     chapterNumber
     isRead
+    isBookmarked
+    scanlator
+    uploadDate
     lastPageRead
     pageCount
     sourceOrder
     mangaId
     manga {
       title
-      chapters {
-        edges {
-          node {
-            id
-            chapterNumber
-          }
-        }
-      }
     }
   }
 }

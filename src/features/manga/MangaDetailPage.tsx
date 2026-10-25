@@ -12,6 +12,10 @@ import { MangaCategoryModal } from "./MangaCategoryModal";
 import { TrackerPanel } from "./TrackerPanel";
 import { useDownloadStore } from "../../stores/useDownloadStore";
 import { SourceMigrationModal } from "../../components/source/SourceMigrationModal";
+import { normalizeChapterPolicy, selectChapters } from "./chapterPolicy";
+import { progressBackend } from "../../api/suwayomi/backendIdentity";
+import { mangaReaderSettingsKey } from "../../stores/mangaReaderSettings";
+import { getProgressHeads } from "../../api/suwayomi/progressStorage";
 
 
 const FETCH_CHAPTERS_DOCUMENT = gql`
@@ -21,6 +25,7 @@ const FETCH_CHAPTERS_DOCUMENT = gql`
         id
         name
         chapterNumber
+        sourceOrder
         isRead
         isBookmarked
         isDownloaded
@@ -35,6 +40,7 @@ type ChapterNode = {
   id: number;
   name: string;
   chapterNumber: number;
+  sourceOrder?: number;
   isRead: boolean;
   isBookmarked: boolean;
   isDownloaded: boolean;
@@ -50,12 +56,12 @@ type FetchChaptersResponse = {
 
 export default function MangaDetailPage() {
   const { mangaId } = useParams<{ mangaId: string }>();
-  const { serverBaseUrl } = useSettingsStore();
+  const { serverBaseUrl, mockMode, chapterPolicies } = useSettingsStore();
   const coverAccentEnabled = useCoverAccentEnabled();
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isMigrationOpen, setIsMigrationOpen] = useState(false);
 
-  const { loadCachedChapters, cachedChapters } = useDownloadStore();
+  const { loadCachedChapters, cachedChapters, cachedChapterIds } = useDownloadStore();
 
   useEffect(() => {
     void loadCachedChapters();
@@ -67,15 +73,36 @@ export default function MangaDetailPage() {
   }, [serverBaseUrl]);
 
   const sdk = useMemo(() => {
-    return createGraphqlClient(graphqlEndpoint);
-  }, [graphqlEndpoint]);
+    return createGraphqlClient(graphqlEndpoint, undefined, mockMode ? "demo" : "live");
+  }, [graphqlEndpoint, mockMode]);
 
   const queryClient = useQueryClient();
+  const policyBackend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
+  const localProgress = useQuery({ queryKey: ["progress-local", policyBackend.key], queryFn: () => getProgressHeads(policyBackend), retry: false });
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["manga", mangaId, serverBaseUrl],
+    queryKey: ["manga", mangaId, serverBaseUrl, mockMode],
+    retry: (attempt) => !cachedChapters.some((chapter) => String(chapter.mangaId) === mangaId) && attempt < 2,
     queryFn: () => sdk.GetMangaDetails({ id: parseInt(mangaId!) }),
     enabled: !!serverBaseUrl && !!mangaId,
+  });
+
+  const { isFetching: loadingDetails, isError: detailsFailed, refetch: retryDetails } = useQuery({
+    queryKey: ["manga-initialization", mangaId, serverBaseUrl],
+    enabled: !mockMode && !isError && data?.manga?.initialized === false,
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
+    queryFn: async ({ signal }) => {
+      const id = Number(mangaId);
+      await sdk.FetchMangaDetails({ input: { id } }, undefined, signal);
+      const refreshed = await sdk.GetMangaDetails({ id }, undefined, signal);
+      if (!refreshed.manga.initialized) throw new Error("Book details are not available yet.");
+      // This key belongs to the backend that started the request, even if the
+      // reader switches profiles before the source responds.
+      queryClient.setQueryData(["manga", mangaId, serverBaseUrl, false], refreshed);
+      return refreshed;
+    },
   });
 
   const parsedMangaId = useMemo(() => (mangaId ? parseInt(mangaId) : NaN), [mangaId]);
@@ -100,25 +127,25 @@ export default function MangaDetailPage() {
         source: { name: "Offline Cache" },
         genre: ["Cached"],
         description: "Viewing in offline mode. Only cached chapters are available.",
-        categories: { edges: [] },
-        chapters: { edges: [] },
+        categories: { nodes: [] },
+        chapters: { nodes: [] },
       };
     }
     return data?.manga;
   }, [data?.manga, isOfflineMode, offlineChapters, parsedMangaId]);
 
   const { data: fetchedChaptersData, isLoading: chaptersLoading } = useQuery({
-    queryKey: ["manga-chapters", mangaId, serverBaseUrl],
-    queryFn: async () => {
-      if (useSettingsStore.getState().mockMode) {
+    queryKey: ["manga-chapters", mangaId, serverBaseUrl, mockMode],
+    queryFn: async ({ signal }) => {
+      if (mockMode) {
         return { fetchChapters: null };
       }
-      const client = new GraphQLClient(graphqlEndpoint);
+      const client = new GraphQLClient(graphqlEndpoint, { signal });
       return client.request<FetchChaptersResponse>(FETCH_CHAPTERS_DOCUMENT, {
         input: { mangaId: parseInt(mangaId!) },
       });
     },
-    enabled: !!graphqlEndpoint && !!mangaId && !!manga && !isOfflineMode && !useSettingsStore.getState().mockMode,
+    enabled: !!graphqlEndpoint && !!mangaId && !!manga && !isOfflineMode && !mockMode,
     staleTime: 60_000,
   });
 
@@ -138,9 +165,9 @@ export default function MangaDetailPage() {
   });
 
   const currentCategoryIds = useMemo(() => {
-    if (!manga?.categories?.edges) return [];
-    return manga.categories.edges
-      .map((edge) => edge?.node?.id)
+    if (!manga?.categories?.nodes) return [];
+    return manga.categories.nodes
+      .map((node) => node.id)
       .filter((id): id is number => id != null)
       .map(id => parseInt(String(id)));
   }, [manga]);
@@ -151,18 +178,18 @@ export default function MangaDetailPage() {
         id: c.id,
         name: c.name,
         chapterNumber: c.chapterNumber,
+        sourceOrder: c.sourceOrder,
         isRead: !!c.isRead,
-        isBookmarked: false,
+        isBookmarked: c.isBookmarked ?? false,
         isDownloaded: true,
-        uploadDate: String(c.cachedAt),
-        scanlator: "Offline",
+        uploadDate: String(c.uploadDate ?? ""),
+        scanlator: c.scanlator ?? null,
       }));
     }
 
     const fetchedChapters = fetchedChaptersData?.fetchChapters?.chapters ?? [];
-    const cachedChaptersFromManga = manga?.chapters?.edges
-      ?.map((edge) => edge?.node)
-      .filter((node): node is NonNullable<typeof node> => node != null) ?? [];
+    const cachedChaptersFromManga = manga?.chapters?.nodes
+      ?.filter((node): node is NonNullable<typeof node> => node != null) ?? [];
 
     const sourceChapters = fetchedChapters.length > 0 ? fetchedChapters : cachedChaptersFromManga;
 
@@ -171,6 +198,7 @@ export default function MangaDetailPage() {
         id: c.id,
         name: c.name,
         chapterNumber: c.chapterNumber,
+        sourceOrder: c.sourceOrder,
         isRead: c.isRead,
         isBookmarked: c.isBookmarked,
         isDownloaded: c.isDownloaded,
@@ -183,9 +211,14 @@ export default function MangaDetailPage() {
 
   // Find the first unread chapter to resume reading
   const firstUnreadChapter = useMemo(() => {
-    const sorted = [...chapters].sort((a, b) => a.chapterNumber - b.chapterNumber);
+    const policy = normalizeChapterPolicy(chapterPolicies[mangaReaderSettingsKey(progressBackend(serverBaseUrl, mockMode), mangaId!)]);
+    const projected = chapters.map((chapter) => {
+      const head = localProgress.data?.find((head) => head.chapter.chapterId === Number(chapter.id) && head.chapter.mangaId === Number(mangaId) && head.chapter.chapterName === chapter.name && head.chapter.mangaTitle === manga?.title);
+      return head && (isOfflineMode || mockMode || head.sequence > head.acknowledgedSequence) ? { ...chapter, isRead: head.patch.isRead } : chapter;
+    });
+    const sorted = selectChapters(projected, policy, cachedChapterIds);
     return sorted.find((c) => !c.isRead) || sorted[0];
-  }, [chapters]);
+  }, [chapters, chapterPolicies, serverBaseUrl, mockMode, mangaId, cachedChapterIds, localProgress.data, manga?.title, isOfflineMode]);
 
   const imageUrl = useMemo(() => {
     if (!manga?.thumbnailUrl) return "/placeholder-cover.svg";
@@ -195,7 +228,7 @@ export default function MangaDetailPage() {
   }, [manga?.thumbnailUrl, serverBaseUrl]);
 
   useEffect(() => {
-    applyCoverAccentFromImage(imageUrl, coverAccentEnabled);
+    return applyCoverAccentFromImage(imageUrl, coverAccentEnabled);
   }, [imageUrl, coverAccentEnabled]);
 
   if (isLoading) {
@@ -247,22 +280,22 @@ export default function MangaDetailPage() {
         </div>
 
         {/* Content Container */}
-        <div className="relative z-10 mx-auto max-w-6xl px-6 pb-10 pt-4 lg:px-12 lg:pt-10">
+        <div className="yomi-detail-summary relative z-10 mx-auto max-w-6xl px-6 pb-8 pt-2 lg:px-10 lg:pt-4">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
             {/* Cover Image */}
-            <div className="yomi-manga-cover relative mx-auto w-48 aspect-[2/3] shrink-0 overflow-hidden sm:mx-0 sm:w-56 md:w-64">
+            <div className="yomi-manga-cover relative mx-auto w-44 aspect-[2/3] shrink-0 overflow-hidden sm:mx-0 sm:w-48 md:w-52">
               <img src={imageUrl} alt={manga.title} className="absolute inset-0 h-full w-full object-cover" />
             </div>
 
             {/* Manga Info */}
             <div className="flex flex-col justify-end">
-              <h1 className="max-w-3xl text-3xl font-semibold tracking-[-0.035em] text-white sm:text-4xl lg:text-5xl">
+              <h1 className="max-w-3xl text-3xl font-semibold tracking-[-0.035em] text-white lg:text-4xl">
                 {manga.title}
               </h1>
 
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-slate-300">
                 {manga.author && <span>{manga.author}</span>}
-                {manga.status && (
+                {manga.status && manga.status !== "UNKNOWN" && (
                   <span className="rounded bg-white/10 px-2 py-0.5 text-xs text-slate-200">
                     {manga.status.replace(/_/g, " ")}
                   </span>
@@ -334,6 +367,8 @@ export default function MangaDetailPage() {
               )}
 
               {/* Description */}
+              {loadingDetails && <p className="mt-5 text-sm text-slate-400" role="status">Getting book details…</p>}
+              {detailsFailed && <div className="mt-5 text-sm text-slate-400" role="status">Book details couldn’t be loaded. You can still read the available chapters. <button type="button" onClick={() => void retryDetails()} className="ml-1 text-yomi-jade underline underline-offset-4">Retry book details</button></div>}
               {manga.description && (
                 <p className="mt-6 line-clamp-4 text-sm leading-relaxed text-slate-400 md:line-clamp-none">
                   {manga.description}
@@ -363,12 +398,12 @@ export default function MangaDetailPage() {
               />
             </div>
           ) : (
-            <ChapterList chapters={chapters} mangaTitle={manga.title} />
+            <ChapterList chapters={chapters} mangaTitle={manga.title} mangaId={parsedMangaId} offline={isOfflineMode} />
           )}
         </div>
 
         {/* Tracker Syncing Panel */}
-        <TrackerPanel mangaId={manga.id} />
+      <TrackerPanel mangaId={manga.id} mangaTitle={manga.title} />
       </div>
 
       {/* Categories Selection Modal */}

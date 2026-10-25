@@ -1,0 +1,23 @@
+fragment CatalogFilterFields on Filter {
+  __typename
+  ... on HeaderFilter { name }
+  ... on SeparatorFilter { name }
+  ... on CheckBoxFilter { name checkBoxDefault: default }
+  ... on TextFilter { name textDefault: default }
+  ... on SelectFilter { name values selectDefault: default }
+  ... on TriStateFilter { name triStateDefault: default }
+  ... on SortFilter { name values sortDefault: default { index ascending } }
+  ... on GroupFilter { name }
+}
+
+query GetSourceFilters($id: LongString!) {
+  aboutServer { version }
+  source(id: $id) {
+    id
+    name
+    filters {
+      ...CatalogFilterFields
+      ... on GroupFilter { filters { ...CatalogFilterFields } }
+    }
+  }
+}

@@ -1,0 +1,31 @@
+query GetMigrationManga($id: Int!) {
+  manga(id: $id) {
+    id
+    title
+    sourceId
+    inLibrary
+    categories { nodes { id } }
+  }
+}
+
+query GetMigrationChapters($mangaId: Int!, $after: Cursor) {
+  chapters(condition: { mangaId: $mangaId }, first: 200, after: $after, order: [{ by: ID, byType: ASC }]) {
+    totalCount
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      id
+      mangaId
+      name
+      chapterNumber
+      sourceOrder
+      pageCount
+      isRead
+      isBookmarked
+      lastPageRead
+    }
+  }
+}
+
+mutation RefreshMigrationTarget($input: FetchMangaAndChaptersInput!) {
+  fetchMangaAndChapters(input: $input) { manga { id } chapters { id } }
+}

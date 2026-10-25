@@ -6,6 +6,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { FetchSourceMangaType } from "../../api/graphql/generated/graphql";
 import { classifySourceProblem, getErrorMessage } from "../../api/suwayomi/errors";
+import { buildSourceBrowsePath } from "./sourceBrowseRoute";
 
 const GLOBAL_SEARCH_CONCURRENCY = 6;
 
@@ -144,7 +145,7 @@ function GlobalSourceSearchResults({
           </span>
         </div>
         <Link
-          to={`/browse/${source.id}?search=${encodeURIComponent(query)}`}
+          to={buildSourceBrowsePath(source.id, query)}
           className="text-xs text-yomi-jade hover:underline font-semibold"
         >
           Show all

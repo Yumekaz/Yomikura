@@ -1,16 +1,23 @@
+import { ThemedSelect } from "../ui/ThemedSelect";
 import { useEffect, useState } from "react";
-import { BookOpen, Server, Play, ShieldCheck, ArrowRight, Loader2, Sparkles, ChevronDown, ChevronUp, FolderOpen, HardDrive, RefreshCw, AlertTriangle } from "lucide-react";
+import { BookOpen, Server, ShieldCheck, ArrowRight, Loader2, Sparkles, FolderOpen, HardDrive, RefreshCw, AlertTriangle } from "lucide-react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import { browseNav, primaryNav, utilityNav, type NavItem } from "../../app/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { primaryNav, utilityNav, type NavItem } from "../../app/navigation";
 import { useSettingsStore, isTauri } from "../../stores/useSettingsStore";
 import { useDownloadStore } from "../../stores/useDownloadStore";
+import { PwaUpdateNotice } from "./PwaUpdateNotice";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { useTranslation } from "../../hooks/useTranslation";
 import { UpdateNotificationBanner } from "../UpdateNotificationBanner";
 import { useDeviceProfileBootstrap } from "../../hooks/useDeviceProfile";
 import { useScheduledBackup } from "../../hooks/useScheduledBackup";
 import { useScheduledLibraryUpdate } from "../../hooks/useScheduledLibraryUpdate";
+import { getCachedChapters } from "../../api/suwayomi/offlineCache";
+import { useProgressSynchronization } from "../../hooks/useProgressSynchronization";
+import { ProgressSyncStatus } from "../ProgressSyncStatus";
+import { BrandLogo, SidebarCompanion, SanctuaryArt } from "../Brand";
+import { applyPalette } from "../../theme/palettes";
 
 function ProfileSwitcher() {
   const { profiles, activeProfileId, setActiveProfileId } = useSettingsStore();
@@ -21,10 +28,11 @@ function ProfileSwitcher() {
   return (
     <div className="flex items-center gap-2 rounded-lg bg-ink-950/60 border border-white/5 hover:border-yomi-jade/30 px-2.5 py-1.5 text-xs text-slate-400 transition-[border-color,background-color] duration-150 shadow-sm">
       <Server className="h-3.5 w-3.5 text-yomi-jade shrink-0" />
-      <select
+      <ThemedSelect
+        aria-label="Server profile"
         value={activeProfileId}
-        onChange={(e) => {
-          setActiveProfileId(e.target.value);
+        onValueChange={(value) => {
+          setActiveProfileId(value);
           queryClient.clear();
         }}
         className="flex-1 bg-transparent text-slate-300 outline-none font-medium cursor-pointer"
@@ -34,35 +42,33 @@ function ProfileSwitcher() {
             {p.name}
           </option>
         ))}
-      </select>
+      </ThemedSelect>
     </div>
   );
 }
 
 function BackendHealthBadge() {
-  const { connectionStatus, mockMode, serverBaseUrl } = useSettingsStore();
+  const { connectionStatus, mockMode } = useSettingsStore();
 
   let dotColor = "bg-slate-500";
   let textColor = "text-slate-400";
-  let statusText = "Disconnected";
+  let statusText = "Not connected";
 
-  if (connectionStatus === "connected") {
-    const port = serverBaseUrl.split(":").pop() || "4567";
-    dotColor = "bg-yomi-jade animate-pulse";
+  if (mockMode) {
+    dotColor = "bg-yomi-jade";
+    statusText = "Demo library";
+  } else if (connectionStatus === "connected") {
+    dotColor = "bg-yomi-jade";
     textColor = "text-yomi-mint";
-    statusText = `Local Engine: Active (Port ${port})`;
+    statusText = "Ready to read";
   } else if (connectionStatus === "testing") {
     dotColor = "bg-blue-400 animate-pulse";
     textColor = "text-blue-400";
     statusText = "Connecting...";
-  } else if (mockMode) {
-    dotColor = "bg-purple-400 animate-pulse";
-    textColor = "text-purple-300";
-    statusText = "Demo Sandbox Mode";
   } else if (connectionStatus === "error") {
-    dotColor = "bg-red-400 animate-pulse";
+    dotColor = "bg-amber-400";
     textColor = "text-red-400";
-    statusText = "Offline";
+    statusText = "Reading offline";
   }
 
   return (
@@ -82,7 +88,7 @@ function AppShell() {
   const { 
     connectionStatus, 
     testConnection, 
-    accentColor, 
+    colorPalette,
     themeMode, 
     mockMode, 
     setMockMode, 
@@ -101,6 +107,7 @@ function AppShell() {
   useDeviceProfileBootstrap();
   useScheduledBackup();
   useScheduledLibraryUpdate();
+  useProgressSynchronization();
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -113,6 +120,13 @@ function AppShell() {
     })();
     return () => unlisten?.();
   }, []);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    void import("@tauri-apps/api/window").then(({ getCurrentWindow }) =>
+      getCurrentWindow().setTheme(themeMode === "system" ? null : themeMode),
+    ).catch((error) => console.warn("Window appearance could not follow the selected theme:", error));
+  }, [themeMode]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -142,7 +156,7 @@ function AppShell() {
     if (hasHydrated && !mockMode) {
       void testConnection();
     }
-  }, [hasHydrated, mockMode, testConnection]);
+  }, [hasHydrated, mockMode, serverBaseUrl, testConnection]);
 
   useEffect(() => {
     if (!hasHydrated || (!mockMode && connectionStatus !== "connected")) return;
@@ -153,41 +167,43 @@ function AppShell() {
   useEffect(() => {
     // 1. Theme application
     const htmlElement = document.documentElement;
-    const isDark = 
-      themeMode === "dark" || 
-      (themeMode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-      
-    if (isDark) {
-      htmlElement.classList.remove("light-theme");
-    } else {
-      htmlElement.classList.add("light-theme");
-    }
-
-    // 2. Accent color application (RGB values)
-    const accents: Record<string, string> = {
-      // Keep the persisted key for backwards compatibility; it is now the
-      // branded warm-paper default rather than the old green accent.
-      jade: "239, 234, 226",
-      mint: "169, 242, 212",
-      gold: "242, 200, 121",
-      plum: "182, 155, 255",
-      coral: "239, 138, 122"
+    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme = () => {
+      const dark = themeMode === "dark" || themeMode === "system" && systemTheme.matches;
+      htmlElement.classList.toggle("light-theme", !dark);
+      applyPalette(htmlElement, colorPalette, dark);
     };
-    
-    const rgb = accents[accentColor] || accents.jade;
-    htmlElement.style.setProperty("--yomi-accent", rgb);
+    applyTheme();
+    if (themeMode === "system") systemTheme.addEventListener("change", applyTheme);
 
     htmlElement.classList.toggle("high-contrast", highContrastMode);
     htmlElement.classList.toggle("reduce-motion", reducedMotion);
-  }, [themeMode, accentColor, highContrastMode, reducedMotion]);
+    return () => systemTheme.removeEventListener("change", applyTheme);
+  }, [themeMode, colorPalette, highContrastMode, reducedMotion]);
 
   const showOfflineBanner = connectionStatus === "error" && !location.pathname.startsWith("/reader/") && !mockMode;
 
   const isUnconnected = connectionStatus === "error" || connectionStatus === "disconnected";
-  const showOnboarding = isUnconnected && !mockMode && location.pathname !== "/settings";
+  const isSettingsRoute = /^\/settings(?:\/|$)/.test(location.pathname);
+  const isOfflineRoute = /^\/(?:library|downloads|history)\/?$/.test(location.pathname)
+    || /^\/(?:manga|reader)\/[^/]+\/?$/.test(location.pathname);
+  const checkOfflineCache = hasHydrated && isUnconnected && !mockMode
+    && !!serverBaseUrl.trim() && isOfflineRoute;
+  const offlineChapters = useQuery({
+    // Scope availability to the active backend. Never pass an empty URL, which
+    // would ask the cache for chapters belonging to every backend.
+    queryKey: ["offline-shell-chapters", serverBaseUrl],
+    queryFn: () => getCachedChapters(serverBaseUrl),
+    select: (chapters) => chapters.some((chapter) => chapter.pageCount > 0 && chapter.pages.length > 0),
+    enabled: checkOfflineCache,
+    retry: false,
+  });
+  const canOpenOffline = checkOfflineCache && offlineChapters.data === true;
+  const checkingOfflineCache = checkOfflineCache && offlineChapters.isFetching && !canOpenOffline;
+  const showOnboarding = isUnconnected && !mockMode && !isSettingsRoute && !canOpenOffline;
 
-  if (!hasHydrated) {
-    return <div className="yomi-route-loading" role="status" aria-label="Loading saved settings"><span className="yomi-skeleton h-8 w-40" /><span className="yomi-skeleton h-24 w-full" /></div>;
+  if (!hasHydrated || checkingOfflineCache) {
+    return <div className="yomi-route-loading" role="status" aria-label={checkingOfflineCache ? "Loading saved chapters" : "Loading saved settings"}><span className="yomi-skeleton h-8 w-40" /><span className="yomi-skeleton h-24 w-full" /></div>;
   }
 
   if (showOnboarding) {
@@ -203,7 +219,7 @@ function AppShell() {
   }
 
   if (location.pathname.startsWith("/reader/")) {
-    return <main id="main-content" className="min-h-screen bg-black" tabIndex={-1}><ErrorBoundary><Outlet /></ErrorBoundary></main>;
+    return <main id="main-content" className="min-h-screen bg-black" tabIndex={-1}><ErrorBoundary key={`${serverBaseUrl}::${mockMode}`}><Outlet /></ErrorBoundary></main>;
   }
 
   return (
@@ -211,48 +227,42 @@ function AppShell() {
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-ink-950">Skip to content</a>
       <aside className="yomi-sidebar">
         <BrandLockup />
-        <BackendHealthBadge />
         
         {/* Profile Switcher */}
-        <div className="mt-5 px-1">
+        <div className="yomi-profile-switcher">
           <ProfileSwitcher />
         </div>
 
-        <nav className="mt-6 space-y-1" aria-label="Primary navigation">
+        <nav className="yomi-primary-nav" aria-label="Primary navigation">
           {primaryNav.map((item) => (
             <ShellNavLink key={item.path} item={item} />
           ))}
         </nav>
-        <div className="yomi-nav-section">
-          <p className="yomi-nav-label">Reading</p>
-          <nav className="mt-2 space-y-1" aria-label="Browse navigation">
-            {browseNav.map((item) => (
-              <ShellNavLink key={item.path} item={item} />
-            ))}
-          </nav>
-        </div>
         <div className="yomi-sidebar-footer">
+          <SidebarCompanion />
           {utilityNav.map((item) => <ShellNavLink key={item.path} item={item} />)}
-          <p>Private by default. Your library stays on this device.</p>
+          <BackendHealthBadge />
+          <ProgressSyncStatus />
         </div>
       </aside>
       <main id="main-content" className="yomi-main" tabIndex={-1}>
         <div className="px-4 pt-2 lg:px-0">
           <UpdateNotificationBanner />
         </div>
+        <PwaUpdateNotice />
         {mockMode && !location.pathname.startsWith("/reader/") && (
-          <div className="mx-auto my-3 flex max-w-3xl flex-col items-start justify-between gap-3 rounded-xl border border-[rgba(var(--yomi-signature),.28)] bg-[rgba(var(--yomi-signature),.08)] px-4 py-3 sm:flex-row sm:items-center">
-            <div className="flex min-w-0 items-start gap-2 text-sm"><Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[rgb(var(--yomi-signature))]" /><p className="text-slate-200"><strong>Demo Sandbox is active.</strong> You are viewing sample titles only; your server library, history, extensions, and downloads are not shown.</p></div>
-            <button type="button" onClick={() => { setMockMode(false); navigate("/settings"); }} className="yomi-button yomi-button-primary shrink-0">Connect a server</button>
+          <div className="yomi-demo-notice">
+            <span><Sparkles aria-hidden="true" />Demo library <span className="yomi-demo-description">· Explore with original sample books. Your library stays separate.</span></span>
+            <button type="button" onClick={() => { setMockMode(false); navigate("/settings/connection"); }}>Connect your library <ArrowRight aria-hidden="true" /></button>
           </div>
         )}
         {showOfflineBanner && (
-          <div className="mx-auto my-3 max-w-xl rounded-full bg-amber-500/10 border border-amber-500/20 px-4 py-1.5 text-center text-xs font-semibold text-amber-300 backdrop-blur-md shadow-md animate-fade-in flex items-center justify-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-            <span>Suwayomi server is offline. Yomikura is running in offline mode.</span>
+          <div className="yomi-offline-notice mx-auto my-3 max-w-xl rounded-full bg-amber-500/10 border border-amber-500/20 px-4 py-1.5 text-center text-xs font-semibold text-amber-300 backdrop-blur-md shadow-md animate-fade-in flex items-center justify-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+            <span>Reading offline. Saved chapters and progress are available on this device.</span>
           </div>
         )}
-        <ErrorBoundary>
+        <ErrorBoundary key={`${serverBaseUrl}::${mockMode}`}>
           <Outlet />
         </ErrorBoundary>
       </main>
@@ -339,11 +349,11 @@ export function BrandLockup() {
   return (
     <div className="yomi-brand">
       <div className="yomi-brand-mark">
-        <img src="/yomikura-logo.png" alt="Yomikura" className="h-full w-full object-cover" />
+        <BrandLogo />
       </div>
       <div>
         <p>Yomikura</p>
-        <span>Desktop reader</span>
+        <span>Your reading sanctuary</span>
       </div>
     </div>
   );
@@ -598,18 +608,15 @@ function WelcomeOnboarding({
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-ink-950 via-ink-900 to-ink-950 p-6 relative overflow-hidden">
-      {/* Background glow effects */}
-      <div className="absolute top-1/4 left-1/4 h-96 w-96 rounded-full bg-yomi-jade/10 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 h-96 w-96 rounded-full bg-yomi-jade/5 blur-[150px] pointer-events-none" />
-
-      <div className="relative z-10 w-full max-w-xl rounded-2xl border border-white/10 bg-ink-900/40 p-8 md:p-10 backdrop-blur-xl shadow-2xl animate-fade-in flex flex-col items-center">
+    <div className="yomi-onboarding">
+      <div className="yomi-welcome-art" aria-hidden="true"><SanctuaryArt /><div><span>YOMIKURA</span><p>Stories feel brighter here.</p></div></div>
+      <div className="yomi-setup-panel">
         {/* Brand Logo */}
-        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-white/10 shadow-glow">
-          <img src="/yomikura-logo.png" alt="Yomikura" className="h-full w-full object-cover" />
+        <div className="yomi-welcome-logo">
+          <BrandLogo />
         </div>
 
-        <h1 className="mt-6 text-3xl font-extrabold text-white tracking-tight text-center">
+        <h1 className="yomi-welcome-brand">
           Yomikura
         </h1>
         
@@ -618,13 +625,13 @@ function WelcomeOnboarding({
           <div className="mt-6 w-full flex flex-col items-center animate-fade-in">
             <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
               <FolderOpen className="h-5 w-5 text-yomi-jade" />
-              Choose Storage Location
+              Make room for your library
             </h2>
             <p className="mt-2 text-xs text-slate-400 text-center max-w-sm leading-relaxed">
-              Choose an empty folder for Yomikura, or a folder already created by Yomikura. Downloaded chapters, databases, and library settings will be stored there.
+              We’ll set up a private library on this device. Choose where to keep your books and reading progress.
             </p>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 w-full">
+            <div className="yomi-storage-options">
               {/* Option 1: Default AppData */}
               <button
                 onClick={handleSelectDefaultFolder}
@@ -634,13 +641,13 @@ function WelcomeOnboarding({
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/5 border border-white/10 text-slate-300">
                     <HardDrive className="h-5 w-5" />
                   </div>
-                  <h3 className="mt-3 text-xs font-semibold text-slate-200">Default (C: Drive)</h3>
+                  <h3 className="mt-3 text-xs font-semibold text-slate-200">On this device</h3>
                   <p className="mt-1.5 text-xs text-slate-500 max-w-[160px] leading-normal">
-                    Store inside standard system AppData.
+                    Recommended. We’ll take care of the location.
                   </p>
                 </div>
                 <span className="mt-4 text-xs font-bold text-yomi-jade hover:underline">
-                  Use Default &rarr;
+                  Set up my library &rarr;
                 </span>
               </button>
 
@@ -653,9 +660,9 @@ function WelcomeOnboarding({
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yomi-jade/10 border border-yomi-jade/20 text-yomi-jade">
                     <FolderOpen className="h-5 w-5" />
                   </div>
-                  <h3 className="mt-3 text-xs font-semibold text-slate-200">Select Custom folder</h3>
+                  <h3 className="mt-3 text-xs font-semibold text-slate-200">Choose a folder</h3>
                   <p className="mt-1.5 text-xs text-slate-500 max-w-[160px] leading-normal">
-                    Choose an empty folder on D:, E:, or another partition.
+                    Use an empty folder on another drive.
                   </p>
                 </div>
                 <span className="mt-4 text-xs font-bold text-yomi-jade hover:underline">
@@ -674,7 +681,7 @@ function WelcomeOnboarding({
                   </div>
                   <h3 className="mt-3 text-xs font-semibold text-slate-200">Portable mode</h3>
                   <p className="mt-1.5 text-xs text-slate-500 max-w-[160px] leading-normal">
-                    Store data next to the app — great for USB drives.
+                    Keep the app and library together.
                   </p>
                 </div>
                 <span className="mt-4 text-xs font-bold text-yomi-jade hover:underline">
@@ -687,7 +694,7 @@ function WelcomeOnboarding({
               onClick={() => setMockMode(true)}
               className="mt-6 text-xs text-slate-500 hover:text-slate-400 hover:underline"
             >
-              Skip and Enter Demo Playground Mode
+              Take a look around first
             </button>
           </div>
         )}
@@ -699,8 +706,8 @@ function WelcomeOnboarding({
             {javaStatus === "checking" && (
               <div className="py-6 flex flex-col items-center">
                 <Loader2 className="h-10 w-10 animate-spin text-yomi-jade mb-3" />
-                <h3 className="text-sm font-semibold text-slate-200">Checking Java Environment...</h3>
-                <p className="text-xs text-slate-500 mt-1">Verifying OpenJDK runtime on your system PATH.</p>
+                <h3 className="text-sm font-semibold text-slate-200">Preparing your library…</h3>
+                <p className="text-xs text-slate-500 mt-1">Checking what’s already available on this device.</p>
               </div>
             )}
 
@@ -708,12 +715,12 @@ function WelcomeOnboarding({
             {javaStatus === "downloading" && (
               <div className="py-6 flex flex-col items-center w-full max-w-sm">
                 <Loader2 className="h-10 w-10 animate-spin text-yomi-jade mb-3" />
-                <h3 className="text-sm font-semibold text-slate-200">Setting up Java Runtime...</h3>
+                <h3 className="text-sm font-semibold text-slate-200">Installing reading essentials…</h3>
                 <p className="text-xs text-slate-400 mt-2 max-w-xs leading-relaxed">
-                  Yomikura is automatically downloading and configuring a private OpenJDK 21 runtime inside your local data directory. This removes setup friction and won't affect any system-wide Java settings.
+                  This is only needed the first time. Keep this window open while we prepare your library.
                 </p>
                 <div className="mt-5 w-full bg-white/5 rounded-full h-1.5 overflow-hidden border border-white/5">
-                  <div className="bg-yomi-jade h-full w-2/3 animate-pulse rounded-full" style={{ animationDuration: '2s' }} />
+                  <progress className="w-full" aria-label="Installing reading essentials" />
                 </div>
                 <span className="text-xs text-slate-500 mt-3">Downloading Eclipse Temurin JRE 21 ~ 40MB</span>
               </div>
@@ -763,9 +770,9 @@ function WelcomeOnboarding({
             {javaStatus === "installed" && serverStatus === "starting" && (
               <div className="py-6 flex flex-col items-center">
                 <Loader2 className="h-10 w-10 animate-spin text-yomi-jade mb-3" />
-                <h3 className="text-sm font-semibold text-slate-200">Starting local manga engine...</h3>
+                <h3 className="text-sm font-semibold text-slate-200">Opening your library…</h3>
                 <p className="text-xs text-slate-500 mt-1.5 max-w-xs leading-normal">
-                  Initializing the Suwayomi-Server database. This might take 5-10 seconds on the first launch.
+                  Putting everything in place. This may take a few moments the first time.
                 </p>
               </div>
             )}
@@ -787,7 +794,7 @@ function WelcomeOnboarding({
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 border border-red-500/20 text-red-400 mb-4">
                   <AlertTriangle className="h-6 w-6" />
                 </div>
-                <h3 className="text-sm font-semibold text-slate-200">Failed to Start Backend Server</h3>
+                <h3 className="text-sm font-semibold text-slate-200">Your library couldn’t start</h3>
                 <p className="text-xs text-slate-400 mt-2 max-w-sm leading-relaxed">
                   {friendlyStartupError(localError)}
                 </p>
@@ -835,132 +842,33 @@ function WelcomeOnboarding({
           </div>
         )}
 
-        {/* STEP 3: FALLBACK READY SCREEN (Remote Connection & Demo Bypass) */}
+        {/* Web setup: preview first, connection details only on request. */}
         {currentStep === "ready" && (
-          <div className="w-full flex flex-col items-center animate-fade-in">
-            <p className="mt-2 text-sm text-slate-400 text-center max-w-sm">
-              A focused desktop manga reader. Quiet, fast, and completely local.
-            </p>
-
-            {/* Feature List */}
-            <div className="mt-8 space-y-4 w-full border-t border-white/5 pt-6">
-              <div className="flex gap-4 items-start">
-                <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[rgba(var(--yomi-signature),.24)] bg-[rgba(var(--yomi-signature),.08)] text-[rgb(var(--yomi-signature))]">
-                  <BookOpen className="h-4.5 w-4.5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-200">Mihon-Inspired Reader</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Enjoy layout scaling, RTL reading direction, double page spreads, and vertical webtoon modes.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4 items-start">
-                <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[rgba(var(--yomi-signature),.24)] bg-[rgba(var(--yomi-signature),.08)] text-[rgb(var(--yomi-signature))]">
-                  <ShieldCheck className="h-4.5 w-4.5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-200">100% Private & Local</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    No telemetry, tracking, or accounts. All settings, logs, and downloaded chapters stay on your device.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4 items-start">
-                <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[rgba(var(--yomi-signature),.24)] bg-[rgba(var(--yomi-signature),.08)] text-[rgb(var(--yomi-signature))]">
-                  <Sparkles className="h-4.5 w-4.5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-200">Tailored UI Theme System</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Start with Yomikura's ivory-and-ink identity, or choose an optional personal accent.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Primary CTA: Playground/Sandbox */}
-            <div className="mt-8 w-full">
-              <button
-                onClick={() => setMockMode(true)}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#efeae2] py-3.5 px-4 text-sm font-bold text-[#101318] shadow-md transition-[transform,background-color] duration-150 hover:bg-white active:scale-[0.99]"
-              >
-                <span>Explore Demo Library</span>
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Advanced Accordion Toggle */}
-            <div className="mt-6 w-full border-t border-white/5 pt-4">
-              <button
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className="w-full flex items-center justify-between text-xs text-slate-500 hover:text-slate-300 transition-colors py-1"
-              >
-                <span>Connect Self-Hosted Server (Advanced)</span>
-                {showAdvanced ? (
-                  <ChevronUp className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
-                )}
-              </button>
-
-              {/* Collapsible Content */}
-              <div
-                className={`transition-[max-height,opacity] duration-200 overflow-hidden ${
-                  showAdvanced ? "max-h-[220px] mt-4 opacity-100" : "max-h-0 opacity-0 pointer-events-none"
-                }`}
-              >
-                <div className="rounded-xl border border-white/5 bg-ink-950/40 p-4 space-y-3">
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Enter your local or hosted Suwayomi server URL (e.g. <code>http://localhost:4567</code>) to load your live catalog and active sources.
-                  </p>
-                  
-                  <form onSubmit={handleTestAndSave} className="space-y-2.5">
-                    <input
-                      type="url"
-                      required
-                      placeholder="http://localhost:4567"
-                      value={inputUrl}
-                      onChange={(e) => setInputUrl(e.target.value)}
-                      className="w-full rounded-lg bg-ink-950 border border-white/10 px-3 py-2 text-xs text-slate-300 outline-none focus:border-yomi-jade/50 transition-colors"
-                    />
-                    
-                    <button
-                      type="submit"
-                      disabled={testStatus === "testing"}
-                      className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-white/5 border border-white/10 py-2 px-3 text-xs font-semibold text-slate-200 hover:bg-white/10 transition disabled:opacity-50"
-                    >
-                      {testStatus === "testing" ? (
-                        <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-yomi-jade" />
-                          <span>Connecting...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Server className="h-3.5 w-3.5 text-yomi-jade" />
-                          <span>Connect & Save</span>
-                        </>
-                      )}
-                    </button>
-
-                    {testStatus === "error" && localError && (
-                      <p className="text-xs text-red-400 text-center leading-relaxed">{localError}</p>
-                    )}
-                    {testStatus === "success" && (
-                      <p className="text-xs text-yomi-jade text-center font-semibold">Connected Successfully!</p>
-                    )}
-                  </form>
-                </div>
-              </div>
-            </div>
+          <div className="yomi-welcome-ready">
+            <h2>A little space for your next story.</h2>
+            <p>Keep your books together, pick up where you left off, and let everything else fade away.</p>
+            <button onClick={() => setMockMode(true)} className="yomi-button yomi-button-primary yomi-welcome-primary">
+              Explore Demo Library <ArrowRight aria-hidden="true" />
+            </button>
+            <span className="yomi-welcome-hint">Try two original illustrated stories. No account needed.</span>
+            <details className="yomi-connect-details" open={showAdvanced} onToggle={(event) => setShowAdvanced(event.currentTarget.open)}>
+              <summary>Connect an existing library</summary>
+              <p>Already use Suwayomi? Add your library’s address below. You can change it later in Settings.</p>
+              <form onSubmit={handleTestAndSave}>
+                <label htmlFor="welcome-library-address">Library address</label>
+                <input id="welcome-library-address" type="url" required placeholder="Your library’s address" value={inputUrl} onChange={(event) => setInputUrl(event.target.value)} className="yomi-field" />
+                <button type="submit" disabled={testStatus === "testing"} className="yomi-button yomi-button-secondary">{testStatus === "testing" ? <><Loader2 className="animate-spin" />Connecting…</> : <><Server />Connect & Save</>}</button>
+                {testStatus === "error" && <p role="alert">We couldn’t reach your library. Check its address and connection, then try again.</p>}
+                {testStatus === "success" && <p role="status">Connected. Your library is ready.</p>}
+              </form>
+              {testStatus === "error" && localError && <details className="mt-3"><summary>Technical details</summary><pre>{localError}</pre></details>}
+            </details>
           </div>
         )}
 
         {/* Footer legal disclaimer */}
-        <p className="mt-8 text-xs text-slate-600 text-center leading-relaxed max-w-sm">
-          Yomikura hosts no content. Desktop mode may run Suwayomi locally on your device; you are responsible for sources and repositories.
+        <p className="yomi-welcome-footer">
+          Your books. Your reading room.
         </p>
       </div>
     </div>
@@ -968,6 +876,8 @@ function WelcomeOnboarding({
 }
 
 function ShellNavLink({ item }: { item: NavItem }) {
+  const { pathname } = useLocation();
+  const isDiscovery = item.path === "/browse/sources" && (/^\/browse(?:\/|$)/.test(pathname) || /^\/extensions(?:\/|$)/.test(pathname));
   const Icon = item.icon;
   const { t } = useTranslation();
   const translationKey = item.label.toLowerCase().replace(" ", "_") as any;
@@ -975,7 +885,7 @@ function ShellNavLink({ item }: { item: NavItem }) {
   return (
     <NavLink
       className={({ isActive }) =>
-        `yomi-nav-link group ${isActive ? "is-active" : ""}`
+        `yomi-nav-link group ${isActive || isDiscovery ? "is-active" : ""}`
       }
       to={item.path}
     >
@@ -997,7 +907,7 @@ function MobileNav() {
       aria-label="Mobile navigation"
     >
       <div className="grid grid-cols-6 gap-1">
-        {primaryNav.map((item) => {
+        {[...primaryNav, ...utilityNav].map((item) => {
           const Icon = item.icon;
           const translationKey = item.label.toLowerCase().replace(" ", "_") as any;
           const label = t(translationKey) === translationKey ? item.label : t(translationKey);

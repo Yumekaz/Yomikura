@@ -8,6 +8,14 @@ import { getErrorMessage } from "../../api/suwayomi/errors";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { getReadingHistory, hideReadingHistoryItem } from "../../api/suwayomi/offlineCache";
 import { ChapterOrderBy, SortOrder } from "../../api/graphql/generated/graphql";
+import { invalidateChapterState } from "../../api/suwayomi/chapterState";
+import { progressBackend } from "../../api/suwayomi/backendIdentity";
+import { isCurrentProgressBackend, readProgressHistory, writeChapterProgress } from "../../api/suwayomi/progressSync";
+import { setProgressHistoryHidden } from "../../api/suwayomi/progressStorage";
+import { loadReadingSequence } from "../reader/readingSequence";
+import { normalizeChapterPolicy } from "../manga/chapterPolicy";
+import { mangaReaderSettingsKey } from "../../stores/mangaReaderSettings";
+import { ReadingSpirit } from "../../components/Brand";
 
 interface HistoryItem {
   id: string;
@@ -55,19 +63,19 @@ function dateLabel(timestamp: number): string {
 }
 
 export default function HistoryPage() {
-  const { confirm } = useFeedback();
+  const { confirm, notify } = useFeedback();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [openingNextId, setOpeningNextId] = useState<string | null>(null);
-  const { serverBaseUrl, mockMode } = useSettingsStore();
+  const { serverBaseUrl, mockMode, chapterPolicies } = useSettingsStore();
   const queryClient = useQueryClient();
-  const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`), [serverBaseUrl]);
+  const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`, undefined, mockMode ? "demo" : "live"), [serverBaseUrl, mockMode]);
 
   const serverHistory = useInfiniteQuery({
-    queryKey: ["history", "server", serverBaseUrl],
+    queryKey: ["history", "server", serverBaseUrl, mockMode],
     queryFn: ({ pageParam }) => sdk.GetHistory({
       filter: { lastReadAt: { greaterThan: "0" } },
-      order: [{ by: ChapterOrderBy.LastReadAt, byType: SortOrder.Desc }],
+      order: [{ by: ChapterOrderBy.LastReadAt, byType: SortOrder.Desc }, { by: ChapterOrderBy.Id, byType: SortOrder.Desc }],
       first: 40,
       after: pageParam,
     }),
@@ -81,8 +89,8 @@ export default function HistoryPage() {
   });
 
   const localHistory = useQuery({
-    queryKey: ["history", "local", serverBaseUrl],
-    queryFn: () => getReadingHistory(serverBaseUrl),
+    queryKey: ["history", "local", serverBaseUrl, mockMode],
+    queryFn: () => readProgressHistory(progressBackend(serverBaseUrl, mockMode)),
     enabled: !!serverBaseUrl,
   });
 
@@ -90,8 +98,7 @@ export default function HistoryPage() {
     const merged = new Map<string, HistoryItem>();
     const hidden = new Set((localHistory.data ?? []).filter((event) => event.isHidden).map((event) => String(event.chapterId)));
     for (const page of serverHistory.data?.pages ?? []) {
-      for (const edge of page.chapters?.edges ?? []) {
-        const node = edge?.node;
+      for (const node of page.chapters?.nodes ?? []) {
         if (!node) continue;
         if (hidden.has(String(node.id))) continue;
         const readAt = parseHistoryTimestamp(node.lastReadAt);
@@ -125,13 +132,17 @@ export default function HistoryPage() {
   }, [localHistory.data, mockMode, searchQuery, serverHistory.data]);
 
   const hideHistory = useMutation({
-    mutationFn: async (item: HistoryItem) => hideReadingHistoryItem({
+    mutationFn: async (item: HistoryItem) => {
+      await setProgressHistoryHidden(progressBackend(serverBaseUrl, mockMode), Number(item.id));
+      return hideReadingHistoryItem({
       chapterId: Number(item.id), chapterName: item.name, chapterNumber: item.chapterNumber,
       mangaId: item.mangaId, mangaTitle: item.manga.title, thumbnailUrl: item.manga.thumbnailUrl,
       lastPageRead: item.lastPageRead, pageCount: item.pageCount ?? 0, isRead: false,
       isDemo: mockMode,
-    }, serverBaseUrl),
+      }, serverBaseUrl);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["history"] }),
+    onError: () => notify("The history change could not be saved on this device. Check storage and retry.", "error"),
   });
 
   const groups = useMemo(() => {
@@ -147,29 +158,29 @@ export default function HistoryPage() {
 
   const resetProgress = useMutation({
     mutationFn: async (item: HistoryItem) => {
-      await hideReadingHistoryItem({
-        chapterId: Number(item.id), chapterName: item.name, chapterNumber: item.chapterNumber,
-        mangaId: item.mangaId, mangaTitle: item.manga.title, thumbnailUrl: item.manga.thumbnailUrl,
-        lastPageRead: 0, pageCount: item.pageCount ?? 0, isRead: false, isDemo: mockMode,
-      }, serverBaseUrl);
-      await sdk.UpdateChapterProgress({ input: { id: Number(item.id), patch: { lastPageRead: 0, isRead: false } } }).catch(() => null);
+      await writeChapterProgress(progressBackend(serverBaseUrl, mockMode), Number(item.id), { lastPageRead: 0, isRead: false }, { hideHistory: true,
+        fallback: { chapterId: Number(item.id), chapterName: item.name, chapterNumber: item.chapterNumber, mangaId: item.mangaId, mangaTitle: item.manga.title, pageCount: item.pageCount ?? 0 },
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["history"] });
-      queryClient.invalidateQueries({ queryKey: ["chapter"] });
+      void invalidateChapterState(queryClient);
     },
+    onError: () => notify("The reset could not be saved on this device. Check storage and retry.", "error"),
   });
 
   const openNextChapter = async (item: HistoryItem) => {
+    const backend = progressBackend(serverBaseUrl, mockMode);
     setOpeningNextId(item.id);
     try {
-      const result = await sdk.GetChapter({ id: Number(item.id) });
-      const chapters = (result.chapter?.manga?.chapters?.edges ?? [])
-        .map((edge) => edge?.node)
-        .filter((chapter): chapter is NonNullable<typeof chapter> => !!chapter)
-        .filter((chapter) => chapter.chapterNumber > item.chapterNumber)
-        .sort((a, b) => a.chapterNumber - b.chapterNumber);
-      navigate(`/reader/${chapters[0]?.id ?? item.id}`);
+      const policy = normalizeChapterPolicy(chapterPolicies[mangaReaderSettingsKey(backend, item.mangaId)]);
+      const { chapters } = await loadReadingSequence(backend, item.mangaId, item.manga.title, Number(item.id), policy);
+      if (!isCurrentProgressBackend(backend)) return;
+      const index = chapters.findIndex((chapter) => chapter.id === Number(item.id));
+      const next = index >= 0 ? chapters[index + 1] : undefined;
+      if (!next) { notify("No next chapter matches this title's order and filters.", "info"); return; }
+      navigate(`/reader/${next.id}`);
+    } catch (error) {
+      if (isCurrentProgressBackend(backend)) notify(error instanceof Error && !("response" in error) ? error.message : getErrorMessage(error), "error");
     } finally {
       setOpeningNextId(null);
     }
@@ -178,7 +189,7 @@ export default function HistoryPage() {
   if (!serverBaseUrl) return <EmptyHistory title="Connect your library" detail="Reading activity appears after Yomikura connects to Suwayomi." />;
   if ((serverHistory.isLoading || localHistory.isLoading) && items.length === 0) return <HistorySkeleton />;
   if (items.length === 0 && serverHistory.isError) {
-    return <EmptyHistory title="History is unavailable" detail={getErrorMessage(serverHistory.error)} action={<button className="yomi-button yomi-button-primary" onClick={() => serverHistory.refetch()}>Try again</button>} />;
+    return <EmptyHistory title="History is unavailable" detail="Check your connection and try again." technical={getErrorMessage(serverHistory.error)} action={<button className="yomi-button yomi-button-primary" onClick={() => serverHistory.refetch()}>Try again</button>} />;
   }
   if (items.length === 0) return <EmptyHistory title="No reading history yet" detail="Open any chapter. Online and downloaded reading will collect here automatically." />;
 
@@ -186,7 +197,7 @@ export default function HistoryPage() {
     <section className="yomi-page yomi-history">
       <header className="yomi-page-header">
         <div><span className="yomi-eyebrow">Reading activity</span><h1>History</h1><p>{items.length} chapter{items.length === 1 ? "" : "s"} in your recent timeline</p></div>
-        <div className="flex w-full max-w-sm flex-col gap-2"><label className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><span className="sr-only">Search reading history</span><input className="yomi-field w-full pl-10" type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search history…" /></label>{serverHistory.isError && <div className="yomi-status-chip" title={getErrorMessage(serverHistory.error)}><span className="yomi-status-dot is-warning" /> Local history shown</div>}</div>
+        <div className="flex w-full max-w-xs flex-col gap-2"><label className="yomi-search !w-full"><Search aria-hidden="true" /><span className="sr-only">Search reading history</span><input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search history…" /></label>{serverHistory.isError && <div className="yomi-status-chip" title={getErrorMessage(serverHistory.error)}><span className="yomi-status-dot is-warning" /> Local history shown</div>}</div>
       </header>
 
       <div className="yomi-timeline">
@@ -220,8 +231,8 @@ export default function HistoryPage() {
   );
 }
 
-function EmptyHistory({ title, detail, action }: { title: string; detail: string; action?: React.ReactNode }) {
-  return <div className="yomi-empty-state"><div className="yomi-empty-icon"><History /></div><span className="yomi-eyebrow">Reading timeline</span><h1>{title}</h1><p>{detail}</p>{action}</div>;
+function EmptyHistory({ title, detail, technical, action }: { title: string; detail: string; technical?: string; action?: React.ReactNode }) {
+  return <div className="yomi-empty-state"><ReadingSpirit mood="resting" className="yomi-empty-spirit" /><h1>{title}</h1><p>{detail}</p>{action ?? <Link className="yomi-button yomi-button-primary" to="/library">Open library</Link>}{technical && <details className="yomi-error-details mt-5"><summary>Technical details</summary><pre>{technical}</pre></details>}</div>;
 }
 
 function HistorySkeleton() {
