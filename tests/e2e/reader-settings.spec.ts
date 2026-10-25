@@ -1,3 +1,4 @@
+import { chooseOption } from "./fixtures/themedSelect";
 import { expect, test, type Page } from "@playwright/test";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
 import { chapterConnection } from "./fixtures/chapterConnection";
@@ -47,7 +48,7 @@ async function openReader(page: Page, owner: "First" | "Second") {
 }
 async function switchServer(page: Page, id: "first" | "second") {
   await page.goto("/settings/reader");
-  await page.getByRole("combobox", { name: "Server profile", exact: true }).selectOption(id);
+  await chooseOption(page.getByRole("combobox", { name: "Server profile", exact: true }), id);
 }
 async function saved(page: Page) {
   return page.evaluate(() => JSON.parse(localStorage.getItem("yomikura-settings") || "{}").state);
@@ -57,8 +58,8 @@ test("title controls retain their own values across backend switches, reload and
   await fixture(page); await openReader(page, "First");
   await remembered(page).click();
   await page.getByRole("button", { name: "RTL", exact: true }).click();
-  await page.getByRole("combobox", { name: "Page transition", exact: true }).selectOption("fade");
-  await page.getByRole("combobox", { name: "Auto-download ahead", exact: true }).selectOption("3");
+  await chooseOption(page.getByRole("combobox", { name: "Page transition", exact: true }), "fade");
+  await chooseOption(page.getByRole("combobox", { name: "Auto-download ahead", exact: true }), "3");
   await page.getByRole("button", { name: "Filters", exact: true }).click();
   await page.getByRole("slider", { name: "Grayscale effect", exact: true }).fill("65");
   await page.getByRole("button", { name: "Fixed page crop", exact: true }).click();
@@ -80,7 +81,7 @@ test("title controls retain their own values across backend switches, reload and
 
   await switchServer(page, "first"); await openReader(page, "First");
   await expect(remembered(page)).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("combobox", { name: "Page transition", exact: true })).toHaveValue("fade");
+  await expect(page.getByRole("combobox", { name: "Page transition", exact: true })).toHaveAttribute("data-value", "fade");
   await expect(pagedImage(page)).toHaveCSS("filter", /grayscale\(0\.65\)/);
   await remembered(page).click();
   await expect(remembered(page)).toHaveAttribute("aria-pressed", "false");

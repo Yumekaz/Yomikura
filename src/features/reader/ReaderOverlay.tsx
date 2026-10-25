@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, ChevronLeft, ChevronRight, Sliders, Settings, Play, Pause, Eye, BookOpen, RefreshCw } from "lucide-react";
@@ -178,31 +179,31 @@ export function ReaderOverlay({
 
                 <div className="flex items-center justify-between border-t border-white/5 pt-3">
                   <span className="text-xs font-semibold text-slate-300">Page transition</span>
-                  <select
+                  <ThemedSelect
                     aria-label="Page transition"
                     value={pageTransition}
-                    onChange={(e) => setPageTransition(e.target.value as "fade" | "slide" | "none")}
+                    onValueChange={(value) => setPageTransition(value as "fade" | "slide" | "none")}
                     className="yomi-select min-w-24"
                   >
                     <option value="none">None</option>
                     <option value="fade">Fade</option>
                     <option value="slide">Slide</option>
-                  </select>
+                  </ThemedSelect>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-300">Auto-download ahead</span>
-                  <select
+                  <ThemedSelect
                     aria-label="Auto-download ahead"
                     value={autoDownloadCount}
-                    onChange={(e) => setAutoDownloadCount(parseInt(e.target.value, 10))}
+                    onValueChange={(value) => setAutoDownloadCount(parseInt(value, 10))}
                     className="yomi-select min-w-24"
                   >
                     <option value={0}>Off</option>
                     <option value={1}>1</option>
                     <option value={3}>3</option>
                     <option value={5}>5</option>
-                  </select>
+                  </ThemedSelect>
                 </div>
 
                 {/* Overrides Toggle */}

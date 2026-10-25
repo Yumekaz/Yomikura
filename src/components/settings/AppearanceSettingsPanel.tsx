@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../ui/ThemedSelect";
 import { Globe, Monitor, Moon, Sun } from "lucide-react";
 import { useTranslation } from "../../hooks/useTranslation";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -49,7 +50,7 @@ export function AppearanceSettingsPanel() {
       </div>
     </fieldset>
     <div className="yomi-appearance-section">
-      <label htmlFor="appearance-language">Language</label><div className="yomi-language-control"><Globe aria-hidden="true" /><select id="appearance-language" value={language || "en"} onChange={(event) => setLanguage(event.target.value)} className="yomi-field"><option value="en">English</option><option value="es">Español</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="ja">日本語</option><option value="pt">Português</option><option value="zh">中文</option><option value="ru">Русский</option><option value="it">Italiano</option><option value="ko">한국어</option></select></div>
+      <label htmlFor="appearance-language">Language</label><div className="yomi-language-control"><Globe aria-hidden="true" /><ThemedSelect aria-label="Language" id="appearance-language" value={language || "en"} onValueChange={(value) => setLanguage(value)} className="yomi-field"><option value="en">English</option><option value="es">Español</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="ja">日本語</option><option value="pt">Português</option><option value="zh">中文</option><option value="ru">Русский</option><option value="it">Italiano</option><option value="ko">한국어</option></ThemedSelect></div>
     </div>
   </section>;
 }

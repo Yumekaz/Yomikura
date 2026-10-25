@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -295,16 +296,16 @@ export default function ExtensionsPage() {
               />
             </div>
             <div className="flex items-center gap-3">
-              <select 
+              <ThemedSelect
                 aria-label="Filter extensions by language"
                 value={langFilter}
-                onChange={(e) => setLangFilter(e.target.value)}
+                onValueChange={(value) => setLangFilter(value)}
                 className="yomi-field w-auto px-3 py-2"
               >
                 {languages.map(lang => (
                   <option key={lang} value={lang}>{lang === ALL_LANG_FILTER ? "All Languages" : lang.toUpperCase()}</option>
                 ))}
-              </select>
+              </ThemedSelect>
               <button
                 onClick={() => setShowNsfw(!showNsfw)}
                 aria-label={showNsfw ? "Hide 18+ extensions" : "Show 18+ extensions"}

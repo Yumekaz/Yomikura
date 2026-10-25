@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { ArrowDownAZ, ArrowUpAZ, FolderEdit, Grid2X2, List, X } from "lucide-react";
 import type { LibrarySortMode, LibraryViewMode } from "../../stores/useSettingsStore";
 import { useTranslation } from "../../hooks/useTranslation";
@@ -48,15 +49,15 @@ export function LibraryFilters({ downloadCounts = {}, serverAvailable = true, ca
     </div>
     <div className="yomi-shelf-controls">
       <label className="sr-only" htmlFor="library-collection">Collection</label>
-      <select id="library-collection" className="yomi-field yomi-collection-select" value={activeCategoryId !== null && !String(activeCategoryId).startsWith("smart:") ? String(activeCategoryId) : ""} onChange={(event) => onCategorySelect(event.target.value === "" ? null : event.target.value)}>
+      <ThemedSelect aria-label="Collection" id="library-collection" className="yomi-field yomi-collection-select" value={activeCategoryId !== null && !String(activeCategoryId).startsWith("smart:") ? String(activeCategoryId) : ""} onValueChange={(value) => onCategorySelect(value === "" ? null : value)}>
         <option value="">Collections</option>{categories.map((cat) => <option key={cat.id} value={String(cat.id)}>{cat.name}</option>)}
-      </select>
+      </ThemedSelect>
       <button className="yomi-icon-button" aria-label="Manage Categories" title="Manage collections" onClick={onManageCategories}><FolderEdit /></button>
       <LibraryUpdateButton />
       <span className="yomi-control-divider" aria-hidden="true" />
-      <select className="yomi-field yomi-sort-select" aria-label="Sort library" value={sortMode} onChange={(event) => onSortModeChange(event.target.value as LibrarySortMode)}>
+      <ThemedSelect className="yomi-field yomi-sort-select" aria-label="Sort library" value={sortMode} onValueChange={(value) => onSortModeChange(value as LibrarySortMode)}>
         <option value="title">Title</option><option value="unread">Unread</option><option value="status">Reading status</option>
-      </select>
+      </ThemedSelect>
       <button className="yomi-icon-button" aria-label={sortDescending ? "Sort ascending" : "Sort descending"} title={sortDescending ? "Sort ascending" : "Sort descending"} onClick={() => onSortDirectionChange(!sortDescending)}>{sortDescending ? <ArrowDownAZ /> : <ArrowUpAZ />}</button>
       <div className="yomi-view-switch" role="group" aria-label="Library view">
         <button className="yomi-icon-button" aria-label="Grid view" aria-pressed={viewMode === "grid"} onClick={() => onViewModeChange("grid")}><Grid2X2 /></button>

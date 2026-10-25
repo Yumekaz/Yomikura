@@ -1,3 +1,4 @@
+import { chooseOption } from "./fixtures/themedSelect";
 import { chromium, expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { mkdir, mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
@@ -118,7 +119,7 @@ test("offline progress survives Chrome restart and remains isolated through prof
     await page.goto("/reader/12");
     await expect(fullPage(page, 2)).toHaveCSS("opacity", "1", { timeout: 15_000 });
     await page.goto("/settings");
-    await page.getByLabel("Server profile").selectOption("b");
+    await chooseOption(page.getByLabel("Server profile"), "b");
     await page.goto("/reader/12");
     await expect(page.getByText("Progress B", { exact: true })).toBeVisible();
     await expect(fullPage(page, 1)).toHaveCSS("opacity", "1");
@@ -133,7 +134,7 @@ test("offline progress survives Chrome restart and remains isolated through prof
     await page.waitForTimeout(1000);
     expect(writes.filter((write) => write.server === first)).toEqual([]);
     await page.goto("/settings");
-    await page.getByLabel("Server profile").selectOption("a");
+    await chooseOption(page.getByLabel("Server profile"), "a");
     await expect.poll(() => servers[first].page).toBe(1);
     expect(servers[second].page).toBe(2);
     await page.goto("/reader/12");
@@ -210,7 +211,7 @@ test("mark-unread updates the filter while its server write is still pending", a
   servers[first].online = false;
   await page.getByRole("checkbox", { name: "Select Progress chapter", exact: true }).check();
   await page.getByRole("button", { name: "Mark unread", exact: true }).click();
-  await page.getByLabel("Filter chapter status").selectOption("unread");
+  await chooseOption(page.getByLabel("Filter chapter status"), "unread");
   await expect(page.getByRole("link", { name: /^Progress chapter/ })).toBeVisible();
   await expect.poll(async () => (await storedProgress(page))?.patch.isRead).toBe(false);
   expect(servers[first].read).toBe(true);

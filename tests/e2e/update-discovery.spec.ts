@@ -1,3 +1,4 @@
+import { chooseOption } from "./fixtures/themedSelect";
 import { expect, test } from "@playwright/test";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
 test("discovery feed paginates beyond 100, keeps failed pages retryable, and separates publication dates", async ({ page }) => {
@@ -21,6 +22,6 @@ test("discovery feed paginates beyond 100, keeps failed pages retryable, and sep
   await expect(page.getByText("Discovery 1", { exact: true })).toBeVisible(); failNext = false;
   await page.getByRole("button", { name: "Retry updates", exact: true }).click(); await expect(page.getByText("104 chapters loaded", { exact: true })).toBeVisible();
   await expect(page.getByText("Discovery 105", { exact: true })).toBeVisible(); await expect(page.getByText("Discovery 100", { exact: true })).toHaveCount(1);
-  await page.getByLabel("Update date", { exact: true }).selectOption("published"); await expect.poll(() => requests[requests.length - 1].order[0].by).toBe("UPLOAD_DATE");
+  await chooseOption(page.getByLabel("Update date", { exact: true }), "published"); await expect.poll(() => requests[requests.length - 1].order[0].by).toBe("UPLOAD_DATE");
   await expect(page.getByText("100 chapters loaded", { exact: true })).toBeVisible(); await expect(page.getByText("Discovery 2", { exact: true })).toBeVisible();
 });

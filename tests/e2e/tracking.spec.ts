@@ -1,3 +1,4 @@
+import { chooseOption } from "./fixtures/themedSelect";
 import { chromium, expect, test } from "@playwright/test";
 import { mkdtemp } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -24,7 +25,7 @@ test("manual tracker editing preserves zero and fractions and unlinking retains 
   const state = trackerFixture({ linked: true }); await installTrackerFixture(page, [state]); await page.goto("/manga/42");
   const provider = page.getByRole("region", { name: "First tracker", exact: true });
   await provider.getByRole("button", { name: "Edit", exact: true }).click();
-  await provider.getByRole("combobox", { name: "Tracker score", exact: true }).selectOption("0");
+  await chooseOption(provider.getByRole("combobox", { name: "Tracker score", exact: true }), "0");
   await provider.getByRole("spinbutton", { name: "Chapters read", exact: true }).fill("2.5");
   await provider.getByRole("checkbox", { name: "Private tracker entry", exact: true }).check();
   await provider.getByRole("button", { name: "Save tracker changes", exact: true }).click();
@@ -39,7 +40,7 @@ test("manual tracker editing preserves zero and fractions and unlinking retains 
 test("a server-ignored tracker edit remains an error with its form available", async ({ page }) => {
   const state = trackerFixture({ linked: true }); state.ignoreEdits = true; await installTrackerFixture(page, [state]); await page.goto("/manga/42");
   const provider = page.getByRole("region", { name: "First tracker", exact: true }); await provider.getByRole("button", { name: "Edit", exact: true }).click();
-  await provider.getByRole("combobox", { name: "Tracker score", exact: true }).selectOption("0");
+  await chooseOption(provider.getByRole("combobox", { name: "Tracker score", exact: true }), "0");
   await provider.getByRole("button", { name: "Save tracker changes", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("not confirmed");
   await expect(provider.getByRole("button", { name: "Save tracker changes", exact: true })).toBeVisible(); expect(state.records[0].score).toBe(9);
@@ -96,10 +97,10 @@ test("pending tracker synchronization survives a full Chrome restart", async ({}
 test("overlapping backend IDs retain separate tracker retries through profile switching", async ({ page }) => {
   const first = trackerFixture({ linked: true, failure: true }); const second = trackerFixture({ linked: true, backend: "http://127.0.0.1:45678", title: "Second tracker fixture" });
   await installTrackerFixture(page, [first, second]); await finishTrackerChapter(page); await expect(progressStatus(page)).toContainText("not confirmed");
-  await page.goto("/settings/reader"); await page.getByRole("combobox", { name: "Server profile", exact: true }).selectOption("second");
+  await page.goto("/settings/reader"); await chooseOption(page.getByRole("combobox", { name: "Server profile", exact: true }), "second");
   await finishTrackerChapter(page); await expect.poll(() => second.remote.get(501)).toBe(1); await expect(progressStatus(page)).toHaveCount(0);
   expect(first.remote.get(501)).toBe(0);
-  await page.goto("/settings/reader"); await page.getByRole("combobox", { name: "Server profile", exact: true }).selectOption("first");
+  await page.goto("/settings/reader"); await chooseOption(page.getByRole("combobox", { name: "Server profile", exact: true }), "first");
   await expect(progressStatus(page)).toContainText("Tracker sync pending"); first.failure = false;
   await progressStatus(page).getByRole("button", { name: "Retry sync", exact: true }).click(); await expect(progressStatus(page)).toHaveCount(0);
   expect(first.remote.get(501)).toBe(1); expect(second.remote.get(501)).toBe(1);

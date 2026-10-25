@@ -1,3 +1,4 @@
+import { chooseOption } from "./fixtures/themedSelect";
 import { expect, test, type Page } from "@playwright/test";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
 import AxeBuilder from "@axe-core/playwright";
@@ -55,12 +56,12 @@ async function openFilters(page: Page) {
 test("catalog controls send supported typed changes with empty query and complete positions", async ({ page }, info) => {
   const state = await fixture(page); await page.goto("/browse/100"); const form = await openFilters(page);
   await form.getByRole("textbox", { name: "Title contains", exact: true }).fill("海賊 & %/#");
-  await form.getByRole("combobox", { name: "Publication", exact: true }).selectOption("1");
-  await form.getByRole("combobox", { name: "Licensed", exact: true }).selectOption("EXCLUDE");
-  await form.getByRole("combobox", { name: "Order sort field", exact: true }).selectOption("0");
+  await chooseOption(form.getByRole("combobox", { name: "Publication", exact: true }), "1");
+  await chooseOption(form.getByRole("combobox", { name: "Licensed", exact: true }), "EXCLUDE");
+  await chooseOption(form.getByRole("combobox", { name: "Order sort field", exact: true }), "0");
   await form.getByRole("checkbox", { name: "Order ascending", exact: true }).uncheck();
   await form.getByRole("checkbox", { name: "Fantasy", exact: true }).check();
-  await form.getByRole("combobox", { name: "Adventure", exact: true }).selectOption("INCLUDE");
+  await chooseOption(form.getByRole("combobox", { name: "Adventure", exact: true }), "INCLUDE");
   await form.getByRole("textbox", { name: "Author", exact: true }).fill(" yomi  ");
   await expect(form.getByText("This control is unavailable with the connected server.", { exact: true })).toHaveCount(2);
   const accessibility = await new AxeBuilder({ page }).analyze();

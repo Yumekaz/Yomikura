@@ -1,3 +1,4 @@
+import { chooseOption } from "./fixtures/themedSelect";
 import { chromium, expect, test, type BrowserContext } from "@playwright/test";
 import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -112,7 +113,7 @@ test("a failed safety-copy write blocks restore and cannot report automatic back
   await page.getByRole("button", { name: "Back up and restore", exact: true }).click();
   await expect(page.getByText(/Restore stopped because its safety backup could not be saved and verified/)).toBeVisible();
   expect(state.restores).toBe(0);
-  await page.getByLabel("Automatic backup schedule").selectOption("12");
+  await chooseOption(page.getByLabel("Automatic backup schedule"), "12");
   await expect(page.getByText(/Last attempt failed:/)).toBeVisible();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("yomikura-settings")!).state.lastScheduledBackupAt)).toBe(0);
 });

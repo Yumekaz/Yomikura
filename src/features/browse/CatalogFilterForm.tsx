@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { useState } from "react";
 import { CatalogFilterError, type CatalogFilterModel, type FilterNode, type FilterValue, type FilterValues, serializeCatalogFilters } from "./catalogFilters";
 
@@ -17,19 +18,19 @@ export function CatalogFilterForm({ model, initialValues, onApply, onCancel }: {
     switch (filter.__typename) {
       case "CheckBoxFilter": return <label key={node.key} className="flex items-center gap-3 text-sm text-slate-300"><input type="checkbox" checked={value === true} onChange={(event) => change(node.key, event.target.checked)} />{label}</label>;
       case "TextFilter": return <label key={node.key} className="block text-sm text-slate-300">{label}<input className="yomi-field mt-1 w-full min-w-0" value={value as string} onChange={(event) => change(node.key, event.target.value)} /></label>;
-      case "SelectFilter": return <label key={node.key} className="block text-sm text-slate-300">{label}<select className="yomi-field yomi-select mt-1 w-full min-w-0" value={value as number} onChange={(event) => change(node.key, Number(event.target.value))}>
+      case "SelectFilter": return <label key={node.key} className="block text-sm text-slate-300">{label}<ThemedSelect aria-label={label} className="yomi-field yomi-select mt-1 w-full min-w-0" value={value as number} onValueChange={(value) => change(node.key, Number(value))}>
         {typeof filter.default === "number" && (filter.default < 0 || filter.default >= (filter.values?.length ?? 0)) && <option value={filter.default}>Source default</option>}
         {filter.values?.map((item, index) => <option key={index} value={index}>{item}</option>)}
-      </select></label>;
-      case "TriStateFilter": return <label key={node.key} className="block text-sm text-slate-300">{label}<select className="yomi-field yomi-select mt-1 w-full min-w-0" value={value as string} onChange={(event) => change(node.key, event.target.value)}><option value="IGNORE">Any</option><option value="INCLUDE">Include</option><option value="EXCLUDE">Exclude</option></select></label>;
+      </ThemedSelect></label>;
+      case "TriStateFilter": return <label key={node.key} className="block text-sm text-slate-300">{label}<ThemedSelect aria-label={label} className="yomi-field yomi-select mt-1 w-full min-w-0" value={value as string} onValueChange={(value) => change(node.key, value)}><option value="IGNORE">Any</option><option value="INCLUDE">Include</option><option value="EXCLUDE">Exclude</option></ThemedSelect></label>;
       case "SortFilter": {
         const sort = value as { index: number; ascending: boolean } | null;
         const defaults = filter.default as { index: number; ascending: boolean } | null;
         return <fieldset key={node.key} className="space-y-2 rounded-lg border border-white/10 p-3"><legend className="px-1 text-sm text-slate-300">{label}</legend>
-          <label className="block text-xs text-slate-400">Sort by<select aria-label={`${label} sort field`} className="yomi-field yomi-select mt-1 w-full min-w-0" value={sort?.index ?? "default"} onChange={(event) => change(node.key, event.target.value === "default" ? null : { index: Number(event.target.value), ascending: sort?.ascending ?? defaults?.ascending ?? true })}>
+          <label className="block text-xs text-slate-400">Sort by<ThemedSelect aria-label={`${label} sort field`} className="yomi-field yomi-select mt-1 w-full min-w-0" value={sort?.index ?? "default"} onValueChange={(value) => change(node.key, value === "default" ? null : { index: Number(value), ascending: sort?.ascending ?? defaults?.ascending ?? true })}>
             {filter.default === null && <option value="default">Source default</option>}{defaults?.index === -1 && <option value="-1">Source default</option>}
             {filter.values?.map((item, index) => <option key={index} value={index} disabled={node.unavailableOptions?.includes(index)}>{item}{node.unavailableOptions?.includes(index) ? " (unavailable)" : ""}</option>)}
-          </select></label>
+          </ThemedSelect></label>
           <label className="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" aria-label={`${label} ascending`} disabled={sort === null || !!sort && sort.index < 0} checked={sort?.ascending ?? false} onChange={(event) => { if (sort) change(node.key, { ...sort, ascending: event.target.checked }); }} />Ascending</label>
           {node.warning && <p className="text-xs text-slate-300">{node.warning}</p>}
         </fieldset>;

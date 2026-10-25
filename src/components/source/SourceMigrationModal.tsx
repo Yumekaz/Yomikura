@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../ui/ThemedSelect";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle, Loader2, Search, X } from "lucide-react";
@@ -115,10 +116,10 @@ export function SourceMigrationModal({ isOpen, onClose, mangaId, mangaTitle, sou
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-4 pr-1">
         {phase === "search" && <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void search(); }}>
           <label className="block text-xs font-semibold text-slate-400">Target source
-            <select value={sourceId} onChange={(event) => setSourceId(event.target.value)} disabled={searching || loadingSources} className="yomi-select mt-2 w-full">
+            <ThemedSelect aria-label="Target source" value={sourceId} onValueChange={(value) => setSourceId(value)} disabled={searching || loadingSources} className="yomi-select mt-2 w-full">
               <option value="">Choose source</option>
               {sources?.sources.nodes.filter((source) => source.extension?.isInstalled || String(source.id) === "0").map((source) => <option key={String(source.id)} value={String(source.id)}>{source.name}</option>)}
-            </select>
+            </ThemedSelect>
           </label>
           {sourcesError && <p role="alert" className="text-xs text-red-300">Sources could not be loaded. <button type="button" onClick={() => void retrySources()} className="underline">Retry sources</button></p>}
           <label className="block text-xs font-semibold text-slate-400">Search query<input value={query} onChange={(event) => setQuery(event.target.value)} disabled={searching} className="yomi-field mt-2 w-full" /></label>

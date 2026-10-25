@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../ui/ThemedSelect";
 import type { ChangeEvent } from "react";
 import { Download, Layout, Loader2, Upload } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -45,7 +46,7 @@ export function BackupSettingsPanel({
         <label htmlFor="library-update-schedule" className="text-sm font-semibold text-slate-200">Automatic library updates</label>
         <p className="mt-1 text-xs leading-5 text-slate-400">Checks when Yomikura starts and while it remains open. Missed checks run after the next successful connection.</p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <select id="library-update-schedule" value={libraryUpdateIntervalHours} onChange={(event) => setLibraryUpdateIntervalHours(Number(event.target.value))} className="yomi-field min-w-52"><option value={0}>Off</option><option value={6}>Every 6 hours</option><option value={12}>Every 12 hours</option><option value={24}>Daily</option></select>
+          <ThemedSelect aria-label="Automatic library updates" id="library-update-schedule" value={libraryUpdateIntervalHours} onValueChange={(value) => setLibraryUpdateIntervalHours(Number(value))} className="yomi-field min-w-52"><option value={0}>Off</option><option value={6}>Every 6 hours</option><option value={12}>Every 12 hours</option><option value={24}>Daily</option></ThemedSelect>
           <span className="text-xs text-slate-400" role="status">{scheduledLibraryUpdateStatus === "running" ? "Checking library…" : scheduledLibraryUpdateStatus === "error" ? `Last check failed: ${scheduledLibraryUpdateError}` : lastLibraryUpdateAt ? `Last automatic check: ${new Date(lastLibraryUpdateAt).toLocaleString()}` : "No automatic check yet"}</span>
         </div>
       </div>
@@ -67,12 +68,12 @@ export function BackupSettingsPanel({
         <label htmlFor="backup-schedule" className="text-sm font-semibold text-slate-200">Automatic backup schedule</label>
         <p className="mt-1 text-xs leading-5 text-slate-400">Checks on startup and while Yomikura remains open. An automatic backup succeeds only after its file is saved and verified on this device.</p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <select id="backup-schedule" value={backupIntervalHours} onChange={(event) => setBackupIntervalHours(Number(event.target.value))} className="yomi-field min-w-52">
+          <ThemedSelect aria-label="Automatic backup schedule" id="backup-schedule" value={backupIntervalHours} onValueChange={(value) => setBackupIntervalHours(Number(value))} className="yomi-field min-w-52">
             <option value={0}>Off</option>
             <option value={12}>Every 12 hours</option>
             <option value={24}>Daily</option>
             <option value={168}>Weekly</option>
-          </select>
+          </ThemedSelect>
           <span className="text-xs text-slate-400" role="status">
             {scheduledBackupStatus === "running" ? "Creating backup…" : scheduledBackupStatus === "error" ? `Last attempt failed: ${scheduledBackupError}` : lastScheduledBackupAt ? `Last automatic backup: ${new Date(lastScheduledBackupAt).toLocaleString()}` : "No automatic backup yet"}
           </span>

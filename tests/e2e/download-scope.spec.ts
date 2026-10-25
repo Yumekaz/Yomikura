@@ -1,3 +1,4 @@
+import { chooseOption } from "./fixtures/themedSelect";
 import { expect, test, type Page } from "@playwright/test";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
 import { chapterConnection } from "./fixtures/chapterConnection";
@@ -62,7 +63,7 @@ async function cacheState(page: Page) {
 
 test("profile switching projects only the owning saved chapters and resolves its cache bytes", async ({ page }) => {
   await fixture(page); await expect(page.getByRole("link", { name: "First cached title", exact: true })).toBeVisible();
-  await page.getByRole("combobox", { name: "Server profile", exact: true }).selectOption("second");
+  await chooseOption(page.getByRole("combobox", { name: "Server profile", exact: true }), "second");
   await expect(page.getByRole("link", { name: "Second cached title", exact: true })).toBeVisible(); await expect(page.getByText("First cached title", { exact: true })).toHaveCount(0);
   await page.getByRole("link", { name: "Read", exact: true }).click();
   const image = page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 1", exact: true }); await expect(image).toHaveAttribute("src", /^blob:/);
@@ -70,18 +71,18 @@ test("profile switching projects only the owning saved chapters and resolves its
 });
 
 test("deleting one profile's overlapping chapter retains the other copy and page bytes", async ({ page }) => {
-  await fixture(page); await page.getByRole("combobox", { name: "Server profile", exact: true }).selectOption("second");
+  await fixture(page); await chooseOption(page.getByRole("combobox", { name: "Server profile", exact: true }), "second");
   await expect(page.getByRole("link", { name: "Second cached title", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Remove offline download Shared chapter ID", exact: true }).click();
   await page.getByRole("alertdialog", { name: "Remove saved chapter?", exact: true }).getByRole("button", { name: "Remove download", exact: true }).click();
   await expect(page.getByText("Second cached title", { exact: true })).toHaveCount(0);
   const state = await cacheState(page); expect(state.chapters.map((chapter) => chapter.serverBaseUrl)).toEqual([first]);
   expect(state.keys.some((key) => new URL(key).searchParams.get("__yomi_cache_owner") === owner(first))).toBe(true);
-  await page.getByRole("combobox", { name: "Server profile", exact: true }).selectOption("first"); await expect(page.getByRole("link", { name: "First cached title", exact: true })).toBeVisible();
+  await chooseOption(page.getByRole("combobox", { name: "Server profile", exact: true }), "first"); await expect(page.getByRole("link", { name: "First cached title", exact: true })).toBeVisible();
 });
 
 test("clearing a selected server removes its incomplete attempts and preserves other profiles", async ({ page }) => {
-  await fixture(page); await page.getByRole("combobox", { name: "Server profile", exact: true }).selectOption("second"); await page.goto("/settings/offline");
+  await fixture(page); await chooseOption(page.getByRole("combobox", { name: "Server profile", exact: true }), "second"); await page.goto("/settings/offline");
   await expect(page.getByText("Second cached title", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Clear This Server's Offline Cache", exact: true }).click();
   const dialog = page.getByRole("alertdialog", { name: "Clear this server's saved chapters?", exact: true }); await expect(dialog).toContainText("Other profiles");

@@ -1,3 +1,4 @@
+import { chooseOption } from "./fixtures/themedSelect";
 import { expect, test, type Page } from "@playwright/test";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
 import { chapterConnection } from "./fixtures/chapterConnection";
@@ -54,15 +55,15 @@ test("library download views cover all four combinations with correct title coun
   await expect(page.getByRole("link", { name: "Device only", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Downloaded", exact: true }).click();
   await expect(page.getByText("3 books in your collection", { exact: true })).toBeVisible(); expect(mangas[0].downloadCount).toBe(0);
-  await page.getByRole("combobox", { name: "Server profile", exact: true }).selectOption("second");
+  await chooseOption(page.getByRole("combobox", { name: "Server profile", exact: true }), "second");
   await page.getByRole("button", { name: "On this device", exact: true }).click(); await expect(page.getByText("0 books in your collection", { exact: true })).toBeVisible();
 });
 test("scanlator/unread policy is shared by Resume and next/previous and persists on reload", async ({ page }) => {
   const state = await fixture(page); await page.goto("/manga/42");
-  await page.getByLabel("Filter chapter status").selectOption("unread"); await page.getByLabel("Filter scanlator").selectOption("A");
+  await chooseOption(page.getByLabel("Filter chapter status"), "unread"); await chooseOption(page.getByLabel("Filter scanlator"), "A");
   await expect(page.getByRole("link", { name: /^Duplicate chapter B/ })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Resume", exact: true })).toHaveAttribute("href", "/reader/14");
-  await page.reload(); await expect(page.getByLabel("Filter scanlator")).toHaveValue("A");
+  await page.reload(); await expect(page.getByLabel("Filter scanlator")).toHaveAttribute("data-value", "A");
   await page.getByRole("link", { name: "Resume", exact: true }).click();
   await expect(page.getByRole("link", { name: "Next", exact: true })).toHaveAttribute("href", "/reader/15");
   await page.keyboard.press("ArrowRight");
@@ -88,7 +89,7 @@ test("bulk library downloads include unread middle chapters when edges contain o
 });
 test("history keeps middle entries and its next action follows the shared group/filter policy", async ({ page }) => {
   await fixture(page); await page.goto("/manga/42");
-  await page.getByLabel("Filter chapter status").selectOption("unread"); await page.getByLabel("Filter scanlator").selectOption("A");
+  await chooseOption(page.getByLabel("Filter chapter status"), "unread"); await chooseOption(page.getByLabel("Filter scanlator"), "A");
   await page.goto("/history"); await expect(page.getByRole("button", { name: /^Open next chapter after / })).toHaveCount(4);
   await page.getByRole("button", { name: "Open next chapter after Read chapter A", exact: true }).click();
   await expect(page).toHaveURL(/\/reader\/14$/);

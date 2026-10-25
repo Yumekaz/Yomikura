@@ -1,3 +1,4 @@
+import { chooseOption } from "./fixtures/themedSelect";
 import { expect, test } from "@playwright/test";
 
 const tinyImage = Buffer.from(
@@ -177,21 +178,21 @@ test("an interrupted local download resumes after reload", async ({ page }) => {
 test("library view and sort preferences survive reload", async ({ page }) => {
   await enterDemo(page);
   await page.getByRole("button", { name: "List view" }).click();
-  await page.getByLabel("Sort library").selectOption("unread");
+  await chooseOption(page.getByLabel("Sort library"), "unread");
   await page.reload();
   await expect(page.getByRole("button", { name: "List view" })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByLabel("Sort library")).toHaveValue("unread");
+  await expect(page.getByLabel("Sort library")).toHaveAttribute("data-value", "unread");
   await expect(page.getByText("[Demo] Moonlit Courier", { exact: true })).toBeVisible();
 });
 
 test("automatic backup and update schedules persist", async ({ page }) => {
   await enterDemo(page);
   await page.goto("/settings/backup");
-  await page.getByLabel("Automatic backup schedule").selectOption("24");
-  await page.getByLabel("Automatic library updates").selectOption("12");
+  await chooseOption(page.getByLabel("Automatic backup schedule"), "24");
+  await chooseOption(page.getByLabel("Automatic library updates"), "12");
   await page.reload();
-  await expect(page.getByLabel("Automatic backup schedule")).toHaveValue("24");
-  await expect(page.getByLabel("Automatic library updates")).toHaveValue("12");
+  await expect(page.getByLabel("Automatic backup schedule")).toHaveAttribute("data-value", "24");
+  await expect(page.getByLabel("Automatic library updates")).toHaveAttribute("data-value", "12");
 });
 
 test("chapter filtering and bulk actions are discoverable", async ({ page }) => {
@@ -199,6 +200,7 @@ test("chapter filtering and bulk actions are discoverable", async ({ page }) => 
   await page.goto("/manga/10002");
   await expect(page.getByLabel("Filter chapter status")).toBeVisible();
   await expect(page.getByLabel("Filter scanlator")).toBeVisible();
+  await page.getByRole("button", { name: "Select chapters", exact: true }).click();
   await page.getByRole("button", { name: "Select visible" }).click();
   await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Mark read" })).toBeVisible();

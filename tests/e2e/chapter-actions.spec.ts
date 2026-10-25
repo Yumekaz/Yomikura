@@ -1,3 +1,4 @@
+import { chooseOption } from "./fixtures/themedSelect";
 import { expect, test } from "@playwright/test";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
 import { chapterConnection } from "./fixtures/chapterConnection";
@@ -45,15 +46,17 @@ test("bookmark and mark-unread refresh the source chapter list and saved copy", 
     } finally { db.close(); }
   }, { backend });
 
+  await page.getByRole("button", { name: "Select chapters", exact: true }).click();
   await page.getByRole("checkbox", { name: "Select Chapter action fixture", exact: true }).check();
   await page.getByRole("button", { name: "Bookmark", exact: true }).click();
   await expect.poll(() => chapter.isBookmarked).toBe(true);
-  await page.getByLabel("Filter chapter status").selectOption("bookmarked");
+  await chooseOption(page.getByLabel("Filter chapter status"), "bookmarked");
   await expect(page.getByRole("link", { name: /^Chapter action fixture/ })).toBeVisible();
+  await page.getByRole("button", { name: "Select chapters", exact: true }).click();
   await page.getByRole("checkbox", { name: "Select Chapter action fixture", exact: true }).check();
   await page.getByRole("button", { name: "Mark unread", exact: true }).click();
   await expect.poll(() => chapter.isRead).toBe(false);
-  await page.getByLabel("Filter chapter status").selectOption("unread");
+  await chooseOption(page.getByLabel("Filter chapter status"), "unread");
   await expect(page.getByRole("link", { name: /^Chapter action fixture/ })).toBeVisible();
   expect(chapter.lastPageRead).toBe(0);
   const cached = await page.evaluate(async ({ backend }) => {

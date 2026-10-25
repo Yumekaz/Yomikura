@@ -47,6 +47,13 @@ Extension indexes (e.g. community repository JSON catalogs) are **not** shipped 
 
 The current reading-spirit identity and book-and-spirit logo were recreated from the user's supplied Yomikura identity references. Palette variants, sanctuary scenes, mascot poses and the fictional demo stories were generated for this project with the built-in image-generation tool. They do not incorporate existing comic pages or franchise characters. Asset provenance is recorded in `public/identity/README.md` and `public/demo/README.md`.
 
+## Radix UI
+
+- **Project:** [Radix Primitives](https://www.radix-ui.com/primitives)
+- **Copyright:** WorkOS and contributors.
+- **License:** MIT. Packaged license: `public/licenses/radix-ui-MIT.txt`.
+- **Role:** Accessible select controls, including keyboard navigation, focus management and portaled menus. The visible design is Yomikura's own themed interface.
+
 ---
 
 *For Yomikura's own license, see [LICENSE](LICENSE). For legal disclaimers, see [TERMS.md](TERMS.md) and [docs/LEGAL_AND_BRANDING.md](docs/LEGAL_AND_BRANDING.md).*

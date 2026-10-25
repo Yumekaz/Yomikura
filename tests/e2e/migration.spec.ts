@@ -1,3 +1,4 @@
+import { chooseOption } from "./fixtures/themedSelect";
 import { expect, test, type Page } from "@playwright/test";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
 
@@ -64,7 +65,7 @@ async function review(page: Page) {
   await page.goto("/manga/1");
   await page.getByRole("button", { name: "Migrate Source", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Source migration", exact: true });
-  await dialog.getByRole("combobox", { name: "Target source", exact: true }).selectOption("fixture-source");
+  await chooseOption(dialog.getByRole("combobox", { name: "Target source", exact: true }), "fixture-source");
   await dialog.getByRole("button", { name: "Search matching titles", exact: true }).click();
   await expect(dialog.getByRole("button", { name: "Migration fixture (current title)", exact: true })).toBeDisabled();
   await dialog.getByRole("button", { name: "Migration destination", exact: true }).click();
