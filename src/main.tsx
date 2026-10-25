@@ -3,7 +3,20 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./app/App";
 import "@fontsource-variable/inter";
+import "@fontsource-variable/playfair-display";
 import "./styles.css";
+import { applyPalette, legacyPalette, paletteFor } from "./theme/palettes";
+
+// Apply saved appearance before the first React paint. Native recovery can
+// refine it later; local storage remains the authoritative immediate mirror.
+try {
+  const saved = JSON.parse(localStorage.getItem("yomikura-settings") || "null")?.state;
+  const dark = saved?.themeMode !== "light" && (saved?.themeMode !== "system" || matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.classList.toggle("light-theme", !dark);
+  document.documentElement.classList.toggle("reduce-motion", saved?.reducedMotion === true);
+  document.documentElement.classList.toggle("high-contrast", saved?.highContrastMode === true);
+  applyPalette(document.documentElement, paletteFor(saved?.colorPalette ?? legacyPalette(saved?.accentColor)).id, dark);
+} catch { applyPalette(document.documentElement, "ember", true); }
 
 const runningInTauri = "__TAURI_INTERNALS__" in window;
 

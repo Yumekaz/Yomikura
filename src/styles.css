@@ -5,7 +5,8 @@
 :root {
   color-scheme: dark;
   background: #101113;
-  font-family: Inter, ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+  font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-display: "Playfair Display Variable", Georgia, "Times New Roman", serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -711,4 +712,123 @@ html.reduce-motion .yomi-book-cover { transform: none !important; }
   .yomi-welcome-ready { margin-top: 34px; }
   .yomi-welcome-ready > h2 { font-size: 30px; }
   .yomi-welcome-footer { margin-top: 32px; }
+}
+
+/* Ink & Ember · the spirit of a reading room. Palette tokens are set together
+   by applyPalette; artwork retains its original colors inside the reader. */
+.yomi-logo-image { display: block; width: 100%; height: 100%; object-fit: contain; }
+.yomi-brand-mark { width: 42px; height: 42px; border: 0; border-radius: 0; box-shadow: none; background: none; }
+.yomi-brand { gap: 10px; padding: 0 8px; }
+.yomi-brand p, .yomi-welcome-brand { font-family: var(--font-display); font-size: 25px; font-weight: 600; letter-spacing: -.045em; line-height: 1.15; }
+.yomi-about-wordmark { font-family: var(--font-display); font-size: 32px; font-weight: 550; letter-spacing: -.04em; }
+.yomi-error-details { max-width: 420px; text-align: left; color: var(--text-muted); font-size: 12px; }
+.yomi-error-details summary { cursor: pointer; }
+.yomi-error-details pre { max-height: 170px; overflow: auto; margin-top: 10px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 1.7; }
+.yomi-brand span { margin-top: 4px; font-size: 9px; letter-spacing: .025em; color: var(--text-muted); }
+.yomi-primary-nav { margin-top: 30px; }
+.yomi-nav-link { font-weight: 450; transition: color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, transform 120ms var(--ease-out); }
+.yomi-nav-link.is-active { background: rgba(var(--yomi-signature), .12); box-shadow: inset 2px 0 rgb(var(--yomi-signature)); }
+.yomi-nav-link.is-active > svg { color: rgb(var(--yomi-signature)); }
+.yomi-sidebar-footer { border-top: 0; padding-top: 0; }
+.yomi-sidebar-companion { margin: 0 0 18px; display: flex; flex-direction: column; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 20px; }
+.yomi-sidebar-companion:has(.yomi-reading-spirit) { display: flex; }
+.yomi-sidebar-companion:not(:has(.yomi-reading-spirit)) { display: none; }
+.yomi-sidebar-companion .yomi-reading-spirit { width: 112px; height: 112px; }
+.yomi-sidebar-companion p { margin-top: 5px; color: var(--text-muted); font-family: var(--font-display); font-size: 13px; font-style: italic; }
+.yomi-reading-spirit { display: block; object-fit: contain; user-select: none; pointer-events: none; }
+.yomi-empty-spirit { width: 148px; height: 120px; margin: 0 auto 22px; }
+.yomi-library-header h1, .yomi-page-header h1, .yomi-workspace-head h1, .yomi-manga-detail h1 { font-family: var(--font-display); font-size: 36px; font-weight: 550; line-height: 1.17; letter-spacing: -.035em; }
+.yomi-section-heading h2, .yomi-route-empty h2, .yomi-empty-state h1 { font-family: var(--font-display); font-weight: 550; letter-spacing: -.025em; }
+.yomi-section-heading h2 { font-size: 18px; }
+.yomi-route-empty h2 { font-size: 23px; }
+.yomi-empty-state h1 { font-size: 30px; }
+.yomi-library-header p, .yomi-page-header p, .yomi-workspace-head p { font-size: 12px; }
+.yomi-button-primary, .light-theme .yomi-button-primary { border: 1px solid color-mix(in srgb, var(--action-bg) 80%, white); color: var(--action-text); background: var(--action-bg); box-shadow: inset 0 1px 0 #ffffff12; }
+.yomi-button-primary:hover, .light-theme .yomi-button-primary:hover { background: color-mix(in srgb, var(--action-bg) 93%, black); }
+.yomi-button-danger { color: #fff6f0; background: #A9382B; border-color: #C66E64; }
+.yomi-shelf-tabs button[aria-pressed="true"] { background: rgba(var(--yomi-signature), .09); border-color: rgba(var(--yomi-signature), .2); box-shadow: inset 0 -2px rgb(var(--yomi-signature)); color: var(--text-strong); }
+.yomi-unread-badge { background: var(--action-bg); color: var(--action-text); border-color: #fff2; box-shadow: none; }
+.yomi-continue-card { background: var(--ink-900); border-color: var(--line-strong); }
+.yomi-book-cover { border: 1px solid var(--line); }
+.yomi-book-selection.is-selected { background: var(--action-bg); border-color: rgb(var(--yomi-signature)); color: var(--action-text); }
+.yomi-demo-notice { background: var(--ink-900); }
+.yomi-utility-button.danger:hover { color: #e8998b; background: #a9382b18; }
+.yomi-welcome-logo { width: 48px; height: 48px; border: 0; border-radius: 0; overflow: visible; }
+.yomi-welcome-brand { font-size: 32px; margin-left: 11px; }
+.yomi-welcome-ready > h2 { font-family: var(--font-display); font-size: 40px; font-weight: 500; line-height: 1.17; letter-spacing: -.035em; }
+.yomi-welcome-art > div { left: 38px; right: 38px; bottom: 35px; }
+.yomi-welcome-art > div > p { font-family: var(--font-display); font-size: 31px; font-weight: 500; letter-spacing: -.025em; }
+.yomi-welcome-art > div > span { font-family: "Inter Variable", sans-serif; font-size: 9px; letter-spacing: .18em; }
+.yomi-sanctuary-art { position: absolute; inset: 0; display: block; }
+.yomi-sanctuary-art > img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 58%; }
+.yomi-sanctuary-art .yomi-sanctuary-day { display: none; }
+.light-theme .yomi-sanctuary-art .yomi-sanctuary-night { display: none; }
+.light-theme .yomi-sanctuary-art .yomi-sanctuary-day { display: block; }
+.light-theme .yomi-welcome-art > div { color: #fff8ea; text-shadow: 0 2px 12px #201509; }
+.light-theme h1, .light-theme h2, .light-theme h3, .light-theme h4 { color: var(--text-strong) !important; }
+.yomi-storage-options > button:first-child > span { background: var(--action-bg); color: var(--action-text); }
+.yomi-appearance { padding: 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--ink-900); }
+.yomi-appearance-heading h2 { color: var(--text-strong); font-family: var(--font-display); font-size: 24px; font-weight: 550; letter-spacing: -.025em; }
+.yomi-appearance-heading p { color: var(--text-muted); margin-top: 5px; font-size: 13px; }
+.yomi-appearance-section { margin: 28px 0 0; border: 0; padding: 0; }
+.yomi-appearance-section > legend, .yomi-appearance-section > label, .yomi-appearance-section h3 { margin: 0 0 12px; color: var(--text-strong); font-size: 12px; font-weight: 600; }
+.yomi-setting-description { color: var(--text-muted); margin: -3px 0 15px; font-size: 12px; line-height: 1.7; max-width: 620px; }
+.yomi-appearance-modes, .yomi-density-options { display: inline-flex; padding: 4px; gap: 4px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--ink-950); }
+.yomi-appearance-modes button, .yomi-density-options button { display: flex; min-height: 35px; min-width: 94px; justify-content: center; align-items: center; gap: 8px; padding: 0 14px; border: 1px solid transparent; border-radius: 6px; color: var(--text-muted); font-size: 12px; transition: color 150ms ease, background-color 150ms ease; }
+.yomi-appearance-modes button[aria-pressed="true"], .yomi-density-options button[aria-pressed="true"] { color: var(--text-strong); background: var(--ink-800); border-color: var(--line); }
+.yomi-appearance-modes svg { width: 15px; height: 15px; }
+.yomi-palette-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+.yomi-palette-card { display: flex; min-width: 0; flex-direction: column; overflow: hidden; text-align: left; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: var(--ink-950); transition: border-color 150ms ease, box-shadow 150ms ease; }
+.yomi-palette-card[aria-pressed="true"] { border-color: rgb(var(--yomi-signature)); box-shadow: 0 0 0 1px rgb(var(--yomi-signature)); }
+.yomi-palette-art { display: flex; min-height: 96px; align-items: center; gap: 8px; padding: 15px 13px; overflow: hidden; }
+.yomi-palette-art > img:first-child { width: 35px; height: 35px; object-fit: contain; flex: 0 0 auto; }
+.yomi-palette-art > span { font-family: var(--font-display); font-size: 19px; font-weight: 550; letter-spacing: -.04em; }
+.yomi-palette-art .yomi-palette-spirit { width: 50px; height: 60px; object-fit: contain; margin-left: auto; }
+.yomi-palette-copy { padding: 13px; flex: 1; }
+.yomi-palette-copy strong { color: var(--text-strong); font-size: 13px; font-weight: 550; }
+.yomi-palette-copy > span { display: block; margin-top: 5px; color: var(--text-muted); font-size: 11px; line-height: 1.6; }
+.yomi-palette-swatches { display: flex; gap: 5px; margin-top: 12px; }
+.yomi-palette-swatches i { width: 15px; height: 15px; border-radius: 50%; border: 1px solid #ffffff24; }
+.yomi-palette-selection { display: block; width: 100%; padding: 8px 13px; border-top: 1px solid var(--line); color: var(--text-muted); font-size: 10px; }
+.yomi-palette-card[aria-pressed="true"] .yomi-palette-selection { color: rgb(var(--yomi-signature)); }
+.yomi-companion-setting { display: flex; align-items: center; justify-content: space-between; gap: 24px; border-top: 1px solid var(--line); padding-top: 25px; }
+.yomi-companion-setting h3 { margin-bottom: 9px; }
+.yomi-companion-setting p { margin-bottom: 0; }
+.yomi-switch { position: relative; width: 38px; height: 24px; flex: 0 0 auto; }
+.yomi-switch input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.yomi-switch > span { display: block; width: 38px; height: 24px; border: 1px solid var(--line-strong); border-radius: 99px; background: var(--ink-800); pointer-events: none; transition: background-color 150ms ease; }
+.yomi-switch > span::before { content: ""; display: block; width: 16px; height: 16px; margin: 3px; border-radius: 50%; background: var(--text-muted); transition: transform 150ms var(--ease-out), background-color 150ms ease; }
+.yomi-switch input:checked + span { background: var(--action-bg); border-color: rgb(var(--yomi-signature)); }
+.yomi-switch input:checked + span::before { transform: translateX(14px); background: var(--action-text); }
+.yomi-switch input:focus-visible + span { outline: 2px solid rgb(var(--yomi-signature)); outline-offset: 4px; }
+.yomi-comfort-options { display: grid; gap: 15px; }
+.yomi-comfort-options label { display: flex; align-items: center; gap: 10px; color: var(--text); font-size: 13px; }
+.yomi-comfort-options input { width: 16px; height: 16px; accent-color: var(--action-bg); }
+.yomi-language-control { display: flex; max-width: 340px; align-items: center; gap: 12px; margin-top: 12px; }
+.yomi-language-control svg { width: 18px; height: 18px; color: var(--text-muted); }
+.yomi-manga-backdrop { opacity: 0; }
+.cover-atmosphere .yomi-manga-backdrop { opacity: .13; }
+.cover-atmosphere .yomi-detail-summary { background: rgba(var(--cover-accent, 0, 0, 0), .045); }
+html.reduce-motion .yomi-sidebar-companion .yomi-reading-spirit { transform: none !important; }
+@media (prefers-reduced-motion: reduce) { .yomi-sidebar-companion .yomi-reading-spirit { transform: none !important; } }
+:root.high-contrast { --ink-950: #000 !important; --ink-900: #090909 !important; --ink-850: #151515 !important; --ink-800: #252525 !important; --text-strong: #fff !important; --text: #f2f2f2 !important; --text-muted: #dedede !important; --line: #ffffff66 !important; --line-strong: #ffffffaa !important; }
+:root.light-theme.high-contrast { --ink-950: #fff !important; --ink-900: #fff !important; --ink-850: #eee !important; --ink-800: #ddd !important; --text-strong: #000 !important; --text: #111 !important; --text-muted: #222 !important; --line: #00000066 !important; --line-strong: #000000aa !important; }
+@media (hover: hover) and (pointer: fine) {
+  .yomi-sidebar-companion:has(.yomi-reading-spirit):hover .yomi-reading-spirit { transform: translateY(-2px) rotate(-2deg); }
+  .yomi-sidebar-companion .yomi-reading-spirit { transition: transform 220ms var(--ease-out); }
+  .yomi-palette-card:hover { border-color: rgb(var(--yomi-signature)); }
+}
+@media (max-height: 760px) { .yomi-sidebar-companion { display: none !important; } }
+@media (max-width: 1280px) { .yomi-palette-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 640px) {
+  .yomi-library-header h1, .yomi-page-header h1, .yomi-workspace-head h1 { font-size: 32px; }
+  .yomi-appearance { padding: 18px 14px; }
+  .yomi-palette-grid { gap: 10px; }
+  .yomi-palette-art { min-height: 85px; padding: 12px 10px; gap: 5px; }
+  .yomi-palette-art > span { font-size: 18px; }
+  .yomi-palette-art .yomi-palette-spirit { display: none; }
+  .yomi-palette-copy { padding: 11px; }
+  .yomi-appearance-modes button, .yomi-density-options button { min-width: 82px; padding: 0 10px; }
+  .yomi-welcome-ready > h2 { font-size: 35px; }
+  .yomi-welcome-art { min-height: 210px; height: 210px; }
 }

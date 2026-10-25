@@ -15,6 +15,7 @@ import { setProgressHistoryHidden } from "../../api/suwayomi/progressStorage";
 import { loadReadingSequence } from "../reader/readingSequence";
 import { normalizeChapterPolicy } from "../manga/chapterPolicy";
 import { mangaReaderSettingsKey } from "../../stores/mangaReaderSettings";
+import { ReadingSpirit } from "../../components/Brand";
 
 interface HistoryItem {
   id: string;
@@ -188,7 +189,7 @@ export default function HistoryPage() {
   if (!serverBaseUrl) return <EmptyHistory title="Connect your library" detail="Reading activity appears after Yomikura connects to Suwayomi." />;
   if ((serverHistory.isLoading || localHistory.isLoading) && items.length === 0) return <HistorySkeleton />;
   if (items.length === 0 && serverHistory.isError) {
-    return <EmptyHistory title="History is unavailable" detail={getErrorMessage(serverHistory.error)} action={<button className="yomi-button yomi-button-primary" onClick={() => serverHistory.refetch()}>Try again</button>} />;
+    return <EmptyHistory title="History is unavailable" detail="Check your connection and try again." technical={getErrorMessage(serverHistory.error)} action={<button className="yomi-button yomi-button-primary" onClick={() => serverHistory.refetch()}>Try again</button>} />;
   }
   if (items.length === 0) return <EmptyHistory title="No reading history yet" detail="Open any chapter. Online and downloaded reading will collect here automatically." />;
 
@@ -230,8 +231,8 @@ export default function HistoryPage() {
   );
 }
 
-function EmptyHistory({ title, detail, action }: { title: string; detail: string; action?: React.ReactNode }) {
-  return <div className="yomi-empty-state"><div className="yomi-empty-icon"><History /></div><span className="yomi-eyebrow">Reading timeline</span><h1>{title}</h1><p>{detail}</p>{action}</div>;
+function EmptyHistory({ title, detail, technical, action }: { title: string; detail: string; technical?: string; action?: React.ReactNode }) {
+  return <div className="yomi-empty-state"><ReadingSpirit mood="resting" className="yomi-empty-spirit" /><h1>{title}</h1><p>{detail}</p>{action ?? <Link className="yomi-button yomi-button-primary" to="/library">Open library</Link>}{technical && <details className="yomi-error-details mt-5"><summary>Technical details</summary><pre>{technical}</pre></details>}</div>;
 }
 
 function HistorySkeleton() {

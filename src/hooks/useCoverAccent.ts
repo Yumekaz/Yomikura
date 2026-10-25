@@ -4,16 +4,18 @@ function rgbToAccentString(r: number, g: number, b: number): string {
   return `${r}, ${g}, ${b}`;
 }
 
-/** Sample thumbnail colors and apply as dynamic accent when enabled. */
+/** A cover may tint its detail surface; it must not overwrite the user's theme. */
 export function applyCoverAccentFromImage(
   imageUrl: string,
   enabled: boolean
-): void {
+): (() => void) | undefined {
   if (!enabled || !imageUrl) return;
+  let active = true;
 
   const img = new Image();
   img.crossOrigin = "anonymous";
   img.onload = () => {
+    if (!active) return;
     try {
       const canvas = document.createElement("canvas");
       const size = 32;
@@ -40,7 +42,7 @@ export function applyCoverAccentFromImage(
       g = Math.round(g / count);
       b = Math.round(b / count);
       document.documentElement.style.setProperty(
-        "--yomi-accent",
+        "--cover-accent",
         rgbToAccentString(r, g, b)
       );
     } catch {
@@ -48,6 +50,13 @@ export function applyCoverAccentFromImage(
     }
   };
   img.src = imageUrl;
+  document.documentElement.classList.add("cover-atmosphere");
+  return () => {
+    active = false;
+    img.onload = null;
+    document.documentElement.classList.remove("cover-atmosphere");
+    document.documentElement.style.removeProperty("--cover-accent");
+  };
 }
 
 export function useCoverAccentEnabled(): boolean {

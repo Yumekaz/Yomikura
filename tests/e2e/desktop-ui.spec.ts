@@ -19,16 +19,16 @@ async function enterDemo(page: import("@playwright/test").Page) {
   await expect(page.getByRole("link", { name: "[Demo] Moonlit Courier", exact: true })).toBeVisible();
 }
 
-test("default onboarding keeps the ivory and bookmark-red brand palette", async ({ page }) => {
+test("default onboarding uses the Ink and Ember identity", async ({ page }) => {
   // A real local engine may be running on a developer machine. This test is
   // specifically about the clean first-run surface, not that machine's state.
   await page.route("**/api/graphql", (route) => route.abort());
   await page.goto("/library");
   const demoButton = page.getByRole("button", { name: "Explore Demo Library" });
   await expect(demoButton).toBeVisible({ timeout: 15_000 });
-  await expect(demoButton).toHaveCSS("background-color", "rgb(239, 234, 226)");
+  await expect(demoButton).toHaveCSS("background-color", "rgb(182, 60, 45)");
   const brandAccent = await page.locator("html").evaluate((element) => getComputedStyle(element).getPropertyValue("--yomi-signature").trim());
-  expect(brandAccent).toBe("229, 72, 63");
+  expect(brandAccent).toBe("240, 153, 118");
 });
 
 test("desktop shell keeps one clear navigation hierarchy", async ({ page }) => {
@@ -49,7 +49,7 @@ test("desktop shell keeps one clear navigation hierarchy", async ({ page }) => {
   });
   expect(layout.sidebarWidth).toBe(216);
   expect(layout.overflow).toBeLessThanOrEqual(0);
-  expect(layout.bodyBackground).toBe("rgb(16, 17, 19)");
+  expect(layout.bodyBackground).toBe("rgb(17, 15, 13)");
 });
 
 test("demo mode explains its boundary and exits directly into server setup", async ({ page }) => {

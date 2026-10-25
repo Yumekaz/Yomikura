@@ -352,7 +352,7 @@ export default function LibraryPage() {
             <Loader2 className="h-8 w-8 animate-spin text-yomi-jade/60" />
           </div>
         ) : (
-          libraryViewMode === "grid" ? <LibraryGrid mangas={displayMangas} filtered={!!searchQuery || activeCategoryId !== null} onClearFilters={() => { setSearchQuery(""); setActiveCategoryId(null); }} serverBaseUrl={serverBaseUrl} isSelectMode={isSelectMode} selectedMangaIds={selectedMangaIds} onToggleSelectManga={handleToggleSelectManga} /> : <LibraryList mangas={displayMangas} serverBaseUrl={serverBaseUrl} isSelectMode={isSelectMode} selectedMangaIds={selectedMangaIds} onToggleSelectManga={handleToggleSelectManga} />
+          libraryViewMode === "grid" ? <LibraryGrid mangas={displayMangas} filtered={!!searchQuery || activeCategoryId !== null} onClearFilters={() => { setSearchQuery(""); setActiveCategoryId(null); }} serverBaseUrl={serverBaseUrl} isSelectMode={isSelectMode} selectedMangaIds={selectedMangaIds} onToggleSelectManga={handleToggleSelectManga} /> : <LibraryList mangas={displayMangas} filtered={!!searchQuery || activeCategoryId !== null} onClearFilters={() => { setSearchQuery(""); setActiveCategoryId(null); }} serverBaseUrl={serverBaseUrl} isSelectMode={isSelectMode} selectedMangaIds={selectedMangaIds} onToggleSelectManga={handleToggleSelectManga} />
         )}
       </div>
 

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Check, Compass } from "lucide-react";
+import { Check } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { LibraryEmptyState } from "./LibraryEmptyState";
 
 function findScrollParent(element: HTMLElement): HTMLElement | Window {
   let current = element.parentElement;
@@ -71,16 +72,7 @@ export function LibraryGrid({ mangas, serverBaseUrl, isSelectMode = false, selec
   const endRow = keyboardAccess ? totalRows : Math.min(totalRows, Math.ceil((scrollTop + containerHeight) / rowHeight) + 2);
   const visibleMangas = mangas.slice(startRow * columns, endRow * columns);
 
-  if (!mangas.length) return (
-    <div className="yomi-route-empty">
-      <div>
-        <BookOpen aria-hidden="true" />
-        <h2>{filtered ? "No books found" : "Your next story starts here"}</h2>
-        <p>{filtered ? "Try another search or choose a different collection." : "Find something you love, add it to your library, and make yourself at home."}</p>
-        {filtered ? <button className="yomi-button yomi-button-secondary mt-5" onClick={onClearFilters}>Clear filters</button> : <Link to="/browse/sources" className="yomi-button yomi-button-primary mt-5"><Compass />Discover books</Link>}
-      </div>
-    </div>
-  );
+  if (!mangas.length) return <LibraryEmptyState filtered={filtered} onClearFilters={onClearFilters} />;
 
   return (
     <div ref={containerRef} className="yomi-bookshelf" aria-label="Library books" onFocusCapture={(event) => { if (event.target.matches(":focus-visible")) setKeyboardAccess(true); }}>

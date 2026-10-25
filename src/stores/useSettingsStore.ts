@@ -6,6 +6,7 @@ import { progressBackend, type ProgressBackend } from "../api/suwayomi/backendId
 import { legacyMangaSettings, mangaReaderSettingsKey, mergeMangaSettings } from "./mangaReaderSettings";
 import { normalizeChapterPolicy, type ChapterPolicy } from "../features/manga/chapterPolicy";
 import { createSettingsStorage } from "./settingsStorage";
+import { legacyPalette, paletteFor, type PaletteId } from "../theme/palettes";
 
 /** Tauri v2 sets `window.isTauri`; v1 used `__TAURI__` when withGlobalTauri is enabled. */
 export const isTauri = () => {
@@ -79,6 +80,8 @@ interface SettingsState {
   activeProfileId: string;
   showNsfw: boolean;
   accentColor: "jade" | "mint" | "gold" | "plum" | "coral";
+  colorPalette: PaletteId;
+  showReadingSpirit: boolean;
   coverDensity: "compact" | "normal" | "spacious";
   themeMode: "dark" | "light" | "system";
   mockMode: boolean;
@@ -132,6 +135,8 @@ interface SettingsState {
   setActiveProfileId: (id: string) => void;
   setShowNsfw: (show: boolean) => void;
   setAccentColor: (color: "jade" | "mint" | "gold" | "plum" | "coral") => void;
+  setColorPalette: (palette: PaletteId) => void;
+  setShowReadingSpirit: (visible: boolean) => void;
   setCoverDensity: (density: "compact" | "normal" | "spacious") => void;
   setThemeMode: (mode: "dark" | "light" | "system") => void;
   setMockMode: (mock: boolean) => void;
@@ -193,6 +198,8 @@ export const useSettingsStore = create<SettingsState>()(
       activeProfileId: "default",
       showNsfw: false,
       accentColor: "jade",
+      colorPalette: "ember",
+      showReadingSpirit: true,
       coverDensity: "normal",
       themeMode: "dark",
       mockMode: false,
@@ -352,7 +359,9 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       setShowNsfw: (show: boolean) => set({ showNsfw: show }),
-      setAccentColor: (color) => set({ accentColor: color }),
+      setAccentColor: (color) => set({ accentColor: color, colorPalette: legacyPalette(color) }),
+      setColorPalette: (palette) => set({ colorPalette: paletteFor(palette).id }),
+      setShowReadingSpirit: (visible) => set({ showReadingSpirit: visible }),
       setCoverDensity: (density) => set({ coverDensity: density }),
       setThemeMode: (mode) => set({ themeMode: mode }),
       setMockMode: (mock: boolean) => set({ mockMode: mock, ...(mock ? { connectionStatus: "disconnected", errorMessage: "" } : {}) }),
@@ -472,6 +481,8 @@ export const useSettingsStore = create<SettingsState>()(
           activeProfileId: "default",
           showNsfw: false,
           accentColor: "jade",
+          colorPalette: "ember",
+          showReadingSpirit: true,
           coverDensity: "normal",
           themeMode: "dark",
           mockMode: false,
@@ -536,6 +547,8 @@ export const useSettingsStore = create<SettingsState>()(
         activeProfileId: state.activeProfileId,
         showNsfw: state.showNsfw,
         accentColor: state.accentColor,
+        colorPalette: state.colorPalette,
+        showReadingSpirit: state.showReadingSpirit,
         coverDensity: state.coverDensity,
         themeMode: state.themeMode,
         mockMode: state.mockMode,
@@ -594,6 +607,8 @@ export const useSettingsStore = create<SettingsState>()(
           errorMessage: persisted?.errorMessage || "",
           showNsfw: persisted?.showNsfw ?? currentState.showNsfw,
           accentColor: persisted?.accentColor ?? currentState.accentColor,
+          colorPalette: persisted?.colorPalette ? paletteFor(persisted.colorPalette).id : legacyPalette(persisted?.accentColor),
+          showReadingSpirit: persisted?.showReadingSpirit ?? currentState.showReadingSpirit,
           coverDensity: persisted?.coverDensity ?? currentState.coverDensity,
           themeMode: persisted?.themeMode ?? currentState.themeMode,
           mockMode: persisted?.mockMode ?? currentState.mockMode,

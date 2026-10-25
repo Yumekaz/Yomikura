@@ -1,9 +1,10 @@
-import { BookOpen, Check, Compass } from "lucide-react";
+import { Check } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { LibraryManga } from "./LibraryGrid";
+import { LibraryEmptyState } from "./LibraryEmptyState";
 
-export function LibraryList({ mangas, serverBaseUrl, isSelectMode, selectedMangaIds, onToggleSelectManga }: { mangas: LibraryManga[]; serverBaseUrl: string; isSelectMode: boolean; selectedMangaIds: Set<string | number>; onToggleSelectManga: (id: string | number) => void }) {
-  if (!mangas.length) return <div className="yomi-route-empty"><div><BookOpen /><h2>Your library is empty</h2><p>Build a local collection by adding a title from one of your installed sources.</p><Link to="/browse" className="yomi-button yomi-button-primary mt-5"><Compass />Browse sources</Link></div></div>;
+export function LibraryList({ mangas, serverBaseUrl, isSelectMode, selectedMangaIds, onToggleSelectManga, filtered, onClearFilters }: { mangas: LibraryManga[]; serverBaseUrl: string; isSelectMode: boolean; selectedMangaIds: Set<string | number>; onToggleSelectManga: (id: string | number) => void; filtered?: boolean; onClearFilters?: () => void }) {
+  if (!mangas.length) return <LibraryEmptyState filtered={filtered} onClearFilters={onClearFilters} />;
   return (
     <div className="yomi-surface overflow-hidden">
       {mangas.map((manga) => {

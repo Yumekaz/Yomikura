@@ -210,7 +210,7 @@ export default function MangaDetailPage() {
   }, [manga?.thumbnailUrl, serverBaseUrl]);
 
   useEffect(() => {
-    applyCoverAccentFromImage(imageUrl, coverAccentEnabled);
+    return applyCoverAccentFromImage(imageUrl, coverAccentEnabled);
   }, [imageUrl, coverAccentEnabled]);
 
   if (isLoading) {

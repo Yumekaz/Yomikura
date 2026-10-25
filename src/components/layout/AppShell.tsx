@@ -15,6 +15,8 @@ import { useScheduledLibraryUpdate } from "../../hooks/useScheduledLibraryUpdate
 import { getCachedChapters } from "../../api/suwayomi/offlineCache";
 import { useProgressSynchronization } from "../../hooks/useProgressSynchronization";
 import { ProgressSyncStatus } from "../ProgressSyncStatus";
+import { BrandLogo, ReadingSpirit, SanctuaryArt } from "../Brand";
+import { applyPalette } from "../../theme/palettes";
 
 function ProfileSwitcher() {
   const { profiles, activeProfileId, setActiveProfileId } = useSettingsStore();
@@ -85,7 +87,7 @@ function AppShell() {
   const { 
     connectionStatus, 
     testConnection, 
-    accentColor, 
+    colorPalette,
     themeMode, 
     mockMode, 
     setMockMode, 
@@ -117,6 +119,13 @@ function AppShell() {
     })();
     return () => unlisten?.();
   }, []);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    void import("@tauri-apps/api/window").then(({ getCurrentWindow }) =>
+      getCurrentWindow().setTheme(themeMode === "system" ? null : themeMode),
+    ).catch((error) => console.warn("Window appearance could not follow the selected theme:", error));
+  }, [themeMode]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -158,28 +167,18 @@ function AppShell() {
     // 1. Theme application
     const htmlElement = document.documentElement;
     const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
-    const applyTheme = () => htmlElement.classList.toggle("light-theme", !(themeMode === "dark" || themeMode === "system" && systemTheme.matches));
+    const applyTheme = () => {
+      const dark = themeMode === "dark" || themeMode === "system" && systemTheme.matches;
+      htmlElement.classList.toggle("light-theme", !dark);
+      applyPalette(htmlElement, colorPalette, dark);
+    };
     applyTheme();
     if (themeMode === "system") systemTheme.addEventListener("change", applyTheme);
-
-    // 2. Accent color application (RGB values)
-    const accents: Record<string, string> = {
-      // Keep the persisted key for backwards compatibility; it is now the
-      // branded warm-paper default rather than the old green accent.
-      jade: "239, 234, 226",
-      mint: "169, 242, 212",
-      gold: "242, 200, 121",
-      plum: "182, 155, 255",
-      coral: "239, 138, 122"
-    };
-    
-    const rgb = accents[accentColor] || accents.jade;
-    htmlElement.style.setProperty("--yomi-accent", rgb);
 
     htmlElement.classList.toggle("high-contrast", highContrastMode);
     htmlElement.classList.toggle("reduce-motion", reducedMotion);
     return () => systemTheme.removeEventListener("change", applyTheme);
-  }, [themeMode, accentColor, highContrastMode, reducedMotion]);
+  }, [themeMode, colorPalette, highContrastMode, reducedMotion]);
 
   const showOfflineBanner = connectionStatus === "error" && !location.pathname.startsWith("/reader/") && !mockMode;
 
@@ -239,6 +238,7 @@ function AppShell() {
           ))}
         </nav>
         <div className="yomi-sidebar-footer">
+          <div className="yomi-sidebar-companion"><ReadingSpirit /><p>Between the pages.</p></div>
           {utilityNav.map((item) => <ShellNavLink key={item.path} item={item} />)}
           <BackendHealthBadge />
           <ProgressSyncStatus />
@@ -348,10 +348,11 @@ export function BrandLockup() {
   return (
     <div className="yomi-brand">
       <div className="yomi-brand-mark">
-        <img src="/yomikura-logo.png" alt="Yomikura" className="h-full w-full object-cover" />
+        <BrandLogo />
       </div>
       <div>
         <p>Yomikura</p>
+        <span>Your reading sanctuary</span>
       </div>
     </div>
   );
@@ -607,11 +608,11 @@ function WelcomeOnboarding({
 
   return (
     <div className="yomi-onboarding">
-      <div className="yomi-welcome-art" aria-hidden="true"><img src="/demo/moonlit-courier.webp" alt="" /><div><span>THE READING ROOM</span><p>One more chapter.</p></div></div>
+      <div className="yomi-welcome-art" aria-hidden="true"><SanctuaryArt /><div><span>YOMIKURA</span><p>Stories feel brighter here.</p></div></div>
       <div className="yomi-setup-panel">
         {/* Brand Logo */}
         <div className="yomi-welcome-logo">
-          <img src="/yomikura-logo.png" alt="Yomikura" className="h-full w-full object-cover" />
+          <BrandLogo />
         </div>
 
         <h1 className="yomi-welcome-brand">
