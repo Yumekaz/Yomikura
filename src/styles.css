@@ -818,7 +818,18 @@ html.reduce-motion .yomi-sidebar-companion .yomi-reading-spirit { transform: non
   .yomi-sidebar-companion .yomi-reading-spirit { transition: transform 220ms var(--ease-out); }
   .yomi-palette-card:hover { border-color: rgb(var(--yomi-signature)); }
 }
-@media (max-height: 760px) { .yomi-sidebar-companion { display: none !important; } }
+@media (max-height: 760px) {
+  .yomi-sidebar-companion { margin-bottom: 12px; padding-bottom: 12px; }
+  .yomi-sidebar-companion .yomi-reading-spirit { width: 80px; height: 80px; }
+}
+@media (max-height: 600px) {
+  .yomi-sidebar-companion .yomi-reading-spirit { width: 56px; height: 56px; }
+  .yomi-sidebar-companion p { display: none; }
+}
+.yomi-storage-options > button:not(:first-child) > div > div { display: none; }
+.yomi-storage-options > button:not(:first-child) { padding: 14px; }
+.yomi-storage-options > button:not(:first-child) h3 { margin-top: 0; }
+.yomi-storage-options > button:not(:first-child) > span { display: none; }
 @media (max-width: 1280px) { .yomi-palette-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width: 640px) {
   .yomi-library-header h1, .yomi-page-header h1, .yomi-workspace-head h1 { font-size: 32px; }

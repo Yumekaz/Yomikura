@@ -111,7 +111,7 @@ test("device-cached reading survives a browser restart with an unavailable backe
     await expect(image).toHaveAttribute("src", /^blob:/);
     await expect(image).toBeInViewport();
     await expect(image).toHaveCSS("opacity", "1");
-    const preview = restartedPage.getByRole("button", { name: "Page 1 1", exact: true }).getByRole("img");
+    const preview = restartedPage.getByRole("button", { name: "Go to page 1", exact: true }).getByRole("img");
     await expect.poll(() => preview.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(320);
     await expect(preview).toHaveAttribute("src", /^blob:/);
     await expect(restartedPage.getByRole("button", { name: "Explore Demo Library" })).toHaveCount(0);

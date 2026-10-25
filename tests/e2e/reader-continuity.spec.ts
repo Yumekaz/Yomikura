@@ -100,7 +100,7 @@ test("cold webtoon restore and thumbnail jumps position real images with delayed
   await expect.poll(() => fullPage(page, 12, 2).evaluate((image) => Math.round(image.getBoundingClientRect().top))).toBeLessThan(180);
   await expect(page.getByText("3 of 4 pages", { exact: true })).toBeVisible();
   for (const index of [0, 2, 3]) {
-    await page.getByRole("button", { name: `Page ${index + 1} ${index + 1}`, exact: true }).click();
+    await page.getByRole("button", { name: `Go to page ${index + 1}`, exact: true }).click();
     await expect(fullPage(page, 12, index)).toHaveCSS("opacity", "1");
     await expect(fullPage(page, 12, index)).toBeInViewport({ ratio: 0.2 });
     await expect(page.getByText(`${index + 1} of 4 pages`, { exact: true })).toBeVisible();
@@ -114,7 +114,7 @@ test("cold webtoon restore and thumbnail jumps position real images with delayed
 
 test("crossing an appended chapter updates controls, survives acknowledgement and reloads the active chapter", async ({ page }) => {
   const data = await fixture(page);
-  await page.getByRole("button", { name: "Page 4 4", exact: true }).click();
+  await page.getByRole("button", { name: "Go to page 4", exact: true }).click();
   await expect(fullPage(page, 13, 0)).toHaveCSS("opacity", "1");
   await page.mouse.wheel(0, 1400);
   await fullPage(page, 13, 0).scrollIntoViewIfNeeded();
@@ -123,7 +123,7 @@ test("crossing an appended chapter updates controls, survives acknowledgement an
   await expect(page.getByText("1 of 2 pages", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Prev", exact: true })).toHaveAttribute("href", "/reader/12");
   await expect(page.getByRole("link", { name: "Next", exact: true })).toHaveAttribute("href", "/reader/14");
-  await expect(page.getByRole("button", { name: /^Page \d+ \d+$/ })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: /^Go to page \d+$/ })).toHaveCount(2);
   await expect.poll(() => data.writes.some((write) => write.id === 13)).toBe(true);
   expect(data.pageFetches.filter((id) => id === 12)).toHaveLength(1);
   await expect(page.locator('[data-reader-chapter="12"]')).toHaveCount(4);
@@ -135,7 +135,7 @@ test("crossing an appended chapter updates controls, survives acknowledgement an
 
 test("paged mode and thumbnails use the active appended chapter", async ({ page }) => {
   const data = await fixture(page);
-  await page.getByRole("button", { name: "Page 4 4", exact: true }).click();
+  await page.getByRole("button", { name: "Go to page 4", exact: true }).click();
   await expect(fullPage(page, 13, 0)).toHaveCSS("opacity", "1");
   await page.mouse.wheel(0, 1400); await fullPage(page, 13, 0).scrollIntoViewIfNeeded();
   await expect(page).toHaveURL(/\/reader\/13$/);
@@ -181,7 +181,7 @@ test("moving backward after completion stays read when synchronization becomes u
   await expect.poll(() => data.records.get(12)!.read).toBe(true);
   await expect(page.getByRole("status", { name: "Progress synchronization" })).toHaveCount(0);
   data.setOnline(false);
-  await page.getByRole("button", { name: "Page 2 2", exact: true }).click();
+  await page.getByRole("button", { name: "Go to page 2", exact: true }).click();
   await expect(fullPage(page, 12, 1)).toBeInViewport({ ratio: 0.2 });
   await expect.poll(async () => page.evaluate(async () => {
     const open = indexedDB.open("yomikura-progress", 1);

@@ -8,6 +8,7 @@ use tauri::Emitter;
 use tauri::WindowEvent;
 use tauri::{Manager, State};
 mod local_import;
+mod window_layout;
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1022,6 +1023,11 @@ pub fn run() {
             local_import::import_local_archives
         ])
         .setup(|app| {
+            if let Some(window) = app.get_webview_window("main") {
+                if let Err(error) = window_layout::fit_initial_window(&window) {
+                    eprintln!("Initial window could not be fitted to the display: {error}");
+                }
+            }
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
