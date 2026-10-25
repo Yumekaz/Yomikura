@@ -86,6 +86,7 @@ interface SettingsState {
   themeMode: "dark" | "light" | "system";
   mockMode: boolean;
   serverDataPath: string;
+  managedLibraryProfileId: string | null;
   
   // Phase 2 features
   mangaSettingsOverrides: Record<string, MangaOverride>;
@@ -204,6 +205,7 @@ export const useSettingsStore = create<SettingsState>()(
       themeMode: "dark",
       mockMode: false,
       serverDataPath: "",
+      managedLibraryProfileId: null,
       
       // Phase 2 default state
       mangaSettingsOverrides: {},
@@ -365,7 +367,7 @@ export const useSettingsStore = create<SettingsState>()(
       setCoverDensity: (density) => set({ coverDensity: density }),
       setThemeMode: (mode) => set({ themeMode: mode }),
       setMockMode: (mock: boolean) => set({ mockMode: mock, ...(mock ? { connectionStatus: "disconnected", errorMessage: "" } : {}) }),
-      setServerDataPath: (path: string) => set({ serverDataPath: path.trim() }),
+      setServerDataPath: (path: string) => set((state) => ({ serverDataPath: path.trim(), managedLibraryProfileId: path.trim() ? state.activeProfileId : null })),
       
       // Phase 2 actions implementation
       setChapterPolicy: (mangaId, policy, backend) => set((state) => ({ chapterPolicies: { ...state.chapterPolicies, [mangaReaderSettingsKey(backend, mangaId)]: normalizeChapterPolicy(policy) } })),
@@ -487,6 +489,7 @@ export const useSettingsStore = create<SettingsState>()(
           themeMode: "dark",
           mockMode: false,
           serverDataPath: "",
+          managedLibraryProfileId: null,
           mangaSettingsOverrides: {},
           chapterPolicies: {},
           legacyMangaOverridesBackend: null,
@@ -553,6 +556,7 @@ export const useSettingsStore = create<SettingsState>()(
         themeMode: state.themeMode,
         mockMode: state.mockMode,
         serverDataPath: state.serverDataPath,
+        managedLibraryProfileId: state.managedLibraryProfileId,
         mangaSettingsOverrides: state.mangaSettingsOverrides,
         chapterPolicies: state.chapterPolicies,
         legacyMangaOverridesBackend: state.legacyMangaOverridesBackend,

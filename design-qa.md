@@ -75,3 +75,15 @@ No actionable P0/P1/P2 issue remains in this follow-up. The earlier full regress
 - Full browser suite: **143 passed** on frozen production output. Final warning/profile contrast refinements: **26 targeted browser checks passed** afterward. Final unit suite: **312 passed**. Source/spec checking, production build, version and bundle gates passed.
 - Final native evidence: `.cache/reader-ux-2026-10-25/native-light-menu.png`, `native-selection.json`, `native-live-chapters.png`. The last warning-color adjustments were checked in the web follow-up after this native build. The user took over the native window, so no additional native input was sent.
 - Failed checks and interrupted runs are retained and explained in `docs/READING_CONTROLS_2026-10-25.md`. Spoken screen-reader certification, a signed installer and signed-in providers remain outside this pass.
+
+## Mihon reading-flow follow-up · 2026-10-25
+
+All 50 privately supplied references were individually reviewed before implementation. The reference folder is ignored by Git; individual notes, screenshots and device/reading information remain local.
+
+1. **Offline state — passed.** Replaced the bright pill with a neutral inline notice, clear status copy and Reconnect. The rendered offline fixture was inspected, and all four light palettes passed automated accessibility checks.
+2. **History — passed.** Real backend activity now renders four comics instead of eight chapter rows. Latest activity is selected by reading time; removal, pagination, fresh activity and no-result search are covered.
+3. **Resume — passed.** Fifty completed chapters lead to chapter 51 in both display directions. Actual Asura completion advanced from details, library and History; a fresh client confirmed the backend state. Completed cached chapters retain a clear Read again action.
+4. **First launch — passed for clean native setup.** Desktop recommends Set up my library, web recommends the desktop installer, and the demo is secondary. Actual native setup without system Java exposed and then passed the corrected private-runtime extraction path. Startup cancellation, retries and remote-profile preservation are covered by regressions.
+5. **Packaged restart — outstanding.** A verified private backup is retained. The computer-control tool remained paused after Escape, so the open app was not closed or restarted. The final loopback-only startup argument is compiled/tested but its post-restart socket observation remains pending.
+
+Current evidence: 333 unit tests, 150 checks in the clean full browser run, 34 focused browser checks, 17 Rust tests, formatting/Clippy, source/spec checking, production build and bundle gates. Accepted local views include `real-comic-history-dark.png` and the actual offline fixture captured during the obsolete Resume assertion; the assertion was subsequently corrected and the full suite passed. Detailed evidence and limits are in `docs/MIHON_READING_FLOW_2026-10-25.md`.

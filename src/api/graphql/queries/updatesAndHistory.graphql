@@ -37,6 +37,7 @@ query GetHistory($filter: ChapterFilterInput, $order: [ChapterOrderInput!], $fir
         isRead
         lastPageRead
         lastReadAt
+        pageCount
         scanlator
         mangaId
         manga {

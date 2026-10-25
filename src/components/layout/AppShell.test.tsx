@@ -17,6 +17,7 @@ vi.mock("../../stores/useDownloadStore", () => ({
   useDownloadStore: { getState: () => ({ pauseForShutdown: vi.fn(), restoreDownloadJobs: vi.fn() }) },
 }));
 vi.mock("../UpdateNotificationBanner", () => ({ UpdateNotificationBanner: () => null }));
+vi.mock("../onboarding/DesktopDownloadLink", () => ({ DesktopDownloadLink: () => <a href="https://github.com/Yumekaz/Yomikura/releases/latest">Download Yomikura Desktop</a> }));
 
 const server = "http://offline.example:4567";
 const chapter: CachedChapter = {
@@ -111,6 +112,20 @@ describe("offline shell access", () => {
     await open("/library");
     await waitForRender(() => expect(view!.container.querySelector("h1")?.textContent?.trim()).toBe("Yomikura"));
   });
+  it("keeps the connection form open through a background connection retry", async () => {
+    vi.mocked(getCachedChapters).mockResolvedValue([]);
+    await open("/library");
+    await waitForRender(() => expect(view!.container.querySelector(".yomi-connect-details")).not.toBeNull());
+    const details = view!.container.querySelector<HTMLDetailsElement>(".yomi-connect-details")!;
+    const input = details.querySelector("input");
+    details.open = true;
+    await act(async () => useSettingsStore.setState({ connectionStatus: "testing" }));
+    expect(view!.container.querySelector(".yomi-connect-details")).toBe(details);
+    expect(details.open).toBe(true);
+    expect(details.querySelector("input")).toBe(input);
+    await act(async () => useSettingsStore.setState({ connectionStatus: "error" }));
+    expect(details.open).toBe(true);
+  });
 
   it("ignores a previous profile's cache lookup that finishes after switching", async () => {
     let resolvePrevious!: (chapters: CachedChapter[]) => void;
@@ -133,6 +148,11 @@ describe("offline shell access", () => {
   it("keeps server-only routes behind onboarding when disconnected", async () => {
     await open("/browse/search");
     await waitForRender(() => expect(view!.container.querySelector("h1")?.textContent?.trim()).toBe("Yomikura"));
+  });
+  it("leaves local reading history accessible without downloaded chapter pages", async () => {
+    vi.mocked(getCachedChapters).mockResolvedValue([]);
+    await open("/history");
+    expect(view!.container.querySelector('[data-testid="route"]')).not.toBeNull();
   });
 
   it.each(["/settings", "/settings/server"])("keeps %s accessible without a server", async (path) => {

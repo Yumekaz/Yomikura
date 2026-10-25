@@ -25,4 +25,8 @@ describe("library continuation", () => {
     expect(recentReading([chapter], [], new Set([20]))).toBeUndefined();
     expect(recentReading([{ ...chapter, readAt: 0 }], [], new Set([10]))).toBeUndefined();
   });
+  it("retains the most recent completion when resolving the comic's next unread chapter", () => {
+    const completed = { ...chapter, chapterId: 50, readAt: 400, isRead: true };
+    expect(recentReading([chapter, completed], [], new Set([10]), true)).toEqual(completed);
+  });
 });

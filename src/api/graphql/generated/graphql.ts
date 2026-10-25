@@ -4537,7 +4537,7 @@ export type GetReadingChaptersQueryVariables = Exact<{
 }>;
 
 
-export type GetReadingChaptersQuery = { chapters: { totalCount: number, pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, mangaId: number, name: string, chapterNumber: number, sourceOrder: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, uploadDate: unknown, scanlator: string | null }> } };
+export type GetReadingChaptersQuery = { chapters: { totalCount: number, pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, mangaId: number, name: string, chapterNumber: number, sourceOrder: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, uploadDate: unknown, scanlator: string | null, lastPageRead: number, pageCount: number }> } };
 
 export type GetServerSettingsQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -4703,7 +4703,7 @@ export type GetHistoryQueryVariables = Exact<{
 }>;
 
 
-export type GetHistoryQuery = { chapters: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, lastReadAt: unknown, scanlator: string | null, mangaId: number, manga: { id: number, title: string, thumbnailUrl: string | null } }> } };
+export type GetHistoryQuery = { chapters: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, lastReadAt: unknown, pageCount: number, scanlator: string | null, mangaId: number, manga: { id: number, title: string, thumbnailUrl: string | null } }> } };
 
 export const CatalogFilterFieldsFragmentDoc = gql`
     fragment CatalogFilterFields on Filter {
@@ -5304,6 +5304,8 @@ export const GetReadingChaptersDocument = gql`
       isDownloaded
       uploadDate
       scanlator
+      lastPageRead
+      pageCount
     }
   }
 }
@@ -5584,6 +5586,7 @@ export const GetHistoryDocument = gql`
       isRead
       lastPageRead
       lastReadAt
+      pageCount
       scanlator
       mangaId
       manga {

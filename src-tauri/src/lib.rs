@@ -8,6 +8,7 @@ use tauri::Emitter;
 use tauri::WindowEvent;
 use tauri::{Manager, State};
 mod local_import;
+mod runtime_setup;
 mod window_layout;
 
 #[derive(serde::Serialize)]
@@ -552,21 +553,13 @@ fn check_java_installed(data_path: Option<String>) -> bool {
         let data_dir = std::path::PathBuf::from(&path);
         let jre_dir = data_dir.join("jre");
         if let Some(java_bin) = find_java_binary(&jre_dir) {
-            if java_bin.exists() {
+            if runtime_setup::compatible_java(&java_bin) {
                 return true;
             }
         }
     }
 
-    #[cfg(windows)]
-    use std::os::windows::process::CommandExt;
-
-    let mut cmd = Command::new("java");
-    #[cfg(windows)]
-    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-    cmd.arg("-version");
-
-    cmd.output().is_ok()
+    runtime_setup::compatible_java(std::path::Path::new("java"))
 }
 
 #[tauri::command]
@@ -617,7 +610,7 @@ fn download_and_install_jre_sync(
 
     if jre_dir.exists() {
         if let Some(java_bin) = find_java_binary(&jre_dir) {
-            if java_bin.exists() {
+            if runtime_setup::compatible_java(&java_bin) {
                 return Ok(());
             }
         }
@@ -629,24 +622,11 @@ fn download_and_install_jre_sync(
 
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         let archive_path = data_dir.join("jre.zip");
-        download_file_with_curl(url, &archive_path, expected_sha256)?;
-        let output = Command::new("powershell")
-            .arg("-NoProfile")
-            .arg("-Command")
-            .arg("Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force")
-            .arg(&archive_path)
-            .arg(&jre_dir)
-            .creation_flags(0x08000000)
-            .output()
-            .map_err(|e| format!("Failed to extract verified JRE archive: {e}"))?;
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to extract verified JRE archive: {}",
-                String::from_utf8_lossy(&output.stderr).trim()
-            ));
+        if !archive_path.is_file() || verify_sha256(&archive_path, expected_sha256).is_err() {
+            download_file_with_curl(url, &archive_path, expected_sha256)?;
         }
+        runtime_setup::extract_verified_java_archive(&archive_path, &jre_dir)?;
         let _ = std::fs::remove_file(&archive_path);
     }
 
@@ -670,7 +650,7 @@ fn download_and_install_jre_sync(
         let _ = std::fs::remove_file(&archive_path);
     }
 
-    if find_java_binary(&jre_dir).is_some() {
+    if find_java_binary(&jre_dir).is_some_and(|binary| runtime_setup::compatible_java(&binary)) {
         Ok(())
     } else {
         Err("The verified Java archive did not contain a runnable Java binary.".to_string())
@@ -725,7 +705,9 @@ fn start_backend(
     use std::os::windows::process::CommandExt;
 
     let jre_dir = data_dir.join("jre");
-    let java_program = if let Some(local_bin) = find_java_binary(&jre_dir) {
+    let java_program = if let Some(local_bin) =
+        find_java_binary(&jre_dir).filter(|binary| runtime_setup::compatible_java(binary))
+    {
         local_bin
     } else {
         std::path::PathBuf::from("java")
@@ -746,6 +728,7 @@ fn start_backend(
         data_dir.to_string_lossy()
     ))
     .arg(format!("-Dsuwayomi.tachidesk.config.server.port={}", port))
+    .arg("-Dsuwayomi.tachidesk.config.server.ip=127.0.0.1")
     // Yomikura owns the reader experience. Do not open Suwayomi's fallback
     // WebUI in the user's browser each time the managed local engine starts.
     .arg("-Dsuwayomi.tachidesk.config.server.initialOpenInBrowserEnabled=false")

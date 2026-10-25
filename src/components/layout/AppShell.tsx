@@ -1,6 +1,6 @@
 import { ThemedSelect } from "../ui/ThemedSelect";
-import { useEffect, useState } from "react";
-import { BookOpen, Server, ShieldCheck, ArrowRight, Loader2, Sparkles, FolderOpen, HardDrive, RefreshCw, AlertTriangle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { BookOpen, Server, ShieldCheck, ArrowRight, Loader2, Sparkles, FolderOpen, HardDrive, RefreshCw, AlertTriangle, CloudOff } from "lucide-react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { primaryNav, utilityNav, type NavItem } from "../../app/navigation";
@@ -18,6 +18,8 @@ import { useProgressSynchronization } from "../../hooks/useProgressSynchronizati
 import { ProgressSyncStatus } from "../ProgressSyncStatus";
 import { BrandLogo, SidebarCompanion, SanctuaryArt } from "../Brand";
 import { applyPalette } from "../../theme/palettes";
+import { DesktopDownloadLink } from "../onboarding/DesktopDownloadLink";
+import { DEFAULT_SERVER_BASE_URL } from "../../config/server";
 
 function ProfileSwitcher() {
   const { profiles, activeProfileId, setActiveProfileId } = useSettingsStore();
@@ -98,11 +100,22 @@ function AppShell() {
     highContrastMode,
     reducedMotion,
     hasHydrated,
+    serverDataPath,
+    managedLibraryProfileId,
+    activeProfileId,
   } = useSettingsStore();
   const location = useLocation();
   const navigate = useNavigate();
 
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [setupActive, setSetupActive] = useState(false);
+  const [managedStartupDismissed, setManagedStartupDismissed] = useState(false);
+  const [wasOffline, setWasOffline] = useState(connectionStatus === "error");
+  useEffect(() => {
+    if (connectionStatus === "error") setWasOffline(true);
+    if (connectionStatus === "connected" || mockMode) setWasOffline(false);
+    if (mockMode) setSetupActive(false);
+  }, [connectionStatus, mockMode]);
 
   useDeviceProfileBootstrap();
   useScheduledBackup();
@@ -181,13 +194,14 @@ function AppShell() {
     return () => systemTheme.removeEventListener("change", applyTheme);
   }, [themeMode, colorPalette, highContrastMode, reducedMotion]);
 
-  const showOfflineBanner = connectionStatus === "error" && !location.pathname.startsWith("/reader/") && !mockMode;
+  const showOfflineBanner = (connectionStatus === "error" || connectionStatus === "testing" && wasOffline) && !location.pathname.startsWith("/reader/") && !mockMode;
 
-  const isUnconnected = connectionStatus === "error" || connectionStatus === "disconnected";
+  const isUnconnected = connectionStatus !== "connected";
   const isSettingsRoute = /^\/settings(?:\/|$)/.test(location.pathname);
+  const isHistoryRoute = /^\/history\/?$/.test(location.pathname);
   const isOfflineRoute = /^\/(?:library|downloads|history)\/?$/.test(location.pathname)
     || /^\/(?:manga|reader)\/[^/]+\/?$/.test(location.pathname);
-  const checkOfflineCache = hasHydrated && isUnconnected && !mockMode
+  const checkOfflineCache = hasHydrated && isUnconnected && !mockMode && !setupActive
     && !!serverBaseUrl.trim() && isOfflineRoute;
   const offlineChapters = useQuery({
     // Scope availability to the active backend. Never pass an empty URL, which
@@ -198,9 +212,12 @@ function AppShell() {
     enabled: checkOfflineCache,
     retry: false,
   });
-  const canOpenOffline = checkOfflineCache && offlineChapters.data === true;
+  const hasSavedPages = isOfflineRoute && offlineChapters.data === true;
+  const canOpenOffline = hasSavedPages || isHistoryRoute;
   const checkingOfflineCache = checkOfflineCache && offlineChapters.isFetching && !canOpenOffline;
-  const showOnboarding = isUnconnected && !mockMode && !isSettingsRoute && !canOpenOffline;
+  const ownsLocalProfile = isTauri() && !!serverDataPath && managedLibraryProfileId === activeProfileId;
+  const shouldStartManaged = ownsLocalProfile && isUnconnected && !managedStartupDismissed;
+  const showOnboarding = !mockMode && !isSettingsRoute && (setupActive || shouldStartManaged || isUnconnected && !canOpenOffline);
 
   if (!hasHydrated || checkingOfflineCache) {
     return <div className="yomi-route-loading" role="status" aria-label={checkingOfflineCache ? "Loading saved chapters" : "Loading saved settings"}><span className="yomi-skeleton h-8 w-40" /><span className="yomi-skeleton h-24 w-full" /></div>;
@@ -214,6 +231,9 @@ function AppShell() {
         testConnection={testConnection}
         errorMessage={errorMessage}
         setMockMode={setMockMode}
+        onBeginSetup={() => setSetupActive(true)}
+        onConnected={() => { setSetupActive(false); setManagedStartupDismissed(false); }}
+        onReadOffline={canOpenOffline ? () => { setManagedStartupDismissed(true); setSetupActive(false); } : undefined}
       />
     );
   }
@@ -257,9 +277,10 @@ function AppShell() {
           </div>
         )}
         {showOfflineBanner && (
-          <div className="yomi-offline-notice mx-auto my-3 max-w-xl rounded-full bg-amber-500/10 border border-amber-500/20 px-4 py-1.5 text-center text-xs font-semibold text-amber-300 backdrop-blur-md shadow-md animate-fade-in flex items-center justify-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-            <span>Reading offline. Saved chapters and progress are available on this device.</span>
+          <div className="yomi-offline-notice">
+            <CloudOff aria-hidden="true" />
+            <div role="status"><strong>Reading offline</strong><p>{hasSavedPages ? "Your saved chapters are here. Progress will sync when your library reconnects." : isHistoryRoute ? "Your recent reading stays on this device. Reconnect to open chapters from your library." : "Your library couldn’t be reached. Reconnect when you’re ready."}</p></div>
+            <button type="button" className="yomi-button yomi-button-secondary" disabled={connectionStatus === "testing"} onClick={() => void testConnection()}>{connectionStatus === "testing" ? "Reconnecting…" : "Reconnect"}</button>
           </div>
         )}
         <ErrorBoundary key={`${serverBaseUrl}::${mockMode}`}>
@@ -359,27 +380,34 @@ export function BrandLockup() {
   );
 }
 
-function WelcomeOnboarding({
+export function WelcomeOnboarding({
   serverBaseUrl,
   setServerBaseUrl,
   testConnection,
   errorMessage,
   setMockMode,
+  onBeginSetup,
+  onConnected,
+  onReadOffline,
 }: {
   serverBaseUrl: string;
   setServerBaseUrl: (url: string) => void;
   testConnection: () => Promise<boolean>;
   errorMessage: string;
   setMockMode: (mock: boolean) => void;
+  onBeginSetup: () => void;
+  onConnected: () => void;
+  onReadOffline?: () => void;
 }) {
-  const { serverDataPath, setServerDataPath, setPortableMode } = useSettingsStore();
-  const [currentStep, setCurrentStep] = useState<"storage" | "backend" | "ready">("storage");
+  const { serverDataPath, setServerDataPath, setPortableMode, managedLibraryProfileId, activeProfileId } = useSettingsStore();
+  const [currentStep, setCurrentStep] = useState<"storage" | "backend" | "ready">(isTauri() ? "storage" : "ready");
   const [javaStatus, setJavaStatus] = useState<"checking" | "downloading" | "installed" | "missing">("checking");
   const [serverStatus, setServerStatus] = useState<"idle" | "starting" | "running" | "error">("idle");
   const [localError, setLocalError] = useState("");
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [inputUrl, setInputUrl] = useState(serverBaseUrl);
+  const [inputUrl, setInputUrl] = useState(serverBaseUrl === DEFAULT_SERVER_BASE_URL ? "" : serverBaseUrl);
   const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
+  const [retryEpoch, setRetryEpoch] = useState(0);
+  const stopAttempt = useRef<() => Promise<void>>(async () => {});
 
   const inTauri = isTauri();
 
@@ -403,7 +431,9 @@ function WelcomeOnboarding({
   useEffect(() => {
     if (!inTauri) {
       setCurrentStep("ready");
-    } else if (serverDataPath) {
+    } else if (serverDataPath && (managedLibraryProfileId === activeProfileId || !managedLibraryProfileId && activeProfileId === "default" && /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(serverBaseUrl))) {
+      onBeginSetup();
+      if (!managedLibraryProfileId) setServerDataPath(serverDataPath);
       setCurrentStep("backend");
     }
   }, [inTauri, serverDataPath]);
@@ -416,6 +446,13 @@ function WelcomeOnboarding({
     let transitioningToReady = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let finishTimer: ReturnType<typeof setTimeout> | undefined;
+    const stopOwnedAttempt = async () => {
+      if (!backendLaunchRequested || transitioningToReady) return;
+      backendLaunchRequested = false;
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("stop_backend");
+    };
+    stopAttempt.current = stopOwnedAttempt;
 
     const runBackendLifecycle = async () => {
       try {
@@ -440,6 +477,7 @@ function WelcomeOnboarding({
           if (!active) return;
 
           const hasJavaPost = await invoke<boolean>("check_java_installed", { dataPath: serverDataPath });
+          if (!active) return;
           if (!hasJavaPost && active) {
             setJavaStatus("missing");
             return;
@@ -450,6 +488,7 @@ function WelcomeOnboarding({
         setServerStatus("starting");
 
         await invoke<string>("download_suwayomi_jar", { dataPath: serverDataPath });
+        if (!active) return;
 
         backendLaunchRequested = true;
         const port = await invoke<number>("start_backend", { dataPath: serverDataPath });
@@ -467,7 +506,7 @@ function WelcomeOnboarding({
               finishTimer = setTimeout(() => {
                 if (active) {
                   transitioningToReady = true;
-                  setCurrentStep("ready");
+                  onConnected();
                 }
               }, 1000);
               return true;
@@ -505,15 +544,22 @@ function WelcomeOnboarding({
       active = false;
       if (retryTimer) clearTimeout(retryTimer);
       if (finishTimer) clearTimeout(finishTimer);
-      if (backendLaunchRequested && !transitioningToReady && isTauri()) {
-        void import("@tauri-apps/api/core").then(({ invoke }) => {
-          void invoke("stop_backend").catch((err) => {
-            console.warn("Failed to stop abandoned local backend:", err);
-          });
-        });
-      }
+      void stopOwnedAttempt().catch((err) => console.warn("Failed to stop abandoned local backend:", err));
     };
-  }, [currentStep, serverDataPath]);
+  }, [currentStep, serverDataPath, retryEpoch]);
+
+  const chooseLocalProfile = () => {
+    const settings = useSettingsStore.getState();
+    const local = settings.profiles.find((profile) => profile.id === settings.managedLibraryProfileId);
+    if (local) settings.setActiveProfileId(local.id);
+    else if (settings.profiles.length === 1 && settings.activeProfileId === "default" && settings.serverBaseUrl === DEFAULT_SERVER_BASE_URL) settings.updateProfile("default", "On this device", DEFAULT_SERVER_BASE_URL);
+    else {
+      settings.addProfile("On this device", DEFAULT_SERVER_BASE_URL);
+      const profiles = useSettingsStore.getState().profiles;
+      const added = profiles[profiles.length - 1];
+      if (added) settings.setActiveProfileId(added.id);
+    }
+  };
 
   const handleSelectCustomFolder = async () => {
     try {
@@ -522,6 +568,8 @@ function WelcomeOnboarding({
       const { invoke } = await import("@tauri-apps/api/core");
       const path = await invoke<string | null>("select_directory");
       if (path) {
+        onBeginSetup();
+        chooseLocalProfile();
         setServerDataPath(path);
         setCurrentStep("backend");
       }
@@ -534,15 +582,16 @@ function WelcomeOnboarding({
     try {
       setLocalError("");
       setPortableMode(false);
-      const { localDataDir } = await import("@tauri-apps/api/path");
-      const localData = await localDataDir();
-      const defaultPath = `${localData}/app.yomikura/server-data`.replace(/\\/g, "/");
+      onBeginSetup();
+      const { appLocalDataDir } = await import("@tauri-apps/api/path");
+      const localData = await appLocalDataDir();
+      const defaultPath = `${localData.replace(/[\\/]+$/, "")}/server-data`.replace(/\\/g, "/");
+      chooseLocalProfile();
       setServerDataPath(defaultPath);
       setCurrentStep("backend");
     } catch (err) {
       console.error("Failed to get local data dir:", err);
-      setServerDataPath("C:/YomikuraData");
-      setCurrentStep("backend");
+      setLocalError("We couldn’t open your usual library location. Choose another folder and try again.");
     }
   };
 
@@ -551,6 +600,8 @@ function WelcomeOnboarding({
       setLocalError("");
       const { invoke } = await import("@tauri-apps/api/core");
       const path = await invoke<string>("get_portable_data_path");
+      onBeginSetup();
+      chooseLocalProfile();
       setPortableMode(true);
       setServerDataPath(path);
       setCurrentStep("backend");
@@ -564,13 +615,22 @@ function WelcomeOnboarding({
     if (!inputUrl.trim()) return;
 
     setTestStatus("testing");
+    onBeginSetup();
     setLocalError("");
+    if (inTauri && managedLibraryProfileId === activeProfileId) {
+      const settings = useSettingsStore.getState();
+      settings.addProfile("Connected library", inputUrl.trim());
+      const profiles = useSettingsStore.getState().profiles;
+      const added = profiles[profiles.length - 1];
+      if (added) settings.setActiveProfileId(added.id);
+    }
     setServerBaseUrl(inputUrl.trim());
 
     try {
       const ok = await testConnection();
       if (ok) {
         setTestStatus("success");
+        onConnected();
       } else {
         setTestStatus("error");
         setLocalError(errorMessage || "Failed to reach Suwayomi server.");
@@ -581,21 +641,19 @@ function WelcomeOnboarding({
     }
   };
 
-  const triggerRetry = () => {
-    setLocalError("");
-    setJavaStatus("checking");
-    setServerStatus("idle");
-    setCurrentStep("storage");
-    setTimeout(() => {
-      setCurrentStep("backend");
-    }, 50);
+  const triggerRetry = async () => {
+    try {
+      await stopAttempt.current();
+      setLocalError(""); setJavaStatus("checking"); setServerStatus("idle");
+      setRetryEpoch((value) => value + 1);
+    } catch (error) { setLocalError(String(error)); }
   };
 
-  const chooseAnotherStorage = () => {
-    setLocalError("");
-    setJavaStatus("checking");
-    setServerStatus("idle");
-    setCurrentStep("storage");
+  const chooseAnotherStorage = async () => {
+    try {
+      await stopAttempt.current();
+      setLocalError(""); setJavaStatus("checking"); setServerStatus("idle"); setCurrentStep("storage");
+    } catch (error) { setLocalError(String(error)); }
   };
 
   const openDiagnosticLogs = async () => {
@@ -620,249 +678,45 @@ function WelcomeOnboarding({
           Yomikura
         </h1>
         
-        {/* STEP 1: STORAGE DIRECTORY PICKER */}
-        {currentStep === "storage" && (
-          <div className="mt-6 w-full flex flex-col items-center animate-fade-in">
-            <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-              <FolderOpen className="h-5 w-5 text-yomi-jade" />
-              Make room for your library
-            </h2>
-            <p className="mt-2 text-xs text-slate-400 text-center max-w-sm leading-relaxed">
-              We’ll set up a private library on this device. Choose where to keep your books and reading progress.
-            </p>
-
-            <div className="yomi-storage-options">
-              {/* Option 1: Default AppData */}
-              <button
-                onClick={handleSelectDefaultFolder}
-                className="rounded-xl border border-white/5 bg-ink-950/40 p-5 flex flex-col items-center justify-between text-center hover:border-white/10 hover:bg-white/[0.02] active:scale-[0.99] transition w-full"
-              >
-                <div className="flex flex-col items-center">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/5 border border-white/10 text-slate-300">
-                    <HardDrive className="h-5 w-5" />
-                  </div>
-                  <h3 className="mt-3 text-xs font-semibold text-slate-200">On this device</h3>
-                  <p className="mt-1.5 text-xs text-slate-500 max-w-[160px] leading-normal">
-                    Recommended. We’ll take care of the location.
-                  </p>
-                </div>
-                <span className="mt-4 text-xs font-bold text-yomi-jade hover:underline">
-                  Set up my library &rarr;
-                </span>
-              </button>
-
-              {/* Option 2: Custom Folder */}
-              <button
-                onClick={handleSelectCustomFolder}
-                className="rounded-xl border border-white/5 bg-ink-950/40 p-5 flex flex-col items-center justify-between text-center hover:border-white/10 hover:bg-white/[0.02] active:scale-[0.99] transition w-full"
-              >
-                <div className="flex flex-col items-center">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yomi-jade/10 border border-yomi-jade/20 text-yomi-jade">
-                    <FolderOpen className="h-5 w-5" />
-                  </div>
-                  <h3 className="mt-3 text-xs font-semibold text-slate-200">Choose a folder</h3>
-                  <p className="mt-1.5 text-xs text-slate-500 max-w-[160px] leading-normal">
-                    Use an empty folder on another drive.
-                  </p>
-                </div>
-                <span className="mt-4 text-xs font-bold text-yomi-jade hover:underline">
-                  Browse Folder &rarr;
-                </span>
-              </button>
-
-              {/* Option 3: Portable (next to app) */}
-              <button
-                onClick={handleSelectPortableFolder}
-                className="rounded-xl border border-white/5 bg-ink-950/40 p-5 flex flex-col items-center justify-between text-center hover:border-white/10 hover:bg-white/[0.02] active:scale-[0.99] transition w-full sm:col-span-2 lg:col-span-1"
-              >
-                <div className="flex flex-col items-center">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yomi-jade/10 border border-yomi-jade/20 text-yomi-jade">
-                    <RefreshCw className="h-5 w-5" />
-                  </div>
-                  <h3 className="mt-3 text-xs font-semibold text-slate-200">Portable mode</h3>
-                  <p className="mt-1.5 text-xs text-slate-500 max-w-[160px] leading-normal">
-                    Keep the app and library together.
-                  </p>
-                </div>
-                <span className="mt-4 text-xs font-bold text-yomi-jade hover:underline">
-                  Use Portable &rarr;
-                </span>
-              </button>
-            </div>
-
-            <button
-              onClick={() => setMockMode(true)}
-              className="mt-6 text-xs text-slate-500 hover:text-slate-400 hover:underline"
-            >
-              Take a look around first
-            </button>
-          </div>
-        )}
-
-        {/* STEP 2: BACKEND & JAVA ENVIRONMENT VALIDATION */}
-        {currentStep === "backend" && (
-          <div className="mt-6 w-full flex flex-col items-center animate-fade-in text-center">
-            {/* Java Check: Loading State */}
-            {javaStatus === "checking" && (
-              <div className="py-6 flex flex-col items-center">
-                <Loader2 className="h-10 w-10 animate-spin text-yomi-jade mb-3" />
-                <h3 className="text-sm font-semibold text-slate-200">Preparing your library…</h3>
-                <p className="text-xs text-slate-500 mt-1">Checking what’s already available on this device.</p>
-              </div>
-            )}
-
-            {/* Java Check: Downloading State */}
-            {javaStatus === "downloading" && (
-              <div className="py-6 flex flex-col items-center w-full max-w-sm">
-                <Loader2 className="h-10 w-10 animate-spin text-yomi-jade mb-3" />
-                <h3 className="text-sm font-semibold text-slate-200">Installing reading essentials…</h3>
-                <p className="text-xs text-slate-400 mt-2 max-w-xs leading-relaxed">
-                  This is only needed the first time. Keep this window open while we prepare your library.
-                </p>
-                <div className="mt-5 w-full bg-white/5 rounded-full h-1.5 overflow-hidden border border-white/5">
-                  <progress className="w-full" aria-label="Installing reading essentials" />
-                </div>
-                <span className="text-xs text-slate-500 mt-3">Downloading Eclipse Temurin JRE 21 ~ 40MB</span>
-              </div>
-            )}
-
-            {/* Java Check: Missing Error Screen */}
-            {javaStatus === "missing" && (
-              <div className="w-full flex flex-col items-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 border border-red-500/20 text-red-400 mb-4 animate-pulse">
-                  <AlertTriangle className="h-6 w-6" />
-                </div>
-                <h3 className="text-base font-bold text-slate-200">Java OpenJDK 21 Required</h3>
-                <p className="max-h-48 max-w-lg overflow-auto whitespace-pre-wrap rounded-xl border border-white/5 bg-black/20 p-3 text-left font-mono text-xs leading-relaxed text-slate-400 mt-3">
-                  Yomikura's local backend requires **Java OpenJDK 21** (or newer) to run. Don't worry—it takes less than a minute to install and runs quietly in the background.
-                </p>
-
-                <div className="mt-6 w-full space-y-3">
-                  <a
-                    href="https://adoptium.net/temurin/releases/?version=21&package=jre&variant=openjdk21&jvmImpl=hotspot"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-yomi-jade py-3 px-4 text-xs font-bold text-ink-950 hover:bg-yomi-jade/90 hover:scale-[1.01] active:scale-[0.99] transition shadow-md"
-                  >
-                    <span>Download OpenJDK 21 Installer</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </a>
-
-                  <button
-                    onClick={triggerRetry}
-                    className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 py-2.5 px-4 text-xs font-semibold text-slate-200 hover:bg-white/10 transition"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    <span>I have installed Java, Check Again</span>
-                  </button>
-
-                  <button
-                    onClick={() => setMockMode(true)}
-                    className="w-full text-xs text-slate-500 hover:text-slate-400 hover:underline pt-2"
-                  >
-                    Bypass & Run in Demo Sandbox Mode
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Java Check: Installed & Starting Backend */}
-            {javaStatus === "installed" && serverStatus === "starting" && (
-              <div className="py-6 flex flex-col items-center">
-                <Loader2 className="h-10 w-10 animate-spin text-yomi-jade mb-3" />
-                <h3 className="text-sm font-semibold text-slate-200">Opening your library…</h3>
-                <p className="text-xs text-slate-500 mt-1.5 max-w-xs leading-normal">
-                  Putting everything in place. This may take a few moments the first time.
-                </p>
-              </div>
-            )}
-
-            {/* Java Check: Installed & Started successfully */}
-            {javaStatus === "installed" && serverStatus === "running" && (
-              <div className="py-6 flex flex-col items-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yomi-jade/10 border border-yomi-jade/20 text-yomi-jade mb-3">
-                  <ShieldCheck className="h-5 w-5" />
-                </div>
-                <h3 className="text-sm font-semibold text-slate-200">Connected successfully!</h3>
-                <p className="text-xs text-slate-500 mt-1">Starting app, please wait...</p>
-              </div>
-            )}
-
-            {/* Backend Startup: Error */}
-            {serverStatus === "error" && (
-              <div className="w-full flex flex-col items-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 border border-red-500/20 text-red-400 mb-4">
-                  <AlertTriangle className="h-6 w-6" />
-                </div>
-                <h3 className="text-sm font-semibold text-slate-200">Your library couldn’t start</h3>
-                <p className="text-xs text-slate-400 mt-2 max-w-sm leading-relaxed">
-                  {friendlyStartupError(localError)}
-                </p>
-
-                <div className="mt-6 w-full space-y-2">
-                  <button
-                    onClick={triggerRetry}
-                    className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-yomi-jade py-2 px-3 text-xs font-semibold text-ink-950 hover:bg-yomi-jade/90 transition"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    <span>Retry Startup</span>
-                  </button>
-
-                  <button
-                    onClick={chooseAnotherStorage}
-                    className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-2 px-3 text-xs font-semibold text-slate-200 hover:bg-white/10 transition-[background-color,border-color] duration-150"
-                  >
-                    <FolderOpen className="h-3.5 w-3.5" />
-                    <span>Choose a Different Folder</span>
-                  </button>
-
-                  <button
-                    onClick={openDiagnosticLogs}
-                    className="w-full py-1 text-xs text-slate-500 hover:text-slate-300 transition-colors duration-150"
-                  >
-                    Open diagnostic logs for support
-                  </button>
-
-                  <button
-                    onClick={() => setMockMode(true)}
-                    className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-white/5 border border-white/10 py-2 px-3 text-xs font-semibold text-slate-200 hover:bg-white/10 transition"
-                  >
-                    <span>Run in Demo Sandbox Mode</span>
-                  </button>
-                </div>
-
-                {localError && (
-                  <details className="mt-4 w-full rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-left">
-                    <summary className="cursor-pointer text-xs text-slate-500">Technical details</summary>
-                    <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-slate-500">{localError}</pre>
-                  </details>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Web setup: preview first, connection details only on request. */}
-        {currentStep === "ready" && (
+        {(currentStep === "storage" || currentStep === "ready") && (
           <div className="yomi-welcome-ready">
-            <h2>A little space for your next story.</h2>
-            <p>Keep your books together, pick up where you left off, and let everything else fade away.</p>
-            <button onClick={() => setMockMode(true)} className="yomi-button yomi-button-primary yomi-welcome-primary">
-              Explore Demo Library <ArrowRight aria-hidden="true" />
-            </button>
-            <span className="yomi-welcome-hint">Try two original illustrated stories. No account needed.</span>
-            <details className="yomi-connect-details" open={showAdvanced} onToggle={(event) => setShowAdvanced(event.currentTarget.open)}>
+            <h2>Your next story starts here.</h2>
+            <p>{inTauri ? "We’ll prepare your private library and everything it needs. Choose your books and start reading." : "The desktop app prepares your private library for you. Pick your sources, find a story, and make yourself at home."}</p>
+            {inTauri ? <>
+              <button type="button" onClick={() => void handleSelectDefaultFolder()} className="yomi-button yomi-button-primary yomi-welcome-primary">Set up my library<ArrowRight aria-hidden="true" /></button>
+              <span className="yomi-welcome-hint">A one-time download. We’ll take care of the setup.</span>
+              <details className="yomi-setup-options"><summary>Choose where to keep my library</summary><p>The recommended location works for most readers. You can also use another drive or keep your library beside the app.</p><div><button type="button" className="yomi-button yomi-button-secondary" onClick={() => void handleSelectCustomFolder()}><FolderOpen aria-hidden="true" />Choose a folder</button><button type="button" className="yomi-button yomi-button-secondary" onClick={() => void handleSelectPortableFolder()}><HardDrive aria-hidden="true" />Portable mode</button></div></details>
+              {localError && <p className="yomi-setup-error" role="alert">{localError}</p>}
+            </> : <><DesktopDownloadLink /><span className="yomi-welcome-hint">Install once. Your library opens right in the app.</span></>}
+            <details className="yomi-connect-details">
               <summary>Connect an existing library</summary>
-              <p>Already use Suwayomi? Add your library’s address below. You can change it later in Settings.</p>
+              <p>Already have a Suwayomi library? Connect it here to read in your browser or on another device.</p>
               <form onSubmit={handleTestAndSave}>
                 <label htmlFor="welcome-library-address">Library address</label>
-                <input id="welcome-library-address" type="url" required placeholder="Your library’s address" value={inputUrl} onChange={(event) => setInputUrl(event.target.value)} className="yomi-field" />
+                <input id="welcome-library-address" type="url" required placeholder="Paste your library’s address" value={inputUrl} onChange={(event) => setInputUrl(event.target.value)} className="yomi-field" />
                 <button type="submit" disabled={testStatus === "testing"} className="yomi-button yomi-button-secondary">{testStatus === "testing" ? <><Loader2 className="animate-spin" />Connecting…</> : <><Server />Connect & Save</>}</button>
                 {testStatus === "error" && <p role="alert">We couldn’t reach your library. Check its address and connection, then try again.</p>}
-                {testStatus === "success" && <p role="status">Connected. Your library is ready.</p>}
               </form>
-              {testStatus === "error" && localError && <details className="mt-3"><summary>Technical details</summary><pre>{localError}</pre></details>}
+              {testStatus === "error" && localError && <details className="yomi-error-details"><summary>Technical details</summary><pre>{localError}</pre></details>}
             </details>
+            <div className="yomi-demo-choice"><span>Just looking around?</span><button type="button" onClick={() => setMockMode(true)}>Explore Demo Library<ArrowRight aria-hidden="true" /></button></div>
+          </div>
+        )}
+
+        {currentStep === "backend" && (
+          <div className="yomi-local-setup" aria-live="polite">
+            {javaStatus !== "missing" && serverStatus !== "error" ? <>
+              <span className="yomi-setup-emblem">{serverStatus === "running" ? <ShieldCheck aria-hidden="true" /> : <Loader2 className="animate-spin" aria-hidden="true" />}</span>
+              <h2>{serverStatus === "running" ? "Your library is ready." : "Making room for your stories…"}</h2>
+              <p>{javaStatus === "downloading" ? "Downloading the reading essentials. This is only needed the first time." : serverStatus === "starting" ? "Preparing your library. We’ll open it as soon as it’s ready." : "Checking what’s already available on this computer."}</p>
+              <ol className="yomi-setup-progress" aria-label="Library setup progress"><li data-complete={javaStatus === "installed"}><span aria-hidden="true">1</span>Prepare reading essentials</li><li data-complete={serverStatus === "running"}><span aria-hidden="true">2</span>Open your private library</li></ol>
+            </> : <>
+              <span className="yomi-setup-emblem"><AlertTriangle aria-hidden="true" /></span><h2>Your library couldn’t start.</h2><p>{friendlyStartupError(localError)}</p>
+              <div className="yomi-setup-actions"><button type="button" className="yomi-button yomi-button-primary" onClick={() => void triggerRetry()}><RefreshCw aria-hidden="true" />Try again</button><button type="button" className="yomi-button yomi-button-secondary" onClick={() => void chooseAnotherStorage()}>Choose another folder</button></div>
+              <details className="yomi-error-details"><summary>Help with setup</summary><p>Retry when your connection is available. For a managed or work computer, a different folder may help.</p><button type="button" className="yomi-button yomi-button-secondary" onClick={() => void openDiagnosticLogs()}>Open setup logs</button><pre>{localError}</pre><a href="https://adoptium.net/temurin/releases/?version=21&package=jre" target="_blank" rel="noreferrer">Manual runtime download</a></details>
+              <button type="button" className="yomi-quiet-button" onClick={() => setMockMode(true)}>Explore the demo while you wait</button>
+            </>}
+            {onReadOffline && <button type="button" className="yomi-button yomi-button-secondary" onClick={onReadOffline}>Continue offline</button>}
           </div>
         )}
 

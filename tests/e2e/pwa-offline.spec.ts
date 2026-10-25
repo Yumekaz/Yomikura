@@ -74,6 +74,7 @@ test("switching offline inside the running app still queries device-backed route
   await page.getByRole("button", { name: "Reconnect to this server", exact: true }).click();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("yomikura-settings")!).state.serverBaseUrl)).toBe(backend);
   await page.getByRole("link", { name: "Offline PWA fixture", exact: true }).click();
-  await page.getByRole("link", { name: "Resume", exact: true }).click();
+  // prepare() completed this one-page chapter; replay remains available offline.
+  await page.getByRole("link", { name: "Read again", exact: true }).click();
   await expect(page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 1", exact: true })).toHaveAttribute("src", /^blob:/, { timeout: 15000 });
 });

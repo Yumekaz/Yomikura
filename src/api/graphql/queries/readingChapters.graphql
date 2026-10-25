@@ -2,6 +2,6 @@ query GetReadingChapters($mangaId: Int!, $after: Cursor) {
   chapters(condition: { mangaId: $mangaId }, first: 200, after: $after, order: [{ by: ID, byType: ASC }]) {
     totalCount
     pageInfo { hasNextPage endCursor }
-    nodes { id mangaId name chapterNumber sourceOrder isRead isBookmarked isDownloaded uploadDate scanlator }
+    nodes { id mangaId name chapterNumber sourceOrder isRead isBookmarked isDownloaded uploadDate scanlator lastPageRead pageCount }
   }
 }
