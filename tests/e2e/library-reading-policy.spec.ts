@@ -46,16 +46,16 @@ async function fixture(page: Page) {
 test("library download views cover all four combinations with correct title counts", async ({ page }) => {
   const { mangas } = await fixture(page);
   await page.getByRole("button", { name: "On this device", exact: true }).click();
-  await expect(page.getByText("2 titles ready to read", { exact: true })).toBeVisible();
+  await expect(page.getByText("2 books in your collection", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Device only", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Server only", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "On server", exact: true }).click();
-  await expect(page.getByText("2 titles ready to read", { exact: true })).toBeVisible();
+  await expect(page.getByText("2 books in your collection", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Device only", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Downloaded", exact: true }).click();
-  await expect(page.getByText("3 titles ready to read", { exact: true })).toBeVisible(); expect(mangas[0].downloadCount).toBe(0);
+  await expect(page.getByText("3 books in your collection", { exact: true })).toBeVisible(); expect(mangas[0].downloadCount).toBe(0);
   await page.getByRole("combobox", { name: "Server profile", exact: true }).selectOption("second");
-  await page.getByRole("button", { name: "On this device", exact: true }).click(); await expect(page.getByText("0 titles ready to read", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "On this device", exact: true }).click(); await expect(page.getByText("0 books in your collection", { exact: true })).toBeVisible();
 });
 test("scanlator/unread policy is shared by Resume and next/previous and persists on reload", async ({ page }) => {
   const state = await fixture(page); await page.goto("/manga/42");
@@ -82,7 +82,7 @@ test("descending policy uses the same equal-number tie-breaker in the list and r
 });
 test("bulk library downloads include unread middle chapters when edges contain only boundaries", async ({ page }) => {
   const state = await fixture(page);
-  await page.getByRole("link", { name: "Device only", exact: true }).click({ button: "right" });
+  await page.locator(".yomi-bookshelf").getByRole("link", { name: "Device only", exact: true }).click({ button: "right" });
   await page.getByRole("button", { name: "Download", exact: true }).click();
   await expect.poll(() => state.queued).toEqual([13, 14, 15]);
 });

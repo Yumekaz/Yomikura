@@ -26,7 +26,7 @@ test("default onboarding keeps the ivory and bookmark-red brand palette", async 
   await page.goto("/library");
   const demoButton = page.getByRole("button", { name: "Explore Demo Library" });
   await expect(demoButton).toBeVisible({ timeout: 15_000 });
-  await expect(demoButton).toHaveCSS("background-color", "rgb(241, 237, 229)");
+  await expect(demoButton).toHaveCSS("background-color", "rgb(239, 234, 226)");
   const brandAccent = await page.locator("html").evaluate((element) => getComputedStyle(element).getPropertyValue("--yomi-signature").trim());
   expect(brandAccent).toBe("229, 72, 63");
 });

@@ -27,7 +27,7 @@ export function libraryGridLayout(width: number, density: "compact" | "normal" |
   const minimum = density === "compact" ? 116 : density === "spacious" ? 212 : width < 520 ? 128 : 154;
   const columns = Math.max(1, Math.floor((width + gap) / (minimum + gap)));
   const coverWidth = Math.max(1, (width - (columns - 1) * gap) / columns);
-  return { columns, gap, rowHeight: coverWidth * 1.5 + 62 + gap };
+  return { columns, gap, rowHeight: coverWidth * 1.5 + 56 + gap };
 }
 
 interface LibraryGridProps {

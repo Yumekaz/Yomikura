@@ -157,15 +157,10 @@ function AppShell() {
   useEffect(() => {
     // 1. Theme application
     const htmlElement = document.documentElement;
-    const isDark = 
-      themeMode === "dark" || 
-      (themeMode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-      
-    if (isDark) {
-      htmlElement.classList.remove("light-theme");
-    } else {
-      htmlElement.classList.add("light-theme");
-    }
+    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme = () => htmlElement.classList.toggle("light-theme", !(themeMode === "dark" || themeMode === "system" && systemTheme.matches));
+    applyTheme();
+    if (themeMode === "system") systemTheme.addEventListener("change", applyTheme);
 
     // 2. Accent color application (RGB values)
     const accents: Record<string, string> = {
@@ -183,6 +178,7 @@ function AppShell() {
 
     htmlElement.classList.toggle("high-contrast", highContrastMode);
     htmlElement.classList.toggle("reduce-motion", reducedMotion);
+    return () => systemTheme.removeEventListener("change", applyTheme);
   }, [themeMode, accentColor, highContrastMode, reducedMotion]);
 
   const showOfflineBanner = connectionStatus === "error" && !location.pathname.startsWith("/reader/") && !mockMode;
@@ -878,6 +874,8 @@ function WelcomeOnboarding({
 }
 
 function ShellNavLink({ item }: { item: NavItem }) {
+  const { pathname } = useLocation();
+  const isDiscovery = item.path === "/browse/sources" && (/^\/browse(?:\/|$)/.test(pathname) || /^\/extensions(?:\/|$)/.test(pathname));
   const Icon = item.icon;
   const { t } = useTranslation();
   const translationKey = item.label.toLowerCase().replace(" ", "_") as any;
@@ -885,7 +883,7 @@ function ShellNavLink({ item }: { item: NavItem }) {
   return (
     <NavLink
       className={({ isActive }) =>
-        `yomi-nav-link group ${isActive ? "is-active" : ""}`
+        `yomi-nav-link group ${isActive || isDiscovery ? "is-active" : ""}`
       }
       to={item.path}
     >

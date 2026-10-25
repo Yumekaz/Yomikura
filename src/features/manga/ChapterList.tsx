@@ -111,7 +111,7 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
     <div className="flex flex-col">
       <div className="yomi-chapter-controls space-y-3 border-b border-white/10 px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h3 className="text-lg font-semibold text-slate-100">{chapters.length} Chapters</h3>{missingCount > 0 && <p className="mt-1 text-xs text-amber-300">{missingCount} possible missing chapter{missingCount === 1 ? "" : "s"} detected</p>}</div>
+          <div><h3 className="text-lg font-semibold text-slate-100">{chapters.length} {chapters.length === 1 ? "Chapter" : "Chapters"}</h3>{missingCount > 0 && <p className="mt-1 text-xs text-amber-300">{missingCount} possible missing chapter{missingCount === 1 ? "" : "s"} detected</p>}</div>
           {visibleChapters.length > 0 && <button type="button" className="yomi-button yomi-button-secondary" onClick={() => setSelected(selected.size === visibleChapters.length ? new Set() : new Set(visibleChapters.map((chapter) => Number(chapter.id))))}>{selected.size === visibleChapters.length ? "Clear selection" : "Select visible"}</button>}
         </div>
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_150px_170px]">

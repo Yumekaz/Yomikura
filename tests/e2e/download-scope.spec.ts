@@ -110,7 +110,7 @@ test("leaving demo mode never presents its cached queue as a pending live respon
     await route.fulfill({ json: { data: { downloadStatus: { state: "STOPPED", queue: [{ position: 1, progress: 0, state: "PENDING", tries: 0, chapter: { id: "12", name: "Live queue chapter", chapterNumber: 1 }, manga: { id: "42", title: "Live queue title", thumbnailUrl: null } }] } } } });
   });
   try {
-    await page.getByRole("button", { name: "Connect a server", exact: true }).click();
+    await page.getByRole("button", { name: "Connect your library", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Downloads", exact: true }).click();
     await expect.poll(() => requested).toBe(true);

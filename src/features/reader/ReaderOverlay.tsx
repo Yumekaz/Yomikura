@@ -390,6 +390,8 @@ export function ReaderOverlay({
                   <button
                     key={idx}
                     onClick={() => onJumpToPage(idx)}
+                    aria-label={`Go to page ${idx + 1}`}
+                    aria-current={isCurrent ? "page" : undefined}
                     className={`relative h-14 w-10 flex-shrink-0 overflow-hidden rounded border transition-[border-color,opacity,transform] duration-150 ${
                       isCurrent
                         ? "border-yomi-jade opacity-100"
@@ -397,7 +399,7 @@ export function ReaderOverlay({
                     }`}
                   >
                     <ReaderThumbnail url={buildPageUrl(idx)} number={idx + 1} />
-                    <div className="absolute inset-x-0 bottom-0 bg-black/75 py-0.2 text-xs font-black text-slate-300 text-center">
+                    <div className="yomi-reader-thumbnail-index absolute inset-x-0 bottom-0 py-0.2 text-xs font-semibold text-center">
                       {idx + 1}
                     </div>
                   </button>

@@ -123,7 +123,7 @@ test("device-cached reading survives a browser restart with an unavailable backe
     await expect(restartedPage.getByText(chapterName, { exact: true })).toBeVisible();
 
     await restartedPage.goto("/library");
-    await expect(restartedPage.getByText(mangaTitle, { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(restartedPage.locator(".yomi-bookshelf").getByRole("link", { name: mangaTitle, exact: true })).toBeVisible({ timeout: 15_000 });
   } finally {
     await context.close();
   }
