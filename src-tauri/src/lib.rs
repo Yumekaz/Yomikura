@@ -728,6 +728,7 @@ fn start_backend(
         data_dir.to_string_lossy()
     ))
     .arg(format!("-Dsuwayomi.tachidesk.config.server.port={}", port))
+    .arg("-Dsuwayomi.tachidesk.config.server.ip=127.0.0.1")
     // Yomikura owns the reader experience. Do not open Suwayomi's fallback
     // WebUI in the user's browser each time the managed local engine starts.
     .arg("-Dsuwayomi.tachidesk.config.server.initialOpenInBrowserEnabled=false")
