@@ -159,6 +159,7 @@ test("a reset from another tab survives a delayed completion acknowledgement", a
   await expect.poll(() => writes.some((write) => write.patch.isRead)).toBe(true);
   const other = await context.newPage();
   await other.goto("/manga/42");
+  await other.getByRole("button", { name: "Select chapters", exact: true }).click();
   await other.getByRole("checkbox", { name: "Select Progress chapter", exact: true }).check();
   await other.getByRole("button", { name: "Mark unread", exact: true }).click();
   await expect.poll(async () => (await storedProgress(other))?.epoch).toBe(1);
@@ -209,6 +210,7 @@ test("mark-unread updates the filter while its server write is still pending", a
   await page.goto("/manga/42");
   await expect(page.getByRole("link", { name: /^Progress chapter/ })).toBeVisible();
   servers[first].online = false;
+  await page.getByRole("button", { name: "Select chapters", exact: true }).click();
   await page.getByRole("checkbox", { name: "Select Progress chapter", exact: true }).check();
   await page.getByRole("button", { name: "Mark unread", exact: true }).click();
   await chooseOption(page.getByLabel("Filter chapter status"), "unread");

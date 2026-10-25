@@ -50,7 +50,9 @@ export function ThemedSelect({ value, defaultValue, onValueChange, children, cla
       <Select.Value>{label}</Select.Value><Select.Icon className="yomi-select-chevron"><ChevronDown aria-hidden="true" /></Select.Icon>
     </Select.Trigger>
     <Select.Portal container={portalContainer}>
-      <Select.Content className="yomi-select-popup" data-input={input} position="popper" sideOffset={6} collisionPadding={12} aria-label={buttonProps["aria-label"]} aria-labelledby={buttonProps["aria-label"] ? undefined : triggerId}>
+      <Select.Content className="yomi-select-popup" data-input={input} position="popper" sideOffset={6} collisionPadding={12} aria-label={buttonProps["aria-label"]} aria-labelledby={buttonProps["aria-label"] ? undefined : triggerId}
+        onEscapeKeyDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}>
         <Select.ScrollUpButton className="yomi-select-scroll"><ChevronUp aria-hidden="true" /></Select.ScrollUpButton>
         <Select.Viewport className="yomi-select-options" role="group" aria-label="Choices" tabIndex={0}>
           {choices.map((choice, index) => <Fragment key={`${choice.value}-${index}`}>

@@ -3889,6 +3889,11 @@ export type FetchMangaAndChaptersInput = {
   id: number;
 };
 
+export type FetchMangaInput = {
+  clientMutationId?: string | null | undefined;
+  id: number;
+};
+
 export type FetchSourceMangaInput = {
   clientMutationId?: string | null | undefined;
   filters?: Array<FilterChangeInput> | null | undefined;
@@ -4378,6 +4383,13 @@ export type UpdateLibraryMutationVariables = Exact<{
 
 export type UpdateLibraryMutation = { updateLibrary: { updateStatus: { jobsInfo: { isRunning: boolean, finishedJobs: number, totalJobs: number, skippedMangasCount: number } } } | null };
 
+export type FetchMangaDetailsMutationVariables = Exact<{
+  input: FetchMangaInput;
+}>;
+
+
+export type FetchMangaDetailsMutation = { fetchManga: { manga: { id: number, initialized: boolean } } | null };
+
 export type FetchChapterPagesMutationVariables = Exact<{
   input: FetchChapterPagesInput;
 }>;
@@ -4488,7 +4500,7 @@ export type GetMangaDetailsQueryVariables = Exact<{
 }>;
 
 
-export type GetMangaDetailsQuery = { manga: { id: number, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, categories: { nodes: Array<{ id: number }> }, source: { name: string } | null, chapters: { nodes: Array<{ id: number, name: string, chapterNumber: number, sourceOrder: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, lastPageRead: number, pageCount: number, uploadDate: unknown, scanlator: string | null }> } } };
+export type GetMangaDetailsQuery = { manga: { id: number, initialized: boolean, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, categories: { nodes: Array<{ id: number }> }, source: { name: string } | null, chapters: { nodes: Array<{ id: number, name: string, chapterNumber: number, sourceOrder: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, lastPageRead: number, pageCount: number, uploadDate: unknown, scanlator: string | null }> } } };
 
 export type GetMigrationMangaQueryVariables = Exact<{
   id: number;
@@ -4925,6 +4937,16 @@ export const UpdateLibraryDocument = gql`
   }
 }
     `;
+export const FetchMangaDetailsDocument = gql`
+    mutation FetchMangaDetails($input: FetchMangaInput!) {
+  fetchManga(input: $input) {
+    manga {
+      id
+      initialized
+    }
+  }
+}
+    `;
 export const FetchChapterPagesDocument = gql`
     mutation FetchChapterPages($input: FetchChapterPagesInput!) {
   fetchChapterPages(input: $input) {
@@ -5149,6 +5171,7 @@ export const GetMangaDetailsDocument = gql`
     query GetMangaDetails($id: Int!) {
   manga(id: $id) {
     id
+    initialized
     title
     author
     artist
@@ -5630,6 +5653,9 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     UpdateLibrary(variables: UpdateLibraryMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateLibraryMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<UpdateLibraryMutation>({ document: UpdateLibraryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateLibrary', 'mutation', variables);
+    },
+    FetchMangaDetails(variables: FetchMangaDetailsMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<FetchMangaDetailsMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<FetchMangaDetailsMutation>({ document: FetchMangaDetailsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'FetchMangaDetails', 'mutation', variables);
     },
     FetchChapterPages(variables: FetchChapterPagesMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<FetchChapterPagesMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<FetchChapterPagesMutation>({ document: FetchChapterPagesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'FetchChapterPages', 'mutation', variables);

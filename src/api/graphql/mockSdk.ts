@@ -68,6 +68,7 @@ const mockImpl: any = {
       manga: {
         id,
         title: isGarden ? "[Demo] The Paper Garden" : "[Demo] Moonlit Courier",
+        initialized: true,
         author: isGarden ? "Yomikura" : "Yomikura",
         artist: isGarden ? "Yomikura" : "Yomikura",
         description: isGarden

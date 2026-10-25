@@ -1,6 +1,7 @@
 query GetMangaDetails($id: Int!) {
   manga(id: $id) {
     id
+    initialized
     title
     author
     artist

@@ -87,6 +87,24 @@ export default function MangaDetailPage() {
     enabled: !!serverBaseUrl && !!mangaId,
   });
 
+  const { isFetching: loadingDetails, isError: detailsFailed, refetch: retryDetails } = useQuery({
+    queryKey: ["manga-initialization", mangaId, serverBaseUrl],
+    enabled: !mockMode && !isError && data?.manga?.initialized === false,
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
+    queryFn: async ({ signal }) => {
+      const id = Number(mangaId);
+      await sdk.FetchMangaDetails({ input: { id } }, undefined, signal);
+      const refreshed = await sdk.GetMangaDetails({ id }, undefined, signal);
+      if (!refreshed.manga.initialized) throw new Error("Book details are not available yet.");
+      // This key belongs to the backend that started the request, even if the
+      // reader switches profiles before the source responds.
+      queryClient.setQueryData(["manga", mangaId, serverBaseUrl, false], refreshed);
+      return refreshed;
+    },
+  });
+
   const parsedMangaId = useMemo(() => (mangaId ? parseInt(mangaId) : NaN), [mangaId]);
 
   const offlineChapters = useMemo(() => {
@@ -277,7 +295,7 @@ export default function MangaDetailPage() {
 
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-slate-300">
                 {manga.author && <span>{manga.author}</span>}
-                {manga.status && (
+                {manga.status && manga.status !== "UNKNOWN" && (
                   <span className="rounded bg-white/10 px-2 py-0.5 text-xs text-slate-200">
                     {manga.status.replace(/_/g, " ")}
                   </span>
@@ -349,6 +367,8 @@ export default function MangaDetailPage() {
               )}
 
               {/* Description */}
+              {loadingDetails && <p className="mt-5 text-sm text-slate-400" role="status">Getting book details…</p>}
+              {detailsFailed && <div className="mt-5 text-sm text-slate-400" role="status">Book details couldn’t be loaded. You can still read the available chapters. <button type="button" onClick={() => void retryDetails()} className="ml-1 text-yomi-jade underline underline-offset-4">Retry book details</button></div>}
               {manga.description && (
                 <p className="mt-6 line-clamp-4 text-sm leading-relaxed text-slate-400 md:line-clamp-none">
                   {manga.description}
