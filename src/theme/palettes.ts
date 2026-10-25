@@ -10,7 +10,7 @@ export const PALETTES: Palette[] = [
   {
     id: "ember", name: "Ink & Ember", description: "Lantern light, warm ink and a little autumn.", swatches: ["#171310", "#CA503B", "#F3E5CF", "#C9A16F"],
     dark: { canvas: "#110F0D", surface: "#1A1713", elevated: "#24201B", raised: "#332B23", strong: "#F5E9D7", text: "#D6C8B4", muted: "#B4A58F", accent: "#F09976", action: "#B63C2D", actionText: "#FFF8ED", line: "#9D8061" },
-    light: { canvas: "#FBF7EE", surface: "#F3EBDD", elevated: "#EDE1CF", raised: "#E2D4BD", strong: "#30261F", text: "#514336", muted: "#796650", accent: "#A6432E", action: "#AD392B", actionText: "#FFF8ED", line: "#8E7051" },
+    light: { canvas: "#FBF7EE", surface: "#F3EBDD", elevated: "#EDE1CF", raised: "#E2D4BD", strong: "#30261F", text: "#514336", muted: "#6D5945", accent: "#913C2C", action: "#AD392B", actionText: "#FFF8ED", line: "#8E7051" },
   },
   {
     id: "sakura", name: "Sakura", description: "Blossom, soft paper and quiet rose.", swatches: ["#21171D", "#B8546D", "#F9E9E7", "#D5A6AD"],

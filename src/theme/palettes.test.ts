@@ -10,6 +10,9 @@ function contrast(first: string, second: string) {
   const values = [luminance(first), luminance(second)].sort((a, b) => b - a);
   return (values[0] + .05) / (values[1] + .05);
 }
+function overlay(foreground: string, background: string, opacity: number) {
+  return "#" + [1, 3, 5].map((start) => Math.round(parseInt(foreground.slice(start, start + 2), 16) * opacity + parseInt(background.slice(start, start + 2), 16) * (1 - opacity)).toString(16).padStart(2, "0")).join("");
+}
 describe("complete color palettes", () => {
   for (const palette of PALETTES) for (const mode of ["dark", "light"] as const) {
     it(`${palette.name} ${mode} keeps small text and primary actions readable`, () => {
@@ -18,6 +21,10 @@ describe("complete color palettes", () => {
       expect(contrast(tokens.strong, tokens.surface)).toBeGreaterThanOrEqual(7);
       expect(contrast(tokens.muted, tokens.surface)).toBeGreaterThanOrEqual(4.5);
       expect(contrast(tokens.accent, tokens.surface)).toBeGreaterThanOrEqual(4.5);
+      const activeProfile = overlay(tokens.accent, tokens.surface, .05);
+      const activeBadge = overlay(tokens.accent, activeProfile, .1);
+      expect(contrast(tokens.muted, activeProfile)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(tokens.accent, activeBadge)).toBeGreaterThanOrEqual(4.5);
     });
   }
   it("switches an entire palette without retaining tokens from the previous one", () => {

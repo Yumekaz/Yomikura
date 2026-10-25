@@ -65,3 +65,13 @@ The user subsequently requested a more integrated mascot treatment. The target a
 - Current frontend output: 2,933,446 bytes; JavaScript 845,500 bytes; identity artwork 737,260 bytes. Existing budgets pass.
 
 No actionable P0/P1/P2 issue remains in this follow-up. The earlier full regression baseline remains documented above; it was not represented as a newly rerun full suite for this presentation-only change.
+
+## Reading controls and live-source follow-up · 2026-10-25
+
+- Default chapter rows now lead with the title and quiet read metadata. Checkboxes appear only in an explicit selection mode; title taps select there, and Done returns to reading. Native and browser interaction were checked.
+- One accessible themed select now supplies triggers and opened menus throughout the application. Keyboard typeahead, empty choices, numeric values, modal portals, focus return, nested Escape and reader-key isolation were exercised. Palette-aware menus replace OS-blue dropdowns.
+- The caption sits 6px below the scene in all eight palette/mode combinations. Native Sakura/light inspection also measured 6px and retained visible navigation.
+- Real Suwayomi/Asura testing covered four titles and eight chapters, decoded images, source details, backend progress and reopening. The actual Windows preview displayed the same four-title live library and chapter list. Copyrighted source artwork remains outside the public asset set.
+- Full browser suite: **143 passed** on frozen production output. Final warning/profile contrast refinements: **26 targeted browser checks passed** afterward. Final unit suite: **312 passed**. Source/spec checking, production build, version and bundle gates passed.
+- Final native evidence: `.cache/reader-ux-2026-10-25/native-light-menu.png`, `native-selection.json`, `native-live-chapters.png`. The last warning-color adjustments were checked in the web follow-up after this native build. The user took over the native window, so no additional native input was sent.
+- Failed checks and interrupted runs are retained and explained in `docs/READING_CONTROLS_2026-10-25.md`. Spoken screen-reader certification, a signed installer and signed-in providers remain outside this pass.

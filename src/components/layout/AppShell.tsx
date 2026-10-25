@@ -257,7 +257,7 @@ function AppShell() {
           </div>
         )}
         {showOfflineBanner && (
-          <div className="mx-auto my-3 max-w-xl rounded-full bg-amber-500/10 border border-amber-500/20 px-4 py-1.5 text-center text-xs font-semibold text-amber-300 backdrop-blur-md shadow-md animate-fade-in flex items-center justify-center gap-2">
+          <div className="yomi-offline-notice mx-auto my-3 max-w-xl rounded-full bg-amber-500/10 border border-amber-500/20 px-4 py-1.5 text-center text-xs font-semibold text-amber-300 backdrop-blur-md shadow-md animate-fade-in flex items-center justify-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
             <span>Reading offline. Saved chapters and progress are available on this device.</span>
           </div>
