@@ -35,6 +35,8 @@ export interface ReadingHistoryEvent {
   isRead: boolean;
   /** Hidden records suppress stale server history until the chapter is opened again. */
   isHidden?: boolean;
+  /** A title-level removal suppresses earlier chapter activity, including unloaded pages. */
+  hideMangaBefore?: number;
   /** Demo Sandbox activity is intentionally kept separate from a live library. */
   isDemo?: boolean;
   readAt: number;
@@ -237,6 +239,14 @@ export async function hideReadingHistoryItem(event: Omit<ReadingHistoryEvent, "h
     serverBaseUrl: normalizeCacheServerUrl(serverBaseUrl),
     isHidden: true,
     readAt: Date.now(),
+  });
+}
+
+export async function hideMangaReadingHistory(serverBaseUrl: string, event: Omit<ReadingHistoryEvent, "historyKey" | "serverBaseUrl" | "readAt">, serverReadBefore: number): Promise<void> {
+  const normalized = normalizeCacheServerUrl(serverBaseUrl);
+  await saveReadingHistoryEvent({ ...event, serverBaseUrl: normalized,
+    historyKey: `${normalized}::hidden-title::${JSON.stringify([!!event.isDemo, event.mangaId, event.mangaTitle])}`,
+    isHidden: true, hideMangaBefore: Math.max(Date.now(), serverReadBefore), readAt: Date.now(),
   });
 }
 

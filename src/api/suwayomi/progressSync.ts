@@ -202,7 +202,7 @@ export async function readProgressHistory(backend: ProgressBackend) {
   const events = await getReadingHistory(backend.serverBaseUrl);
   const heads = await getProgressHeads(backend);
   for (const head of heads) {
-    const index = events.findIndex((event) => event.chapterId === head.chapter.chapterId && (event.isDemo ?? event.mangaTitle.startsWith("[Demo]")) === backend.isDemo);
+    const index = events.findIndex((event) => !event.hideMangaBefore && event.chapterId === head.chapter.chapterId && (event.isDemo ?? event.mangaTitle.startsWith("[Demo]")) === backend.isDemo);
     if (head.sequence <= head.acknowledgedSequence && index >= 0 && !head.hideHistory && (head.activityAt ?? 0) < events[index].readAt) continue;
     if (!head.hasActivity && index < 0 && !head.hideHistory) continue;
     const event = { ...(index >= 0 ? events[index] : {}), historyKey: head.entityKey, serverBaseUrl: backend.serverBaseUrl,

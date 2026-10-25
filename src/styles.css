@@ -663,8 +663,37 @@ html.light-theme.high-contrast body, html.light-theme.high-contrast .text-slate-
 .light-theme .yomi-reader-top, .light-theme .yomi-reader-bottom { background: rgba(var(--surface-rgb), .96); }
 .light-theme .text-red-300, .light-theme .text-red-400 { color: #a52d32; }
 .light-theme .text-amber-300, .light-theme .text-amber-400 { color: #865414; }
-.light-theme .yomi-offline-notice { color: #704713; background: #fff1d5; border-color: #a16a2838; box-shadow: none; }
-.light-theme .yomi-offline-notice > span:first-child { background: #8b5d20; }
+.yomi-offline-notice { display: flex; align-items: center; gap: 14px; max-width: 1504px; margin: 20px clamp(20px, 3.2vw, 48px) 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; color: var(--text); background: var(--ink-900); }
+.yomi-offline-notice > svg { flex: 0 0 auto; width: 19px; height: 19px; color: var(--text-muted); stroke-width: 1.65; }
+.yomi-offline-notice > div { flex: 1; min-width: 0; }
+.yomi-offline-notice strong { display: block; color: var(--text-strong); font-size: 12px; font-weight: 550; }
+.yomi-offline-notice p { margin-top: 3px; color: var(--text-muted); font-size: 11px; line-height: 1.65; }
+.yomi-offline-notice button { flex: 0 0 auto; min-height: 34px; padding: 0 12px; font-size: 11px; }
+.yomi-setup-options { margin-top: 22px; color: var(--text); font-size: 12px; }
+.yomi-setup-options summary { cursor: pointer; }
+.yomi-setup-options p { margin: 12px 0; color: var(--text-muted); font-size: 12px; line-height: 1.7; }
+.yomi-setup-options > div, .yomi-setup-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.yomi-setup-error { color: #b4443f; font-size: 12px; line-height: 1.7; }
+.yomi-demo-choice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--text-muted); font-size: 11px; }
+.yomi-demo-choice button { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; color: var(--text); font-size: 12px; }
+.yomi-demo-choice svg { width: 14px; height: 14px; }
+.yomi-demo-choice button:hover, .yomi-quiet-button:hover { color: var(--text-strong); }
+.yomi-local-setup { margin-top: 50px; }
+.yomi-local-setup h2 { margin-top: 20px; color: var(--text-strong); font-family: var(--font-display); font-size: 30px; line-height: 1.25; letter-spacing: -.03em; }
+.yomi-local-setup > p { margin-top: 14px; color: var(--text-muted); font-size: 13px; line-height: 1.8; }
+.yomi-setup-emblem { display: grid; place-items: center; width: 48px; height: 48px; border: 1px solid var(--line); border-radius: 12px; background: var(--ink-900); color: rgb(var(--yomi-signature)); }
+.yomi-setup-emblem svg { width: 22px; height: 22px; }
+.yomi-setup-progress { display: grid; gap: 14px; margin: 26px 0; padding: 20px 0; border-block: 1px solid var(--line); color: var(--text-muted); font-size: 12px; }
+.yomi-setup-progress li { display: flex; align-items: center; gap: 12px; }
+.yomi-setup-progress span { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--line-strong); border-radius: 50%; font-size: 11px; }
+.yomi-setup-progress [data-complete="true"] { color: var(--text); }
+.yomi-setup-progress [data-complete="true"] span { color: var(--text-strong); background: rgba(var(--yomi-signature), .15); border-color: rgba(var(--yomi-signature), .3); }
+.yomi-setup-actions { margin-top: 24px; }
+.yomi-local-setup .yomi-error-details { margin-top: 22px; font-size: 12px; }
+.yomi-local-setup .yomi-error-details p { margin-block: 12px; line-height: 1.7; }
+.yomi-local-setup .yomi-error-details a { display: inline-block; margin-top: 12px; text-decoration: underline; text-underline-offset: 3px; }
+.yomi-quiet-button { margin-top: 22px; min-height: 36px; color: var(--text-muted); font-size: 12px; }
+@media (max-width: 520px) { .yomi-offline-notice { flex-wrap: wrap; gap: 10px; } .yomi-offline-notice > div { flex-basis: calc(100% - 34px); } .yomi-offline-notice button { margin-left: 29px; } }
 .light-theme .yomi-app-shell .text-slate-400, .light-theme .yomi-app-shell .text-slate-500 { color: var(--text-muted) !important; }
 .light-theme .yomi-app-shell .text-slate-300 { color: var(--text) !important; }
 .light-theme .yomi-app-shell .text-slate-100, .light-theme .yomi-app-shell .text-slate-200 { color: var(--text-strong) !important; }

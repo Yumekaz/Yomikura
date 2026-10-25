@@ -2,7 +2,7 @@ import { createGraphqlClient } from "../../api/graphql/client";
 import type { ProgressBackend } from "../../api/suwayomi/backendIdentity";
 import { getCachedChaptersForManga } from "../../api/suwayomi/offlineCache";
 import { getProgressHeads } from "../../api/suwayomi/progressStorage";
-import { selectChapters, type ChapterPolicy, type PolicyChapter } from "../manga/chapterPolicy";
+import { readingPolicy, selectChapters, type ChapterPolicy, type PolicyChapter } from "../manga/chapterPolicy";
 
 export async function loadReadingSequence(backend: ProgressBackend, mangaId: number, title: string, anchorId: number, policy: ChapterPolicy, signal?: AbortSignal) {
   const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { signal }, backend.isDemo ? "demo" : "live");
@@ -34,7 +34,7 @@ export async function loadReadingSequence(backend: ProgressBackend, mangaId: num
   const heads = await getProgressHeads(backend); const cached = await getCachedChaptersForManga(backend.serverBaseUrl, mangaId, backend.isDemo);
   const desired = chapters.map((chapter) => {
     const head = heads.find((head) => head.chapter.chapterId === Number(chapter.id) && head.chapter.mangaId === mangaId && head.chapter.mangaTitle === title && head.chapter.chapterName === chapter.name && head.chapter.chapterNumber === chapter.chapterNumber);
-    return head && (offline || backend.isDemo || head.sequence > head.acknowledgedSequence) ? { ...chapter, isRead: head.patch.isRead } : chapter;
+    return head && (offline || backend.isDemo || head.sequence > head.acknowledgedSequence) ? { ...chapter, isRead: head.patch.isRead, lastPageRead: head.patch.lastPageRead } : chapter;
   });
-  return { chapters: selectChapters(desired, policy, new Set(cached.map((chapter) => chapter.id)), anchorId).map((chapter) => ({ ...chapter, id: Number(chapter.id) })), offline };
+  return { chapters: selectChapters(desired, readingPolicy(policy), new Set(cached.map((chapter) => chapter.id)), anchorId).map((chapter) => ({ ...chapter, id: Number(chapter.id) })), offline };
 }

@@ -8,7 +8,9 @@ for (const palette of ["ember", "sakura", "forest", "moonstone"]) {
     await page.goto("/settings/connection");
     const notice = page.locator(".yomi-offline-notice");
     await expect(notice).toBeVisible();
-    await expect(notice).toHaveCSS("color", "rgb(112, 71, 19)");
+    await expect(notice).toHaveCSS("border-radius", "10px");
+    await expect(notice.getByText("Reading offline", { exact: true })).toBeVisible();
+    await expect(notice.getByRole("button", { name: /Reconnect/ })).toBeVisible();
     const violations = (await new AxeBuilder({ page }).include("#main-content").analyze()).violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical");
     expect(violations).toEqual([]);
   });

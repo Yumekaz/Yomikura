@@ -4,6 +4,7 @@ import { mockSdk } from "../../src/api/graphql/mockSdk";
 import { chapterConnection } from "./fixtures/chapterConnection";
 const first = "http://127.0.0.1:45677", second = "http://127.0.0.1:45678";
 async function fixture(page: Page) {
+  const historyTime = Date.now() - 20_000;
   const queued: number[] = [];
   const chapters = [
     { id: 12, name: "Read chapter A", chapterNumber: 1, sourceOrder: 1, isRead: true, scanlator: "A", isBookmarked: false },
@@ -22,7 +23,7 @@ async function fixture(page: Page) {
     let data: unknown;
     if (name === "GetLibrary") data = { mangas: { nodes: mangas, pageInfo: { hasNextPage: false, endCursor: null } } };
     else if (name === "GetMangaDetails") { const original = await mockSdk.GetMangaDetails({ id: 42 }); data = { manga: { ...original.manga, title: "Device only", chapters: { nodes: chapters, edges: [chapters[0], chapters[chapters.length - 1]].map((node) => ({ node })) } } }; }
-    else if (name === "GetHistory") data = { chapters: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: chapters.map((chapter) => ({ ...chapter, lastReadAt: String(Date.now()), manga: { id: 42, title: "Device only", thumbnailUrl: null } })), edges: [chapters[0], chapters[chapters.length - 1]].map((node) => ({ node })) } };
+    else if (name === "GetHistory") data = { chapters: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: chapters.map((chapter) => ({ ...chapter, lastReadAt: String(historyTime + (chapter.id === 14 ? 10_000 : chapter.id)), manga: { id: 42, title: "Device only", thumbnailUrl: null } })), edges: [chapters[0], chapters[chapters.length - 1]].map((node) => ({ node })) } };
     else if (name === "EnqueueChapterDownload") { queued.push(variables.input.id); data = await mockSdk.EnqueueChapterDownload(variables); }
     else if (name === "FetchChapters") data = { fetchChapters: { chapters } };
     else if (name === "GetReadingChapters") data = chapterConnection(42, chapters);
@@ -72,14 +73,14 @@ test("scanlator/unread policy is shared by Resume and next/previous and persists
   await page.getByRole("link", { name: "Next", exact: true }).click(); await expect(page.getByText("Special chapter A", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Next", exact: true })).toHaveCount(0);
 });
-test("descending policy uses the same equal-number tie-breaker in the list and reader", async ({ page }) => {
+test("newest-first chapter display keeps Resume and reader navigation moving forwards", async ({ page }) => {
   await fixture(page); await page.goto("/manga/42");
   await page.getByRole("button", { name: "Ascending chapters", exact: true }).click();
-  await expect(page.getByRole("link", { name: "Resume", exact: true })).toHaveAttribute("href", "/reader/14");
+  await expect(page.getByRole("link", { name: "Resume", exact: true })).toHaveAttribute("href", "/reader/13");
   await page.getByRole("link", { name: "Resume", exact: true }).click();
-  await expect(page.getByRole("link", { name: "Next", exact: true })).toHaveAttribute("href", "/reader/13");
+  await expect(page.getByRole("link", { name: "Next", exact: true })).toHaveAttribute("href", "/reader/14");
   await page.getByRole("link", { name: "Next", exact: true }).click();
-  await expect(page.getByRole("link", { name: "Next", exact: true })).toHaveAttribute("href", "/reader/12");
+  await expect(page.getByRole("link", { name: "Next", exact: true })).toHaveAttribute("href", "/reader/15");
 });
 test("bulk library downloads include unread middle chapters when edges contain only boundaries", async ({ page }) => {
   const state = await fixture(page);
@@ -87,10 +88,11 @@ test("bulk library downloads include unread middle chapters when edges contain o
   await page.getByRole("button", { name: "Download", exact: true }).click();
   await expect.poll(() => state.queued).toEqual([13, 14, 15]);
 });
-test("history keeps middle entries and its next action follows the shared group/filter policy", async ({ page }) => {
+test("history presents one latest entry from the complete chapter collection", async ({ page }) => {
   await fixture(page); await page.goto("/manga/42");
   await chooseOption(page.getByLabel("Filter chapter status"), "unread"); await chooseOption(page.getByLabel("Filter scanlator"), "A");
-  await page.goto("/history"); await expect(page.getByRole("button", { name: /^Open next chapter after / })).toHaveCount(4);
-  await page.getByRole("button", { name: "Open next chapter after Read chapter A", exact: true }).click();
-  await expect(page).toHaveURL(/\/reader\/14$/);
+  await page.goto("/history"); await expect(page.getByRole("button", { name: /^Open next chapter after / })).toHaveCount(1);
+  await expect(page.locator("article.yomi-history-row")).toHaveCount(1);
+  await page.getByRole("button", { name: "Open next chapter after Selected chapter A", exact: true }).click();
+  await expect(page).toHaveURL(/\/reader\/15$/);
 });

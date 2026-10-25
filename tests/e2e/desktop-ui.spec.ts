@@ -27,7 +27,8 @@ test("default onboarding uses the Ink and Ember identity", async ({ page }) => {
   await page.goto("/library");
   const demoButton = page.getByRole("button", { name: "Explore Demo Library" });
   await expect(demoButton).toBeVisible({ timeout: 15_000 });
-  await expect(demoButton).toHaveCSS("background-color", "rgb(182, 60, 45)");
+  await expect(page.getByRole("link", { name: "Download Yomikura Desktop", exact: true })).toHaveCSS("background-color", "rgb(182, 60, 45)");
+  await expect(demoButton).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   const brandAccent = await page.locator("html").evaluate((element) => getComputedStyle(element).getPropertyValue("--yomi-signature").trim());
   expect(brandAccent).toBe("240, 153, 118");
 });

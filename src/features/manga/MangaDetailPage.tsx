@@ -12,7 +12,7 @@ import { MangaCategoryModal } from "./MangaCategoryModal";
 import { TrackerPanel } from "./TrackerPanel";
 import { useDownloadStore } from "../../stores/useDownloadStore";
 import { SourceMigrationModal } from "../../components/source/SourceMigrationModal";
-import { normalizeChapterPolicy, selectChapters } from "./chapterPolicy";
+import { normalizeChapterPolicy, readingPolicy, resumeChapter, selectChapters } from "./chapterPolicy";
 import { progressBackend } from "../../api/suwayomi/backendIdentity";
 import { mangaReaderSettingsKey } from "../../stores/mangaReaderSettings";
 import { getProgressHeads } from "../../api/suwayomi/progressStorage";
@@ -210,15 +210,15 @@ export default function MangaDetailPage() {
   const isChaptersLoading = isOfflineMode ? false : chaptersLoading;
 
   // Find the first unread chapter to resume reading
-  const firstUnreadChapter = useMemo(() => {
+  const continuation = useMemo(() => {
     const policy = normalizeChapterPolicy(chapterPolicies[mangaReaderSettingsKey(progressBackend(serverBaseUrl, mockMode), mangaId!)]);
     const projected = chapters.map((chapter) => {
       const head = localProgress.data?.find((head) => head.chapter.chapterId === Number(chapter.id) && head.chapter.mangaId === Number(mangaId) && head.chapter.chapterName === chapter.name && head.chapter.mangaTitle === manga?.title);
       return head && (isOfflineMode || mockMode || head.sequence > head.acknowledgedSequence) ? { ...chapter, isRead: head.patch.isRead } : chapter;
     });
-    const sorted = selectChapters(projected, policy, cachedChapterIds);
-    return sorted.find((c) => !c.isRead) || sorted[0];
+    return { unread: resumeChapter(projected, policy, cachedChapterIds), first: selectChapters(projected, readingPolicy(policy), cachedChapterIds)[0] };
   }, [chapters, chapterPolicies, serverBaseUrl, mockMode, mangaId, cachedChapterIds, localProgress.data, manga?.title, isOfflineMode]);
+  const firstUnreadChapter = continuation.unread;
 
   const imageUrl = useMemo(() => {
     if (!manga?.thumbnailUrl) return "/placeholder-cover.svg";
@@ -323,6 +323,8 @@ export default function MangaDetailPage() {
                     <Play className="h-4 w-4 fill-current" />
                     Resume
                   </Link>
+                ) : continuation.first ? (
+                  <Link to={`/reader/${continuation.first.id}`} className="yomi-button yomi-button-secondary flex-1 sm:flex-none"><Play className="h-4 w-4" />Read again</Link>
                 ) : (
                   <button
                     disabled
