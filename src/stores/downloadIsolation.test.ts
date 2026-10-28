@@ -9,7 +9,7 @@ import { DEFAULT_DOWNLOAD_EXPERIENCE, type DownloadExperience } from "./download
 
 const mocks = vi.hoisted(() => ({
   settings: { serverBaseUrl: "http://first.example", mockMode: false, downloadConcurrency: 2 } as { serverBaseUrl: string; mockMode: boolean; downloadConcurrency: number; experience?: { downloads: DownloadExperience } }, native: true,
-  listeners: new Set<(next: any, previous: any) => void>(), client: vi.fn(), invoke: vi.fn(),
+  listeners: new Set<(next: any, previous: any) => void>(), client: vi.fn(), invoke: vi.fn(), tiles: vi.fn(),
 }));
 vi.mock("./useSettingsStore", () => ({ isTauri: () => mocks.native, useSettingsStore: { getState: () => mocks.settings,
   subscribe: (listener: (next: any, previous: any) => void) => { mocks.listeners.add(listener); return () => mocks.listeners.delete(listener); },
@@ -18,6 +18,7 @@ vi.mock("../api/graphql/client", () => ({ createGraphqlClient: (...args: unknown
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => mocks.invoke(...args) }));
 // These tests exercise storage ownership with labelled byte fixtures. Decoder behavior has its own real-browser coverage.
 vi.mock("../api/suwayomi/validatePageBlob", () => ({ validatePageBlob: vi.fn(async () => undefined) }));
+vi.mock("../api/suwayomi/tallImageTiles", () => ({ splitTallImage: (...args: unknown[]) => mocks.tiles(...args) }));
 
 const first = progressBackend("http://first.example"); const second = progressBackend("http://second.example");
 const liveUrl = (target = first, index = 0) => `${target.serverBaseUrl}/api/v1/manga/42/chapter/1/page/${index}`;
@@ -38,6 +39,7 @@ function holdNative(target = first) {
 beforeEach(() => {
   vi.restoreAllMocks(); vi.resetAllMocks(); mocks.listeners.clear(); mocks.native = true; mocks.settings = { serverBaseUrl: first.serverBaseUrl, mockMode: false, downloadConcurrency: 2 };
   vi.stubGlobal("indexedDB", new IDBFactory()); releases = []; objects = new Map();
+  mocks.tiles.mockResolvedValue(undefined);
   vi.stubGlobal("caches", { open: async () => ({ match: async (key: string) => objects.get(String(key))?.clone(), put: async (key: string, value: Response) => { objects.set(String(key), value.clone()); }, delete: async (key: string) => objects.delete(String(key)), keys: async () => [...objects.keys()].map((url) => new Request(url)) }), delete: async () => { objects.clear(); return true; } });
   mocks.invoke.mockImplementation(async (_command, args) => png(args.serverBaseUrl));
   vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(`demo:${url}`, { headers: { "content-type": "image/png" } })));
@@ -55,6 +57,21 @@ beforeEach(() => {
 afterEach(async () => { releases.forEach((release) => release()); await store.dispose(); vi.unstubAllGlobals(); });
 
 describe("download backend ownership", () => {
+  it("keeps originals and optional tiles in one owning chapter and deletes both together", async () => {
+    mocks.tiles.mockResolvedValue({ width: 400, height: 8000, tiles: [{ blob: new Blob(["first tile"], { type: "image/png" }), height: 4000 }, { blob: new Blob(["second tile"], { type: "image/png" }), height: 4000 }] });
+    await store.getState().downloadChapter(12, "First title", first); await vi.waitFor(async () => expect(await saved()).not.toBeNull());
+    const chapter = (await saved())!; expect(chapter.pageCount).toBe(2); expect(chapter.cachedUrls).toHaveLength(2); expect(chapter.pageTiles).toHaveLength(2); expect(objects.size).toBe(6);
+    expect(await cache.getOwnedCachedPageTiles(liveUrl(), first.serverBaseUrl)).toMatchObject({ index: 0, height: 8000 });
+    expect(await cache.getOwnedCachedPageTiles(liveUrl(), second.serverBaseUrl)).toBeUndefined();
+    expect(await objects.get(chapter.cachedUrls[0])!.text()).toBe(first.serverBaseUrl);
+    await store.getState().deleteChapter(12, first); expect(objects.size).toBe(0);
+  });
+  it("keeps a valid original when optional tile storage runs out of space", async () => {
+    mocks.tiles.mockResolvedValue({ width: 400, height: 8000, tiles: [{ blob: new Blob(["first tile"]), height: 4000 }, { blob: new Blob(["second tile"]), height: 4000 }] });
+    vi.stubGlobal("caches", { open: async () => ({ match: async (key: string) => objects.get(String(key))?.clone(), put: async (key: string, value: Response) => { if (String(key).includes("__yomi_tile=1")) throw new DOMException("Full", "QuotaExceededError"); objects.set(String(key), value.clone()); }, delete: async (key: string) => objects.delete(String(key)) }) });
+    await store.getState().downloadChapter(12, "First title", first); await vi.waitFor(async () => expect(await saved()).not.toBeNull());
+    expect((await saved())!.pageTiles).toEqual([]); expect(objects.size).toBe(2);
+  });
   it("keeps parallel pages in reading order when later pages finish first", async () => {
     mocks.settings.experience = { downloads: { ...DEFAULT_DOWNLOAD_EXPERIENCE, pageConcurrency: 2 } };
     let release!: () => void; const waiting = new Promise<void>((resolve) => { release = resolve; }); releases.push(release);

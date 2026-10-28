@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { cleanupUnreferencedCachedPages, clearBackendCache, deleteCachedChapter, deleteDownloadJob, getCachedChapter, getCachedChapters, getChapterCacheKey, getDownloadJobs, getStorageEstimate, releaseCachedPageClaims, reserveCachedPage, saveCachedChapter, saveDownloadJob, type CachedChapter } from "../api/suwayomi/offlineCache";
+import { cachedPageUrls, cleanupUnreferencedCachedPages, clearBackendCache, deleteCachedChapter, deleteDownloadJob, getCachedChapter, getCachedChapters, getChapterCacheKey, getDownloadJobs, getStorageEstimate, releaseCachedPageClaims, reserveCachedPage, saveCachedChapter, saveDownloadJob, type CachedChapter, type CachedPageTiles } from "../api/suwayomi/offlineCache";
 import { isTauri, useSettingsStore } from "./useSettingsStore";
 import { createGraphqlClient } from "../api/graphql/client";
 import { chapterIdentityMatches, progressBackend, type ProgressBackend } from "../api/suwayomi/backendIdentity";
@@ -8,6 +8,7 @@ import { getProgressHead } from "../api/suwayomi/progressStorage";
 import { DEFAULT_DOWNLOAD_EXPERIENCE } from "./downloadExperience";
 import { allowDeviceDownload, connectionInformation, waitForDownloadNetwork } from "../api/suwayomi/networkPolicy";
 import { validatePageBlob } from "../api/suwayomi/validatePageBlob";
+import { splitTallImage } from "../api/suwayomi/tallImageTiles";
 
 export interface DownloadProgress { progress: number; total: number; status: "queued" | "downloading" | "error" | "success"; attempts?: number; error?: string; waitingForNetwork?: boolean }
 interface DownloadState {
@@ -66,7 +67,7 @@ export function createDownloadStore() {
     const remove = (entry: Entry) => { if (entries.get(entry.key) === entry) entries.delete(entry.key); publish(); };
     const check = (entry: Entry) => { if (entry.controller.signal.aborted || entries.get(entry.key) !== entry) throw new DOMException("Download cancelled", "AbortError"); };
     const run = async (entry: Entry) => {
-      entry.running = true; const created: string[] = [];
+      entry.running = true; const created: string[] = [], tileCreated: string[] = [], pageTiles: CachedPageTiles[] = [];
       try {
         check(entry); await networkGate(entry); check(entry); update(entry, { status: "downloading", attempts: (entry.progress.attempts ?? 0) + 1, error: undefined }); await persist(entry, "downloading"); check(entry);
         const sdk = createGraphqlClient(`${entry.backend.serverBaseUrl}/api/graphql`, { signal: entry.controller.signal }, entry.backend.isDemo ? "demo" : "live");
@@ -92,6 +93,25 @@ export function createDownloadStore() {
           const storageUrl = new URL(url); storageUrl.searchParams.set("__yomi_cache_attempt", entry.token); storageUrl.searchParams.set("__yomi_cache_owner", entry.backend.key);
           const cachedUrl = storageUrl.toString(); reserveCachedPage(cachedUrl, entry.token); created[index] = cachedUrl;
           await cache.put(cachedUrl, new Response(blob, { headers })); check(entry);
+          if (preferences().splitTallImages) {
+            const tileUrls: string[] = [];
+            try {
+              const split = await splitTallImage(blob, entry.controller.signal); check(entry);
+              if (split) {
+                const tiles: CachedPageTiles["tiles"] = []; let tileSize = 0;
+                for (let part = 0; part < split.tiles.length; part++) {
+                  check(entry); const tile = split.tiles[part], address = new URL(cachedUrl); address.searchParams.set("__yomi_tile", String(part)); const tileUrl = address.toString();
+                  reserveCachedPage(tileUrl, entry.token); tileCreated.push(tileUrl); tileUrls.push(tileUrl);
+                  await cache.put(tileUrl, new Response(tile.blob, { headers: { "content-type": "image/png" } })); check(entry);
+                  tileSize += tile.blob.size; tiles.push({ url: tileUrl, height: tile.height });
+                }
+                pageTiles.push({ index, width: split.width, height: split.height, tiles }); totalSizeBytes += tileSize;
+              }
+            } catch (error) {
+              releaseCachedPageClaims(entry.token, tileUrls); await cleanupUnreferencedCachedPages(tileUrls).catch(() => undefined);
+              check(entry); // Optional tiling may fail; a cancellation must still stop the chapter.
+            }
+          }
           networkUrls[index] = url; totalSizeBytes += blob.size; completed += 1; update(entry, { progress: completed });
           if (completed === pages.length || completed % 5 === 0) await persist(entry, "downloading");
           } catch (error) { if (failure === undefined) failure = error; entry.controller.abort(); }
@@ -110,10 +130,10 @@ export function createDownloadStore() {
         await saveCachedChapter({ cacheKey: getChapterCacheKey(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo), serverBaseUrl: entry.backend.serverBaseUrl, isDemo: entry.backend.isDemo,
           id: details.id, name: details.name, chapterNumber: details.chapterNumber, mangaId: details.mangaId, mangaTitle, sourceOrder: details.sourceOrder,
           isBookmarked: progress.isBookmarked ?? details.isBookmarked, scanlator: details.scanlator, uploadDate: String(details.uploadDate ?? ""),
-          pageCount: pages.length, pages, networkUrls, cachedUrls: created, totalSizeBytes, cachedAt: Date.now(), isRead: progress.isRead, lastPageRead: Math.max(0, Math.min(progress.lastPageRead, pages.length - 1)),
+          pageCount: pages.length, pages, networkUrls, cachedUrls: created, pageTiles: pageTiles.sort((a, b) => a.index - b.index), totalSizeBytes, cachedAt: Date.now(), isRead: progress.isRead, lastPageRead: Math.max(0, Math.min(progress.lastPageRead, pages.length - 1)),
         }, entry.controller.signal);
         await deleteDownloadJob(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo);
-        if (previous) await cleanupUnreferencedCachedPages(previous.cachedUrls).catch(() => undefined);
+        if (previous) await cleanupUnreferencedCachedPages(cachedPageUrls(previous)).catch(() => undefined);
         if (!entry.reason) remove(entry);
         await get().loadCachedChapters();
       } catch (error) {
@@ -123,7 +143,7 @@ export function createDownloadStore() {
         }
       } finally {
         releaseCachedPageClaims(entry.token);
-        await cleanupUnreferencedCachedPages(created.filter(Boolean)).catch(() => undefined);
+        await cleanupUnreferencedCachedPages([...created.filter(Boolean), ...tileCreated]).catch(() => undefined);
         entry.running = false; entry.settle(); publish();
       }
     };

@@ -83,9 +83,7 @@ Migration reviews the combined destination note, preserving different source/des
 
 Validation: 407 unit tests and 22 related browser checks passed, including backup/restart recovery, note exports/snapshots/import identity checks, note-aware migration and existing chapter actions. Production build/budget passed. Native export-folder and long-image work continue separately.
 
-## Remaining implementation
-
-### Reader exports
+## Reader exports
 
 Page tools now export the captured chapter as an ordered CBZ, with cancellation during preparation and without advancing reading progress. The chapter owner is captured when its menu opens, including earlier/appended chapters in a continuous session. Images are validated before export. Original raster bytes remain intact; native vector-page exports become PNG.
 
@@ -93,4 +91,14 @@ The desktop app can choose a persistent export folder and organize files by book
 
 Validation: 413 unit tests, 23 Rust tests, all-target Clippy, strict browser-spec types and production build/budget passed. Of 24 related browser cases, 23 passed initially; a transient theme-change contrast failure was fixed by applying text/surface colors together. All 12 reader-experience cases passed the final run, including original-page saving, chapter export/cancellation and light/dark accessibility. Native folder-dialog/runtime export remains an explicit gate.
 
-Download/cleanup and data-portability policies, update scheduling/statistics, privacy/tracking and desktop-specific equivalents are still being compared and implemented. Source contracts and platform/hardware limitations remain explicit. The full 50-screen work is not yet complete.
+## Long-image device optimization
+
+New device downloads can retain lossless PNG tiles beside static tall raster pages. Animations, unsupported decoders and unavailable optional tile storage keep the original intact. The reader uses these tiles for vertical reading, with original images available for rotated/cropped views, page sharing and exports. Tiling uses additional device space and does not change server download state or the backend page count.
+
+Layout dimensions remain stable as individual tiles load. Page visibility is separate from completion readiness: reaching the end cannot complete the chapter before its final displayed tile decodes. Missing tile data falls back to the complete original. Cache ownership, failed-attempt cleanup and download deletion cover both originals and tiles.
+
+Mihon evidence: `core/common/.../ImageUtil.kt`, `TallImageSplitCalculator.kt` and `data/download/Downloader.kt`. Mihon can replace downloaded originals with split files; Yomikura deliberately retains originals and keeps logical page numbering stable. Validation: 418 unit tests, 26 reader browser checks, typechecking, strict browser-spec types and production build/budget passed. Browser fixtures isolate service-worker caching; an earlier fallback selector matched a thumbnail and was corrected to target the reading surface. Native runtime and real-server checks remain separate gates.
+
+## Remaining implementation
+
+Update scheduling/statistics, privacy/tracking and remaining desktop-specific equivalents are still being compared and implemented. Source contracts and platform/hardware limitations remain explicit. The full 50-screen work is not yet complete.

@@ -13,6 +13,7 @@ interface ReaderImageProps {
   onIntersect?: (pageIndex: number) => void;
   onVisibilityChange?: (pageIndex: number, visible: boolean) => void;
   onReadyChange?: (ready: boolean) => void;
+  onCompletionReadyChange?: (ready: boolean | undefined) => void;
   onLoadStateChange?: (state: "loading" | "ready" | "error" | "unmounted") => void;
   mode?: "webtoon" | "single";
   fitMode?: FitMode;
@@ -31,6 +32,7 @@ export function ReaderImage({
   onIntersect,
   onVisibilityChange,
   onReadyChange,
+  onCompletionReadyChange,
   onLoadStateChange,
   mode = "webtoon",
   fitMode = "FIT_SCREEN",
@@ -47,22 +49,26 @@ export function ReaderImage({
   const longPressUntil = useRef(0);
   const instanceId = useId();
   const [loadedUrl, setLoadedUrl] = useState("");
+  const [tileLoaded, setTileLoaded] = useState<{ source: string; urls: Set<string> }>(), [failedTiles, setFailedTiles] = useState("");
   const [error, setError] = useState(false);
   const [usingFallback, setUsingFallback] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const retryTimer = useRef<ReturnType<typeof setTimeout>>();
-  const callbacks = useRef({ onIntersect, onVisibilityChange, onReadyChange, onLoadStateChange });
-  callbacks.current = { onIntersect, onVisibilityChange, onReadyChange, onLoadStateChange };
+  const callbacks = useRef({ onIntersect, onVisibilityChange, onReadyChange, onCompletionReadyChange, onLoadStateChange, onDimensions });
+  callbacks.current = { onIntersect, onVisibilityChange, onReadyChange, onCompletionReadyChange, onLoadStateChange, onDimensions };
 
   const { imageFilters: storeFilters, cropBorders: storeCrop, experience, reducedMotion } = useSettingsStore();
   const imageFilters = imageFiltersProp ?? storeFilters;
   const cropBorders = cropBordersProp ?? storeCrop;
 
   const imageUrl = usingFallback && fallbackUrl ? fallbackUrl : url;
-  const { url: displayUrl, reload } = useReaderImageSource(imageUrl);
-  const loaded = !!displayUrl && loadedUrl === displayUrl && !error;
+  const { url: displayUrl, tiles, reload } = useReaderImageSource(imageUrl);
+  const usingTiles = mode === "webtoon" && !!tiles && !cropBorders && experience.reader.rotation === 0 && failedTiles !== displayUrl;
+  const loaded = !!displayUrl && !error && (usingTiles ? tileLoaded?.source === displayUrl && tileLoaded.urls.size > 0 : loadedUrl === displayUrl);
+  const completionReady = loaded && (!usingTiles || !!tileLoaded?.urls.has(tiles!.tiles[tiles!.tiles.length - 1].url));
   const geometry = useImageLayout({ url: displayUrl, container: containerRef, image: imageRef, mode, fit: fitMode, crop: cropBorders, preferences: experience.reader, half: splitHalf, rtl });
   const layout = geometry.layout;
+  useEffect(() => { if (usingTiles && tiles) { geometry.dimensions(tiles.width, tiles.height); callbacks.current.onDimensions?.(tiles.width, tiles.height); } }, [usingTiles, tiles, geometry.dimensions]);
   const observesVisibility = !!(onIntersect || onVisibilityChange);
 
   useEffect(() => {
@@ -79,6 +85,7 @@ export function ReaderImage({
     publish?.(loaded);
     return () => publish?.(false);
   }, [loaded, imageUrl]);
+  useEffect(() => { const publish = callbacks.current.onCompletionReadyChange; publish?.(completionReady); return () => publish?.(undefined); }, [completionReady, imageUrl]);
 
   useEffect(() => {
     const publish = callbacks.current.onLoadStateChange;
@@ -179,7 +186,7 @@ export function ReaderImage({
       onPointerCancel={() => { geometry.pointerUp(); clearTimeout(longPress.current?.timer); }}
       onClickCapture={(event) => { if ((event.target as Element).closest("button,a")) return; if (Date.now() < longPressUntil.current) { event.preventDefault(); event.stopPropagation(); } else geometry.captureClick(event); }}
     >
-      {!loaded && !error && (
+      {!loaded && !error && (!usingTiles || tileLoaded?.source !== displayUrl || tileLoaded.urls.size === 0) && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "var(--reader-background, #000)" }}>
           <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
         </div>
@@ -210,7 +217,7 @@ export function ReaderImage({
       )}
       <div className="yomi-reader-image-viewport w-full" style={layout ? { position: "relative", width: layout.viewportWidth, height: layout.viewportHeight, flexShrink: 0, overflow: "hidden" } : undefined}>
       <div style={layout ? { position: "absolute", left: "50%", top: "50%", width: layout.cropWidth, height: layout.cropHeight, overflow: "hidden", transform: `translate(-50%, -50%) translate(${geometry.pan.x}px, ${geometry.pan.y}px) scale(${geometry.zoom}) rotate(${layout.rotation}deg)`, transition: geometry.dragging || reducedMotion ? "none" : `transform ${experience.reader.zoomAnimationMs}ms ease-out`, willChange: geometry.dragging ? "transform" : undefined } : undefined}>
-      <img ref={imageRef}
+      {usingTiles ? <div role="img" aria-label={`Page ${pageNumber + 1}`} data-reader-tile-layout={layout ? "ready" : undefined} data-tile-count={tiles!.tiles.length} style={layout && geometry.natural ? { position: "absolute", width: geometry.natural.width * layout.scale, height: geometry.natural.height * layout.scale, left: -layout.visible.x * layout.scale, top: -layout.visible.y * layout.scale } : undefined}>{tiles!.tiles.map((tile) => <img key={tile.url} src={tile.url} alt="" aria-hidden="true" loading="lazy" decoding="async" draggable={false} width={tiles!.width} height={tile.height} style={{ display: "block", width: "100%", height: layout ? tile.height * layout.scale : "auto", filter: filterStyle }} onLoad={() => setTileLoaded((previous) => ({ source: displayUrl, urls: new Set([...(previous?.source === displayUrl ? previous.urls : []), tile.url]) }))} onError={() => { setFailedTiles(displayUrl); setLoadedUrl(""); }} />)}</div> : <img ref={imageRef}
         src={displayUrl || undefined}
         alt={`Page ${pageNumber + 1}`}
         className={`${layout ? "block object-contain transition-opacity duration-150" : imageClass} ${loaded ? "opacity-100" : "opacity-0"}`}
@@ -221,7 +228,7 @@ export function ReaderImage({
         }}
         onLoad={(event) => { geometry.loaded(event.currentTarget); onDimensions?.(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight); setLoadedUrl(displayUrl); }}
         onError={handleError}
-      />
+      />}
       </div></div>
       {geometry.zoom !== 1 && <button type="button" className="yomi-reader-reset-zoom" onClick={(event) => { event.stopPropagation(); geometry.reset(); }}>Fit page</button>}
     </div>

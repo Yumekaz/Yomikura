@@ -114,6 +114,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
   const [wideImages, setWideImages] = useState<Record<string, boolean>>({});
   const [splitCursor, setSplitCursor] = useState({ key: "", half: 0 as 0 | 1 });
   const partStates = useRef(new Map<string, "loading" | "ready" | "error">());
+  const completionParts = useRef(new Map<string, boolean>());
   const splitPolicy = useRef({ vertical: false, wide: wideImages });
   const activeChapter = streamChapters.find((item) => item.id === activeChapterId) ?? streamChapters[0];
   const initialized = useRef(false);
@@ -354,12 +355,13 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
   // Commit immediately. Only network synchronization is debounced by the app shell.
   const saveProgress = useCallback((streamChapter: StreamChapter, pageIndex: number, canComplete = true) => {
     if (!readyPagesRef.current.has(pageIdentity(streamChapter.id, pageIndex))) return;
-    const savedKey = `${pageIndex}:${canComplete}`;
+    const complete = canComplete && ![...completionParts.current].some(([part, ready]) => part.startsWith(`${pageIdentity(streamChapter.id, pageIndex)}:`) && !ready);
+    const savedKey = `${pageIndex}:${complete}`;
     if (lastSavedPagesRef.current.get(streamChapter.id) === savedKey) return;
     lastSavedPagesRef.current.set(streamChapter.id, savedKey);
 
     const progress = createProgressSnapshot(streamChapter, streamChapter.mangaTitle, pageIndex);
-    void updateProgress(progressTarget, { ...progress, canComplete });
+    void updateProgress(progressTarget, { ...progress, canComplete: complete });
   }, [updateProgress, pageIdentity, progressTarget]);
 
   const publishCursor = useCallback((cursor: ReaderCursor, ready: boolean, endVisible = true) => {
@@ -412,6 +414,12 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
   }, [routeChapterId, location.key, location.state, readerMode, sessionToken, webtoon.jump]);
   useEffect(() => () => clearTimeout(transitionTimer.current), []);
 
+  const handleCompletionState = useCallback((owner: StreamChapter, index: number, variant: string, ready: boolean | undefined) => {
+    const key = `${pageIdentity(owner.id, index)}:${variant}`;
+    if (completionParts.current.get(key) === ready) return;
+    if (ready === undefined) completionParts.current.delete(key); else completionParts.current.set(key, ready);
+    setReadyPageVersion((value) => value + 1);
+  }, [pageIdentity]);
   const handlePageState = useCallback((owner: StreamChapter, index: number, variant: string, state: "loading" | "ready" | "error" | "unmounted") => {
     const key = pageIdentity(owner.id, index);
     const partKey = `${key}:${variant}`;
@@ -912,6 +920,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
                       fallbackUrl={resolveBackendUrl(serverBaseUrl, url)}
                       pageNumber={i}
                       onLoadStateChange={(state) => handlePageState(streamCh, i, half === undefined ? "full" : `half-${half}`, state)}
+                      onCompletionReadyChange={(ready) => handleCompletionState(streamCh, i, half === undefined ? "full" : `half-${half}`, ready)}
                       imageFilters={effectiveImageFilters}
                       cropBorders={effectiveCropBorders}
                       splitHalf={half}
@@ -961,6 +970,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
                     fallbackUrl={resolveBackendUrl(serverBaseUrl, pages[idx])}
                     pageNumber={idx}
                     onLoadStateChange={(state) => handlePageState(activeChapter, idx, "full", state)}
+                    onCompletionReadyChange={(ready) => handleCompletionState(activeChapter, idx, "full", ready)}
                     mode="single"
                     fitMode={fitMode}
                     imageFilters={effectiveImageFilters}

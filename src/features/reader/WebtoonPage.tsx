@@ -30,7 +30,7 @@ export function WebtoonPage({ chapterId, pageIndex, forceVisible, onAnchor, onLa
       const height = content.current?.getBoundingClientRect().height ?? 0;
       if (width > 0) setWidth((previous) => Math.abs(previous - width) > 0.5 ? width : previous);
       const images = [...(content.current?.querySelectorAll("img") ?? [])];
-      const decoded = images.length > 0 && images.every((image) => image.naturalWidth > 0 && image.naturalHeight > 0);
+      const decoded = images.length > 0 && images.every((image) => image.naturalWidth > 0 && image.naturalHeight > 0) || !!content.current?.querySelector('[data-reader-tile-layout="ready"]');
       if (renderPage && decoded && width > 0 && height > 0) setMeasured((previous) => Math.abs(previous.height - height) > 0.5 || Math.abs(previous.width - width) > 0.5 ? { width, height } : previous);
       onLayout();
     };
