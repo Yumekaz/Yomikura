@@ -802,6 +802,32 @@ html.reduce-motion .yomi-book-cover { transform: none !important; }
 .yomi-chapter-row { display: flex; align-items: center; gap: 14px; min-height: 72px; padding: 14px 20px; transition: background-color 140ms ease; }
 .yomi-chapter-row:hover { background: rgba(var(--yomi-signature), .035); }
 .yomi-chapter-row.is-selected { background: rgba(var(--yomi-signature), .09); }
+.yomi-chapter-row { position: relative; touch-action: pan-y; }
+.yomi-chapter-row.has-open-menu { z-index: 10; }
+.yomi-chapter-row-body { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; transition: transform 140ms ease-out; }
+.yomi-chapter-row-body[style] { position: relative; z-index: 1; background: var(--ink-900); }
+.yomi-chapter-more { flex-shrink: 0; }
+.yomi-chapter-swipe-hint { position: absolute; right: 18px; color: rgb(var(--yomi-signature)); font-size: 11px; font-weight: 650; }
+.yomi-chapter-swipe-hint.is-read-action { right: auto; left: 18px; }
+.yomi-context-menu { position: absolute; top: calc(100% - 10px); right: 16px; z-index: 40; min-width: 185px; padding: 5px; background: var(--ink-900); border: 1px solid var(--line-strong); border-radius: 10px; box-shadow: 0 12px 28px #0003; }
+.yomi-context-menu > button { display: block; width: 100%; min-height: 38px; border-radius: 6px; padding: 9px 12px; text-align: left; color: var(--text); font-size: 12px; }
+.yomi-context-menu > button:hover, .yomi-context-menu > button:focus-visible { outline-offset: -2px; background: rgba(var(--yomi-signature), .10); }
+.yomi-book-toolbar { position: sticky; top: 0; z-index: 30; min-height: 58px; display: flex; align-items: center; gap: 14px; padding: 10px clamp(16px, 3vw, 36px); background: var(--ink-950); border-bottom: 1px solid var(--line); }
+.yomi-book-toolbar > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-strong); font-family: var(--font-editorial); font-size: 17px; }
+.yomi-book-toolbar .is-quiet { visibility: hidden; }
+.yomi-book-toolbar .yomi-button { min-height: 34px; padding: 6px 12px; font-size: 12px; }
+.yomi-book-notes { margin-top: 20px; padding: 20px; border-radius: 14px; }
+.yomi-book-notes > summary { cursor: pointer; color: var(--text-strong); font-weight: 600; font-size: 14px; }
+.yomi-book-notes > summary span { display: block; margin: 6px 0 0 16px; font-size: 12px; font-weight: 400; color: var(--text-muted); }
+.yomi-note-editor { padding-top: 20px; }
+.yomi-note-editor > label { display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 12px; }
+.yomi-note-editor > textarea { display: block; width: 100%; resize: vertical; min-height: 120px; font-size: 14px; line-height: 1.7; }
+.yomi-note-status { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 12px; }
+.yomi-note-status p { color: var(--text-muted); font-size: 12px; }
+.yomi-note-conflict { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 16px; }
+.yomi-note-conflict > h3 { color: var(--text-strong); font-size: 13px; font-weight: 600; }
+.yomi-note-conflict > p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.7; color: var(--text); margin: 12px 0; }
+@media (max-width: 640px) { .yomi-book-toolbar { gap: 6px; } .yomi-book-toolbar > span { font-size: 13px; } .yomi-book-toolbar .yomi-icon-button { width: 32px; height: 32px; } .yomi-chapter-row { padding-inline: 12px; gap: 6px; } .yomi-chapter-row-body { gap: 8px; } }
 .yomi-chapter-content { display: block; min-width: 0; flex: 1; padding: 3px 0; border-radius: 4px; text-align: left; }
 .yomi-chapter-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 5px; color: var(--text-muted); font-size: 11px; line-height: 1.6; }
 .yomi-chapter-read { display: inline-flex; align-items: center; gap: 4px; margin-right: 2px; color: var(--text-muted); }

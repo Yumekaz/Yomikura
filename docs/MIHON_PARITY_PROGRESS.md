@@ -21,6 +21,18 @@ Evidence locations in Mihon: `app/src/main/java/eu/kanade/tachiyomi/ui/library/L
 
 Validation for this batch: 347 unit tests, 30 targeted browser tests, application typechecking, production build and bundle budget passed. Browser checks cover combined/excluded filters, publication semantics, bookmark failure recovery, saved per-collection sorting, source pages and large identifiers, source pin/recent/Latest, hidden-only pages, keyboard dismissal and narrow-screen accessibility. Actual-server and native coverage will be recorded separately as the following batches complete.
 
+## Comic details and chapter actions
+
+Implemented source-link opening/copying, an explicit metadata-and-chapter refresh, expandable synopsis, and a compact sticky first-unread Resume action. Chapter menus support right-click and Shift+F10 with arrow-key navigation. Touch swipes provide read/unread and bookmark shortcuts; normal rows keep selection controls out of the way.
+
+Book notes retain device drafts in a dedicated IndexedDB store, scoped to backend, mode and book identity. Sync uses Suwayomi manga metadata under `yomikura.notes.v1`; an independently changed server note requires explicit review. A late response cannot acknowledge a newer device draft. Local drafts are separate from Suwayomi's backup format and currently require their own export for portability.
+
+Bookmark edits now use the durable progress outbox. Confirmation checks the bookmark value returned by Suwayomi, and replay preserves read state, reader reset fences and pending tracker completion. Bookmark-only operations do not manufacture reading history or invalidate an active reader's progress epoch.
+
+Mihon evidence: `ui/manga/MangaScreen.kt`, `ui/manga/notes/MangaNotesScreen.kt`, `presentation/manga/MangaScreen.kt`, and `domain/manga/interactor/UpdateMangaNotes`. REA discovered and inspected the compiled `MangaNotesScreen$Model`; its preserved fields include the note updater and note state. The source-level wrapper class name was absent from the optimized APK, a failed attempt retained privately.
+
+Validation: 355 unit tests, production build, strict browser-spec typechecking and bundle budget passed. The 19 related browser cases were exercised, including five new comic-action checks; all five passed the final focused run. Earlier attempts retained selector/timing failures and one startup-port conflict. Existing restart/profile/reset conflict checks also passed. Full-suite and actual-server/native follow-up remain separate gates.
+
 ## Remaining implementation
 
-Comic metadata/actions, reader display/navigation/page tools, download/cleanup policies, update scheduling/statistics, privacy/tracking and desktop-specific equivalents are still being compared and implemented. The full 50-screen work is not yet complete.
+Reader display/navigation/page tools, download/cleanup policies, update scheduling/statistics, privacy/tracking and desktop-specific equivalents are still being compared and implemented. The full 50-screen work is not yet complete.

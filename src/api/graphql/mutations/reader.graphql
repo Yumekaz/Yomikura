@@ -9,6 +9,7 @@ mutation UpdateChapterProgress($input: UpdateChapterInput!) {
     chapter {
       id
       isRead
+      isBookmarked
       lastPageRead
     }
   }

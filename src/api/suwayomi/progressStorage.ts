@@ -170,7 +170,8 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
       lastPageRead: Math.max(0, intent.patch.lastPageRead ?? (pending ? previous.patch.lastPageRead : baseline.lastPageRead)),
       ...(intent.patch.isBookmarked !== undefined ? { isBookmarked: intent.patch.isBookmarked } : pending && previous.patch.isBookmarked !== undefined ? { isBookmarked: previous.patch.isBookmarked } : {}),
     };
-    const epoch = (previous?.epoch ?? 0) + (intent.kind === "explicit" || identityTransition ? 1 : 0);
+    const resetsReader = intent.kind === "explicit" && (intent.patch.isRead !== undefined || intent.patch.lastPageRead !== undefined);
+    const epoch = (previous?.epoch ?? 0) + (resetsReader || identityTransition ? 1 : 0);
     if (intent.kind === "reading" && sameChapter && pending && previous.lastKind === "reading" && !previous.hideHistory && JSON.stringify(previous.patch) === JSON.stringify(patch)) return { head: previous, accepted: true };
     const older = await read<ProgressOperation[]>(operations.index("entity").getAll(key));
     for (const operation of older) {
@@ -180,7 +181,11 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
     const deleteAfterAck = intent.kind === "reading" && patch.isRead && (intent.deleteAfterAck && !(sameChapter ? previous.patch.isRead : baseline.isRead)
       || older.some((item) => item.epoch === epoch && item.deleteAfterAck));
     const fields = [...new Set([...(Object.keys(intent.patch) as (keyof ProgressPatch)[]), ...(pending ? previous.dirtyFields ?? ["isRead", "lastPageRead"] as (keyof ProgressPatch)[] : [])])];
-    const operation = { ...intent, backend, entityKey: key, patch, epoch, createdAt, status: "pending", deleteAfterAck, fields };
+    // Bookmark-only edits may coalesce an unsent completion, but must retain
+    // its tracker work without becoming a new read/reset fence themselves.
+    const bookmarkOnly = intent.kind === "explicit" && !resetsReader && intent.patch.isBookmarked !== undefined;
+    const trackCompletion = intent.trackCompletion || bookmarkOnly && patch.isRead && older.some((item) => item.epoch === epoch && (item.kind === "reading" || item.trackCompletion) && item.patch.isRead);
+    const operation = { ...intent, trackCompletion, backend, entityKey: key, patch, epoch, createdAt, status: "pending", deleteAfterAck, fields };
     const sequence = Number(await read(operations.add(operation)));
     const head: ProgressHead = {
       entityKey: key, backend, chapter: intent.chapter, epoch, sequence,

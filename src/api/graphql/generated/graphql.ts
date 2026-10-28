@@ -3992,6 +3992,12 @@ export type MangaFilterInput = {
   url?: StringFilterInput | null | undefined;
 };
 
+export type MangaMetaTypeInput = {
+  key: string;
+  mangaId: number;
+  value: string;
+};
+
 export type MangaStatus =
   | 'CANCELLED'
   | 'COMPLETED'
@@ -4043,6 +4049,11 @@ export type RestoreBackupInput = {
 export type SearchTrackerInput = {
   query: string;
   trackerId: number;
+};
+
+export type SetMangaMetaInput = {
+  clientMutationId?: string | null | undefined;
+  meta: MangaMetaTypeInput;
 };
 
 export type SortOrder =
@@ -4390,6 +4401,13 @@ export type FetchMangaDetailsMutationVariables = Exact<{
 
 export type FetchMangaDetailsMutation = { fetchManga: { manga: { id: number, initialized: boolean } } | null };
 
+export type SaveMangaNoteMutationVariables = Exact<{
+  input: SetMangaMetaInput;
+}>;
+
+
+export type SaveMangaNoteMutation = { setMangaMeta: { meta: { mangaId: number, key: string, value: string } } | null };
+
 export type FetchChapterPagesMutationVariables = Exact<{
   input: FetchChapterPagesInput;
 }>;
@@ -4402,7 +4420,7 @@ export type UpdateChapterProgressMutationVariables = Exact<{
 }>;
 
 
-export type UpdateChapterProgressMutation = { updateChapter: { chapter: { id: number, isRead: boolean, lastPageRead: number } } | null };
+export type UpdateChapterProgressMutation = { updateChapter: { chapter: { id: number, isRead: boolean, isBookmarked: boolean, lastPageRead: number } } | null };
 
 export type GetRestoreStatusQueryVariables = Exact<{
   id: string;
@@ -4510,7 +4528,14 @@ export type GetMangaDetailsQueryVariables = Exact<{
 }>;
 
 
-export type GetMangaDetailsQuery = { manga: { id: number, initialized: boolean, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, categories: { nodes: Array<{ id: number }> }, source: { name: string } | null, chapters: { nodes: Array<{ id: number, name: string, chapterNumber: number, sourceOrder: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, lastPageRead: number, pageCount: number, uploadDate: unknown, scanlator: string | null }> } } };
+export type GetMangaDetailsQuery = { manga: { id: number, initialized: boolean, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, realUrl: string | null, categories: { nodes: Array<{ id: number }> }, source: { name: string } | null, chapters: { nodes: Array<{ id: number, name: string, chapterNumber: number, sourceOrder: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, lastPageRead: number, pageCount: number, uploadDate: unknown, scanlator: string | null }> } } };
+
+export type GetMangaNotesQueryVariables = Exact<{
+  id: number;
+}>;
+
+
+export type GetMangaNotesQuery = { manga: { id: number, meta: Array<{ key: string, value: string }> } };
 
 export type GetMigrationMangaQueryVariables = Exact<{
   id: number;
@@ -4957,6 +4982,17 @@ export const FetchMangaDetailsDocument = gql`
   }
 }
     `;
+export const SaveMangaNoteDocument = gql`
+    mutation SaveMangaNote($input: SetMangaMetaInput!) {
+  setMangaMeta(input: $input) {
+    meta {
+      mangaId
+      key
+      value
+    }
+  }
+}
+    `;
 export const FetchChapterPagesDocument = gql`
     mutation FetchChapterPages($input: FetchChapterPagesInput!) {
   fetchChapterPages(input: $input) {
@@ -4970,6 +5006,7 @@ export const UpdateChapterProgressDocument = gql`
     chapter {
       id
       isRead
+      isBookmarked
       lastPageRead
     }
   }
@@ -5229,6 +5266,7 @@ export const GetMangaDetailsDocument = gql`
     status
     genre
     inLibrary
+    realUrl
     categories {
       nodes {
         id
@@ -5251,6 +5289,17 @@ export const GetMangaDetailsDocument = gql`
         uploadDate
         scanlator
       }
+    }
+  }
+}
+    `;
+export const GetMangaNotesDocument = gql`
+    query GetMangaNotes($id: Int!) {
+  manga(id: $id) {
+    id
+    meta {
+      key
+      value
     }
   }
 }
@@ -5709,6 +5758,9 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     FetchMangaDetails(variables: FetchMangaDetailsMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<FetchMangaDetailsMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<FetchMangaDetailsMutation>({ document: FetchMangaDetailsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'FetchMangaDetails', 'mutation', variables);
     },
+    SaveMangaNote(variables: SaveMangaNoteMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<SaveMangaNoteMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<SaveMangaNoteMutation>({ document: SaveMangaNoteDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'SaveMangaNote', 'mutation', variables);
+    },
     FetchChapterPages(variables: FetchChapterPagesMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<FetchChapterPagesMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<FetchChapterPagesMutation>({ document: FetchChapterPagesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'FetchChapterPages', 'mutation', variables);
     },
@@ -5765,6 +5817,9 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetMangaDetails(variables: GetMangaDetailsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetMangaDetailsQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetMangaDetailsQuery>({ document: GetMangaDetailsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetMangaDetails', 'query', variables);
+    },
+    GetMangaNotes(variables: GetMangaNotesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetMangaNotesQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetMangaNotesQuery>({ document: GetMangaNotesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetMangaNotes', 'query', variables);
     },
     GetMigrationManga(variables: GetMigrationMangaQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetMigrationMangaQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetMigrationMangaQuery>({ document: GetMigrationMangaDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetMigrationManga', 'query', variables);

@@ -34,7 +34,9 @@ export async function loadReadingSequence(backend: ProgressBackend, mangaId: num
   const heads = await getProgressHeads(backend); const cached = await getCachedChaptersForManga(backend.serverBaseUrl, mangaId, backend.isDemo);
   const desired = chapters.map((chapter) => {
     const head = heads.find((head) => head.chapter.chapterId === Number(chapter.id) && head.chapter.mangaId === mangaId && head.chapter.mangaTitle === title && head.chapter.chapterName === chapter.name && head.chapter.chapterNumber === chapter.chapterNumber);
-    return head && (offline || backend.isDemo || head.sequence > head.acknowledgedSequence) ? { ...chapter, isRead: head.patch.isRead, lastPageRead: head.patch.lastPageRead } : chapter;
+    return head && (offline || backend.isDemo || head.sequence > head.acknowledgedSequence) ? { ...chapter,
+      ...(head.dirtyFields?.includes("isRead") ? { isRead: head.patch.isRead } : {}), ...(head.dirtyFields?.includes("lastPageRead") ? { lastPageRead: head.patch.lastPageRead } : {}),
+      ...(head.patch.isBookmarked !== undefined ? { isBookmarked: head.patch.isBookmarked } : {}) } : chapter;
   });
   return { chapters: selectChapters(desired, readingPolicy(policy), new Set(cached.map((chapter) => chapter.id)), anchorId).map((chapter) => ({ ...chapter, id: Number(chapter.id) })), offline };
 }

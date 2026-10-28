@@ -5,7 +5,6 @@ import { Bookmark, Check, Download, HardDriveDownload, Loader2, Search, X } from
 import { Link } from "react-router-dom";
 import { useDownloadStore } from "../../stores/useDownloadStore";
 import { isTauri, useSettingsStore } from "../../stores/useSettingsStore";
-import { createGraphqlClient } from "../../api/graphql/client";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { formatChapterDate } from "./chapterDate";
 import { invalidateChapterState } from "../../api/suwayomi/chapterState";
@@ -15,7 +14,7 @@ import { getProgressHeads } from "../../api/suwayomi/progressStorage";
 import { useProgressBackend } from "../../hooks/useProgressSynchronization";
 import { mangaReaderSettingsKey } from "../../stores/mangaReaderSettings";
 import { normalizeChapterPolicy, selectChapters, type ChapterFilter } from "./chapterPolicy";
-import { getCachedChapter, saveCachedChapter } from "../../api/suwayomi/offlineCache";
+import { ChapterRowFrame } from "./ChapterRowFrame";
 
 export interface Chapter {
   id: string | number;
@@ -27,6 +26,8 @@ export interface Chapter {
   uploadDate: string | number;
   scanlator?: string | null;
   sourceOrder?: number;
+  lastPageRead?: number;
+  pageCount?: number;
 }
 
 interface ChapterListProps {
@@ -47,7 +48,6 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
   const [selecting, setSelecting] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
 
-  const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`, undefined, mockMode ? "demo" : "live"), [serverBaseUrl, mockMode]);
   const backend = useProgressBackend();
   const policy = normalizeChapterPolicy(backend && mangaId !== undefined ? chapterPolicies[mangaReaderSettingsKey(backend, mangaId)] : undefined);
   const { filter, scanlator } = policy;
@@ -56,7 +56,9 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
   const sortedChapters = useMemo(() => chapters.map((chapter) => {
     const saved = localProgress.data?.find((head) => head.chapter.chapterId === Number(chapter.id) && head.chapter.mangaId === mangaId
       && head.chapter.mangaTitle === mangaTitle && head.chapter.chapterName === chapter.name && head.chapter.chapterNumber === chapter.chapterNumber);
-    return saved && (offline || backend?.isDemo || saved.sequence > saved.acknowledgedSequence) ? { ...chapter, isRead: saved.patch.isRead } : chapter;
+    return saved && (offline || backend?.isDemo || saved.sequence > saved.acknowledgedSequence) ? { ...chapter,
+      ...(saved.dirtyFields?.includes("isRead") ? { isRead: saved.patch.isRead } : {}),
+      ...(saved.patch.isBookmarked !== undefined ? { isBookmarked: saved.patch.isBookmarked } : {}) } : chapter;
   }), [chapters, localProgress.data, mangaId, mangaTitle, offline, backend]);
   const scanlators = useMemo(() => [...new Set(chapters.map((chapter) => chapter.scanlator).filter((value): value is string => !!value))].sort(), [chapters]);
   const missingCount = useMemo(() => {
@@ -79,27 +81,21 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
     return next;
   });
 
-  const updateSelected = async (patch: { isRead?: boolean; isBookmarked?: boolean; lastPageRead?: number }) => {
-    if (!selected.size) return;
+  const updateSelected = async (patch: { isRead?: boolean; isBookmarked?: boolean; lastPageRead?: number }, ids: Set<number> = selected) => {
+    if (!ids.size) return;
     setBulkBusy(true);
     try {
       let pending = 0;
       const backend = progressBackend(serverBaseUrl, mockMode);
-      await Promise.all([...selected].map(async (id) => {
-        if (patch.isRead !== undefined || patch.lastPageRead !== undefined) {
+      await Promise.all([...ids].map(async (id) => {
           const chapter = chapters.find((item) => Number(item.id) === id);
-          const result = await writeChapterProgress(backend, id, patch, { fallback: chapter && mangaId !== undefined && mangaTitle ? { chapterId: id, chapterName: chapter.name, chapterNumber: chapter.chapterNumber, mangaId, mangaTitle, pageCount: 0 } : undefined });
+          const result = await writeChapterProgress(backend, id, patch, { fallback: chapter && mangaId !== undefined && mangaTitle ? { chapterId: id, chapterName: chapter.name, chapterNumber: chapter.chapterNumber, mangaId, mangaTitle, pageCount: chapter.pageCount ?? 0, sourceOrder: chapter.sourceOrder } : undefined });
           if (!result.acknowledged) pending += 1;
-        } else {
-          await sdk.UpdateChapterProgress({ input: { id, patch } });
-          const cached = await getCachedChapter(backend.serverBaseUrl, id, backend.isDemo);
-          if (cached && patch.isBookmarked !== undefined) await saveCachedChapter({ ...cached, isBookmarked: patch.isBookmarked });
-        }
       }));
       setSelected(new Set());
       setSelecting(false);
       await invalidateChapterState(queryClient);
-      notify(pending ? `${selected.size} chapters saved on this device; ${pending} waiting to synchronize.` : `${selected.size} chapters updated.`, pending ? "info" : "success");
+      notify(pending ? `${ids.size} chapter${ids.size === 1 ? "" : "s"} saved on this device; ${pending} waiting to synchronize.` : `${ids.size} chapter${ids.size === 1 ? "" : "s"} updated.`, pending ? "info" : "success");
     } catch (error: any) {
       await invalidateChapterState(queryClient);
       notify(error?.message || "Chapter update failed.", "error");
@@ -139,7 +135,8 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
           const download = activeDownloads[chapterId];
           const content = <><span className={`block truncate font-medium ${chapter.isRead ? "text-slate-400" : "text-slate-200"}`}>{chapter.name}</span><span className="yomi-chapter-meta">{chapter.isRead && <span className="yomi-chapter-read"><Check aria-hidden="true" />Read</span>}<span>{formatChapterDate(chapter.uploadDate)}</span>{chapter.scanlator && <><span aria-hidden="true">·</span><span className="truncate">{chapter.scanlator}</span></>}</span></>;
           return (
-            <div key={chapter.id} className={`yomi-chapter-row ${selected.has(chapterId) ? "is-selected" : ""}`}>
+            <ChapterRowFrame key={chapter.id} name={chapter.name} selected={selected.has(chapterId)} selecting={selecting} read={chapter.isRead} bookmarked={chapter.isBookmarked} busy={bulkBusy}
+              onRead={() => void updateSelected(chapter.isRead ? { isRead: false, lastPageRead: 0 } : { isRead: true }, new Set([chapterId]))} onBookmark={() => void updateSelected({ isBookmarked: !chapter.isBookmarked }, new Set([chapterId]))} onSelect={() => { setSelecting(true); setSelected(new Set([chapterId])); }}>
               {selecting && <label className="yomi-chapter-check"><input type="checkbox" checked={selected.has(chapterId)} onChange={() => toggleSelected(chapterId)} aria-label={`Select ${chapter.name}`} /><span aria-hidden="true"><Check /></span></label>}
               {selecting ? <button type="button" onClick={() => toggleSelected(chapterId)} className="yomi-chapter-content" aria-label={`Toggle selection for ${chapter.name}`}>{content}</button> : <Link to={`/reader/${chapter.id}`} className="yomi-chapter-content">{content}</Link>}
               {!selecting && <div className="flex shrink-0 items-center gap-2">
@@ -150,7 +147,7 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
                   : download?.status === "error" ? <button onClick={() => void retryDownload(chapterId, mangaTitle, backend ?? undefined)} className="yomi-icon-button danger" aria-label={`Retry download of ${chapter.name}`}><Download /></button>
                   : <button onClick={async () => { try { await downloadChapter(chapterId, mangaTitle, backend ?? undefined); if (!keepsLocalCopy) { notify("Chapter added to Suwayomi's download queue.", "success"); queryClient.invalidateQueries({ queryKey: ["downloads"] }); } } catch (error) { notify(error instanceof Error ? error.message : "Download could not be started.", "error"); } }} className="yomi-icon-button" aria-label={keepsLocalCopy ? `Save ${chapter.name} for offline reading` : `Download ${chapter.name} through Suwayomi`}><Download /></button>}
               </div>}
-            </div>
+            </ChapterRowFrame>
           );
         })}
         {visibleChapters.length === 0 && <div className="py-12 text-center text-sm text-slate-400">{chapters.length ? "No chapters match these filters." : "No chapters available."}</div>}

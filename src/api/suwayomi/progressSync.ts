@@ -29,9 +29,12 @@ function client(backend: ProgressBackend) {
 async function mirrorProgress(head: ProgressHead) {
   const { backend, chapter, patch } = head;
   const cached = await getCachedChapter(backend.serverBaseUrl, chapter.chapterId, backend.isDemo);
-  if (cached && chapterIdentityMatches(chapter, cachedIdentity(cached))) await saveCachedChapter({ ...cached, isDemo: backend.isDemo, lastPageRead: patch.lastPageRead, isRead: patch.isRead });
+  const fields = head.dirtyFields ?? ["isRead", "lastPageRead"];
+  if (cached && chapterIdentityMatches(chapter, cachedIdentity(cached))) await saveCachedChapter({ ...cached, isDemo: backend.isDemo,
+    ...(fields.includes("lastPageRead") ? { lastPageRead: patch.lastPageRead } : {}), ...(fields.includes("isRead") ? { isRead: patch.isRead } : {}),
+    ...(fields.includes("isBookmarked") ? { isBookmarked: patch.isBookmarked } : {}) });
   // Cached chapters have mode-specific keys; legacy history still shares URL/ID keys.
-  if (backend.isDemo) return;
+  if (backend.isDemo || !fields.includes("isRead") && !fields.includes("lastPageRead")) return;
   const existing = (await getReadingHistory(backend.serverBaseUrl)).find((item) => item.chapterId === chapter.chapterId && !!item.isDemo === backend.isDemo);
   if (!head.hasActivity && !existing) return;
   const event = { chapterId: chapter.chapterId, chapterName: chapter.chapterName, chapterNumber: chapter.chapterNumber, mangaId: chapter.mangaId, mangaTitle: chapter.mangaTitle, lastPageRead: patch.lastPageRead, pageCount: chapter.pageCount, isRead: patch.isRead, isDemo: backend.isDemo, readAt: head.activityAt ?? existing?.readAt, isHidden: head.hideHistory };
@@ -56,7 +59,8 @@ export async function projectChapterProgress<T extends RemoteChapter>(backend: P
   const matches = head && chapterIdentityMatches(head.chapter, progressChapterIdentity(chapter));
   if (observation.stale && head && !matches) throw new Error("The chapter changed while loading. Retry the reader.");
   const pending = head && (backend.isDemo || options.offline || observation.stale || head.sequence > head.acknowledgedSequence) && matches;
-  return { ...chapter, ...(pending ? { isRead: head.patch.isRead, lastPageRead: backend.isDemo || options.offline || head.dirtyFields?.includes("lastPageRead") || observation.stale && head.sequence <= head.acknowledgedSequence ? head.patch.lastPageRead : chapter.lastPageRead } : {}), progressEpoch: head?.epoch ?? 0,
+  return { ...chapter, ...(pending ? { isRead: backend.isDemo || options.offline || head.dirtyFields?.includes("isRead") || observation.stale ? head.patch.isRead : chapter.isRead, lastPageRead: backend.isDemo || options.offline || head.dirtyFields?.includes("lastPageRead") || observation.stale && head.sequence <= head.acknowledgedSequence ? head.patch.lastPageRead : chapter.lastPageRead,
+    ...(head.patch.isBookmarked !== undefined ? { isBookmarked: head.patch.isBookmarked } : {}) } : {}), progressEpoch: head?.epoch ?? 0,
     progressBaseline: pending ? head.lastAcknowledged ?? head.baseline : { isRead: chapter.isRead, lastPageRead: chapter.lastPageRead },
   };
 }
@@ -89,7 +93,7 @@ async function sendOperation(backend: ProgressBackend, operation: ProgressOperat
   if (operation.kind === "reading") patch.isRead = operation.patch.isRead || remote.isRead;
   const response = await client(backend).UpdateChapterProgress({ input: { id: operation.chapter.chapterId, patch } });
   const acknowledged = response.updateChapter?.chapter;
-  if (!acknowledged || acknowledged.id !== operation.chapter.chapterId || (patch.lastPageRead !== undefined && acknowledged.lastPageRead !== patch.lastPageRead) || (patch.isRead !== undefined && acknowledged.isRead !== patch.isRead)) {
+  if (!acknowledged || acknowledged.id !== operation.chapter.chapterId || (patch.lastPageRead !== undefined && acknowledged.lastPageRead !== patch.lastPageRead) || (patch.isRead !== undefined && acknowledged.isRead !== patch.isRead) || (patch.isBookmarked !== undefined && acknowledged.isBookmarked !== patch.isBookmarked)) {
     throw new Error("Suwayomi did not confirm the saved progress.");
   }
   if (!await acknowledgeProgress(operation, owner, { ...operation.patch, isRead: acknowledged.isRead, lastPageRead: acknowledged.lastPageRead })) return;
@@ -202,6 +206,7 @@ export async function readProgressHistory(backend: ProgressBackend) {
   const events = await getReadingHistory(backend.serverBaseUrl);
   const heads = await getProgressHeads(backend);
   for (const head of heads) {
+    if (head.dirtyFields?.length && !head.dirtyFields.some((field) => field === "isRead" || field === "lastPageRead")) continue;
     const index = events.findIndex((event) => !event.hideMangaBefore && event.chapterId === head.chapter.chapterId && (event.isDemo ?? event.mangaTitle.startsWith("[Demo]")) === backend.isDemo);
     if (head.sequence <= head.acknowledgedSequence && index >= 0 && !head.hideHistory && (head.activityAt ?? 0) < events[index].readAt) continue;
     if (!head.hasActivity && index < 0 && !head.hideHistory) continue;

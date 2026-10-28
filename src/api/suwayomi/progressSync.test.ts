@@ -2,7 +2,7 @@ import { IDBFactory } from "fake-indexeddb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { progressBackend } from "./backendIdentity";
 import { getProgressHead, getProgressOperations, type ProgressIntent } from "./progressStorage";
-import { projectChapterProgress, readProgressHistory, resolveProgressConflict, saveProgressIntent, synchronizeProgress } from "./progressSync";
+import { projectChapterProgress, readProgressHistory, resolveProgressConflict, saveProgressIntent, synchronizeProgress, writeChapterProgress } from "./progressSync";
 import * as storage from "./progressStorage";
 import { getCachedChapter, getReadingHistory, saveCachedChapter } from "./offlineCache";
 
@@ -43,6 +43,39 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("progress replay and acknowledgement", () => {
+  it("persists and replays a bookmark without resetting a live reader or changing its read state", async () => {
+    const original = servers.get(first.serverBaseUrl)!; original.isRead = true; original.lastPageRead = 2;
+    const result = await writeChapterProgress(first, 12, { isBookmarked: true });
+    expect(result.acknowledged).toBe(true);
+    expect(mocks.update.mock.calls[0][1].patch).toEqual({ isBookmarked: true });
+    expect(original).toMatchObject({ isRead: true, lastPageRead: 2, isBookmarked: true });
+    expect((await getProgressHead(first, 12))!.epoch).toBe(0);
+    expect(await getReadingHistory(first.serverBaseUrl)).toEqual([]);
+  });
+  it("keeps an unconfirmed bookmark queued and projects only the fields that were changed", async () => {
+    await saveProgressIntent(first, { kind: "explicit", chapter, baseline: { isRead: false, lastPageRead: 0 }, patch: { isBookmarked: true } });
+    const remote = { ...remoteChapter(), isRead: true, lastPageRead: 3, isBookmarked: false };
+    const projected = await projectChapterProgress(first, remote);
+    expect(projected).toMatchObject({ isRead: true, lastPageRead: 3, isBookmarked: true });
+    mocks.update.mockImplementationOnce(async () => ({ updateChapter: { chapter: { ...remote, isBookmarked: false } } }));
+    await synchronizeProgress(first);
+    expect(await getProgressOperations(first)).toHaveLength(1);
+    await synchronizeProgress(first);
+    expect(await getProgressOperations(first)).toHaveLength(0);
+  });
+  it("does not lose an offline bookmark when the active reader writes its next page", async () => {
+    await saveProgressIntent(first, reading(1));
+    await saveProgressIntent(first, { kind: "explicit", chapter, baseline: { isRead: false, lastPageRead: 0 }, patch: { isBookmarked: true } });
+    expect((await saveProgressIntent(first, reading(2))).accepted).toBe(true);
+    await synchronizeProgress(first);
+    expect(servers.get(first.serverBaseUrl)).toMatchObject({ lastPageRead: 2, isBookmarked: true });
+  });
+  it("retains tracker work when a bookmark coalesces an unsent completed page", async () => {
+    await saveProgressIntent(first, reading(3));
+    await saveProgressIntent(first, { kind: "explicit", chapter, baseline: { isRead: false, lastPageRead: 0 }, patch: { isBookmarked: true } });
+    await synchronizeProgress(first);
+    expect((await getProgressHead(first, 12))!.trackingDueSequence).toBeGreaterThan(0);
+  });
   it("retains progress across a failed request and replays it after reconnecting", async () => {
     await saveProgressIntent(first, reading(2));
     mocks.read.mockRejectedValueOnce(new TypeError("offline"));
