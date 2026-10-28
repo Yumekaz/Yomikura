@@ -1,4 +1,6 @@
 @tailwind base;
+
+[data-theme-updating] *, [data-theme-updating] *::before, [data-theme-updating] *::after { transition: none !important; }
 @tailwind components;
 @tailwind utilities;
 

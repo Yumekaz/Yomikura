@@ -39,6 +39,8 @@ export function rgb(hex: string) {
   return [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16)).join(", ");
 }
 export function applyPalette(element: HTMLElement, id: PaletteId, dark: boolean) {
+  // Text and its surface change together; an intermediate color can lose contrast.
+  element.dataset.themeUpdating = "true";
   const palette = paletteFor(id);
   const tokens = dark ? palette.dark : palette.light;
   element.dataset.palette = palette.id;
@@ -54,4 +56,8 @@ export function applyPalette(element: HTMLElement, id: PaletteId, dark: boolean)
   if (element.ownerDocument.documentElement === element) {
     element.ownerDocument.querySelector('meta[name="theme-color"]')?.setAttribute("content", tokens.canvas);
   }
+  void element.offsetHeight;
+  const frame = element.ownerDocument.defaultView?.requestAnimationFrame;
+  if (frame) frame.call(element.ownerDocument.defaultView, () => delete element.dataset.themeUpdating);
+  else delete element.dataset.themeUpdating;
 }

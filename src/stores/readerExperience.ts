@@ -9,12 +9,14 @@ export interface ReaderExperience {
   widePages: "fit" | "split" | "rotate"; wideWebtoon: "fit" | "split" | "rotate"; panWidePages: boolean; rotation: 0 | 90 | 180 | 270;
   verticalNavigator: boolean; navigatorLeft: boolean; navigatorHeight: number;
   pageActions: boolean; eInkFlash: boolean;
+  exportTitleFolders: boolean;
 }
 export const DEFAULT_READER_EXPERIENCE: ReaderExperience = {
   background: "black", showPageNumber: false, keepAwake: false, autoFullscreen: false, showReadingMode: true, showTapZones: false,
   skipRead: false, skipFiltered: true, skipDuplicates: false, pauseBetweenChapters: false,
   tapLayout: "horizontal", invertTapZones: "none", webtoonTapNavigation: false, sidePadding: 0, hideControlsOnScroll: "off", doubleTapZoom: true, disableZoomOut: false, autoZoomWide: false, zoomAnimationMs: 180, zoomStart: "automatic",
   widePages: "fit", wideWebtoon: "fit", panWidePages: true, rotation: 0, verticalNavigator: false, navigatorLeft: false, navigatorHeight: 65, pageActions: true, eInkFlash: false,
+  exportTitleFolders: true,
 };
 const oneOf = <T>(value: unknown, options: readonly T[], fallback: T): T => options.includes(value as T) ? value as T : fallback;
 export function normalizeReaderExperience(value: unknown): ReaderExperience {

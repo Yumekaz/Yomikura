@@ -8,6 +8,7 @@ use tauri::Emitter;
 use tauri::WindowEvent;
 use tauri::{Manager, State};
 mod local_import;
+mod reader_exports;
 mod reader_platform;
 mod runtime_setup;
 mod window_layout;
@@ -993,6 +994,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             reader_platform::set_reader_keep_awake,
+            reader_exports::get_reader_export_directory,
+            reader_exports::select_reader_export_directory,
+            reader_exports::save_reader_export,
             wipe_all_data,
             select_directory,
             check_java_installed,

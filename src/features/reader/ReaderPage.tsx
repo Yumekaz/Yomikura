@@ -88,7 +88,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
   const [showOverlay, setShowOverlay] = useState(true);
   const [transitionTarget, setTransitionTarget] = useState<number>();
   const [pageToolsOpen, setPageToolsOpen] = useState(false);
-  const [pageToolsTarget, setPageToolsTarget] = useState<{ url: string; title: string; page: number }>();
+  const [pageToolsTarget, setPageToolsTarget] = useState<{ url: string; title: string; page: number; chapter: ReaderChapter; backend: ProgressBackend }>();
   const closePageTools = useCallback(() => setPageToolsOpen(false), []);
   useEffect(() => { if (!showOverlay) setPageToolsOpen(false); }, [showOverlay]);
   const display = useReaderDisplay(readerPreferences, setShowOverlay);
@@ -866,7 +866,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
         onToggleAutoScroll={() => setIsAutoScrolling(!isAutoScrolling)}
         fullscreen={display.fullscreen}
         onToggleFullscreen={() => void display.toggleFullscreen().catch(() => undefined)}
-        pageTools={readerPreferences.pageActions && <ReaderPageTools open={pageToolsOpen} onToggle={() => { if (!pageToolsOpen) setPageToolsTarget({ url: buildPageUrl(currentPage), title: activeChapter.mangaTitle, page: currentPage + 1 }); setPageToolsOpen(!pageToolsOpen); }} onClose={closePageTools} url={pageToolsTarget?.url ?? buildPageUrl(currentPage)} title={pageToolsTarget?.title ?? activeChapter.mangaTitle} page={pageToolsTarget?.page ?? currentPage + 1} onRotate={() => updateExperience((current) => ({ reader: { ...current.reader, rotation: ((current.reader.rotation + 90) % 360) as 0 | 90 | 180 | 270 } }))} />}
+        pageTools={readerPreferences.pageActions && <ReaderPageTools open={pageToolsOpen} onToggle={() => { if (!pageToolsOpen) setPageToolsTarget({ url: buildPageUrl(currentPage), title: activeChapter.mangaTitle, page: currentPage + 1, chapter: activeChapter, backend: progressTarget }); setPageToolsOpen(!pageToolsOpen); }} onClose={closePageTools} url={pageToolsTarget?.url ?? buildPageUrl(currentPage)} title={pageToolsTarget?.title ?? activeChapter.mangaTitle} page={pageToolsTarget?.page ?? currentPage + 1} chapter={pageToolsTarget?.chapter ?? activeChapter} backend={pageToolsTarget?.backend ?? progressTarget} onRotate={() => updateExperience((current) => ({ reader: { ...current.reader, rotation: ((current.reader.rotation + 90) % 360) as 0 | 90 | 180 | 270 } }))} />}
       />
 
       {/* Pages Container */}
@@ -883,7 +883,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
         aria-describedby="reader-keyboard-help"
         tabIndex={0}
         onClick={handlePageClick}
-        onKeyDown={(event) => { if (readerPreferences.pageActions && (event.key === "ContextMenu" || event.shiftKey && event.key === "F10")) { event.preventDefault(); event.stopPropagation(); setPageToolsTarget({ url: buildPageUrl(currentPage), title: activeChapter.mangaTitle, page: currentPage + 1 }); setShowOverlay(true); setPageToolsOpen(true); } }}
+        onKeyDown={(event) => { if (readerPreferences.pageActions && (event.key === "ContextMenu" || event.shiftKey && event.key === "F10")) { event.preventDefault(); event.stopPropagation(); setPageToolsTarget({ url: buildPageUrl(currentPage), title: activeChapter.mangaTitle, page: currentPage + 1, chapter: activeChapter, backend: progressTarget }); setShowOverlay(true); setPageToolsOpen(true); } }}
       >
         <p id="reader-keyboard-help" className="sr-only">Reader shortcuts work here. Use Tab and Shift+Tab to reach the controls.</p>
         {readerMode === "WEBTOON" ? (
@@ -916,7 +916,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
                       cropBorders={effectiveCropBorders}
                       splitHalf={half}
                       onDimensions={(width, height) => rememberDimensions(streamCh.id, i, width, height)}
-                      onPageActions={() => { setShowOverlay(true); setPageToolsTarget({ url: mockMode ? resolveBackendUrl(serverBaseUrl, url) : buildSuwayomiPageUrl({ serverBaseUrl, mangaId: streamCh.mangaId, chapterSourceOrder: streamCh.sourceOrder, pageIndex: i }), title: streamCh.mangaTitle, page: i + 1 }); setPageToolsOpen(true); }}
+                      onPageActions={() => { setShowOverlay(true); setPageToolsTarget({ url: mockMode ? resolveBackendUrl(serverBaseUrl, url) : buildSuwayomiPageUrl({ serverBaseUrl, mangaId: streamCh.mangaId, chapterSourceOrder: streamCh.sourceOrder, pageIndex: i }), title: streamCh.mangaTitle, page: i + 1, chapter: streamCh, backend: progressTarget }); setPageToolsOpen(true); }}
                     />)}
                   </WebtoonPage>
                 ))}
@@ -968,7 +968,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
                     rtl={readerMode === "RTL"}
                     splitHalf={splitWide ? (readerMode === "RTL" ? splitHalf === 0 ? 1 : 0 : splitHalf) : undefined}
                     onDimensions={(width, height) => rememberDimensions(activeChapter.id, idx, width, height)}
-                    onPageActions={() => { setShowOverlay(true); setPageToolsTarget({ url: buildPageUrl(idx), title: activeChapter.mangaTitle, page: idx + 1 }); setPageToolsOpen(true); }}
+                    onPageActions={() => { setShowOverlay(true); setPageToolsTarget({ url: buildPageUrl(idx), title: activeChapter.mangaTitle, page: idx + 1, chapter: activeChapter, backend: progressTarget }); setPageToolsOpen(true); }}
                   />
                 </div>
               );

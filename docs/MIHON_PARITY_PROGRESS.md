@@ -85,4 +85,12 @@ Validation: 407 unit tests and 22 related browser checks passed, including backu
 
 ## Remaining implementation
 
+### Reader exports
+
+Page tools now export the captured chapter as an ordered CBZ, with cancellation during preparation and without advancing reading progress. The chapter owner is captured when its menu opens, including earlier/appended chapters in a continuous session. Images are validated before export. Original raster bytes remain intact; native vector-page exports become PNG.
+
+The desktop app can choose a persistent export folder and organize files by book. The native command accepts binary data with bounded metadata rather than a large JSON array, validates every filename/image/archive before writing, rejects linked destinations and creates numbered files on collision. Completed exports are read back for verification. Folder-selection, profile-change and storage failures cannot report success. Existing files are retained.
+
+Validation: 413 unit tests, 23 Rust tests, all-target Clippy, strict browser-spec types and production build/budget passed. Of 24 related browser cases, 23 passed initially; a transient theme-change contrast failure was fixed by applying text/surface colors together. All 12 reader-experience cases passed the final run, including original-page saving, chapter export/cancellation and light/dark accessibility. Native folder-dialog/runtime export remains an explicit gate.
+
 Download/cleanup and data-portability policies, update scheduling/statistics, privacy/tracking and desktop-specific equivalents are still being compared and implemented. Source contracts and platform/hardware limitations remain explicit. The full 50-screen work is not yet complete.

@@ -3,6 +3,7 @@ import { mockSdk } from "../../src/api/graphql/mockSdk";
 import { chapterConnection } from "./fixtures/chapterConnection";
 import type { ReaderExperience } from "../../src/stores/readerExperience";
 import AxeBuilder from "@axe-core/playwright";
+import { readFile } from "node:fs/promises";
 const backend = "http://127.0.0.1:45679";
 async function fixture(page: Page, options: { mode?: string; wide?: boolean; crop?: boolean; count?: number; reader?: Partial<ReaderExperience> } = {}) {
   const count = options.count ?? 3;
@@ -28,6 +29,36 @@ async function fixture(page: Page, options: { mode?: string; wide?: boolean; cro
   return { chapter, writes };
 }
 const images = (page: Page) => page.locator('[id^="reader-page-"]');
+
+test("chapter exports preserve image bytes and page order without advancing reading progress", async ({ page }) => {
+  const state = await fixture(page); await page.goto("/reader/12");
+  await expect(images(page).getByRole("img", { name: "Page 1", exact: true })).toHaveCSS("opacity", "1");
+  await page.getByRole("button", { name: "Page actions", exact: true }).click();
+  const download = page.waitForEvent("download"); await page.getByRole("menuitem", { name: "Export chapter as CBZ", exact: true }).click();
+  const file = await download; expect(file.suggestedFilename()).toBe("Reader experience fixture - Chapter 1.cbz");
+  const bytes = await readFile((await file.path())!); let offset = 0;
+  for (let index = 1; index <= 3; index++) {
+    expect(bytes.readUInt32LE(offset)).toBe(0x04034b50); const nameLength = bytes.readUInt16LE(offset + 26), length = bytes.readUInt32LE(offset + 18);
+    expect(bytes.subarray(offset + 30, offset + 30 + nameLength).toString()).toBe(`${String(index).padStart(4, "0")}.svg`);
+    expect(bytes.subarray(offset + 30 + nameLength, offset + 30 + nameLength + length).toString()).toContain('fill="#264653"');
+    offset += 30 + nameLength + length;
+  }
+  expect(bytes.readUInt32LE(offset)).toBe(0x02014b50); expect(state.chapter.isRead).toBe(false); expect(state.chapter.lastPageRead).toBe(0);
+});
+
+test("cancelling a chapter export leaves no download and preserves the reader position", async ({ page }) => {
+  const state = await fixture(page); let release!: () => void, entered = false;
+  const wait = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/v1/manga/10002/chapter/1/page/1", async (route) => { if (route.request().resourceType() === "fetch") { entered = true; await wait; } await route.fallback(); });
+  await page.goto("/reader/12"); await expect(images(page).getByRole("img", { name: "Page 1", exact: true })).toHaveCSS("opacity", "1");
+  let downloads = 0; page.on("download", () => downloads++);
+  try {
+    await page.getByRole("button", { name: "Page actions", exact: true }).click(); await page.getByRole("menuitem", { name: "Export chapter as CBZ", exact: true }).click();
+    await expect.poll(() => entered).toBe(true); await page.getByRole("menuitem", { name: "Cancel export", exact: true }).click();
+    await expect(page.getByText("Export cancelled.", { exact: true })).toBeVisible();
+    expect(downloads).toBe(0); expect(state.chapter.isRead).toBe(false); expect(state.chapter.lastPageRead).toBe(0);
+  } finally { release(); }
+});
 test("paper background and persistent page numbers follow actual navigation", async ({ page }) => {
   await fixture(page, { reader: { background: "paper", showPageNumber: true, doubleTapZoom: false } }); await page.goto("/reader/12");
   await expect(images(page).getByRole("img", { name: "Page 1", exact: true })).toBeVisible();
