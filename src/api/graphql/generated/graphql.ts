@@ -3733,6 +3733,12 @@ export type AddExtensionStoreInput = {
   indexUrl: string;
 };
 
+export type AuthMode =
+  | 'BASIC_AUTH'
+  | 'NONE'
+  | 'SIMPLE_LOGIN'
+  | 'UI_LOGIN';
+
 export type BackupRestoreState =
   | 'FAILURE'
   | 'IDLE'
@@ -3768,6 +3774,11 @@ export type BooleanFilterInput = {
   notEqualToAny?: Array<boolean> | null | undefined;
   notIn?: Array<boolean> | null | undefined;
 };
+
+export type CbzMediaType =
+  | 'COMPATIBLE'
+  | 'LEGACY'
+  | 'MODERN';
 
 export type ChapterFilterInput = {
   and?: Array<ChapterFilterInput> | null | undefined;
@@ -3823,6 +3834,10 @@ export type CreateCategoryInput = {
   name: string;
   order?: number | null | undefined;
 };
+
+export type DatabaseType =
+  | 'H2'
+  | 'POSTGRESQL';
 
 export type DeleteCategoryInput = {
   categoryId: number;
@@ -3946,6 +3961,16 @@ export type IntFilterInput = {
   notIn?: Array<number> | null | undefined;
 };
 
+export type KoreaderSyncChecksumMethod =
+  | 'BINARY'
+  | 'FILENAME';
+
+export type KoreaderSyncConflictStrategy =
+  | 'DISABLED'
+  | 'KEEP_LOCAL'
+  | 'KEEP_REMOTE'
+  | 'PROMPT';
+
 export type LogoutTrackerInput = {
   clientMutationId?: string | null | undefined;
   trackerId: number;
@@ -4035,6 +4060,94 @@ export type PartialBackupFlagsInput = {
   includeTracking?: boolean | null | undefined;
 };
 
+export type PartialSettingsTypeInput = {
+  authMode?: AuthMode | null | undefined;
+  authPassword?: string | null | undefined;
+  authUsername?: string | null | undefined;
+  autoBackupIncludeCategories?: boolean | null | undefined;
+  autoBackupIncludeChapters?: boolean | null | undefined;
+  autoBackupIncludeClientData?: boolean | null | undefined;
+  autoBackupIncludeHistory?: boolean | null | undefined;
+  autoBackupIncludeManga?: boolean | null | undefined;
+  autoBackupIncludeServerSettings?: boolean | null | undefined;
+  autoBackupIncludeTracking?: boolean | null | undefined;
+  autoDownloadIgnoreReUploads?: boolean | null | undefined;
+  autoDownloadNewChapters?: boolean | null | undefined;
+  autoDownloadNewChaptersLimit?: number | null | undefined;
+  backupInterval?: number | null | undefined;
+  backupPath?: string | null | undefined;
+  backupTTL?: number | null | undefined;
+  backupTime?: string | null | undefined;
+  databasePassword?: string | null | undefined;
+  databaseType?: DatabaseType | null | undefined;
+  databaseUrl?: string | null | undefined;
+  databaseUsername?: string | null | undefined;
+  debugLogsEnabled?: boolean | null | undefined;
+  downloadAsCbz?: boolean | null | undefined;
+  downloadConversions?: Array<SettingsDownloadConversionTypeInput> | null | undefined;
+  downloadsPath?: string | null | undefined;
+  electronPath?: string | null | undefined;
+  excludeCompleted?: boolean | null | undefined;
+  excludeEntryWithUnreadChapters?: boolean | null | undefined;
+  excludeNotStarted?: boolean | null | undefined;
+  excludeUnreadChapters?: boolean | null | undefined;
+  flareSolverrAsResponseFallback?: boolean | null | undefined;
+  flareSolverrEnabled?: boolean | null | undefined;
+  flareSolverrSessionName?: string | null | undefined;
+  flareSolverrSessionTtl?: number | null | undefined;
+  flareSolverrTimeout?: number | null | undefined;
+  flareSolverrUrl?: string | null | undefined;
+  globalUpdateInterval?: number | null | undefined;
+  initialOpenInBrowserEnabled?: boolean | null | undefined;
+  ip?: string | null | undefined;
+  jwtAudience?: string | null | undefined;
+  jwtRefreshExpiry?: unknown;
+  jwtTokenExpiry?: unknown;
+  kcefEnabled?: boolean | null | undefined;
+  koreaderSyncChecksumMethod?: KoreaderSyncChecksumMethod | null | undefined;
+  koreaderSyncPercentageTolerance?: number | null | undefined;
+  koreaderSyncStrategyBackward?: KoreaderSyncConflictStrategy | null | undefined;
+  koreaderSyncStrategyForward?: KoreaderSyncConflictStrategy | null | undefined;
+  localSourcePath?: string | null | undefined;
+  maxLogFileSize?: string | null | undefined;
+  maxLogFiles?: number | null | undefined;
+  maxLogFolderSize?: string | null | undefined;
+  maxSourcesInParallel?: number | null | undefined;
+  opdsCbzMimetype?: CbzMediaType | null | undefined;
+  opdsChapterSortOrder?: SortOrder | null | undefined;
+  opdsEnablePageReadProgress?: boolean | null | undefined;
+  opdsItemsPerPage?: number | null | undefined;
+  opdsMarkAsReadOnDownload?: boolean | null | undefined;
+  opdsShowOnlyDownloadedChapters?: boolean | null | undefined;
+  opdsShowOnlyUnreadChapters?: boolean | null | undefined;
+  opdsSkipChapterMetadataFeed?: boolean | null | undefined;
+  opdsUseBinaryFileSizes?: boolean | null | undefined;
+  port?: number | null | undefined;
+  serveConversions?: Array<SettingsDownloadConversionTypeInput> | null | undefined;
+  socksProxyEnabled?: boolean | null | undefined;
+  socksProxyHost?: string | null | undefined;
+  socksProxyPassword?: string | null | undefined;
+  socksProxyPort?: string | null | undefined;
+  socksProxyUsername?: string | null | undefined;
+  socksProxyVersion?: number | null | undefined;
+  syncDataCategories?: boolean | null | undefined;
+  syncDataChapters?: boolean | null | undefined;
+  syncDataHistory?: boolean | null | undefined;
+  syncDataManga?: boolean | null | undefined;
+  syncDataTracking?: boolean | null | undefined;
+  syncInterval?: unknown;
+  syncYomiApiKey?: string | null | undefined;
+  syncYomiEnabled?: boolean | null | undefined;
+  syncYomiHost?: string | null | undefined;
+  systemTrayEnabled?: boolean | null | undefined;
+  updateMangas?: boolean | null | undefined;
+  useHikariConnectionPool?: boolean | null | undefined;
+  webUIChannel?: WebUiChannel | null | undefined;
+  webUIFlavor?: WebUiFlavor | null | undefined;
+  webUIInterface?: WebUiInterface | null | undefined;
+  webUIUpdateCheckInterval?: number | null | undefined;
+};
+
 export type RemoveExtensionStoreInput = {
   clientMutationId?: string | null | undefined;
   indexUrl: string;
@@ -4054,6 +4167,25 @@ export type SearchTrackerInput = {
 export type SetMangaMetaInput = {
   clientMutationId?: string | null | undefined;
   meta: MangaMetaTypeInput;
+};
+
+export type SetSettingsInput = {
+  clientMutationId?: string | null | undefined;
+  settings: PartialSettingsTypeInput;
+};
+
+export type SettingsDownloadConversionHeaderTypeInput = {
+  name: string;
+  value: string;
+};
+
+export type SettingsDownloadConversionTypeInput = {
+  callTimeout?: unknown;
+  compressionLevel?: number | null | undefined;
+  connectTimeout?: unknown;
+  headers?: Array<SettingsDownloadConversionHeaderTypeInput> | null | undefined;
+  mimeType: string;
+  target: string;
 };
 
 export type SortOrder =
@@ -4275,6 +4407,20 @@ export type UpdateTrackInput = {
   status?: number | null | undefined;
 };
 
+export type WebUiChannel =
+  | 'BUNDLED'
+  | 'PREVIEW'
+  | 'STABLE';
+
+export type WebUiFlavor =
+  | 'CUSTOM'
+  | 'VUI'
+  | 'WEBUI';
+
+export type WebUiInterface =
+  | 'BROWSER'
+  | 'ELECTRON';
+
 export type CreateBackupMutationVariables = Exact<{
   input?: CreateBackupInput | null | undefined;
 }>;
@@ -4453,6 +4599,18 @@ export type ConnectionTestQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type ConnectionTestQuery = { __typename: 'Query' };
+
+export type GetServerDownloadPreferencesQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetServerDownloadPreferencesQuery = { settings: { downloadAsCbz: boolean, maxSourcesInParallel: number, autoDownloadNewChapters: boolean, autoDownloadNewChaptersLimit: number, excludeEntryWithUnreadChapters: boolean, autoDownloadIgnoreReUploads: boolean } };
+
+export type SetServerDownloadPreferencesMutationVariables = Exact<{
+  input: SetSettingsInput;
+}>;
+
+
+export type SetServerDownloadPreferencesMutation = { setSettings: { settings: { downloadAsCbz: boolean, maxSourcesInParallel: number, autoDownloadNewChapters: boolean, autoDownloadNewChaptersLimit: number, excludeEntryWithUnreadChapters: boolean, autoDownloadIgnoreReUploads: boolean } } };
 
 export type GetDownloadStatusQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -5075,6 +5233,32 @@ export const GetInstalledExtensionLangsDocument = gql`
 export const ConnectionTestDocument = gql`
     query ConnectionTest {
   __typename
+}
+    `;
+export const GetServerDownloadPreferencesDocument = gql`
+    query GetServerDownloadPreferences {
+  settings {
+    downloadAsCbz
+    maxSourcesInParallel
+    autoDownloadNewChapters
+    autoDownloadNewChaptersLimit
+    excludeEntryWithUnreadChapters
+    autoDownloadIgnoreReUploads
+  }
+}
+    `;
+export const SetServerDownloadPreferencesDocument = gql`
+    mutation SetServerDownloadPreferences($input: SetSettingsInput!) {
+  setSettings(input: $input) {
+    settings {
+      downloadAsCbz
+      maxSourcesInParallel
+      autoDownloadNewChapters
+      autoDownloadNewChaptersLimit
+      excludeEntryWithUnreadChapters
+      autoDownloadIgnoreReUploads
+    }
+  }
 }
     `;
 export const GetDownloadStatusDocument = gql`
@@ -5781,6 +5965,12 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     ConnectionTest(variables?: ConnectionTestQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ConnectionTestQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<ConnectionTestQuery>({ document: ConnectionTestDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ConnectionTest', 'query', variables);
+    },
+    GetServerDownloadPreferences(variables?: GetServerDownloadPreferencesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetServerDownloadPreferencesQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetServerDownloadPreferencesQuery>({ document: GetServerDownloadPreferencesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetServerDownloadPreferences', 'query', variables);
+    },
+    SetServerDownloadPreferences(variables: SetServerDownloadPreferencesMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<SetServerDownloadPreferencesMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<SetServerDownloadPreferencesMutation>({ document: SetServerDownloadPreferencesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'SetServerDownloadPreferences', 'mutation', variables);
     },
     GetDownloadStatus(variables?: GetDownloadStatusQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetDownloadStatusQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetDownloadStatusQuery>({ document: GetDownloadStatusDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetDownloadStatus', 'query', variables);

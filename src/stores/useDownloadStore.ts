@@ -5,8 +5,10 @@ import { createGraphqlClient } from "../api/graphql/client";
 import { chapterIdentityMatches, progressBackend, type ProgressBackend } from "../api/suwayomi/backendIdentity";
 import { buildSuwayomiPageUrl, resolveBackendUrl } from "../api/suwayomi/pageUrls";
 import { getProgressHead } from "../api/suwayomi/progressStorage";
+import { DEFAULT_DOWNLOAD_EXPERIENCE } from "./downloadExperience";
+import { allowDeviceDownload, connectionInformation, waitForDownloadNetwork } from "../api/suwayomi/networkPolicy";
 
-export interface DownloadProgress { progress: number; total: number; status: "queued" | "downloading" | "error" | "success"; attempts?: number; error?: string }
+export interface DownloadProgress { progress: number; total: number; status: "queued" | "downloading" | "error" | "success"; attempts?: number; error?: string; waitingForNetwork?: boolean }
 interface DownloadState {
   cachedChapters: CachedChapter[]; cachedChapterIds: Set<number>; activeDownloads: Record<number, DownloadProgress>; downloadControllers: Record<number, AbortController>;
   storageUsage: number; storageQuota: number; recoveryError: string;
@@ -26,11 +28,12 @@ const targetFor = (target?: ProgressBackend) => {
 };
 const currentKey = () => { try { return targetFor().key; } catch { return ""; } };
 const jobKey = (target: ProgressBackend, id: number) => JSON.stringify([target.key, id]);
+let nativeCore: Promise<typeof import("@tauri-apps/api/core")> | undefined;
 
 async function fetchCachedPage(url: string, entry: Entry): Promise<Response> {
   if (entry.controller.signal.aborted) throw new DOMException("Download cancelled", "AbortError");
   if (!entry.native || entry.backend.isDemo) return fetch(url, { mode: "cors", signal: entry.controller.signal });
-  const { invoke } = await import("@tauri-apps/api/core");
+  const { invoke } = await (nativeCore ??= import("@tauri-apps/api/core"));
   const page = await invoke<{ bytes: number[]; contentType: string }>("fetch_local_page", { url, serverBaseUrl: entry.backend.serverBaseUrl });
   if (entry.controller.signal.aborted) throw new DOMException("Download cancelled", "AbortError");
   return new Response(new Uint8Array(page.bytes), { headers: { "content-type": page.contentType } });
@@ -38,6 +41,9 @@ async function fetchCachedPage(url: string, entry: Entry): Promise<Response> {
 
 /** The registry owns all profiles; the public numeric maps project only the selected backend. */
 export function createDownloadStore() {
+  const preferences = () => useSettingsStore.getState().experience?.downloads ?? DEFAULT_DOWNLOAD_EXPERIENCE;
+  const networkAllowed = (entry: Entry) => entry.backend.isDemo || allowDeviceDownload(preferences());
+  const networkGate = (entry: Entry) => waitForDownloadNetwork(() => networkAllowed(entry), (changed) => useSettingsStore.subscribe(changed), entry.controller.signal);
   const entries = new Map<string, Entry>(); const queue: Entry[] = [];
   const restored = new Set<string>(); const restoring = new Map<string, Promise<void>>();
   let paused = false, runningJobs = 0, cacheLoadRevision = 0, lifecycleRevision = 0;
@@ -46,20 +52,22 @@ export function createDownloadStore() {
     publish = () => {
       const key = currentKey(); const activeDownloads: Record<number, DownloadProgress> = {}; const downloadControllers: Record<number, AbortController> = {};
       for (const entry of entries.values()) if (entry.backend.key === key && !entry.reason) {
-        activeDownloads[entry.chapterId] = entry.progress;
+        activeDownloads[entry.chapterId] = { ...entry.progress, waitingForNetwork: entry.progress.status !== "error" && !networkAllowed(entry) };
         if (entry.progress.status !== "error") downloadControllers[entry.chapterId] = entry.controller;
       }
       set({ activeDownloads, downloadControllers });
     };
     const update = (entry: Entry, patch: Partial<DownloadProgress>) => { if (entries.get(entry.key) === entry) { entry.progress = { ...entry.progress, ...patch }; publish(); } };
-    const persist = (entry: Entry, status: "queued" | "downloading" | "failed") => saveDownloadJob({ serverBaseUrl: entry.backend.serverBaseUrl, isDemo: entry.backend.isDemo,
-      chapterId: entry.chapterId, mangaTitle: entry.mangaTitle, status, progress: entry.progress.progress, total: entry.progress.total, attempts: entry.progress.attempts ?? 0, error: entry.progress.error, updatedAt: Date.now() });
+    const persist = (entry: Entry, status: "queued" | "downloading" | "failed") => {
+      const job = { serverBaseUrl: entry.backend.serverBaseUrl, isDemo: entry.backend.isDemo, chapterId: entry.chapterId, mangaTitle: entry.mangaTitle, status, progress: entry.progress.progress, total: entry.progress.total, attempts: entry.progress.attempts ?? 0, error: entry.progress.error, updatedAt: Date.now() };
+      const saved = entry.persist.catch(() => undefined).then(() => saveDownloadJob(job)); entry.persist = saved; return saved;
+    };
     const remove = (entry: Entry) => { if (entries.get(entry.key) === entry) entries.delete(entry.key); publish(); };
     const check = (entry: Entry) => { if (entry.controller.signal.aborted || entries.get(entry.key) !== entry) throw new DOMException("Download cancelled", "AbortError"); };
     const run = async (entry: Entry) => {
       entry.running = true; const created: string[] = [];
       try {
-        check(entry); update(entry, { status: "downloading", attempts: (entry.progress.attempts ?? 0) + 1, error: undefined }); await persist(entry, "downloading"); check(entry);
+        check(entry); await networkGate(entry); check(entry); update(entry, { status: "downloading", attempts: (entry.progress.attempts ?? 0) + 1, error: undefined }); await persist(entry, "downloading"); check(entry);
         const sdk = createGraphqlClient(`${entry.backend.serverBaseUrl}/api/graphql`, { signal: entry.controller.signal }, entry.backend.isDemo ? "demo" : "live");
         const details = (await sdk.GetChapter({ id: entry.chapterId })).chapter; check(entry);
         if (!details || details.id !== entry.chapterId) throw new Error("The requested chapter metadata could not be confirmed.");
@@ -67,7 +75,11 @@ export function createDownloadStore() {
         if (!pages.length) throw new Error("No pages were returned for this chapter.");
         update(entry, { total: pages.length }); await persist(entry, "downloading"); check(entry);
         const cache = await caches.open("yomikura-page-cache"); const networkUrls: string[] = []; let totalSizeBytes = 0;
-        for (let index = 0; index < pages.length; index += 1) {
+        let nextIndex = 0, completed = 0, failure: unknown;
+        const pageWorker = async () => { while (nextIndex < pages.length && failure === undefined) {
+          const index = nextIndex++;
+          try {
+          await networkGate(entry);
           check(entry);
           const url = entry.backend.isDemo ? resolveBackendUrl(entry.backend.serverBaseUrl, pages[index]) : buildSuwayomiPageUrl({ serverBaseUrl: entry.backend.serverBaseUrl, mangaId: details.mangaId, chapterSourceOrder: details.sourceOrder, pageIndex: index });
           const response = await fetchCachedPage(url, entry); check(entry);
@@ -76,11 +88,17 @@ export function createDownloadStore() {
           const headers = new Headers(response.headers); if (!headers.has("content-type")) headers.set("content-type", blob.type || "image/jpeg");
           // An incomplete retry cannot overwrite the bytes of an earlier complete copy.
           const storageUrl = new URL(url); storageUrl.searchParams.set("__yomi_cache_attempt", entry.token); storageUrl.searchParams.set("__yomi_cache_owner", entry.backend.key);
-          const cachedUrl = storageUrl.toString(); reserveCachedPage(cachedUrl, entry.token); created.push(cachedUrl);
+          const cachedUrl = storageUrl.toString(); reserveCachedPage(cachedUrl, entry.token); created[index] = cachedUrl;
           await cache.put(cachedUrl, new Response(blob, { headers })); check(entry);
-          networkUrls.push(url); totalSizeBytes += blob.size; update(entry, { progress: index + 1 });
-          if (index === pages.length - 1 || (index + 1) % 5 === 0) await persist(entry, "downloading");
-        }
+          networkUrls[index] = url; totalSizeBytes += blob.size; completed += 1; update(entry, { progress: completed });
+          if (completed === pages.length || completed % 5 === 0) await persist(entry, "downloading");
+          } catch (error) { if (failure === undefined) failure = error; entry.controller.abort(); }
+        } };
+        const pageLimit = Math.min(preferences().pageConcurrency, pages.length);
+        await Promise.allSettled(Array.from({ length: pageLimit }, pageWorker));
+        if (failure !== undefined) throw failure;
+        if (completed !== pages.length || created.filter(Boolean).length !== pages.length) throw new Error("Not every page was saved. Retry this chapter.");
+        await entry.persist;
         check(entry);
         const mangaTitle = details.manga?.title || entry.mangaTitle || "Unknown Manga";
         const identity = { chapterId: details.id, chapterName: details.name, chapterNumber: details.chapterNumber, mangaId: details.mangaId, mangaTitle, sourceOrder: details.sourceOrder, pageCount: pages.length };
@@ -89,7 +107,7 @@ export function createDownloadStore() {
         const previous = await getCachedChapter(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo); check(entry);
         await saveCachedChapter({ cacheKey: getChapterCacheKey(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo), serverBaseUrl: entry.backend.serverBaseUrl, isDemo: entry.backend.isDemo,
           id: details.id, name: details.name, chapterNumber: details.chapterNumber, mangaId: details.mangaId, mangaTitle, sourceOrder: details.sourceOrder,
-          isBookmarked: details.isBookmarked, scanlator: details.scanlator, uploadDate: String(details.uploadDate ?? ""),
+          isBookmarked: progress.isBookmarked ?? details.isBookmarked, scanlator: details.scanlator, uploadDate: String(details.uploadDate ?? ""),
           pageCount: pages.length, pages, networkUrls, cachedUrls: created, totalSizeBytes, cachedAt: Date.now(), isRead: progress.isRead, lastPageRead: Math.max(0, Math.min(progress.lastPageRead, pages.length - 1)),
         }, entry.controller.signal);
         await deleteDownloadJob(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo);
@@ -103,7 +121,7 @@ export function createDownloadStore() {
         }
       } finally {
         releaseCachedPageClaims(entry.token);
-        await cleanupUnreferencedCachedPages(created).catch(() => undefined);
+        await cleanupUnreferencedCachedPages(created.filter(Boolean)).catch(() => undefined);
         entry.running = false; entry.settle(); publish();
       }
     };
@@ -111,7 +129,8 @@ export function createDownloadStore() {
       if (paused) return;
       const limit = useSettingsStore.getState().downloadConcurrency;
       while (runningJobs < limit && queue.length) {
-        const entry = queue.shift()!; if (entry.reason || entries.get(entry.key) !== entry) continue;
+        const index = queue.findIndex((entry) => networkAllowed(entry)); if (index < 0) { publish(); break; }
+        const [entry] = queue.splice(index, 1); if (entry.reason || entries.get(entry.key) !== entry) continue;
         runningJobs += 1;
         void run(entry).finally(() => { runningJobs -= 1; pump(); }).catch(() => undefined);
       }
@@ -205,8 +224,10 @@ export function createDownloadStore() {
       cacheLoadRevision += 1; store.setState({ cachedChapters: [], cachedChapterIds: new Set(), recoveryError: "" }); publish();
       if (nextKey) void store.getState().loadCachedChapters().catch(() => undefined);
     }
-    if (next.downloadConcurrency !== previous.downloadConcurrency) pump();
+    if (next.downloadConcurrency !== previous.downloadConcurrency || next.experience?.downloads !== previous.experience?.downloads) { publish(); pump(); }
   });
-  return Object.assign(store, { dispose: async () => { paused = true; lifecycleRevision += 1; restored.clear(); await Promise.allSettled([...entries.values()].filter((entry) => entry.progress.status !== "error").map((entry) => stop(entry, "pause"))); unsubscribe(); } });
+  const connection = connectionInformation(); const networkChanged = () => { publish(); pump(); };
+  connection?.addEventListener?.("change", networkChanged); if (typeof window !== "undefined") { window.addEventListener("online", networkChanged); window.addEventListener("offline", networkChanged); }
+  return Object.assign(store, { dispose: async () => { paused = true; lifecycleRevision += 1; restored.clear(); await Promise.allSettled([...entries.values()].filter((entry) => entry.progress.status !== "error").map((entry) => stop(entry, "pause"))); unsubscribe(); connection?.removeEventListener?.("change", networkChanged); if (typeof window !== "undefined") { window.removeEventListener("online", networkChanged); window.removeEventListener("offline", networkChanged); } } });
 }
 export const useDownloadStore = createDownloadStore();

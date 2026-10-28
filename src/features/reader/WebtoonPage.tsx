@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
-export function WebtoonPage({ chapterId, pageIndex, forceVisible, onAnchor, onLayout, children }: {
+export function WebtoonPage({ chapterId, pageIndex, forceVisible, onAnchor, onLayout, children, preloadMargin = 1200 }: {
   chapterId: number; pageIndex: number; forceVisible: boolean;
   onAnchor: (chapterId: number, index: number, element: HTMLDivElement | null) => void;
   onLayout: () => void; children: ReactNode;
+  preloadMargin?: number;
 }) {
   const element = useRef<HTMLDivElement | null>(null);
   const content = useRef<HTMLDivElement | null>(null);
@@ -18,10 +19,10 @@ export function WebtoonPage({ chapterId, pageIndex, forceVisible, onAnchor, onLa
   }, [chapterId, pageIndex, onAnchor]);
   useEffect(() => {
     if (!element.current) return;
-    const observer = new IntersectionObserver(([entry]) => setNear(entry.isIntersecting), { rootMargin: "1200px 0px", threshold: 0 });
+    const observer = new IntersectionObserver(([entry]) => setNear(entry.isIntersecting), { rootMargin: `${preloadMargin}px 0px`, threshold: 0 });
     observer.observe(element.current);
     return () => observer.disconnect();
-  }, []);
+  }, [preloadMargin]);
   useEffect(() => {
     if (!element.current) return;
     const measure = () => {

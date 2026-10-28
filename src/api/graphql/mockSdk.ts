@@ -10,6 +10,7 @@ const demoCover = (name: string) => new URL(`/demo/${name}.webp`, typeof window 
 const demoMembership = new Map<number, boolean>();
 const demoBookmarks = new Map<number, boolean>();
 const demoNotes = new Map<number, string>();
+const demoDownloadPreferences = { downloadAsCbz: false, maxSourcesInParallel: 6, autoDownloadNewChapters: false, autoDownloadNewChaptersLimit: 0, excludeEntryWithUnreadChapters: true, autoDownloadIgnoreReUploads: false };
 const demoTracks = new Map<number, TrackerRecordFieldsFragment[]>();
 function sampleTrack(mangaId: number, trackerId = 1, remoteId = String(mangaId + 100000), title?: string): TrackerRecordFieldsFragment {
   return { id: mangaId * 10 + trackerId, mangaId, trackerId, remoteId, title: title ?? (mangaId === 10001 ? "The Paper Garden (Synced)" : "Moonlit Courier (Synced)"),
@@ -406,6 +407,8 @@ const mockImpl: any = {
   async GetServerSettings() {
     return { settings: { localSourcePath: "/mock/local", globalUpdateInterval: 12 } };
   },
+  async GetServerDownloadPreferences() { return { settings: { ...demoDownloadPreferences } }; },
+  async SetServerDownloadPreferences({ input }: any) { Object.assign(demoDownloadPreferences, input.settings); return { setSettings: { settings: { ...demoDownloadPreferences } } }; },
   async UpdateChapterProgress({ input }: any) {
     if (typeof input.patch?.isBookmarked === "boolean") demoBookmarks.set(input.id, input.patch.isBookmarked);
     return { updateChapter: { chapter: { id: input.id, isRead: !!input.patch?.isRead, isBookmarked: demoBookmarks.get(input.id) ?? false, lastPageRead: input.patch?.lastPageRead || 0 } } };

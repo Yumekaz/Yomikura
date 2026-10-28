@@ -39,5 +39,7 @@ export async function loadReadingSequence(backend: ProgressBackend, mangaId: num
       ...(head.dirtyFields?.includes("isRead") ? { isRead: head.patch.isRead } : {}), ...(head.dirtyFields?.includes("lastPageRead") ? { lastPageRead: head.patch.lastPageRead } : {}),
       ...(head.patch.isBookmarked !== undefined ? { isBookmarked: head.patch.isBookmarked } : {}) } : chapter;
   });
-  return { chapters: selectReaderSequence(desired, policy, new Set(cached.map((chapter) => chapter.id)), anchorId, choices).map((chapter) => ({ ...chapter, id: Number(chapter.id) })), offline };
+  const cachedIds = new Set(cached.map((chapter) => chapter.id));
+  return { chapters: selectReaderSequence(desired, policy, cachedIds, anchorId, choices).map((chapter) => ({ ...chapter, id: Number(chapter.id) })),
+    downloadChapters: selectReaderSequence(desired, { ...policy, filter: "all" }, cachedIds, anchorId, { ...choices, skipRead: false }).map((chapter) => ({ ...chapter, id: Number(chapter.id) })), offline };
 }

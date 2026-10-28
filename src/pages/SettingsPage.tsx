@@ -30,6 +30,7 @@ import { SettingsSearch, type SettingsSection } from "../components/settings/Set
 import { AdvancedSettingsPanel } from "../components/settings/AdvancedSettingsPanel";
 import { AppearanceSettingsPanel } from "../components/settings/AppearanceSettingsPanel";
 import { BrowseSettingsPanel } from "../components/settings/BrowseSettingsPanel";
+import { DownloadSettingsPanel } from "../components/settings/DownloadSettingsPanel";
 import { ReaderSettingsPanel } from "../components/settings/ReaderSettingsPanel";
 import { validateBackupFile } from "../components/settings/backupValidation";
 import { waitForRestoreStatus } from "../components/settings/backupRestore";
@@ -646,7 +647,7 @@ function SettingsPage() {
           )}
 
           {activeTab === "offline" && (
-            <OfflineSettingsPanel
+            <><DownloadSettingsPanel /><OfflineSettingsPanel
               cachedChapters={cachedChapters}
               pendingJobs={Object.keys(activeDownloads).length}
               storageUsage={storageUsage}
@@ -654,7 +655,7 @@ function SettingsPage() {
               clearAll={() => clearAll(progressBackend(serverBaseUrl, mockMode)).catch((error) => { notify(error instanceof Error ? error.message : "Saved chapters could not be cleared.", "error"); })}
               deleteChapter={(id) => deleteChapter(id, progressBackend(serverBaseUrl, mockMode)).catch((error) => { notify(error instanceof Error ? error.message : "Saved chapter could not be removed.", "error"); })}
               confirm={confirm}
-            />
+              /></>
           )}
 
           {activeTab === "advanced" && <AdvancedSettingsPanel />}

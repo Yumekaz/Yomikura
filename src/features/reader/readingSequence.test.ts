@@ -26,6 +26,13 @@ it("rejects changed totals instead of exposing a truncated list", async () => {
   transport.read.mockResolvedValueOnce(connection([12], "next", 3)).mockResolvedValueOnce(connection([13], null, 2));
   await expect(loadReadingSequence(backend, 42, "Fixture", 12, DEFAULT_CHAPTER_POLICY)).rejects.toThrow("changed");
 });
+it("keeps future unsaved chapters available for download-ahead despite the downloaded display filter", async () => {
+  const data = connection([12, 13, 14]); Object.assign(data.chapters.nodes[0], { isDownloaded: true }); Object.assign(data.chapters.nodes[1], { isDownloaded: true });
+  transport.read.mockResolvedValue(data);
+  const result = await loadReadingSequence(backend, 42, "Fixture", 12, { ...DEFAULT_CHAPTER_POLICY, filter: "downloaded" });
+  expect(result.chapters.map((chapter) => chapter.id)).toEqual([12, 13]);
+  expect(result.downloadChapters.map((chapter) => chapter.id)).toEqual([12, 13, 14]);
+});
 it("rejects duplicate IDs and repeated pagination cursors", async () => {
   transport.read.mockResolvedValueOnce(connection([12], "next", 3)).mockResolvedValueOnce(connection([13], "next", 3));
   await expect(loadReadingSequence(backend, 42, "Fixture", 12, DEFAULT_CHAPTER_POLICY)).rejects.toThrow("pagination");

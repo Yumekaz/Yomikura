@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef, typ
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { useSettingsStore, FitMode, PageSpread, ReaderMode } from "../../stores/useSettingsStore";
+import { isTauri, useSettingsStore, FitMode, PageSpread, ReaderMode } from "../../stores/useSettingsStore";
 import { useDownloadStore } from "../../stores/useDownloadStore";
 import { classifySourceProblem, getErrorMessage } from "../../api/suwayomi/errors";
 import { buildSuwayomiPageUrl, resolveBackendUrl } from "../../api/suwayomi/pageUrls";
@@ -28,6 +28,8 @@ import { readerTapAction } from "./tapNavigation";
 import { ReaderPageTools } from "./ReaderPageTools";
 import { ReaderRefreshFlash } from "./ReaderRefreshFlash";
 import { ChapterEndBoundary } from "./ChapterEndBoundary";
+import { allowDeviceDownload, allowedPreloadPages } from "../../api/suwayomi/networkPolicy";
+import { useConnectionInformation } from "../../hooks/useConnectionInformation";
 
 export default function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>();
@@ -78,6 +80,8 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
     updateExperience,
   } = useSettingsStore();
   const readerPreferences = experience.reader;
+  const network = useConnectionInformation();
+  const preloadCount = allowedPreloadPages(experience.downloads, network.connection);
 
   const { downloadChapter, cachedChapters } = useDownloadStore();
 
@@ -286,17 +290,19 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
 
   // Auto-Download Queue effect
   useEffect(() => {
-    if (!activeChapter || effectiveAutoDownloadCount <= 0 || siblingChapters.length === 0) return;
+    const available = readingSequence.data?.downloadChapters ?? [];
+    if (!activeChapter || effectiveAutoDownloadCount <= 0 || !available.length || isTauri() && !mockMode && !allowDeviceDownload(experience.downloads, network.connection)) return;
 
-    const idx = siblingChapters.findIndex(c => c.id === activeChapter.id);
+    const idx = available.findIndex(c => c.id === activeChapter.id);
     if (idx === -1) return;
-
-    const nextChapters = siblingChapters.slice(idx + 1, idx + 1 + effectiveAutoDownloadCount);
+    const saved = (id: number) => cachedChapters.some((chapter) => chapter.id === id) || available.some((chapter) => chapter.id === id && chapter.isDownloaded);
+    if (!available[idx + 1] || !saved(activeChapter.id) || !saved(available[idx + 1].id)) return;
+    const nextChapters = available.slice(idx + 1, idx + 1 + effectiveAutoDownloadCount);
 
     const triggerDownloads = async () => {
       for (const ch of nextChapters) {
         if (!isCurrentProgressBackend(progressTarget)) break;
-        const isAlreadyDownloaded = cachedChapters?.some(cc => cc.id === ch.id);
+        const isAlreadyDownloaded = saved(ch.id);
         if (!isAlreadyDownloaded) {
           try {
             await downloadChapter(ch.id, activeChapter.mangaTitle, progressTarget);
@@ -308,7 +314,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
     };
 
     void triggerDownloads();
-  }, [activeChapter?.id, effectiveAutoDownloadCount, siblingChapters, cachedChapters, downloadChapter, progressTarget]);
+  }, [activeChapter?.id, effectiveAutoDownloadCount, readingSequence.data, cachedChapters, downloadChapter, progressTarget, experience.downloads, network.connection, network.revision]);
 
   const getNextSiblingId = useCallback(
     (afterChapterId: number) => {
@@ -539,7 +545,6 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
     if (pages.length === 0 || !activeChapter || !serverBaseUrl) return;
 
     const preloadedImages: HTMLImageElement[] = [];
-    const preloadCount = 3;
 
     for (let j = 1; j <= preloadCount; j++) {
       const nextIdx = currentPage + j;
@@ -564,7 +569,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
         img.src = "";
       });
     };
-  }, [currentPage, pages, activeChapter, mockMode, serverBaseUrl]);
+  }, [currentPage, pages, activeChapter, mockMode, serverBaseUrl, preloadCount]);
 
   // Webtoon infinite-scroll binge (append chapters or navigate)
   useEffect(() => {
@@ -892,6 +897,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
                 )}
                 {streamCh.pages.map((url, i) => (
                   <WebtoonPage key={`${streamCh.id}-${i}`} chapterId={streamCh.id} pageIndex={i}
+                    preloadMargin={preloadCount > 0 ? 1200 : 0}
                     forceVisible={webtoon.target?.chapterId === streamCh.id && webtoon.target.pageIndex === i}
                     onAnchor={webtoon.onAnchor} onLayout={webtoon.onLayout}>
                     {(readerPreferences.wideWebtoon === "split" && wideImages[`${streamCh.id}:${i}`] ? [0, 1] as const : [undefined]).map((half) => <ReaderImage key={half === undefined ? "full" : `half-${half}`}

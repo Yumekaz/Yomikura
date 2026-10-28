@@ -51,6 +51,18 @@ Validation: 363 unit tests, production build/budget, strict browser-spec typeche
 
 ## Remaining implementation
 
+## Download controls and network policy
+
+Device copies now support a bounded parallel page loader (one page by default, up to six), retaining page order even when responses finish out of order. Queue metadata writes are serialized, and all page workers settle before failed/cancelled attempts are cleaned up. A bookmark changed during a download is retained in its saved metadata.
+
+Optional unmetered-only device saving and reading preloads use reported connection information or an explicit cost choice. Unknown connection speed is not treated as proof of Wi-Fi. Blocked jobs remain queued, resume when allowed and can be cancelled. Browser data-saver requests suppress preloading; constrained vertical reading does not render pages ahead of the viewport. An in-flight request may finish. These device rules do not claim control over a remote library's network connection.
+
+Library controls use supported Suwayomi settings for CBZ format, concurrent sources, new-chapter downloading, per-book limits, backlog exclusions and reuploads. Requested values remain visibly pending until acknowledged; rejected settings retain their previous value. Unsupported settings do not block device storage. Automatic download-ahead follows the current/next-saved prerequisite shown in Mihon, retaining eligible future chapters even when the displayed list is filtered to downloads.
+
+Validation: 373 unit tests, 24 related browser checks, typechecking and production build/budget passed. The live owned Suwayomi instance acknowledged format/concurrency changes and their restoration. Archive contents, native exports and cleanup policies are separate verification gates. Tall-image preprocessing is still pending; it is distinct from the implemented wide-page splitting.
+
+## Remaining implementation
+
 The generated SDK now uses `graphql-request`'s existing lightweight `gql` helper. Queries remain transport strings instead of being eagerly parsed into document nodes. Every named operation and embedded fragment is parsed in a regression check, and the SDK was checked against the isolated live server. This removes startup parsing; the bundle reduction is modest (1,949 JavaScript bytes), and no build budget was relaxed. 364 unit tests and the production build/budget passed. A generator string-mode experiment failed its runtime check and was replaced before committing.
 
 Download/cleanup and data-portability policies, update scheduling/statistics, privacy/tracking and desktop-specific equivalents are still being compared and implemented. Source contracts and platform/hardware limitations remain explicit. The full 50-screen work is not yet complete.

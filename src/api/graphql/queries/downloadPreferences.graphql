@@ -1,0 +1,23 @@
+query GetServerDownloadPreferences {
+  settings {
+    downloadAsCbz
+    maxSourcesInParallel
+    autoDownloadNewChapters
+    autoDownloadNewChaptersLimit
+    excludeEntryWithUnreadChapters
+    autoDownloadIgnoreReUploads
+  }
+}
+
+mutation SetServerDownloadPreferences($input: SetSettingsInput!) {
+  setSettings(input: $input) {
+    settings {
+      downloadAsCbz
+      maxSourcesInParallel
+      autoDownloadNewChapters
+      autoDownloadNewChaptersLimit
+      excludeEntryWithUnreadChapters
+      autoDownloadIgnoreReUploads
+    }
+  }
+}
