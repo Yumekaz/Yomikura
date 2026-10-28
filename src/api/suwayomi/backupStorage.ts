@@ -1,5 +1,7 @@
 import { isTauri } from "../../stores/useSettingsStore";
 import { normalizeCacheServerUrl } from "./offlineCache";
+import { progressBackend } from "./backendIdentity";
+import { captureNoteExport, parseNoteExport } from "../../features/manga/notePortability";
 
 export const MAX_LIBRARY_BACKUP_BYTES = 512 * 1024 * 1024;
 export const BACKUPS_CHANGED_EVENT = "yomikura-library-backups-changed";
@@ -17,6 +19,8 @@ export type LibraryBackup = {
   size: number;
   sha256: string | null;
   storage: "browser" | "native";
+  /** Device drafts travel beside the server archive, without changing its format. */
+  notesSnapshot?: string;
 };
 type BrowserBackup = LibraryBackup & { blob: Blob; verified: boolean };
 
@@ -86,6 +90,7 @@ function validateRecord(value: unknown): LibraryBackup {
     || (record.sha256 !== null && !/^[a-f0-9]{64}$/.test(record.sha256))) {
     throw new LibraryBackupError("Saved backup information could not be read.");
   }
+  if (record.notesSnapshot !== undefined) parseNoteExport(record.notesSnapshot);
   return record;
 }
 
@@ -93,7 +98,7 @@ function metadata(record: LibraryBackup): LibraryBackup {
   return {
     id: record.id, serverBaseUrl: record.serverBaseUrl, fileName: record.fileName,
     purpose: record.purpose, createdAt: record.createdAt, size: record.size,
-    sha256: record.sha256, storage: record.storage,
+    sha256: record.sha256, storage: record.storage, notesSnapshot: record.notesSnapshot,
   };
 }
 
@@ -145,10 +150,14 @@ export async function saveLibraryBackup(serverBaseUrl: string, bytes: Uint8Array
   const createdAt = Date.now();
   const suffix = globalThis.crypto?.randomUUID?.() ?? `${createdAt.toString(36)}-${Math.random().toString(36).slice(2)}`;
   const id = `backup-${suffix}`;
+  let notesSnapshot: string;
+  try { notesSnapshot = await captureNoteExport(progressBackend(server)); }
+  catch (error) { throw new LibraryBackupError("Device notes could not be included in the safety snapshot. Check note storage or export your notes separately before retrying.", { cause: error }); }
   const record: LibraryBackup = {
     id, serverBaseUrl: server, purpose, createdAt, size: bytes.length,
     fileName: `yomikura-${purpose}-${new Date(createdAt).toISOString().replace(/[:.]/g, "-")}-${suffix.slice(-8)}.tachibk`,
     sha256: await checksum(bytes), storage: isTauri() ? "native" : "browser",
+    notesSnapshot,
   };
   try {
     if (record.storage === "native") {
@@ -173,6 +182,7 @@ export async function saveLibraryBackup(serverBaseUrl: string, bytes: Uint8Array
       try {
         const saved = await databaseRequest<BrowserBackup>("readonly", (store) => store.get(id));
         verifyWrittenBytes(bytes, new Uint8Array(await saved.blob.arrayBuffer()));
+        if (saved.notesSnapshot !== record.notesSnapshot) throw new LibraryBackupError("The note snapshot could not be verified. No complete backup was confirmed.");
         await databaseRequest("readwrite", (store) => store.put({ ...record, blob: saved.blob, verified: true } satisfies BrowserBackup));
       } catch (error) {
         // Remove only this operation's uncommitted candidate, never an existing recovery copy.

@@ -6,13 +6,14 @@ const backend = "http://127.0.0.1:45677";
 const chapter = (id: number, mangaId: number, number: number, state = {}) => ({ id, mangaId, name: number === 1 ? "Chapter One" : "Chapter Two", chapterNumber: number, sourceOrder: number, pageCount: 10,
   isRead: false, isBookmarked: false, lastPageRead: 0, isDownloaded: false, uploadDate: "2026-10-23T10:00:00Z", scanlator: "Fixture", ...state });
 
-async function fixture(page: Page, options: { empty?: boolean; ambiguous?: boolean; changedPages?: boolean; fail?: boolean; duplicates?: boolean } = {}) {
+async function fixture(page: Page, options: { empty?: boolean; ambiguous?: boolean; changedPages?: boolean; fail?: boolean; duplicates?: boolean; notes?: boolean } = {}) {
   const titles = new Map([
     [1, { id: 1, title: "Migration fixture", inLibrary: true, sourceId: "fixture-source", categories: [5], chapters: [chapter(101, 1, 1, { isRead: true }), chapter(102, 1, 2, { isBookmarked: true, lastPageRead: 3 })] }],
     [2, { id: 2, title: options.duplicates ? "Migration fixture" : "Migration destination", inLibrary: !!options.duplicates, sourceId: "fixture-source", categories: [8], chapters: options.empty ? [] : [chapter(201, 2, 1, options.ambiguous ? { name: "Release A" } : {}), chapter(202, 2, 2, { pageCount: options.changedPages ? 20 : 10 })] }],
   ]);
   if (options.ambiguous) titles.get(2)!.chapters.push(chapter(203, 2, 1, { name: "Release B" }));
   const events: string[] = [];
+  const notes = new Map<number, string>(options.notes ? [[1, "Original thought"], [2, "Destination thought"]] : []);
   const pagination: { mangaId: number; after?: string }[] = [];
   let failing = !!options.fail;
   await page.addInitScript(({ backend }) => {
@@ -24,7 +25,9 @@ async function fixture(page: Page, options: { empty?: boolean; ambiguous?: boole
     const name = operationName || /\b(?:query|mutation)\s+(\w+)/.exec(query)?.[1] || "ConnectionTest";
     const id = variables.id ?? variables.input?.id ?? variables.input?.mangaId;
     let data: unknown;
-    if (name === "GetMangaDetails") {
+    if (name === "GetMangaNotes") data = { manga: { id, meta: [{ key: "yomikura.notes.v1", value: notes.get(id) ?? "" }] } };
+    else if (name === "SaveMangaNote") { const meta = variables.input.meta; notes.set(meta.mangaId, meta.value); events.push(`notes:${meta.mangaId}`); data = { setMangaMeta: { meta } }; }
+    else if (name === "GetMangaDetails") {
       const base = await mockSdk.GetMangaDetails({ id }); const value = titles.get(id)!;
       data = { manga: { ...base.manga, id, title: value.title, inLibrary: value.inLibrary, source: { name: "Fixture source" }, categories: { nodes: value.categories.map((id) => ({ id })) }, chapters: { nodes: value.chapters } } };
     } else if (name === "GetSources") data = { sources: { totalCount: 1, nodes: [{ id: "fixture-source", name: "Fixture source", lang: "en", extension: { isInstalled: true } }] } };
@@ -58,7 +61,7 @@ async function fixture(page: Page, options: { empty?: boolean; ambiguous?: boole
     await route.fulfill({ json: { data } });
   });
   await page.route("https://images.unsplash.com/**", (route) => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="150"/>' }));
-  return { titles, events, pagination, allowCopy: () => { failing = false; } };
+  return { titles, events, notes, pagination, allowCopy: () => { failing = false; } };
 }
 
 async function review(page: Page) {
@@ -93,6 +96,17 @@ test("replacement happens only after every selected transfer is confirmed", asyn
   await dialog.getByRole("button", { name: "Copy and replace original", exact: true }).click();
   await expect(dialog.getByRole("heading", { name: "Selected progress and categories verified", exact: true })).toBeVisible();
   expect(data.events[data.events.length - 1]).toBe("library:1:false"); expect(data.titles.get(1)!.inLibrary).toBe(false);
+});
+
+test("migration reviews both notes and confirms their copy before replacing the original", async ({ page }) => {
+  const data = await fixture(page, { notes: true }); const dialog = await review(page);
+  await dialog.getByText("Notes to keep with the destination", { exact: true }).click();
+  await expect(dialog).toContainText("Original thought"); await expect(dialog).toContainText("Destination thought");
+  await dialog.getByRole("checkbox", { name: "Replace original in library", exact: true }).check();
+  await dialog.getByRole("button", { name: "Copy and replace original", exact: true }).click();
+  await expect(dialog.getByRole("heading", { name: "Selected progress and categories verified", exact: true })).toBeVisible();
+  expect(data.notes.get(2)).toContain("Original thought"); expect(data.notes.get(2)).toContain("Destination thought");
+  expect(data.notes.get(1)).toBe("Original thought"); expect(data.events.indexOf("notes:2")).toBeLessThan(data.events.indexOf("library:1:false"));
 });
 
 test("the user can select a partial copy while replacement remains disabled", async ({ page }) => {

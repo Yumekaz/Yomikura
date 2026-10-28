@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { IDBFactory } from "fake-indexeddb";
+import { bookNoteScope, getBookNoteDraft, saveBookNoteDraft } from "../../features/manga/bookNoteStorage";
 import { progressBackend } from "../../api/suwayomi/backendIdentity";
 import { getProgressHeads } from "../../api/suwayomi/progressStorage";
 import { writeChapterProgress } from "../../api/suwayomi/progressSync";
@@ -6,6 +8,7 @@ import { canReplaceMigration, executeMangaMigration, MigrationError, prepareMang
 
 const mocks = vi.hoisted(() => ({ settings: { serverBaseUrl: "http://fixture.example", mockMode: false }, sdk: {
   RefreshMigrationTarget: vi.fn(), GetMigrationManga: vi.fn(), GetMigrationChapters: vi.fn(), ToggleMangaLibrary: vi.fn(), UpdateMangaCategories: vi.fn(),
+  GetMangaNotes: vi.fn(), SaveMangaNote: vi.fn(),
 } }));
 vi.mock("../../api/graphql/client", () => ({ createGraphqlClient: vi.fn(() => mocks.sdk) }));
 vi.mock("../../stores/useSettingsStore", () => ({ useSettingsStore: { getState: () => mocks.settings } }));
@@ -16,9 +19,13 @@ const backend = progressBackend("http://fixture.example");
 const chapter = (id: number, mangaId: number, number: number, state = {}) => ({ id, mangaId, name: `Chapter ${number}`, chapterNumber: number, sourceOrder: number, pageCount: 10, isRead: false, isBookmarked: false, lastPageRead: 0, ...state });
 let titles: Map<number, { id: number; title: string; sourceId: string; inLibrary: boolean; categories: { edges: { node: { id: number } }[] }; chapters: ReturnType<typeof chapter>[] }>;
 let events: string[];
+let notes: Map<number, string>;
 const selected = () => new Set([101, 102]);
 beforeEach(() => {
   vi.resetAllMocks(); mocks.settings.serverBaseUrl = backend.serverBaseUrl; mocks.settings.mockMode = false; events = [];
+  vi.stubGlobal("indexedDB", new IDBFactory()); notes = new Map();
+  mocks.sdk.GetMangaNotes.mockImplementation(async ({ id }) => ({ manga: { id, meta: [{ key: "yomikura.notes.v1", value: notes.get(id) ?? "" }] } }));
+  mocks.sdk.SaveMangaNote.mockImplementation(async ({ input }) => { notes.set(input.meta.mangaId, input.meta.value); return { setMangaMeta: { meta: input.meta } }; });
   titles = new Map([
     [1, { id: 1, title: "Original", sourceId: "old", inLibrary: true, categories: { edges: [{ node: { id: 0 } }, { node: { id: 5 } }] }, chapters: [chapter(101, 1, 1, { isRead: true }), chapter(102, 1, 2, { isBookmarked: true, lastPageRead: 3 })] }],
     [2, { id: 2, title: "Destination", sourceId: "new", inLibrary: false, categories: { edges: [{ node: { id: 8 } }] }, chapters: [chapter(201, 2, 1), chapter(202, 2, 2)] }],
@@ -45,8 +52,29 @@ beforeEach(() => {
     events.push(`progress:${id}`); Object.assign(titles.get(2)!.chapters.find((item) => item.id === id)!, patch); return { acknowledged: true };
   });
 });
+afterEach(() => vi.unstubAllGlobals());
 
 describe("migration review and safety", () => {
+  it("merges existing notes and an unsynced original draft before removing the original", async () => {
+    notes.set(1, "Original thought"); notes.set(2, "Destination thought");
+    await saveBookNoteDraft({ key: bookNoteScope(backend, 1, "Original"), value: "Device thought", base: "Original thought", pending: true, revision: "draft" });
+    const review = await prepareMangaMigration(backend, 1, 2);
+    expect(review.notes.value).toContain("Destination thought"); expect(review.notes.value).toContain("Device thought");
+    await executeMangaMigration(review, selected(), "replace");
+    expect(notes.get(1)).toBe("Original thought"); expect(notes.get(2)).toBe(review.notes.value);
+    expect(await getBookNoteDraft(bookNoteScope(backend, 2, "Destination"))).toMatchObject({ value: review.notes.value, pending: false });
+    expect(titles.get(1)!.inLibrary).toBe(false);
+  });
+  it("keeps the original when its note changes after review or the copy is unconfirmed", async () => {
+    notes.set(1, "Original thought"); let review = await prepareMangaMigration(backend, 1, 2); notes.set(1, "New thought");
+    await expect(executeMangaMigration(review, selected(), "replace")).rejects.toThrow("notes changed");
+    expect(titles.get(1)!.inLibrary).toBe(true);
+    review = await prepareMangaMigration(backend, 1, 2);
+    mocks.sdk.SaveMangaNote.mockResolvedValueOnce({ setMangaMeta: { meta: { mangaId: 2, key: "yomikura.notes.v1", value: "" } } });
+    await expect(executeMangaMigration(review, selected(), "replace")).rejects.toThrow("did not confirm");
+    expect(titles.get(1)!.inLibrary).toBe(true);
+    expect(await getBookNoteDraft(bookNoteScope(backend, 2, "Destination"))).toMatchObject({ value: "New thought", pending: true });
+  });
   it("refreshes destination data and loads every chapter page before review, without changing membership", async () => {
     mocks.sdk.GetMigrationChapters.mockImplementation(async ({ mangaId, after }) => {
       const chapters = titles.get(mangaId)!.chapters;

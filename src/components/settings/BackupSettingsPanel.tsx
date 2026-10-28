@@ -3,6 +3,7 @@ import type { ChangeEvent } from "react";
 import { Download, Layout, Loader2, Upload } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { SavedBackupsPanel } from "./SavedBackupsPanel";
+import { NotePortabilityPanel } from "./NotePortabilityPanel";
 
 export type BackupMessage = {
   kind: "success" | "error" | "info";
@@ -107,6 +108,7 @@ export function BackupSettingsPanel({
 
       <button type="button" onClick={exportLibraryCsv} className="yomi-button yomi-button-secondary w-full sm:w-auto">Export library list as CSV</button>
       <SavedBackupsPanel busy={creatingBackup || restoringBackup} onRestore={restoreSavedBackup} />
+      <NotePortabilityPanel />
     </div>
   );
 }

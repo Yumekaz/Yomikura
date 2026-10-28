@@ -5,9 +5,10 @@ import { getProgressHeads } from "../../api/suwayomi/progressStorage";
 import { progressChapterIdentity, synchronizeProgress, writeChapterProgress } from "../../api/suwayomi/progressSync";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { hasChapterState, reviewChapterMigration, runWithConcurrency, type ChapterMapping } from "./chapterMigration";
+import { copyMigrationNotes, loadMigrationNotes, verifyMigrationSourceNote, type MigrationNotes } from "./noteMigration";
 
 export type MigrationTitle = GetMigrationMangaQuery["manga"] & { chapters: GetMigrationChaptersQuery["chapters"]["nodes"] };
-export type MigrationReview = { backend: ProgressBackend; source: MigrationTitle; target: MigrationTitle; rows: ChapterMapping[] };
+export type MigrationReview = { backend: ProgressBackend; source: MigrationTitle; target: MigrationTitle; rows: ChapterMapping[]; notes: MigrationNotes };
 export type MigrationResult = { mode: "copy" | "replace"; selected: number; targetId: number; originalId: number };
 export class MigrationError extends Error {
   constructor(message: string, public original: "unchanged" | "unknown" = "unchanged") { super(message); this.name = "MigrationError"; }
@@ -75,7 +76,8 @@ export async function prepareMangaMigration(backend: ProgressBackend, sourceId: 
   const target = await loadTitle(backend, targetId);
   if (options.expectedSourceTitle !== undefined && source.title !== options.expectedSourceTitle) throw new MigrationError("The original title changed. Reopen its details before migrating.");
   if (options.expectedTargetSource !== undefined && String(target.sourceId) !== options.expectedTargetSource) throw new MigrationError("The destination no longer belongs to the selected source. Choose it again.");
-  return { backend, source, target, rows: reviewChapterMigration(source.chapters, target.chapters) };
+  const notes = await loadMigrationNotes(backend, source, target); assertBackend(backend);
+  return { backend, source, target, notes, rows: reviewChapterMigration(source.chapters, target.chapters) };
 }
 
 export function canReplaceMigration(review: MigrationReview, selected: ReadonlySet<number>) {
@@ -134,7 +136,9 @@ export async function executeMangaMigration(review: MigrationReview, selected: R
       if (!chapter || row.source.isRead && !chapter.isRead || row.source.isBookmarked && !chapter.isBookmarked
         || positionRequired && !chapter.isRead && (!Number.isSafeInteger(chapter.lastPageRead) || chapter.lastPageRead >= chapter.pageCount || chapter.lastPageRead < row.source.lastPageRead)) throw new MigrationError("Some copied chapter state was not confirmed. The copy can be retried.");
     }
+    await copyMigrationNotes(backend, source, target, review.notes, () => assertBackend(backend));
     if (mode === "replace") {
+      await verifyMigrationSourceNote(backend, source, review.notes); assertBackend(backend);
       const current = await loadTitle(backend, source.id);
       if (snapshot(current) !== snapshot(source)) throw new MigrationError("The original progress changed during copying. Keep the original and refresh the review.");
       assertBackend(backend);

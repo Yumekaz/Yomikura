@@ -25,7 +25,7 @@ Validation for this batch: 347 unit tests, 30 targeted browser tests, applicatio
 
 Implemented source-link opening/copying, an explicit metadata-and-chapter refresh, expandable synopsis, and a compact sticky first-unread Resume action. Chapter menus support right-click and Shift+F10 with arrow-key navigation. Touch swipes provide read/unread and bookmark shortcuts; normal rows keep selection controls out of the way.
 
-Book notes retain device drafts in a dedicated IndexedDB store, scoped to backend, mode and book identity. Sync uses Suwayomi manga metadata under `yomikura.notes.v1`; an independently changed server note requires explicit review. A late response cannot acknowledge a newer device draft. Local drafts are separate from Suwayomi's backup format and currently require their own export for portability.
+Book notes retain device drafts in a dedicated IndexedDB store, scoped to backend, mode and book identity. Sync uses Suwayomi manga metadata under `yomikura.notes.v1`; an independently changed server note requires explicit review. A late response cannot acknowledge a newer device draft.
 
 Bookmark edits now use the durable progress outbox. Confirmation checks the bookmark value returned by Suwayomi, and replay preserves read state, reader reset fences and pending tracker completion. Bookmark-only operations do not manufacture reading history or invalidate an active reader's progress epoch.
 
@@ -72,6 +72,16 @@ Mihon evidence: `domain/download/service/DownloadPreferences.kt` and `ui/reader/
 ## Request transport and performance
 
 Generated queries remain transport strings instead of eagerly parsed document nodes. A small Fetch transport now handles this application's generated requests, merged headers, strict GraphQL errors and cancellation from either the client or operation. This removes the unused runtime AST parser and reduces shipped JavaScript by about 50 KB in this batch. Every named operation and embedded fragment is parsed in a regression check, and the SDK was checked against the isolated live server. No build budget was relaxed. 399 unit tests, 23 browser checks, strict browser-spec types and the production build/budget passed. A previous generator string-mode experiment failed its runtime check and was replaced before committing.
+
+## Note portability and migration
+
+Device notes have JSON export/import, including unsynced drafts and backend/mode isolation. Imports validate the entire file, verify each book's ID and title against the selected library, and add drafts in one transaction. Existing device notes are kept. Imported drafts require deliberate synchronization, preserving independently changed server notes for review.
+
+New library backups retain a note snapshot beside the server archive, verified with their device storage write. The archive format stays unchanged. Saved backups can export the snapshot or add missing notes after book identities are checked; existing notes are never silently rolled back. Library backup downloads and note exports are separate files. Older backups remain usable without a note snapshot.
+
+Migration reviews the combined destination note, preserving different source/destination notes and unsynced conflicting versions. Revision checks detect edits after review, and a confirmed note copy is required before original membership is removed. Original notes remain with their book. The backend metadata API lacks an atomic conditional update, so other-client writes during the final request remain a backend concurrency constraint.
+
+Validation: 407 unit tests and 22 related browser checks passed, including backup/restart recovery, note exports/snapshots/import identity checks, note-aware migration and existing chapter actions. Production build/budget passed. Native export-folder and long-image work continue separately.
 
 ## Remaining implementation
 
