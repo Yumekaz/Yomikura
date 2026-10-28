@@ -33,8 +33,6 @@ Mihon evidence: `ui/manga/MangaScreen.kt`, `ui/manga/notes/MangaNotesScreen.kt`,
 
 Validation: 355 unit tests, production build, strict browser-spec typechecking and bundle budget passed. The 19 related browser cases were exercised, including five new comic-action checks; all five passed the final focused run. Earlier attempts retained selector/timing failures and one startup-port conflict. Existing restart/profile/reset conflict checks also passed. Full-suite and actual-server/native follow-up remain separate gates.
 
-## Remaining implementation
-
 ## Reader display and navigation
 
 Implemented independent skip-read, skip-filtered and duplicate-edition policies, retaining the directly opened chapter and preferring its scanlator. Unnumbered extras stay distinct. Display preferences include reader background, optional persistent page number, mode/tap guidance, configurable navigation zones/inversion, scroll-based control hiding and a vertical page navigator.
@@ -52,5 +50,7 @@ Mihon source evidence: `ui/reader/ReaderViewModel.kt`, `ui/reader/setting/Reader
 Validation: 363 unit tests, production build/budget, strict browser-spec typechecking, 19 Rust tests and all-target Clippy passed. All 44 related browser cases were verified across final and focused runs; the eight continuity cases also passed three consecutive runs (24 checks). Checks include detected cropping, zoom/pan, both spread modes, last-image completion, fullscreen restoration, page export, page navigation, preferences/reload, light/dark accessibility and wake-lock cleanup. Native fullscreen/wake behavior still requires the fresh-profile runtime gate; unit tests alone do not establish it.
 
 ## Remaining implementation
+
+The generated SDK now uses `graphql-request`'s existing lightweight `gql` helper. Queries remain transport strings instead of being eagerly parsed into document nodes. Every named operation and embedded fragment is parsed in a regression check, and the SDK was checked against the isolated live server. This removes startup parsing; the bundle reduction is modest (1,949 JavaScript bytes), and no build budget was relaxed. 364 unit tests and the production build/budget passed. A generator string-mode experiment failed its runtime check and was replaced before committing.
 
 Download/cleanup and data-portability policies, update scheduling/statistics, privacy/tracking and desktop-specific equivalents are still being compared and implemented. Source contracts and platform/hardware limitations remain explicit. The full 50-screen work is not yet complete.

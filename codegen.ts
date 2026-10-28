@@ -21,6 +21,7 @@ const config: CodegenConfig = {
         withHooks: false,
         withHOC: false,
         withComponent: false,
+        gqlImport: 'graphql-request#gql',
       }
     }
   }
