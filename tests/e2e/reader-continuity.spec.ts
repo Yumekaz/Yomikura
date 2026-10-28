@@ -112,6 +112,21 @@ test("cold webtoon restore and thumbnail jumps position real images with delayed
   await page.screenshot({ path: info.outputPath("webtoon-restored-and-resized.png") });
 });
 
+test("offscreen pages retain their measured height through cached remounts", async ({ page }) => {
+  await fixture(page, { saved: 2 });
+  const wrapper = page.locator('[data-reader-chapter="12"][data-reader-page="2"]');
+  await expect(fullPage(page, 12, 2)).toHaveCSS("opacity", "1");
+  const height = (await wrapper.boundingBox())!.height;
+  await page.getByRole("button", { name: "Go to page 4", exact: true }).click();
+  await expect(fullPage(page, 13, 0)).toHaveCSS("opacity", "1");
+  await page.mouse.move(640, 400); await page.mouse.wheel(0, 2400);
+  await expect(wrapper.locator("img")).toHaveCount(0);
+  expect(Math.abs((await wrapper.boundingBox())!.height - height)).toBeLessThan(2);
+  await wrapper.scrollIntoViewIfNeeded(); await expect(fullPage(page, 12, 2)).toHaveCSS("opacity", "1");
+  expect(Math.abs((await wrapper.boundingBox())!.height - height)).toBeLessThan(2);
+  await expect(page.getByText("3 of 4 pages", { exact: true })).toBeVisible();
+});
+
 test("crossing an appended chapter updates controls, survives acknowledgement and reloads the active chapter", async ({ page }) => {
   const data = await fixture(page);
   await page.getByRole("button", { name: "Go to page 4", exact: true }).click();
@@ -178,6 +193,8 @@ test("offline continuation resolves appended chapters from the device cache", as
 test("moving backward after completion stays read when synchronization becomes unavailable", async ({ page }) => {
   const data = await fixture(page, { saved: 3 });
   await expect(fullPage(page, 12, 3)).toHaveCSS("opacity", "1");
+  // A restored position at the top of the last image is not its completion.
+  await page.mouse.move(640, 400); await page.mouse.wheel(0, 220);
   await expect.poll(() => data.records.get(12)!.read).toBe(true);
   await expect(page.getByRole("status", { name: "Progress synchronization" })).toHaveCount(0);
   data.setOnline(false);

@@ -1,7 +1,7 @@
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ChevronLeft, ChevronRight, Sliders, Settings, Play, Pause, Eye, BookOpen, RefreshCw } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Sliders, Settings, Play, Pause, Eye, BookOpen, RefreshCw, Maximize, Minimize } from "lucide-react";
 import { FitMode, PageSpread, ReaderMode, type ImageFilters, useSettingsStore } from "../../stores/useSettingsStore";
 import { useReaderImageSource } from "./useReaderImageSource";
 import { ProgressSyncStatus } from "../../components/ProgressSyncStatus";
@@ -12,6 +12,9 @@ function ReaderThumbnail({ url, number }: { url: string; number: number }) {
 }
 
 interface ReaderOverlayProps {
+  fullscreen?: boolean;
+  onToggleFullscreen?: () => void;
+  pageTools?: ReactNode;
   show: boolean;
   mangaId: number | undefined;
   chapterName: string;
@@ -44,6 +47,9 @@ interface ReaderOverlayProps {
 }
 
 export function ReaderOverlay({
+  fullscreen,
+  onToggleFullscreen,
+  pageTools,
   show,
   mangaId,
   chapterName,
@@ -100,7 +106,7 @@ export function ReaderOverlay({
             <span className="text-xs sm:text-sm font-semibold text-slate-200 line-clamp-1">{chapterName}</span>
           </div>
         </div>
-        <ProgressSyncStatus />
+        <div className="flex items-center gap-2"><ProgressSyncStatus />{pageTools}{onToggleFullscreen && <button type="button" className="yomi-icon-button" aria-label={fullscreen ? "Leave fullscreen" : "Enter fullscreen"} onClick={onToggleFullscreen}>{fullscreen ? <Minimize /> : <Maximize />}</button>}</div>
       </div>
 
       {/* Bottom Nav */}
@@ -237,12 +243,12 @@ export function ReaderOverlay({
             {activeSubTab === "filters" && (
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-300">Fixed page crop</span>
+                  <span className="text-xs font-semibold text-slate-300">Crop blank borders</span>
                   <button
                     type="button"
                     onClick={() => setCropBorders(!cropBorders)}
-                    aria-label="Fixed page crop"
-                    aria-describedby="fixed-crop-description"
+                    aria-label="Crop blank borders"
+                    aria-describedby="border-crop-description"
                     aria-pressed={cropBorders}
                     className={`relative inline-flex h-5.5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                       cropBorders ? "bg-yomi-jade" : "bg-ink-950 border-white/10"
@@ -256,7 +262,7 @@ export function ReaderOverlay({
                   </button>
                 </div>
 
-                <p id="fixed-crop-description" className="text-xs text-slate-400">Magnifies every page by 12% and clips its edges. Turn it off to show the full artwork.</p>
+                <p id="border-crop-description" className="text-xs text-slate-400">Removes detected blank edges. Pages that cannot be checked stay intact.</p>
                 {/* Grayscale Slider */}
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between text-xs text-slate-400">

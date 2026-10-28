@@ -78,9 +78,9 @@ describe("reader image visibility ownership", () => {
     </>);
     const images = view.container.querySelectorAll("img");
     expect(observations).toHaveLength(2);
-    expect(observations[0].target).toBe(images[0].parentElement);
-    expect(observations[1].target).toBe(images[1].parentElement);
-    expect(images[0].parentElement!.id).not.toBe(images[1].parentElement!.id);
+    expect(observations[0].target).toBe(images[0].closest('[id^="reader-page-"]'));
+    expect(observations[1].target).toBe(images[1].closest('[id^="reader-page-"]'));
+    expect(observations[0].target!.id).not.toBe(observations[1].target!.id);
     await act(async () => intersect(observations[1]));
     expect(second).toHaveBeenCalledWith(0);
     expect(first).not.toHaveBeenCalled();

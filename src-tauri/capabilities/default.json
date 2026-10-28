@@ -8,6 +8,7 @@
   "permissions": [
     "core:default",
     "core:window:allow-set-theme",
+    "core:window:allow-set-fullscreen",
     "fs:default",
     {
       "identifier": "fs:allow-write-text-file",

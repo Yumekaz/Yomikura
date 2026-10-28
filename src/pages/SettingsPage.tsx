@@ -42,6 +42,7 @@ import { progressBackend } from "../api/suwayomi/backendIdentity";
 
 type SettingsTab = SettingsSection;
 const SETTINGS_TABS: SettingsTab[] = ["appearance", "reader", "browse", "offline", "backup", "connection", "advanced", "about"];
+const SETTINGS_TAB_LABELS: Record<SettingsTab, string> = { appearance: "Appearance", reader: "Reader", browse: "Browsing", offline: "Storage", backup: "Backups", connection: "Connection", advanced: "Advanced", about: "About" };
 
 function SettingsPage() {
   const navigate = useNavigate();
@@ -367,7 +368,7 @@ function SettingsPage() {
                   : ""
               }`}
             >
-              {tab === "appearance" ? "Appearance" : tab === "offline" ? "Storage" : tab}
+              {SETTINGS_TAB_LABELS[tab]}
             </button>
           ))}
         </div>

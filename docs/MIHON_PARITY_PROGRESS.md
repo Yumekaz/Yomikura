@@ -35,4 +35,22 @@ Validation: 355 unit tests, production build, strict browser-spec typechecking a
 
 ## Remaining implementation
 
-Reader display/navigation/page tools, download/cleanup policies, update scheduling/statistics, privacy/tracking and desktop-specific equivalents are still being compared and implemented. The full 50-screen work is not yet complete.
+## Reader display and navigation
+
+Implemented independent skip-read, skip-filtered and duplicate-edition policies, retaining the directly opened chapter and preferring its scanlator. Unnumbered extras stay distinct. Display preferences include reader background, optional persistent page number, mode/tap guidance, configurable navigation zones/inversion, scroll-based control hiding and a vertical page navigator.
+
+Pages support double-click zoom, Ctrl-wheel zoom, dragging, quarter-turn rotation and wide-page treatment. Paged spreads can be read as two halves; vertical reading can stack the halves. Splitting preserves Suwayomi's physical page numbers. The first half cannot complete the final page. Vertical reading saves position on reaching a final image and completes at its end, while retaining previous completion on rereads.
+
+The former fixed 12% crop was replaced by conservative detection of uniform blank edges on a small image sample. Images that cannot be inspected remain intact. Global defaults and existing per-book overrides are retained. Page tools include original-image download, source-image opening and rotation. Per-title native export folders remain in the storage batch.
+
+Fullscreen restores the previous reading-window ownership on exit. Standard browser wake locks and a Windows native wake worker are implemented; the Windows worker uses independent, expiring reader leases and refuses to keep a hidden/minimized window awake. Other desktop WebViews can use their standard wake capability. A bounded optional refresh flash is provided for e-ink users; physical e-ink ghosting has not been measured.
+
+Cached image dimensions are associated with their URL, and virtualized reading-strip pages reserve their last measured content height while remounting. Regression checks caught and fixed a temporary-height collapse that could shift the current chapter after a scroll. Earlier failed attempts and synthetic geometry journals remain private.
+
+Mihon source evidence: `ui/reader/ReaderViewModel.kt`, `ui/reader/setting/ReaderPreferences.kt`, and `util/chapter/ChapterRemoveDuplicates.kt`. REA/JADX inspection of the compiled reader model confirmed the chapter-list, pending-progress and serialized-write members and preserved chapter-loading methods. This is static APK evidence, not Android runtime execution.
+
+Validation: 363 unit tests, production build/budget, strict browser-spec typechecking, 19 Rust tests and all-target Clippy passed. All 44 related browser cases were verified across final and focused runs; the eight continuity cases also passed three consecutive runs (24 checks). Checks include detected cropping, zoom/pan, both spread modes, last-image completion, fullscreen restoration, page export, page navigation, preferences/reload, light/dark accessibility and wake-lock cleanup. Native fullscreen/wake behavior still requires the fresh-profile runtime gate; unit tests alone do not establish it.
+
+## Remaining implementation
+
+Download/cleanup and data-portability policies, update scheduling/statistics, privacy/tracking and desktop-specific equivalents are still being compared and implemented. Source contracts and platform/hardware limitations remain explicit. The full 50-screen work is not yet complete.

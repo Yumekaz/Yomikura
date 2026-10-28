@@ -80,7 +80,7 @@ test("history and settings remain usable through real navigation", async ({ page
 
   await page.getByRole("link", { name: "Settings", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "advanced", exact: true }).click();
+  await page.getByRole("button", { name: "Advanced", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Developer and recovery tools", exact: true })).toBeVisible();
 });
 
@@ -95,7 +95,7 @@ test("downloads combines offline files and server activity", async ({ page }) =>
 test("dangerous settings actions use an accessible, cancellable dialog", async ({ page }) => {
   await enterDemo(page);
   await page.getByRole("link", { name: "Settings", exact: true }).click();
-  await page.getByRole("button", { name: "advanced", exact: true }).click();
+  await page.getByRole("button", { name: "Advanced", exact: true }).click();
   await page.getByRole("button", { name: "Reset settings", exact: true }).click();
   const dialog = page.getByRole("alertdialog", { name: "Reset all settings?" });
   await expect(dialog).toBeVisible();

@@ -1,8 +1,10 @@
+import { DEFAULT_READER_EXPERIENCE, normalizeReaderExperience, type ReaderExperience } from "./readerExperience";
 export type FilterChoice = "any" | "include" | "exclude";
 export type LibraryFilterName = "downloaded" | "unread" | "started" | "bookmarked" | "completed";
 export type LibraryFilterSet = Record<LibraryFilterName, FilterChoice>;
 export const EMPTY_LIBRARY_FILTERS: LibraryFilterSet = { downloaded: "any", unread: "any", started: "any", bookmarked: "any", completed: "any" };
 export interface ExperiencePreferences {
+  reader: ReaderExperience;
   sourcePins: Record<string, string[]>;
   recentSources: Record<string, string[]>;
   hideLibraryEntries: boolean;
@@ -11,7 +13,7 @@ export interface ExperiencePreferences {
   perCategorySort: boolean;
   categorySorts: Record<string, { mode: string; descending: boolean }>;
 }
-export const DEFAULT_EXPERIENCE: ExperiencePreferences = { sourcePins: {}, recentSources: {}, hideLibraryEntries: false, applyContentFilterToInstalled: false, libraryFilters: {}, perCategorySort: false, categorySorts: {} };
+export const DEFAULT_EXPERIENCE: ExperiencePreferences = { reader: DEFAULT_READER_EXPERIENCE, sourcePins: {}, recentSources: {}, hideLibraryEntries: false, applyContentFilterToInstalled: false, libraryFilters: {}, perCategorySort: false, categorySorts: {} };
 
 export function normalizeLibraryFilters(value?: Partial<LibraryFilterSet>): LibraryFilterSet {
   return Object.fromEntries(Object.keys(EMPTY_LIBRARY_FILTERS).map((key) => {
@@ -27,6 +29,7 @@ export function normalizeExperience(value: unknown): ExperiencePreferences {
   const input = value as Partial<ExperiencePreferences>;
   const ids = (map: unknown): Record<string, string[]> => !map || typeof map !== "object" ? {} : Object.fromEntries(Object.entries(map).filter(([, list]) => Array.isArray(list)).map(([key, list]) => [key, [...new Set((list as unknown[]).filter((item): item is string => typeof item === "string" && item.length > 0 && item.length < 100))]]));
   return { ...DEFAULT_EXPERIENCE, ...input,
+    reader: normalizeReaderExperience(input.reader),
     sourcePins: ids(input.sourcePins), recentSources: ids(input.recentSources),
     hideLibraryEntries: input.hideLibraryEntries === true, applyContentFilterToInstalled: input.applyContentFilterToInstalled === true,
     perCategorySort: input.perCategorySort === true,

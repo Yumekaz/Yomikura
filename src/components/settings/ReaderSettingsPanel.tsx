@@ -6,6 +6,7 @@ import { type ReaderMode, useSettingsStore } from "../../stores/useSettingsStore
 import { progressBackend, type ProgressBackend } from "../../api/suwayomi/backendIdentity";
 import { legacyMangaSettings } from "../../stores/mangaReaderSettings";
 import { useFeedback } from "../ui/FeedbackProvider";
+import { ReaderExperiencePanel } from "./ReaderExperiencePanel";
 
 export function ReaderSettingsPanel() {
   const { t } = useTranslation();
@@ -62,6 +63,7 @@ export function ReaderSettingsPanel() {
       <div className="mt-6 space-y-3 border-t border-white/10 pt-6"><label className="flex items-center gap-3 text-sm text-slate-300"><input type="checkbox" checked={store.infiniteChapterReading} onChange={(event) => store.setInfiniteChapterReading(event.target.checked)} />{t("infinite_reading")}</label><label className="flex items-center gap-3 text-sm text-slate-300"><input type="checkbox" checked={store.autoDeleteReadChapters} onChange={(event) => store.setAutoDeleteReadChapters(event.target.checked)} />{t("auto_delete_read")}</label></div>
     </section>
 
+    <ReaderExperiencePanel />
     <section className="rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-panel" aria-labelledby="reader-presets-title">
       <h2 id="reader-presets-title" className="flex items-center gap-2 text-lg font-semibold text-white"><Palette className="h-5 w-5 text-yomi-jade" />Reader layout presets</h2>
       <p className="mt-2 text-sm text-slate-400">Save and reuse combinations of mode, fit, and page spread.</p>

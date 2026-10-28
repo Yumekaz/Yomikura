@@ -6,7 +6,7 @@ type Anchor = ReaderCursor & { element: HTMLDivElement };
 const key = (chapterId: number, pageIndex: number) => `${chapterId}:${pageIndex}`;
 
 /** Stable wrapper anchors survive image virtualization and retain the owning chapter. */
-export function useWebtoonNavigation(enabled: boolean, onSelect: (cursor: ReaderCursor, ready: boolean) => void) {
+export function useWebtoonNavigation(enabled: boolean, onSelect: (cursor: ReaderCursor, ready: boolean, endVisible?: boolean) => void) {
   const anchors = useRef(new Map<string, Anchor>());
   const visible = useRef(new Set<string>());
   const states = useRef(new Map<string, LoadState>());
@@ -35,7 +35,7 @@ export function useWebtoonNavigation(enabled: boolean, onSelect: (cursor: Reader
     if (!selected) return;
     active.current = { chapterId: selected.chapterId, pageIndex: selected.pageIndex };
     fraction.current = Math.max(0, Math.min(1, (line - selected.rect.top) / Math.max(1, selected.rect.height)));
-    callback.current(active.current, states.current.get(key(selected.chapterId, selected.pageIndex)) === "ready");
+    callback.current(active.current, states.current.get(key(selected.chapterId, selected.pageIndex)) === "ready", selected.rect.bottom <= window.innerHeight + 2);
   }, []);
   const onLayout = useCallback(() => {
     layoutVersion.current += 1;
@@ -72,7 +72,7 @@ export function useWebtoonNavigation(enabled: boolean, onSelect: (cursor: Reader
         if (Math.abs(window.scrollY - Math.max(0, desired)) > 1) window.scrollTo({ top: Math.max(0, desired), behavior: "instant" });
         const current = anchor.element.getBoundingClientRect();
         const state = states.current.get(key(chapterId, pageIndex));
-        if (current.bottom > inset.current && current.top < window.innerHeight) callback.current({ chapterId, pageIndex }, state === "ready");
+        if (current.bottom > inset.current && current.top < window.innerHeight) callback.current({ chapterId, pageIndex }, state === "ready", current.bottom <= window.innerHeight + 2);
         const waitingBefore = [...anchors.current.values()].some((item) => states.current.get(key(item.chapterId, item.pageIndex)) === "loading"
           && !!(item.element.compareDocumentPosition(anchor.element) & Node.DOCUMENT_POSITION_FOLLOWING));
         request.stable = request.version === layoutVersion.current ? request.stable + 1 : 0;

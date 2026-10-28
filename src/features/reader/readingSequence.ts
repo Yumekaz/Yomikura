@@ -2,9 +2,10 @@ import { createGraphqlClient } from "../../api/graphql/client";
 import type { ProgressBackend } from "../../api/suwayomi/backendIdentity";
 import { getCachedChaptersForManga } from "../../api/suwayomi/offlineCache";
 import { getProgressHeads } from "../../api/suwayomi/progressStorage";
-import { readingPolicy, selectChapters, type ChapterPolicy, type PolicyChapter } from "../manga/chapterPolicy";
+import { type ChapterPolicy, type PolicyChapter } from "../manga/chapterPolicy";
+import { DEFAULT_SEQUENCE_CHOICES, selectReaderSequence, type ReaderSequenceChoices } from "./readerSequencePolicy";
 
-export async function loadReadingSequence(backend: ProgressBackend, mangaId: number, title: string, anchorId: number, policy: ChapterPolicy, signal?: AbortSignal) {
+export async function loadReadingSequence(backend: ProgressBackend, mangaId: number, title: string, anchorId: number, policy: ChapterPolicy, signal?: AbortSignal, choices: ReaderSequenceChoices = DEFAULT_SEQUENCE_CHOICES) {
   const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { signal }, backend.isDemo ? "demo" : "live");
   let chapters: (PolicyChapter & { mangaId: number })[] = [];
   let offline = false;
@@ -38,5 +39,5 @@ export async function loadReadingSequence(backend: ProgressBackend, mangaId: num
       ...(head.dirtyFields?.includes("isRead") ? { isRead: head.patch.isRead } : {}), ...(head.dirtyFields?.includes("lastPageRead") ? { lastPageRead: head.patch.lastPageRead } : {}),
       ...(head.patch.isBookmarked !== undefined ? { isBookmarked: head.patch.isBookmarked } : {}) } : chapter;
   });
-  return { chapters: selectChapters(desired, readingPolicy(policy), new Set(cached.map((chapter) => chapter.id)), anchorId).map((chapter) => ({ ...chapter, id: Number(chapter.id) })), offline };
+  return { chapters: selectReaderSequence(desired, policy, new Set(cached.map((chapter) => chapter.id)), anchorId, choices).map((chapter) => ({ ...chapter, id: Number(chapter.id) })), offline };
 }
