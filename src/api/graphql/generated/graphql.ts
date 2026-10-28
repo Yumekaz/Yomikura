@@ -5,7 +5,7 @@ type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
 /** Internal type. DO NOT USE DIRECTLY. */
 export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
 import { GraphQLClient, RequestOptions } from 'graphql-request';
-import { gql } from 'graphql-request';
+import { gql } from '../transport';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
 type GraphQLClientRequestHeaders = RequestOptions['requestHeaders'];
@@ -4595,6 +4595,13 @@ export type GetInstalledExtensionLangsQueryVariables = Exact<{ [key: string]: ne
 
 export type GetInstalledExtensionLangsQuery = { extensions: { totalCount: number, nodes: Array<{ pkgName: string, lang: string }> } };
 
+export type GetCleanupChapterContextQueryVariables = Exact<{
+  id: number;
+}>;
+
+
+export type GetCleanupChapterContextQuery = { chapter: { id: number, name: string, chapterNumber: number, sourceOrder: number, pageCount: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, mangaId: number, manga: { title: string, categories: { nodes: Array<{ id: number }> } } } };
+
 export type ConnectionTestQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -5226,6 +5233,29 @@ export const GetInstalledExtensionLangsDocument = gql`
     nodes {
       pkgName
       lang
+    }
+  }
+}
+    `;
+export const GetCleanupChapterContextDocument = gql`
+    query GetCleanupChapterContext($id: Int!) {
+  chapter(id: $id) {
+    id
+    name
+    chapterNumber
+    sourceOrder
+    pageCount
+    isRead
+    isBookmarked
+    isDownloaded
+    mangaId
+    manga {
+      title
+      categories {
+        nodes {
+          id
+        }
+      }
     }
   }
 }
@@ -5962,6 +5992,9 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetInstalledExtensionLangs(variables?: GetInstalledExtensionLangsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetInstalledExtensionLangsQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetInstalledExtensionLangsQuery>({ document: GetInstalledExtensionLangsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetInstalledExtensionLangs', 'query', variables);
+    },
+    GetCleanupChapterContext(variables: GetCleanupChapterContextQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetCleanupChapterContextQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetCleanupChapterContextQuery>({ document: GetCleanupChapterContextDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetCleanupChapterContext', 'query', variables);
     },
     ConnectionTest(variables?: ConnectionTestQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ConnectionTestQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<ConnectionTestQuery>({ document: ConnectionTestDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ConnectionTest', 'query', variables);

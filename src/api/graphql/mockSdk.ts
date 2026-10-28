@@ -418,6 +418,7 @@ const mockImpl: any = {
     return { chapters: { nodes, totalCount: nodes.length, pageInfo: { hasNextPage: false, endCursor: null } } };
   },
   async GetMangaNotes({ id }: any) { return { manga: { id, meta: [{ key: "yomikura.notes.v1", value: demoNotes.get(id) ?? "" }] } }; },
+  async GetCleanupChapterContext({ id }: any) { const { chapter } = await mockImpl.GetChapter({ id }); return { chapter: { ...chapter, isDownloaded: false, isBookmarked: demoBookmarks.get(id) ?? false, manga: { ...chapter.manga, categories: { nodes: [] } } } }; },
   async SaveMangaNote({ input }: any) { demoNotes.set(input.meta.mangaId, input.meta.value); return { setMangaMeta: { meta: input.meta } }; },
   async GetDownloadStatus() {
     return { downloadStatus: { state: "STOPPED", queue: [] } };

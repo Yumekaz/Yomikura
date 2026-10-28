@@ -1,8 +1,9 @@
 import { createGraphqlClient } from "../graphql/client";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { chapterIdentityMatches, progressBackend, type ChapterProgressIdentity, type ProgressBackend } from "./backendIdentity";
-import { deleteCachedChapter, getCachedChapter, getReadingHistory, hideReadingHistoryItem, recordReadingActivity, saveCachedChapter, type CachedChapter } from "./offlineCache";
+import { getCachedChapter, getReadingHistory, hideReadingHistoryItem, recordReadingActivity, saveCachedChapter, type CachedChapter } from "./offlineCache";
 import { acknowledgeProgress, acquireProgressLease, enqueueProgress, getProgressHead, getProgressHeads, getProgressOperations, markProgressOperation, observeChapterProgress, progressChanged, releaseProgressLease, type ProgressHead, type ProgressIntent, type ProgressOperation, type ProgressPatch } from "./progressStorage";
+import { queueDownloadCleanup, runDownloadCleanup } from "./downloadCleanup";
 
 type RemoteChapter = { id: number; name: string; chapterNumber: number; mangaId: number; sourceOrder: number; pageCount: number; isRead: boolean; lastPageRead: number; manga?: { title: string } | null };
 const inFlight = new Map<string, { promise: Promise<void>; rerun: boolean }>();
@@ -101,13 +102,12 @@ async function sendOperation(backend: ProgressBackend, operation: ProgressOperat
   progressChanged(backend);
   const latest = await getProgressHead(backend, operation.chapter.chapterId);
   if (latest) await mirrorProgress(latest).catch(() => undefined);
-  if (operation.deleteAfterAck && latest?.epoch === operation.epoch && latest.patch.isRead && isCurrentProgressBackend(backend)) {
-    // Capture the backend for both operations; deleteChapter() in the UI store resolves the current profile.
+  const manualCleanup = operation.kind === "explicit" && (operation.fields ?? ["isRead", "lastPageRead"]).includes("isRead") && operation.patch.isRead && useSettingsStore.getState().experience?.downloads?.removeAfterMarkedRead;
+  if ((operation.deleteAfterAck || manualCleanup) && latest?.epoch === operation.epoch && latest.patch.isRead && isCurrentProgressBackend(backend)) {
     try {
-      await client(backend).DeleteDownloadedChapter({ input: { id: operation.chapter.chapterId } });
-      await deleteCachedChapter(backend.serverBaseUrl, operation.chapter.chapterId, backend.isDemo);
-      progressChanged(backend);
-    } catch (error) { console.warn("Progress synchronized; automatic download removal did not finish.", error); }
+      await queueDownloadCleanup(backend, operation.chapter, operation.epoch, operation.sequence, operation.deleteAfterAck ? "automatic" : "manual");
+      void runDownloadCleanup(backend).catch(() => undefined);
+    } catch { console.warn("Progress synchronized; download removal was retained because its cleanup job could not be saved."); }
   }
 }
 

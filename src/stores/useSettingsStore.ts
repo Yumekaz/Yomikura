@@ -458,7 +458,10 @@ export const useSettingsStore = create<SettingsState>()(
 
       // Phase 3 actions implementation
       setLanguage: (lang) => set({ language: lang }),
-      setAutoDeleteReadChapters: (deleteChapters) => set({ autoDeleteReadChapters: deleteChapters }),
+      setAutoDeleteReadChapters: (deleteChapters) => {
+        set({ autoDeleteReadChapters: deleteChapters });
+        if (!deleteChapters) void import("../api/suwayomi/cleanupStorage").then(({ cancelCleanupJobs }) => cancelCleanupJobs("automatic")).catch(() => undefined);
+      },
       setHighContrastMode: (enabled) => set({ highContrastMode: enabled }),
       setReducedMotion: (enabled) => set({ reducedMotion: enabled }),
       setInfiniteChapterReading: (enabled) => set({ infiniteChapterReading: enabled }),
@@ -489,6 +492,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
       
       resetAllSettings: () => {
+        void import("../api/suwayomi/cleanupStorage").then(({ cancelCleanupJobs }) => cancelCleanupJobs()).catch(() => undefined);
         set({
           experience: { ...DEFAULT_EXPERIENCE },
           serverBaseUrl: DEFAULT_SERVER_BASE_URL,

@@ -4,26 +4,14 @@ import { getCachedChaptersForManga } from "../../api/suwayomi/offlineCache";
 import { getProgressHeads } from "../../api/suwayomi/progressStorage";
 import { type ChapterPolicy, type PolicyChapter } from "../manga/chapterPolicy";
 import { DEFAULT_SEQUENCE_CHOICES, selectReaderSequence, type ReaderSequenceChoices } from "./readerSequencePolicy";
+import { fetchReadingChapters } from "../../api/library/fetchReadingChapters";
 
 export async function loadReadingSequence(backend: ProgressBackend, mangaId: number, title: string, anchorId: number, policy: ChapterPolicy, signal?: AbortSignal, choices: ReaderSequenceChoices = DEFAULT_SEQUENCE_CHOICES) {
   const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { signal }, backend.isDemo ? "demo" : "live");
   let chapters: (PolicyChapter & { mangaId: number })[] = [];
   let offline = false;
   try {
-    let after: string | undefined; let expected: number | undefined; const cursors = new Set<string>(); const ids = new Set<number>();
-    for (;;) {
-      const connection = (await sdk.GetReadingChapters({ mangaId, after })).chapters;
-      if (expected !== undefined && expected !== connection.totalCount) throw new Error("The chapter list changed while loading. Retry continuation.");
-      expected = connection.totalCount;
-      for (const chapter of connection.nodes ?? []) {
-        if (!chapter || chapter.mangaId !== mangaId || ids.has(chapter.id)) throw new Error("The chapter list could not be confirmed. Retry continuation.");
-        ids.add(chapter.id); chapters.push({ ...chapter, uploadDate: String(chapter.uploadDate ?? "") });
-      }
-      if (!connection.pageInfo.hasNextPage) { if (chapters.length !== expected) throw new Error("The chapter list is incomplete. Retry continuation."); break; }
-      const cursor = connection.pageInfo.endCursor;
-      if (typeof cursor !== "string" || !cursor || cursors.has(cursor) || !connection.nodes?.length) throw new Error("Chapter pagination stopped making progress. Retry continuation.");
-      cursors.add(cursor); after = cursor;
-    }
+    chapters = (await fetchReadingChapters(sdk, mangaId, signal)).map((chapter) => ({ ...chapter, uploadDate: String(chapter.uploadDate ?? "") }));
   } catch (error) {
     if (signal?.aborted) throw error;
     const cached = await getCachedChaptersForManga(backend.serverBaseUrl, mangaId, backend.isDemo);

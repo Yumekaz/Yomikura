@@ -1,4 +1,4 @@
-import { ClientError } from "graphql-request";
+import { GraphqlError } from "../graphql/transport";
 
 export type SourceProblem = {
   title: string;
@@ -8,7 +8,7 @@ export type SourceProblem = {
 };
 
 function getDiagnosticMessage(error: unknown): string {
-  if (error instanceof ClientError) {
+  if (error instanceof GraphqlError) {
     const graphQlMessage = error.response.errors?.map((item) => item.message).join("; ");
     return graphQlMessage || error.message;
   }

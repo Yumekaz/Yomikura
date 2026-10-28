@@ -5,7 +5,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { getPendingTracking, getProgressHeads, getProgressOperations, recordTrackingResult, suppressEarlierTracking } from "./progressStorage";
 import { TrackingBusyError, withTrackingLock } from "./trackingCoordination";
 import { synchronizeProgress } from "./progressSync";
-import { ClientError } from "graphql-request";
+import { GraphqlError } from "../graphql/transport";
 
 export type TrackerSearchResult = SearchTrackerQuery["searchTracker"]["trackSearches"][number];
 export type BoundTrackerRecord = TrackerRecordFieldsFragment;
@@ -14,7 +14,7 @@ export class TrackingActionError extends Error {
 }
 export function trackingErrorMessage(error: unknown) {
   if (error instanceof TrackingActionError || error instanceof TrackingBusyError) return error.message;
-  if (error instanceof ClientError) {
+  if (error instanceof GraphqlError) {
     const detail = error.response.errors?.map((item) => item.message).join(" ");
     if (detail) return `Tracker request failed: ${detail}`;
   }

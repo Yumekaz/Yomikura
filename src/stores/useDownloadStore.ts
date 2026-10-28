@@ -7,6 +7,7 @@ import { buildSuwayomiPageUrl, resolveBackendUrl } from "../api/suwayomi/pageUrl
 import { getProgressHead } from "../api/suwayomi/progressStorage";
 import { DEFAULT_DOWNLOAD_EXPERIENCE } from "./downloadExperience";
 import { allowDeviceDownload, connectionInformation, waitForDownloadNetwork } from "../api/suwayomi/networkPolicy";
+import { validatePageBlob } from "../api/suwayomi/validatePageBlob";
 
 export interface DownloadProgress { progress: number; total: number; status: "queued" | "downloading" | "error" | "success"; attempts?: number; error?: string; waitingForNetwork?: boolean }
 interface DownloadState {
@@ -85,6 +86,7 @@ export function createDownloadStore() {
           const response = await fetchCachedPage(url, entry); check(entry);
           if (!response.ok) throw new Error(`Chapter page could not be downloaded (HTTP ${response.status}).`);
           const blob = await response.blob(); check(entry);
+          await validatePageBlob(blob, entry.controller.signal); check(entry);
           const headers = new Headers(response.headers); if (!headers.has("content-type")) headers.set("content-type", blob.type || "image/jpeg");
           // An incomplete retry cannot overwrite the bytes of an earlier complete copy.
           const storageUrl = new URL(url); storageUrl.searchParams.set("__yomi_cache_attempt", entry.token); storageUrl.searchParams.set("__yomi_cache_owner", entry.backend.key);

@@ -1,0 +1,6 @@
+query GetCleanupChapterContext($id: Int!) {
+  chapter(id: $id) {
+    id name chapterNumber sourceOrder pageCount isRead isBookmarked isDownloaded mangaId
+    manga { title categories { nodes { id } } }
+  }
+}

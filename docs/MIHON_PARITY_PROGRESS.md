@@ -49,8 +49,6 @@ Mihon source evidence: `ui/reader/ReaderViewModel.kt`, `ui/reader/setting/Reader
 
 Validation: 363 unit tests, production build/budget, strict browser-spec typechecking, 19 Rust tests and all-target Clippy passed. All 44 related browser cases were verified across final and focused runs; the eight continuity cases also passed three consecutive runs (24 checks). Checks include detected cropping, zoom/pan, both spread modes, last-image completion, fullscreen restoration, page export, page navigation, preferences/reload, light/dark accessibility and wake-lock cleanup. Native fullscreen/wake behavior still requires the fresh-profile runtime gate; unit tests alone do not establish it.
 
-## Remaining implementation
-
 ## Download controls and network policy
 
 Device copies now support a bounded parallel page loader (one page by default, up to six), retaining page order even when responses finish out of order. Queue metadata writes are serialized, and all page workers settle before failed/cancelled attempts are cleaned up. A bookmark changed during a download is retained in its saved metadata.
@@ -61,8 +59,20 @@ Library controls use supported Suwayomi settings for CBZ format, concurrent sour
 
 Validation: 373 unit tests, 24 related browser checks, typechecking and production build/budget passed. The live owned Suwayomi instance acknowledged format/concurrency changes and their restoration. Archive contents, native exports and cleanup policies are separate verification gates. Tall-image preprocessing is still pending; it is distinct from the implemented wide-page splitting.
 
-## Remaining implementation
+## Safe cleanup and complete offline copies
 
-The generated SDK now uses `graphql-request`'s existing lightweight `gql` helper. Queries remain transport strings instead of being eagerly parsed into document nodes. Every named operation and embedded fragment is parsed in a regression check, and the SDK was checked against the isolated live server. This removes startup parsing; the bundle reduction is modest (1,949 JavaScript bytes), and no build budget was relaxed. 364 unit tests and the production build/budget passed. A generator string-mode experiment failed its runtime check and was replaced before committing.
+Finished-download cleanup now has durable jobs, bookmark and collection exclusions (including uncategorized books), a delay and a retained completed-chapter count. Manual mark-read cleanup is separate from automatic reader completion; bookmark-only edits cannot trigger it. Jobs wait for acknowledged reading progress and refresh chapter identity, read state and collection metadata before removal. Explicit resets invalidate old jobs. Switching profiles, changing policy or bookmarking while removal is in flight retains the independent device copy. Disabling a cleanup policy cancels its pending jobs across profiles without deleting files or progress.
+
+The server API does not offer an atomic conditional delete: another client's edit after preflight can race a server removal. Local state is checked again after the request, and network/metadata failures keep the job and device copy for recovery. Local-source original archives are never passed to the server download-removal operation.
+
+Offline chapters are marked complete only after every image decodes, so an HTTP-success error page cannot become a saved chapter. Failed parallel attempts settle before cleanup and retain earlier complete copies. Storage settings show an unknown capacity honestly rather than inventing a quota; saved pages are described as device storage.
+
+Mihon evidence: `domain/download/service/DownloadPreferences.kt` and `ui/reader/ReaderViewModel.kt` (`deleteChapterIfNeeded`, retained chapter slots and bookmark policy). Validation: 392 unit tests and 16 browser checks passed for this batch, covering protection/races, delays, complete pagination, duplicate editions, error-page decoding, retry and profile isolation. Native and live removal remain separate gates.
+
+## Request transport and performance
+
+Generated queries remain transport strings instead of eagerly parsed document nodes. A small Fetch transport now handles this application's generated requests, merged headers, strict GraphQL errors and cancellation from either the client or operation. This removes the unused runtime AST parser and reduces shipped JavaScript by about 50 KB in this batch. Every named operation and embedded fragment is parsed in a regression check, and the SDK was checked against the isolated live server. No build budget was relaxed. 399 unit tests, 23 browser checks, strict browser-spec types and the production build/budget passed. A previous generator string-mode experiment failed its runtime check and was replaced before committing.
+
+## Remaining implementation
 
 Download/cleanup and data-portability policies, update scheduling/statistics, privacy/tracking and desktop-specific equivalents are still being compared and implemented. Source contracts and platform/hardware limitations remain explicit. The full 50-screen work is not yet complete.

@@ -15,6 +15,7 @@ import { useScheduledBackup } from "../../hooks/useScheduledBackup";
 import { useScheduledLibraryUpdate } from "../../hooks/useScheduledLibraryUpdate";
 import { getCachedChapters } from "../../api/suwayomi/offlineCache";
 import { useProgressSynchronization } from "../../hooks/useProgressSynchronization";
+import { useDownloadCleanup } from "../../hooks/useDownloadCleanup";
 import { ProgressSyncStatus } from "../ProgressSyncStatus";
 import { BrandLogo, SidebarCompanion, SanctuaryArt } from "../Brand";
 import { applyPalette } from "../../theme/palettes";
@@ -121,6 +122,7 @@ function AppShell() {
   useScheduledBackup();
   useScheduledLibraryUpdate();
   useProgressSynchronization();
+  useDownloadCleanup();
 
   useEffect(() => {
     if (!isTauri()) return;

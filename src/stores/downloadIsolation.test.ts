@@ -16,6 +16,8 @@ vi.mock("./useSettingsStore", () => ({ isTauri: () => mocks.native, useSettingsS
 } }));
 vi.mock("../api/graphql/client", () => ({ createGraphqlClient: (...args: unknown[]) => mocks.client(...args) }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => mocks.invoke(...args) }));
+// These tests exercise storage ownership with labelled byte fixtures. Decoder behavior has its own real-browser coverage.
+vi.mock("../api/suwayomi/validatePageBlob", () => ({ validatePageBlob: vi.fn(async () => undefined) }));
 
 const first = progressBackend("http://first.example"); const second = progressBackend("http://second.example");
 const liveUrl = (target = first, index = 0) => `${target.serverBaseUrl}/api/v1/manga/42/chapter/1/page/${index}`;

@@ -9,6 +9,7 @@ import type { DownloadExperience } from "../../stores/downloadExperience";
 import { isUnmetered } from "../../api/suwayomi/networkPolicy";
 import { useConnectionInformation } from "../../hooks/useConnectionInformation";
 import { ThemedSelect } from "../ui/ThemedSelect";
+import { CleanupSettingsPanel } from "./CleanupSettingsPanel";
 
 type LibraryDownloadPatch = Pick<PartialSettingsTypeInput, "downloadAsCbz" | "maxSourcesInParallel" | "autoDownloadNewChapters" | "autoDownloadNewChaptersLimit" | "excludeEntryWithUnreadChapters" | "autoDownloadIgnoreReUploads">;
 const stillSelected = (backend: ProgressBackend) => { try { const state = useSettingsStore.getState(); return progressBackend(state.serverBaseUrl, state.mockMode).key === backend.key; } catch { return false; } };
@@ -26,6 +27,7 @@ export function DownloadSettingsPanel() {
       {deviceCopies && <div className="yomi-preference-grid"><label className="yomi-preference-choice">Device chapters at once<ThemedSelect aria-label="Device chapters at once" value={store.downloadConcurrency} onValueChange={(value) => store.setDownloadConcurrency(Number(value))}>{[1, 2, 3, 4].map((count) => <option key={count} value={count}>{count}</option>)}</ThemedSelect></label><label className="yomi-preference-choice">Pages at once per device chapter<ThemedSelect aria-label="Pages at once per device chapter" value={preferences.pageConcurrency} onValueChange={(value) => patch({ pageConcurrency: Number(value) })}>{[1, 2, 3, 4, 5, 6].map((count) => <option key={count} value={count}>{count}</option>)}</ThemedSelect></label></div>}
       <div className="yomi-preference-grid"><label className="yomi-preference-choice">Download ahead while reading<ThemedSelect aria-label="Download ahead while reading" value={store.autoDownloadCount} onValueChange={(value) => store.setAutoDownloadCount(Number(value))}>{[0, 1, 3, 5, 10].map((count) => <option key={count} value={count}>{count === 0 ? "Disabled" : `${count} chapter${count === 1 ? "" : "s"}`}</option>)}</ThemedSelect></label></div><p className="!mb-0 text-xs">Download-ahead starts when the current chapter and the next one are already saved. It follows the chosen scanlator and duplicate-edition rules.</p>
     </section>
+    <CleanupSettingsPanel />
     <LibraryDownloadSettings />
   </div>;
 }

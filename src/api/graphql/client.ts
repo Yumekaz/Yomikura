@@ -1,10 +1,11 @@
-import { GraphQLClient } from "graphql-request";
+import type { GraphQLClient } from "graphql-request";
+import { LibraryGraphqlTransport, type GraphqlOptions } from "./transport";
 import { getSdk } from "./generated/graphql";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { validateServerBaseUrl } from "../../config/server";
 import { mockSdk } from "./mockSdk";
 
-type ClientOptions = ConstructorParameters<typeof GraphQLClient>[1];
+type ClientOptions = GraphqlOptions;
 
 // This is an unauthenticated client since Suwayomi typically relies on network access/CORS configuration
 export function createGraphqlClient(endpoint: string, options?: ClientOptions, mode?: "live" | "demo") {
@@ -38,8 +39,9 @@ export function createGraphqlClient(endpoint: string, options?: ClientOptions, m
   const validation = validateServerBaseUrl(baseUrl.toString());
   if (!validation.valid) throw new Error(validation.message);
 
-  const client = new GraphQLClient(endpoint, { ...options });
-  return getSdk(client);
+  // Codegen only calls request({ document, variables, requestHeaders, signal }).
+  // Its declared class also has unused administration methods; keep that adapter boundary here.
+  return getSdk(new LibraryGraphqlTransport(endpoint, options) as unknown as GraphQLClient);
 }
 
 

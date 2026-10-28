@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { GraphQLClient, gql } from "graphql-request";
+import { LibraryGraphqlTransport, gql } from "../../api/graphql/transport";
 import { ArrowLeft, Copy, ExternalLink, Loader2, Play, RefreshCw } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { applyCoverAccentFromImage, useCoverAccentEnabled } from "../../hooks/useCoverAccent";
@@ -150,7 +150,7 @@ export default function MangaDetailPage() {
       if (mockMode) {
         return { fetchChapters: null };
       }
-      const client = new GraphQLClient(graphqlEndpoint, { signal });
+      const client = new LibraryGraphqlTransport(graphqlEndpoint, { signal });
       return client.request<FetchChaptersResponse>(FETCH_CHAPTERS_DOCUMENT, {
         input: { mangaId: parseInt(mangaId!) },
       });

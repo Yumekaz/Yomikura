@@ -25,8 +25,8 @@ async function fixture(page: Page, options: { read?: boolean; pages?: number; sp
     const { query, variables = {}, operationName } = route.request().postDataJSON();
     const name = operationName || /\b(?:query|mutation)\s+(\w+)/.exec(query)?.[1] || "ConnectionTest";
     let data: unknown;
-    if (name === "GetChapter") {
-      data = { chapter: { id: 12, name: "Reader correctness fixture", chapterNumber: 1, isRead: read, lastPageRead, pageCount: count, sourceOrder: 1, mangaId: 10002, manga: { title: "Reader fixture", chapters: { edges: [{ node: { id: 12, chapterNumber: 1 } }] } } } };
+    if (name === "GetChapter" || name === "GetCleanupChapterContext") {
+      data = { chapter: { id: 12, name: "Reader correctness fixture", chapterNumber: 1, isRead: read, isBookmarked: false, isDownloaded: true, lastPageRead, pageCount: count, sourceOrder: 1, mangaId: 10002, manga: { title: "Reader fixture", categories: { nodes: [] }, chapters: { edges: [{ node: { id: 12, chapterNumber: 1 } }] } } } };
     } else if (name === "GetReadingChapters") {
       data = chapterConnection(10002, [{ id: 12, chapterNumber: 1, name: "Reader correctness fixture", isRead: read }]);
     } else if (name === "FetchChapterPages") {
