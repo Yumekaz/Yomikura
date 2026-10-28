@@ -15,6 +15,7 @@ import { getProgressHeads } from "../../api/suwayomi/progressStorage";
 import { useProgressBackend } from "../../hooks/useProgressSynchronization";
 import { mangaReaderSettingsKey } from "../../stores/mangaReaderSettings";
 import { normalizeChapterPolicy, selectChapters, type ChapterFilter } from "./chapterPolicy";
+import { getCachedChapter, saveCachedChapter } from "../../api/suwayomi/offlineCache";
 
 export interface Chapter {
   id: string | number;
@@ -46,7 +47,7 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
   const [selecting, setSelecting] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
 
-  const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`), [serverBaseUrl]);
+  const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`, undefined, mockMode ? "demo" : "live"), [serverBaseUrl, mockMode]);
   const backend = useProgressBackend();
   const policy = normalizeChapterPolicy(backend && mangaId !== undefined ? chapterPolicies[mangaReaderSettingsKey(backend, mangaId)] : undefined);
   const { filter, scanlator } = policy;
@@ -89,7 +90,11 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
           const chapter = chapters.find((item) => Number(item.id) === id);
           const result = await writeChapterProgress(backend, id, patch, { fallback: chapter && mangaId !== undefined && mangaTitle ? { chapterId: id, chapterName: chapter.name, chapterNumber: chapter.chapterNumber, mangaId, mangaTitle, pageCount: 0 } : undefined });
           if (!result.acknowledged) pending += 1;
-        } else await sdk.UpdateChapterProgress({ input: { id, patch } });
+        } else {
+          await sdk.UpdateChapterProgress({ input: { id, patch } });
+          const cached = await getCachedChapter(backend.serverBaseUrl, id, backend.isDemo);
+          if (cached && patch.isBookmarked !== undefined) await saveCachedChapter({ ...cached, isBookmarked: patch.isBookmarked });
+        }
       }));
       setSelected(new Set());
       setSelecting(false);

@@ -24,6 +24,13 @@ query GetLibrary(
       thumbnailUrl
       unreadCount
       downloadCount
+      status
+      inLibraryAt
+      sourceId
+      chapters { totalCount }
+      latestReadChapter { lastReadAt }
+      latestFetchedChapter { fetchedAt }
+      latestUploadedChapter { uploadDate }
       lastReadChapter {
         id
       }
@@ -33,6 +40,14 @@ query GetLibrary(
         }
       }
     }
+  }
+}
+
+query GetBookmarkedLibraryChapters($after: Cursor) {
+  chapters(filter: { inLibrary: { equalTo: true }, isBookmarked: { equalTo: true } }, first: 200, after: $after, order: [{ by: ID, byType: ASC }]) {
+    totalCount
+    pageInfo { hasNextPage endCursor }
+    nodes { id mangaId }
   }
 }
 

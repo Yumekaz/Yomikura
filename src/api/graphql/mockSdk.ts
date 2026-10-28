@@ -8,6 +8,7 @@ import type { TrackerRecordFieldsFragment } from "./generated/graphql";
 const recentDemoTimestamp = () => new Date(Date.now() - 13 * 60_000).toISOString();
 const demoCover = (name: string) => new URL(`/demo/${name}.webp`, typeof window === "undefined" ? "http://localhost" : window.location.origin).href;
 const demoMembership = new Map<number, boolean>();
+const demoBookmarks = new Map<number, boolean>();
 const demoTracks = new Map<number, TrackerRecordFieldsFragment[]>();
 function sampleTrack(mangaId: number, trackerId = 1, remoteId = String(mangaId + 100000), title?: string): TrackerRecordFieldsFragment {
   return { id: mangaId * 10 + trackerId, mangaId, trackerId, remoteId, title: title ?? (mangaId === 10001 ? "The Paper Garden (Synced)" : "Moonlit Courier (Synced)"),
@@ -45,6 +46,7 @@ const mockImpl: any = {
             thumbnailUrl: demoCover("paper-garden"),
             unreadCount: 1,
             downloadCount: 0,
+            sourceId: "mock-source", status: "COMPLETED", chapters: { totalCount: 1 }, inLibraryAt: "1780272000000",
             lastReadChapter: null,
             categories: { nodes: [{ id: 1 }] },
           },
@@ -54,6 +56,7 @@ const mockImpl: any = {
             thumbnailUrl: demoCover("moonlit-courier"),
             unreadCount: 1,
             downloadCount: 0,
+            sourceId: "mock-source", status: "COMPLETED", chapters: { totalCount: 2 }, inLibraryAt: "1780272000001",
             lastReadChapter: { id: 20002 },
             categories: { nodes: [{ id: 1 }] },
           },
@@ -403,7 +406,12 @@ const mockImpl: any = {
     return { settings: { localSourcePath: "/mock/local", globalUpdateInterval: 12 } };
   },
   async UpdateChapterProgress({ input }: any) {
+    if (typeof input.patch?.isBookmarked === "boolean") demoBookmarks.set(input.id, input.patch.isBookmarked);
     return { updateChapter: { chapter: { id: input.id, isRead: !!input.patch?.isRead, lastPageRead: input.patch?.lastPageRead || 0 } } };
+  },
+  async GetBookmarkedLibraryChapters() {
+    const nodes = [...demoBookmarks].filter(([, marked]) => marked).map(([id]) => ({ id, mangaId: id === 20001 ? 10001 : 10002 }));
+    return { chapters: { nodes, totalCount: nodes.length, pageInfo: { hasNextPage: false, endCursor: null } } };
   },
   async GetDownloadStatus() {
     return { downloadStatus: { state: "STOPPED", queue: [] } };
@@ -531,7 +539,7 @@ const mockImpl: any = {
 const demoMangaDetails = mockImpl.GetMangaDetails;
 mockImpl.GetMangaDetails = async (variables: unknown) => {
   const { manga } = await demoMangaDetails(variables);
-  return { manga: { ...manga, categories: { ...manga.categories, nodes: manga.categories.edges.map((edge: any) => edge.node) }, chapters: { ...manga.chapters, nodes: manga.chapters.edges.map((edge: any) => edge.node) } } };
+  return { manga: { ...manga, categories: { ...manga.categories, nodes: manga.categories.edges.map((edge: any) => edge.node) }, chapters: { ...manga.chapters, nodes: manga.chapters.edges.map((edge: any) => ({ ...edge.node, isBookmarked: demoBookmarks.get(edge.node.id) ?? false })) } } };
 };
 for (const name of ["GetUpdates", "GetHistory"]) {
   const original = mockImpl[name];

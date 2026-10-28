@@ -7,6 +7,8 @@ import { legacyMangaSettings, mangaReaderSettingsKey, mergeMangaSettings } from 
 import { normalizeChapterPolicy, type ChapterPolicy } from "../features/manga/chapterPolicy";
 import { createSettingsStorage } from "./settingsStorage";
 import { legacyPalette, paletteFor, type PaletteId } from "../theme/palettes";
+import { DEFAULT_EXPERIENCE, normalizeExperience, type ExperiencePreferences } from "./experiencePreferences";
+import type { LibrarySort } from "../features/library/libraryPreferences";
 
 /** Tauri v2 sets `window.isTauri`; v1 used `__TAURI__` when withGlobalTauri is enabled. */
 export const isTauri = () => {
@@ -27,7 +29,7 @@ export type FitMode = "FIT_SCREEN" | "FIT_WIDTH" | "FIT_HEIGHT";
 export type PageSpread = "SINGLE" | "DOUBLE" | "DOUBLE_COVER";
 export type ReaderNavigationMode = "edge" | "wide" | "disabled";
 export type LibraryViewMode = "grid" | "list";
-export type LibrarySortMode = "title" | "unread" | "status";
+export type LibrarySortMode = LibrarySort;
 
 export interface ServerProfile {
   id: string;
@@ -69,6 +71,10 @@ export interface SettingsProfile {
 }
 
 interface SettingsState {
+  experience: ExperiencePreferences;
+  updateExperience: (patch: Partial<ExperiencePreferences> | ((current: ExperiencePreferences) => Partial<ExperiencePreferences>)) => void;
+  toggleSourcePin: (backendKey: string, sourceId: string) => void;
+  recordSourceVisit: (backendKey: string, sourceId: string) => void;
   hasHydrated: boolean;
   serverBaseUrl: string;
   connectionStatus: ConnectionStatus;
@@ -186,6 +192,19 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
+      experience: { ...DEFAULT_EXPERIENCE },
+      updateExperience: (patch) => set((state) => ({ experience: normalizeExperience({ ...state.experience, ...(typeof patch === "function" ? patch(state.experience) : patch) }) })),
+      toggleSourcePin: (backendKey, sourceId) => {
+        if (!backendKey || !sourceId) return;
+        get().updateExperience((current) => {
+          const ids = current.sourcePins[backendKey] ?? [];
+          return { sourcePins: { ...current.sourcePins, [backendKey]: ids.includes(sourceId) ? ids.filter((id) => id !== sourceId) : [...ids, sourceId] } };
+        });
+      },
+      recordSourceVisit: (backendKey, sourceId) => {
+        if (!backendKey || !sourceId) return;
+        get().updateExperience((current) => ({ recentSources: { ...current.recentSources, [backendKey]: [sourceId, ...(current.recentSources[backendKey] ?? []).filter((id) => id !== sourceId)].slice(0, 20) } }));
+      },
       hasHydrated: false,
       serverBaseUrl: DEFAULT_SERVER_BASE_URL,
       connectionStatus: "disconnected",
@@ -471,6 +490,7 @@ export const useSettingsStore = create<SettingsState>()(
       
       resetAllSettings: () => {
         set({
+          experience: { ...DEFAULT_EXPERIENCE },
           serverBaseUrl: DEFAULT_SERVER_BASE_URL,
           connectionStatus: "disconnected",
           errorMessage: "",
@@ -540,6 +560,7 @@ export const useSettingsStore = create<SettingsState>()(
       name: "yomikura-settings",
       storage: createJSONStorage(() => customTauriStorage),
       partialize: (state) => ({ 
+        experience: state.experience,
         serverBaseUrl: state.serverBaseUrl,
         connectionStatus: state.connectionStatus === "testing" ? "disconnected" : state.connectionStatus,
         errorMessage: state.errorMessage,
@@ -601,6 +622,7 @@ export const useSettingsStore = create<SettingsState>()(
         return {
           ...currentState,
           ...persisted,
+          experience: normalizeExperience(persisted?.experience),
           serverBaseUrl: mergedBaseUrl,
           profiles: mergedProfiles,
           activeProfileId: mergedActiveId,

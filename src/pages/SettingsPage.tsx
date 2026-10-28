@@ -29,6 +29,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { SettingsSearch, type SettingsSection } from "../components/settings/SettingsSearch";
 import { AdvancedSettingsPanel } from "../components/settings/AdvancedSettingsPanel";
 import { AppearanceSettingsPanel } from "../components/settings/AppearanceSettingsPanel";
+import { BrowseSettingsPanel } from "../components/settings/BrowseSettingsPanel";
 import { ReaderSettingsPanel } from "../components/settings/ReaderSettingsPanel";
 import { validateBackupFile } from "../components/settings/backupValidation";
 import { waitForRestoreStatus } from "../components/settings/backupRestore";
@@ -40,7 +41,7 @@ import { restoreBackupUpload } from "../api/suwayomi/backupUpload";
 import { progressBackend } from "../api/suwayomi/backendIdentity";
 
 type SettingsTab = SettingsSection;
-const SETTINGS_TABS: SettingsTab[] = ["appearance", "reader", "offline", "backup", "connection", "advanced", "about"];
+const SETTINGS_TABS: SettingsTab[] = ["appearance", "reader", "browse", "offline", "backup", "connection", "advanced", "about"];
 
 function SettingsPage() {
   const navigate = useNavigate();
@@ -629,6 +630,7 @@ function SettingsPage() {
           {activeTab === "appearance" && <AppearanceSettingsPanel />}
 
           {activeTab === "reader" && <ReaderSettingsPanel />}
+          {activeTab === "browse" && <BrowseSettingsPanel />}
 
           {activeTab === "backup" && (
             <BackupSettingsPanel

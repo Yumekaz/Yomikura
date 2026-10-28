@@ -560,6 +560,30 @@ button:disabled { cursor: not-allowed; }
 .yomi-shelf-controls .yomi-icon-button { width: 33px; height: 33px; border-radius: 6px; }
 .yomi-shelf-controls > button:has(span) { min-height: 33px; padding: 0 10px; border-radius: 6px; background: transparent; }
 .yomi-control-divider { height: 20px; width: 1px; background: var(--line); margin: 0 5px 0 auto; }
+.yomi-library-filter-panel { position: relative; }
+.yomi-library-filter-panel > summary { display: flex; align-items: center; gap: 7px; min-height: 33px; padding: 0 10px; list-style: none; border: 1px solid var(--line); border-radius: 7px; background: var(--ink-900); color: var(--text); cursor: pointer; font-size: 11px; }
+.yomi-library-filter-panel > summary::-webkit-details-marker { display: none; }
+.yomi-library-filter-panel > summary > svg { width: 14px; height: 14px; }
+.yomi-library-filter-panel > summary > span { display: grid; place-items: center; min-width: 18px; height: 18px; border-radius: 5px; background: rgba(var(--yomi-signature), .12); font-size: 10px; color: var(--text-strong); }
+.yomi-filter-choices { position: absolute; z-index: 40; top: calc(100% + 9px); left: 0; width: min(620px, calc(100vw - 40px)); padding: 16px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--ink-900); box-shadow: 0 16px 40px #0003; }
+.yomi-filter-intro { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 11px; color: var(--text-muted); }
+.yomi-filter-intro > button { min-height: 32px; color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.yomi-filter-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.yomi-filter-grid > button { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; text-align: left; color: var(--text); background: var(--ink-950); }
+.yomi-filter-grid > button[data-choice="include"], .yomi-filter-grid > button[data-choice="exclude"] { border-color: rgba(var(--yomi-signature), .4); background: rgba(var(--yomi-signature), .08); }
+.yomi-filter-grid i { display: grid; place-items: center; flex: 0 0 auto; width: 20px; height: 20px; border: 1px solid var(--line-strong); border-radius: 4px; color: var(--text-strong); }
+.yomi-filter-grid svg { width: 14px; height: 14px; }
+.yomi-filter-grid span { font-size: 11px; }
+.yomi-filter-grid small { display: block; margin-top: 3px; color: var(--text-muted); font-size: 10px; }
+.yomi-filter-note { margin-top: 12px; font-size: 10px; line-height: 1.7; color: var(--text-muted); }
+.yomi-filter-sort-setting { display: flex; align-items: center; gap: 9px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--text); font-size: 11px; }
+.yomi-utility-button.is-pinned { color: rgb(var(--yomi-signature)); background: rgba(var(--yomi-signature), .08); }
+.yomi-utility-button.yomi-source-latest { width: auto; min-width: 54px; padding: 0 10px; font-size: 11px; }
+.yomi-saved-library-notice { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 12px 0; color: var(--text-muted); font-size: 13px; }
+.yomi-text-link { color: rgb(var(--yomi-signature)); text-underline-offset: 4px; }
+.yomi-text-link:hover { text-decoration: underline; }
+@media (max-width: 1100px) { .yomi-filter-choices { position: fixed; top: 130px; left: 20px; right: 20px; width: auto; max-height: calc(100vh - 170px); overflow-y: auto; } }
+@media (max-width: 520px) { .yomi-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .yomi-view-switch { display: flex; gap: 2px; }
 .yomi-view-switch button[aria-pressed="true"] { background: var(--ink-800); color: var(--text-strong); border-color: var(--line-strong); }
 .yomi-select-books { min-height: 33px; height: 33px; font-size: 11px; padding: 0 10px; }

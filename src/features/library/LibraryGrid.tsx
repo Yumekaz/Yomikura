@@ -20,6 +20,10 @@ export interface LibraryManga {
   thumbnailUrl: string | null | undefined;
   unreadCount: number;
   hasStartedReading: boolean;
+  totalChapters?: number;
+  lastReadAt?: number;
+  latestUpdateAt?: number;
+  addedAt?: number;
 }
 
 /** The visible tracks and virtual rows must use the same container measurement. */

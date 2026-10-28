@@ -17,15 +17,30 @@ import { progressBackend } from "../../api/suwayomi/backendIdentity";
 import { writeChapterProgress } from "../../api/suwayomi/progressSync";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { availabilityCounts, deviceChapterCounts, isAvailabilityFilter, matchesAvailability } from "./downloadAvailability";
+import { EMPTY_LIBRARY_FILTERS, normalizeLibraryFilters, type LibraryFilterSet } from "../../stores/experiencePreferences";
+import { activeLibraryFilterCount, compareLibraryBooks, librarySortScope, libraryTraits, matchesLibraryPreferences, validLibrarySort } from "./libraryPreferences";
+import { fetchBookmarkMembership } from "../../api/library/fetchBookmarkMembership";
+import { parseHistoryTimestamp } from "../history/historyModel";
 
 export default function LibraryPage() {
   const { notify } = useFeedback();
-  const { serverBaseUrl, testConnection, mockMode, libraryViewMode, setLibraryViewMode, librarySortMode, setLibrarySortMode, librarySortDescending, setLibrarySortDescending } = useSettingsStore();
+  const { serverBaseUrl, testConnection, mockMode, libraryViewMode, setLibraryViewMode, librarySortMode, setLibrarySortMode, librarySortDescending, setLibrarySortDescending, experience, updateExperience } = useSettingsStore();
+  const backendKey = useMemo(() => progressBackend(serverBaseUrl, mockMode).key, [serverBaseUrl, mockMode]);
   const { cachedChapters, loadCachedChapters, downloadChapter } = useDownloadStore();
   const queryClient = useQueryClient();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategoryId, setActiveCategoryId] = useState<string | number | null>(null);
+  const filterChoices = normalizeLibraryFilters(experience.libraryFilters[backendKey]);
+  const activeFilterCount = activeLibraryFilterCount(filterChoices);
+  const changeFilters = (value: LibraryFilterSet) => updateExperience((current) => ({ libraryFilters: { ...current.libraryFilters, [backendKey]: value } }));
+  const sortScope = librarySortScope(backendKey, activeCategoryId);
+  const savedSort = experience.perCategorySort ? experience.categorySorts[sortScope] : undefined;
+  const sortMode = validLibrarySort(savedSort?.mode) ? savedSort.mode : validLibrarySort(librarySortMode) ? librarySortMode : "title";
+  const sortDescending = savedSort?.descending ?? librarySortDescending;
+  const changeSortMode = (mode: typeof librarySortMode) => experience.perCategorySort ? updateExperience((current) => ({ categorySorts: { ...current.categorySorts, [sortScope]: { mode, descending: sortDescending } } })) : setLibrarySortMode(mode);
+  const changeSortDirection = (descending: boolean) => experience.perCategorySort ? updateExperience((current) => ({ categorySorts: { ...current.categorySorts, [sortScope]: { mode: sortMode, descending } } })) : setLibrarySortDescending(descending);
+  const clearLibraryFilters = () => { setSearchQuery(""); setActiveCategoryId(null); changeFilters({ ...EMPTY_LIBRARY_FILTERS }); };
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
 
   // Bulk Select States
@@ -90,6 +105,7 @@ export default function LibraryPage() {
   }, [catData]);
 
   const isOfflineMode = !!(libError && cachedChapters && cachedChapters.length > 0);
+  const bookmarks = useQuery({ queryKey: ["library-bookmarks", backendKey], queryFn: ({ signal }) => fetchBookmarkMembership(sdk, signal), enabled: filterChoices.bookmarked !== "any" && !isOfflineMode, retry: false });
   const localDownloadCounts = useMemo(() => deviceChapterCounts(cachedChapters), [cachedChapters]);
   const downloadCounts = useMemo(() => ({ ...availabilityCounts(isOfflineMode
     ? [...new Set(cachedChapters.map((chapter) => chapter.mangaId))].map((id) => ({ id, downloadCount: 0 }))
@@ -111,9 +127,11 @@ export default function LibraryPage() {
         id: m.id,
         title: m.title,
         thumbnailUrl: undefined,
-        unreadCount: 0,
-        hasStartedReading: false,
+        unreadCount: cachedChapters.filter((chapter) => chapter.mangaId === m.id && !chapter.isRead).length,
+        hasStartedReading: cachedChapters.some((chapter) => chapter.mangaId === m.id && chapter.isRead),
+        totalChapters: cachedChapters.filter((chapter) => chapter.mangaId === m.id).length,
       }));
+      filtered = filtered.filter((manga) => matchesLibraryPreferences({ downloaded: true, unread: manga.unreadCount > 0, started: manga.hasStartedReading, bookmarked: cachedChapters.some((chapter) => chapter.mangaId === manga.id && chapter.isBookmarked), completed: false }, filterChoices));
       if (isAvailabilityFilter(activeCategoryId)) filtered = filtered.filter((manga) => matchesAvailability(activeCategoryId, (localDownloadCounts.get(String(manga.id)) ?? 0) > 0, false));
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -155,6 +173,7 @@ export default function LibraryPage() {
     }
 
     // Apply front-end search filter
+    filtered = filtered.filter((manga) => matchesLibraryPreferences(libraryTraits(manga, localDownloadCounts.get(String(manga.id)) ?? 0, bookmarks.data?.has(Number(manga.id)) ?? false), filterChoices));
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter((m) => m.title.toLowerCase().includes(q));
@@ -166,20 +185,16 @@ export default function LibraryPage() {
       thumbnailUrl: m.thumbnailUrl,
       unreadCount: m.unreadCount,
       hasStartedReading: !!m.lastReadChapter?.id,
+      totalChapters: m.chapters?.totalCount,
+      lastReadAt: parseHistoryTimestamp(m.latestReadChapter?.lastReadAt),
+      latestUpdateAt: parseHistoryTimestamp(m.latestUploadedChapter?.uploadDate),
+      addedAt: parseHistoryTimestamp(m.inLibraryAt),
     }));
-  }, [libData, searchQuery, isOfflineMode, cachedChapters, activeCategoryId, localDownloadCounts]);
+  }, [libData, searchQuery, isOfflineMode, cachedChapters, activeCategoryId, localDownloadCounts, bookmarks.data, JSON.stringify(filterChoices)]);
 
   const displayMangas = useMemo(() => {
-    const direction = librarySortDescending ? -1 : 1;
-    return [...mangas].sort((a, b) => {
-      if (librarySortMode === "unread") return (a.unreadCount - b.unreadCount) * direction || a.title.localeCompare(b.title);
-      if (librarySortMode === "status") {
-        const rank = (manga: LibraryManga) => manga.hasStartedReading ? (manga.unreadCount ? 0 : 1) : 2;
-        return (rank(a) - rank(b)) * direction || a.title.localeCompare(b.title);
-      }
-      return a.title.localeCompare(b.title) * direction;
-    });
-  }, [librarySortDescending, librarySortMode, mangas]);
+    return [...mangas].sort((a, b) => compareLibraryBooks(a, b, sortMode, sortDescending));
+  }, [sortDescending, sortMode, mangas]);
 
   // Bulk select handlers
   const handleToggleSelectManga = useCallback((mangaId: string | number) => {
@@ -313,6 +328,10 @@ export default function LibraryPage() {
       {!isSelectMode && !searchQuery && activeCategoryId === null && <ContinueReading books={isOfflineMode ? [...new Map(cachedChapters.map((chapter) => [Number(chapter.mangaId), { id: Number(chapter.mangaId), title: chapter.mangaTitle }])).values()] : (libData?.mangas.nodes ?? []).map((manga) => ({ id: Number(manga.id), title: manga.title }))} />}
       {/* Filters Bar */}
       <LibraryFilters
+        filterChoices={filterChoices}
+        onFilterChoicesChange={changeFilters}
+        perCategorySort={experience.perCategorySort}
+        onPerCategorySortChange={(enabled) => updateExperience({ perCategorySort: enabled })}
         serverAvailable={!isOfflineMode}
         downloadCounts={downloadCounts}
         categories={categories}
@@ -325,34 +344,34 @@ export default function LibraryPage() {
         onCancelSelect={handleClearSelection}
         onStartSelect={() => setIsSelectMode(true)}
         viewMode={libraryViewMode}
-        sortMode={librarySortMode}
-        sortDescending={librarySortDescending}
+        sortMode={sortMode}
+        sortDescending={sortDescending}
         onViewModeChange={setLibraryViewMode}
-        onSortModeChange={setLibrarySortMode}
-        onSortDirectionChange={setLibrarySortDescending}
+        onSortModeChange={changeSortMode}
+        onSortDirectionChange={changeSortDirection}
       />
 
       {/* Main Grid Area */}
       <div className="flex-1 overflow-visible">
         {isOfflineMode && (
-          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center text-xs font-medium text-amber-200 animate-fade-in flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
-            <span>Offline Mode — Showing cached titles</span>
+          <div className="yomi-saved-library-notice">
+            <span>Showing the chapters saved on this device.</span>
             <button
               onClick={async () => {
                 await testConnection();
               }}
-              className="rounded-full bg-yomi-jade/20 border border-yomi-jade/30 px-3 py-0.5 text-xs font-semibold text-yomi-mint hover:bg-yomi-jade/35 transition"
+              className="yomi-text-link"
             >
               Reconnect to this server
             </button>
           </div>
         )}
-        {isLoading ? (
+        {isOfflineMode && filterChoices.completed !== "any" ? <div className="yomi-route-empty"><h2>Connect to check publication status</h2><p>Saved chapters don’t include a book’s current publication status.</p><button className="yomi-button yomi-button-secondary" onClick={() => changeFilters({ ...filterChoices, completed: "any" })}>Clear publication filter</button></div> : filterChoices.bookmarked !== "any" && !isOfflineMode && bookmarks.isError ? <div className="yomi-route-empty"><h2>Bookmarks couldn’t be checked</h2><p>Your filter is kept. Reconnect and try again.</p><button className="yomi-button yomi-button-secondary" onClick={() => void bookmarks.refetch()}>Retry bookmarks</button></div> : isLoading || filterChoices.bookmarked !== "any" && !isOfflineMode && bookmarks.isPending ? (
           <div className="flex min-h-[400px] w-full items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-yomi-jade/60" />
           </div>
         ) : (
-          libraryViewMode === "grid" ? <LibraryGrid mangas={displayMangas} filtered={!!searchQuery || activeCategoryId !== null} onClearFilters={() => { setSearchQuery(""); setActiveCategoryId(null); }} serverBaseUrl={serverBaseUrl} isSelectMode={isSelectMode} selectedMangaIds={selectedMangaIds} onToggleSelectManga={handleToggleSelectManga} /> : <LibraryList mangas={displayMangas} filtered={!!searchQuery || activeCategoryId !== null} onClearFilters={() => { setSearchQuery(""); setActiveCategoryId(null); }} serverBaseUrl={serverBaseUrl} isSelectMode={isSelectMode} selectedMangaIds={selectedMangaIds} onToggleSelectManga={handleToggleSelectManga} />
+          libraryViewMode === "grid" ? <LibraryGrid mangas={displayMangas} filtered={!!searchQuery || activeCategoryId !== null || activeFilterCount > 0} onClearFilters={clearLibraryFilters} serverBaseUrl={serverBaseUrl} isSelectMode={isSelectMode} selectedMangaIds={selectedMangaIds} onToggleSelectManga={handleToggleSelectManga} /> : <LibraryList mangas={displayMangas} filtered={!!searchQuery || activeCategoryId !== null || activeFilterCount > 0} onClearFilters={clearLibraryFilters} serverBaseUrl={serverBaseUrl} isSelectMode={isSelectMode} selectedMangaIds={selectedMangaIds} onToggleSelectManga={handleToggleSelectManga} />
         )}
       </div>
 

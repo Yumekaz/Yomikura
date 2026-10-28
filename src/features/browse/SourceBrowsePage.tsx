@@ -13,6 +13,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { activeCatalogFilterCount, buildCatalogFilterModel, CatalogFilterError, catalogFilterChanges, normalizeCatalogFilters, restoreCatalogFilters, serializeCatalogFilters, type FilterValues } from "./catalogFilters";
 import { CatalogFilterForm } from "./CatalogFilterForm";
 import { buildSourceBrowsePath, readSourceBrowseQuery } from "./sourceBrowseRoute";
+import { fetchAllSources } from "../../api/library/fetchAllSources";
 
 type Manga = NonNullable<FetchSourceMangaMutation["fetchSourceManga"]>["mangas"][number];
 function MangaCard({ manga, serverBaseUrl }: { manga: Manga; serverBaseUrl: string }) {
@@ -27,17 +28,22 @@ export default function SourceBrowsePage() {
   const { sourceId = "" } = useParams<{ sourceId: string }>();
   const [params] = useSearchParams(); const navigate = useNavigate();
   const query = readSourceBrowseQuery(params); const rawFilters = params.get("filters");
-  const { serverBaseUrl, mockMode, savedSearches, addSavedSearch } = useSettingsStore();
+  const { serverBaseUrl, mockMode, savedSearches, addSavedSearch, experience, updateExperience, recordSourceVisit } = useSettingsStore();
   const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
   const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live"), [backend]);
   const { notify, requestText } = useFeedback();
   const [input, setInput] = useState(query);
-  const [listing, setListing] = useState<"popular" | "latest">("popular");
+  const listing = params.get("listing") === "latest" ? "latest" : "popular";
+  const setListing = (value: "popular" | "latest") => {
+    const next = new URLSearchParams(params);
+    if (value === "latest") next.set("listing", value); else next.delete("listing");
+    navigate(`/browse/${sourceId}${next.size ? `?${next.toString()}` : ""}`);
+  };
   const [editor, setEditor] = useState<{ signature: string; values: FilterValues }>();
   const client = useQueryClient();
   useEffect(() => { setInput(query); }, [query, sourceId]);
   useEffect(() => { setEditor(undefined); }, [sourceId, rawFilters]);
-  const sources = useQuery({ queryKey: ["sources", backend.key], queryFn: () => sdk.GetSources(), enabled: !!sourceId });
+  const sources = useQuery({ queryKey: ["sources", backend.key], queryFn: ({ signal }) => fetchAllSources(sdk, signal), enabled: !!sourceId });
   const metadataKey = ["source-filters", backend.key, sourceId];
   const metadata = useQuery({ queryKey: metadataKey, queryFn: async () => {
     const data = await sdk.GetSourceFilters({ id: sourceId });
@@ -45,6 +51,7 @@ export default function SourceBrowsePage() {
     return data;
   }, enabled: !!sourceId, retry: false, refetchOnWindowFocus: false });
   const source = sources.data?.sources.nodes.find((item) => String(item.id) === sourceId);
+  useEffect(() => { if (source) recordSourceVisit(backend.key, sourceId); }, [backend.key, sourceId, source?.id, recordSourceVisit]);
   const sourceName = source?.name ?? metadata.data?.source.name ?? "Browse Source";
   const model = useMemo(() => metadata.data && String(metadata.data.source.id) === sourceId ? buildCatalogFilterModel(sourceId, normalizeCatalogFilters(metadata.data.source.filters), metadata.data.aboutServer?.version) : undefined, [metadata.data, sourceId]);
   const hasEnvelope = !!rawFilters && rawFilters !== "{}";
@@ -63,7 +70,7 @@ export default function SourceBrowsePage() {
   const [pagination, setPagination] = useState({ scope, page: 1 });
   const page = pagination.scope === scope ? pagination.page : 1;
   useEffect(() => { setPagination({ scope, page: 1 }); }, [scope]);
-  const ready = !!sourceId && (!hasEnvelope || !!model && !!restored.values && !restored.error);
+  const ready = !!sourceId && (listing !== "latest" || sources.isSuccess) && (!hasEnvelope || !!model && !!restored.values && !restored.error);
   const catalog = useQuery({
     queryKey: ["source-browse", scope, page], enabled: ready, retry: false,
     queryFn: async ({ signal }) => {
@@ -93,7 +100,8 @@ export default function SourceBrowsePage() {
   };
   const payload = catalog.data?.fetchSourceManga;
   const filterError = restored.error || (catalog.error instanceof CatalogFilterError ? catalog.error.message : "");
-  const mangas = payload?.mangas ?? [];
+  const mangas = (payload?.mangas ?? []).filter((manga) => !experience.hideLibraryEntries || !manga.inLibrary);
+  const onlyLibraryMatches = experience.hideLibraryEntries && !!payload?.mangas.length && !mangas.length;
   const problem = catalog.isError ? classifySourceProblem(catalog.error) : null;
   const changePage = (next: number) => { setPagination({ scope, page: next }); window.scrollTo({ top: 0, behavior: "smooth" }); };
   return <div className="min-h-screen bg-transparent pb-24">
@@ -121,10 +129,11 @@ export default function SourceBrowsePage() {
       {filterError ? <div role="alert" className="space-y-3 rounded-xl border border-amber-200/20 bg-ink-900 p-5"><h2 className="font-semibold text-slate-200">Saved filters need review</h2><p className="text-sm text-slate-400">{filterError}</p><div className="flex flex-wrap gap-3"><button type="button" onClick={openFilters} className="yomi-button yomi-button-secondary">{model ? "Review filters" : "Retry filters"}</button><button type="button" onClick={clear} className="yomi-button yomi-button-secondary">Reset filters</button></div></div>
         : !ready || catalog.isPending ? <div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-yomi-jade" /></div>
         : catalog.isError ? <SourceRecoveryPanel problem={problem} sourceName={sourceName} searchedTitle={query || null} onRetry={() => void catalog.refetch()} />
+        : onlyLibraryMatches ? <div className="yomi-route-empty"><h2>These books are already in your library</h2><p>You can show them again or continue to another page.</p><button className="yomi-button yomi-button-secondary" onClick={() => updateExperience({ hideLibraryEntries: false })}>Show library books</button></div>
         : !mangas.length ? <SourceRecoveryPanel title="No results from this source." detail="The source returned no titles for this query and its applied filters. Adjust the search or try another installed source." sourceName={sourceName} searchedTitle={query || null} onRetry={() => void catalog.refetch()} />
         : <div className="space-y-8"><div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">{mangas.map((manga) => <MangaCard key={manga.id} manga={manga} serverBaseUrl={backend.serverBaseUrl} />)}</div>
-          <div className="flex items-center justify-center gap-4 border-t border-white/5 pt-6">{page > 1 && <button type="button" onClick={() => changePage(page - 1)} className="yomi-button yomi-button-secondary">Previous Page</button>}{payload?.hasNextPage && <button type="button" onClick={() => changePage(page + 1)} className="yomi-button yomi-button-primary">Next Page</button>}</div>
         </div>}
+      {ready && payload && !catalog.isError && <div className="mt-6 flex items-center justify-center gap-4 border-t border-white/5 pt-6">{page > 1 && <button type="button" onClick={() => changePage(page - 1)} className="yomi-button yomi-button-secondary">Previous Page</button>}{payload.hasNextPage && <button type="button" onClick={() => changePage(page + 1)} className="yomi-button yomi-button-primary">Next Page</button>}</div>}
     </div>
   </div>;
 }

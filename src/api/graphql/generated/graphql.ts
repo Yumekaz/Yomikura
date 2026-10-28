@@ -4411,10 +4411,13 @@ export type GetRestoreStatusQueryVariables = Exact<{
 
 export type GetRestoreStatusQuery = { restoreStatus: { state: BackupRestoreState, mangaProgress: number, totalManga: number } | null };
 
-export type GetSourcesQueryVariables = Exact<{ [key: string]: never; }>;
+export type GetSourcesQueryVariables = Exact<{
+  first?: number | null | undefined;
+  after?: unknown;
+}>;
 
 
-export type GetSourcesQuery = { sources: { totalCount: number, nodes: Array<{ id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean, isConfigurable: boolean, extension: { pkgName: string, isInstalled: boolean } }> } };
+export type GetSourcesQuery = { sources: { totalCount: number, pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean, isConfigurable: boolean, extension: { pkgName: string, isInstalled: boolean } }> } };
 
 export type GetSourcesByConditionQueryVariables = Exact<{
   lang: string;
@@ -4488,7 +4491,14 @@ export type GetLibraryQueryVariables = Exact<{
 }>;
 
 
-export type GetLibraryQuery = { mangas: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, title: string, thumbnailUrl: string | null, unreadCount: number, downloadCount: number, lastReadChapter: { id: number } | null, categories: { nodes: Array<{ id: number }> } }> } };
+export type GetLibraryQuery = { mangas: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, title: string, thumbnailUrl: string | null, unreadCount: number, downloadCount: number, status: MangaStatus, inLibraryAt: unknown, sourceId: unknown, chapters: { totalCount: number }, latestReadChapter: { lastReadAt: unknown } | null, latestFetchedChapter: { fetchedAt: unknown } | null, latestUploadedChapter: { uploadDate: unknown } | null, lastReadChapter: { id: number } | null, categories: { nodes: Array<{ id: number }> } }> } };
+
+export type GetBookmarkedLibraryChaptersQueryVariables = Exact<{
+  after?: unknown;
+}>;
+
+
+export type GetBookmarkedLibraryChaptersQuery = { chapters: { totalCount: number, pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, mangaId: number }> } };
 
 export type GetLibraryUpdateStatusQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -4975,9 +4985,13 @@ export const GetRestoreStatusDocument = gql`
 }
     `;
 export const GetSourcesDocument = gql`
-    query GetSources {
-  sources(first: 2000) {
+    query GetSources($first: Int = 2000, $after: Cursor) {
+  sources(first: $first, after: $after) {
     totalCount
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
     nodes {
       id
       name
@@ -5143,6 +5157,21 @@ export const GetLibraryDocument = gql`
       thumbnailUrl
       unreadCount
       downloadCount
+      status
+      inLibraryAt
+      sourceId
+      chapters {
+        totalCount
+      }
+      latestReadChapter {
+        lastReadAt
+      }
+      latestFetchedChapter {
+        fetchedAt
+      }
+      latestUploadedChapter {
+        uploadDate
+      }
       lastReadChapter {
         id
       }
@@ -5151,6 +5180,26 @@ export const GetLibraryDocument = gql`
           id
         }
       }
+    }
+  }
+}
+    `;
+export const GetBookmarkedLibraryChaptersDocument = gql`
+    query GetBookmarkedLibraryChapters($after: Cursor) {
+  chapters(
+    filter: {inLibrary: {equalTo: true}, isBookmarked: {equalTo: true}}
+    first: 200
+    after: $after
+    order: [{by: ID, byType: ASC}]
+  ) {
+    totalCount
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      id
+      mangaId
     }
   }
 }
@@ -5707,6 +5756,9 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetLibrary(variables?: GetLibraryQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetLibraryQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetLibraryQuery>({ document: GetLibraryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetLibrary', 'query', variables);
+    },
+    GetBookmarkedLibraryChapters(variables?: GetBookmarkedLibraryChaptersQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetBookmarkedLibraryChaptersQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetBookmarkedLibraryChaptersQuery>({ document: GetBookmarkedLibraryChaptersDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetBookmarkedLibraryChapters', 'query', variables);
     },
     GetLibraryUpdateStatus(variables?: GetLibraryUpdateStatusQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetLibraryUpdateStatusQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetLibraryUpdateStatusQuery>({ document: GetLibraryUpdateStatusDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetLibraryUpdateStatus', 'query', variables);

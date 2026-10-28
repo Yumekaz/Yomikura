@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle, Loader2, Search, X } from "lucide-react";
 import { createGraphqlClient } from "../../api/graphql/client";
+import { fetchAllSources } from "../../api/library/fetchAllSources";
 import { FetchSourceMangaType, type FetchSourceMangaMutation } from "../../api/graphql/generated/graphql";
 import { progressBackend } from "../../api/suwayomi/backendIdentity";
 import { invalidateChapterState } from "../../api/suwayomi/chapterState";
@@ -42,7 +43,7 @@ export function SourceMigrationModal({ isOpen, onClose, mangaId, mangaTitle, sou
   const close = useCallback(() => { if (!busy) { generation.current += 1; onClose(); } }, [busy, onClose]);
 
   const { data: sources, isLoading: loadingSources, isError: sourcesError, refetch: retrySources } = useQuery({
-    queryKey: ["sources", backend.key], queryFn: () => sdk.GetSources(), enabled: isOpen,
+    queryKey: ["sources", backend.key], queryFn: ({ signal }) => fetchAllSources(sdk, signal), enabled: isOpen,
   });
   const prepare = useCallback(async (destination: Target, expectedSource?: string) => {
     const request = ++generation.current;
