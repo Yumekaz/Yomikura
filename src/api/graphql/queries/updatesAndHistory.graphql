@@ -10,6 +10,8 @@ query GetUpdates($filter: ChapterFilterInput, $order: [ChapterOrderInput!], $fir
         chapterNumber
         isRead
         lastPageRead
+        pageCount
+        isDownloaded
         uploadDate
         fetchedAt
         scanlator

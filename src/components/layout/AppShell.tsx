@@ -17,6 +17,7 @@ import { getCachedChapters } from "../../api/suwayomi/offlineCache";
 import { useProgressSynchronization } from "../../hooks/useProgressSynchronization";
 import { useDownloadCleanup } from "../../hooks/useDownloadCleanup";
 import { ProgressSyncStatus } from "../ProgressSyncStatus";
+import { LibraryUpdateNotice } from "../library/LibraryUpdateNotice";
 import { BrandLogo, SidebarCompanion, SanctuaryArt } from "../Brand";
 import { applyPalette } from "../../theme/palettes";
 import { DesktopDownloadLink } from "../onboarding/DesktopDownloadLink";
@@ -272,6 +273,7 @@ function AppShell() {
           <UpdateNotificationBanner />
         </div>
         <PwaUpdateNotice />
+        <LibraryUpdateNotice />
         {mockMode && !location.pathname.startsWith("/reader/") && (
           <div className="yomi-demo-notice">
             <span><Sparkles aria-hidden="true" />Demo library <span className="yomi-demo-description">· Explore with original sample books. Your library stays separate.</span></span>
@@ -763,7 +765,7 @@ function MobileNav() {
       aria-label="Mobile navigation"
     >
       <div className="grid grid-cols-6 gap-1">
-        {[...primaryNav, ...utilityNav].map((item) => {
+        {[...primaryNav, ...utilityNav.filter((item) => item.path !== "/statistics")].map((item) => {
           const Icon = item.icon;
           const translationKey = item.label.toLowerCase().replace(" ", "_") as any;
           const label = t(translationKey) === translationKey ? item.label : t(translationKey);

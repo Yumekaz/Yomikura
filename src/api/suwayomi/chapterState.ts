@@ -3,7 +3,7 @@ import { getCachedChapter, saveCachedChapter } from "./offlineCache";
 
 /** Chapter mutations affect both source-fetched lists and database-backed views. */
 export async function invalidateChapterState(client: QueryClient) {
-  await Promise.all(["chapter", "manga-chapters", "manga", "library", "library-bookmarks", "updates", "history"].map((key) =>
+  await Promise.all(["chapter", "manga-chapters", "manga", "library", "library-bookmarks", "library-insights", "updates", "history"].map((key) =>
     client.invalidateQueries({ queryKey: [key] }),
   ));
 }

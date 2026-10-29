@@ -14,8 +14,9 @@ export interface ExperiencePreferences {
   libraryFilters: Record<string, LibraryFilterSet>;
   perCategorySort: boolean;
   categorySorts: Record<string, { mode: string; descending: boolean }>;
+  libraryUpdateRuns: Record<string, { requestedAt: number; status: "idle" | "running" | "success" | "error"; error: string }>;
 }
-export const DEFAULT_EXPERIENCE: ExperiencePreferences = { reader: DEFAULT_READER_EXPERIENCE, downloads: DEFAULT_DOWNLOAD_EXPERIENCE, sourcePins: {}, recentSources: {}, hideLibraryEntries: false, applyContentFilterToInstalled: false, libraryFilters: {}, perCategorySort: false, categorySorts: {} };
+export const DEFAULT_EXPERIENCE: ExperiencePreferences = { reader: DEFAULT_READER_EXPERIENCE, downloads: DEFAULT_DOWNLOAD_EXPERIENCE, sourcePins: {}, recentSources: {}, hideLibraryEntries: false, applyContentFilterToInstalled: false, libraryFilters: {}, perCategorySort: false, categorySorts: {}, libraryUpdateRuns: {} };
 
 export function normalizeLibraryFilters(value?: Partial<LibraryFilterSet>): LibraryFilterSet {
   return Object.fromEntries(Object.keys(EMPTY_LIBRARY_FILTERS).map((key) => {
@@ -36,6 +37,7 @@ export function normalizeExperience(value: unknown): ExperiencePreferences {
     sourcePins: ids(input.sourcePins), recentSources: ids(input.recentSources),
     hideLibraryEntries: input.hideLibraryEntries === true, applyContentFilterToInstalled: input.applyContentFilterToInstalled === true,
     perCategorySort: input.perCategorySort === true,
+    libraryUpdateRuns: input.libraryUpdateRuns && typeof input.libraryUpdateRuns === "object" ? Object.fromEntries(Object.entries(input.libraryUpdateRuns).filter(([, value]) => value && typeof value === "object").map(([key, value]) => [key, { requestedAt: Number.isFinite(value.requestedAt) ? Math.max(0, value.requestedAt) : 0, status: ["idle", "running", "success", "error"].includes(value.status) ? value.status : "idle", error: typeof value.error === "string" ? value.error.slice(0, 500) : "" }])) : {},
     libraryFilters: input.libraryFilters && typeof input.libraryFilters === "object" ? Object.fromEntries(Object.entries(input.libraryFilters).map(([key, filters]) => [key, normalizeLibraryFilters(filters)])) : {},
     categorySorts: input.categorySorts && typeof input.categorySorts === "object" ? Object.fromEntries(Object.entries(input.categorySorts).filter(([, choice]) => choice && typeof choice.mode === "string").map(([key, choice]) => [key, { mode: choice.mode, descending: choice.descending === true }])) : {},
   };

@@ -99,8 +99,6 @@ Layout dimensions remain stable as individual tiles load. Page visibility is sep
 
 Mihon evidence: `core/common/.../ImageUtil.kt`, `TallImageSplitCalculator.kt` and `data/download/Downloader.kt`. Mihon can replace downloaded originals with split files; Yomikura deliberately retains originals and keeps logical page numbering stable. Validation: 418 unit tests, 26 reader browser checks, typechecking, strict browser-spec types and production build/budget passed. Browser fixtures isolate service-worker caching; an earlier fallback selector matched a thumbnail and was corrected to target the reading surface. Native runtime and real-server checks remain separate gates.
 
-## Remaining implementation
-
 ## Desktop verification and navigation corrections
 
 The isolated Windows build completed managed-library setup using an already verified runtime in a separate test folder. The actual listener bound to `127.0.0.1`. A local test comic was added and saved for device reading; backend download flags remained independent. Native original-page and three-page CBZ exports matched every source image byte-for-byte. A native backup passed gzip/checksum verification and retained an unsynced device-note snapshot. Fullscreen entry and returning to a normal window were observed.
@@ -111,6 +109,20 @@ Native review also reproduced two shared navigation problems. The sticky Resume 
 
 REA/JADX also completed static inspection of Mihon's compiled `ImageUtil.splitTallImage` method. Its body confirms animation handling, region decoding, compression, recycling and file cleanup. The official APK was not executed. Suwayomi v2.3.2243 source at `1d583ca4a718646e17a4c62d23fe8e5edccaf774` is now pinned for the remaining backend-contract comparisons.
 
+## Library policies, release calendar and statistics
+
+Library settings now expose the connected engine’s automatic schedule, backlog/unstarted/completed exclusions, metadata refresh and collection defaults/update/download inclusion. Values change after a matching server acknowledgement. Extra checks while the client is open retain separate, backend-scoped request times and cannot follow a delayed response into another profile. A shared progress notice remains available across ordinary navigation; cancellation requires the backend’s matching acknowledgement.
+
+Collection management supports keyboard-accessible move-up/down controls with confirmed positions. The implicit uncategorized collection is protected. The library loader rejects repeated cursors, repeated books, changing counts and incomplete responses rather than presenting a truncated library or export as complete.
+
+Upcoming provides a calendar and combined include/exclude collection filters. It samples recent upload dates with at most three requests in flight and reuses samples when loading another batch. Stable patterns produce labelled estimates; sparse, irregular, future-dated and overdue patterns do not become promised release dates. Completed publications are excluded. This is a client estimate because Suwayomi does not expose Mihon’s stored prediction. Statistics use the complete library for book/chapter/read/download/linked-tracker and genre totals. Device copies remain separate; unavailable reading duration and comparable provider scores are not invented.
+
+Chapter and update rows now expose partial page positions. Update rows distinguish device and server copies. Offline comic details no longer fabricate a completed publication, author, genre or server download flag.
+
+Evidence: Mihon `UpcomingViewModel.kt`, `GetUpcomingManga.kt`, `FetchInterval.kt`, `ReleaseSchedule.kt`, `StatsViewModel.kt`; pinned Suwayomi `Updater.kt`, `UpdateMutation.kt`, `CategoryMutation.kt` and `MangaType.kt`. REA/JADX completed static inspection of `Manga.getExpectedNextUpdate`: an absent next date or completed publication returns no estimate. This does not establish Android runtime behavior.
+
+Validation: 434 unit tests, 32 browser checks, strict browser-spec types and production build passed. Calendar accessibility passed in light/dark modes; narrow navigation retains its six main destinations. Actual isolated Suwayomi settings/query verification passed, including restoring the original preferences. Hands-on real-library statistics/calendar review completed. The fresh four-title reading run and native follow-up are separate, ongoing gates. No private reference screenshots are included.
+
 ## Remaining implementation
 
-Update scheduling/statistics, privacy/tracking and remaining desktop-specific equivalents are still being compared and implemented. Source contracts and platform/hardware limitations remain explicit. The full 50-screen work is not yet complete.
+Privacy/tracking and remaining desktop-specific equivalents are still being compared and implemented. Source contracts and platform/hardware limitations remain explicit. The full 50-screen work is not yet complete.

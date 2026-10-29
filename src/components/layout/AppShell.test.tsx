@@ -17,6 +17,7 @@ vi.mock("../../stores/useDownloadStore", () => ({
   useDownloadStore: { getState: () => ({ pauseForShutdown: vi.fn(), restoreDownloadJobs: vi.fn() }) },
 }));
 vi.mock("../UpdateNotificationBanner", () => ({ UpdateNotificationBanner: () => null }));
+vi.mock("../library/LibraryUpdateNotice", () => ({ LibraryUpdateNotice: () => null }));
 vi.mock("../onboarding/DesktopDownloadLink", () => ({ DesktopDownloadLink: () => <a href="https://github.com/Yumekaz/Yomikura/releases/latest">Download Yomikura Desktop</a> }));
 
 const server = "http://offline.example:4567";

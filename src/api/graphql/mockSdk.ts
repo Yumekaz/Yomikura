@@ -10,6 +10,8 @@ const demoCover = (name: string) => new URL(`/demo/${name}.webp`, typeof window 
 const demoMembership = new Map<number, boolean>();
 const demoBookmarks = new Map<number, boolean>();
 const demoNotes = new Map<number, string>();
+const demoLibraryPolicy = { globalUpdateInterval: 12, excludeUnreadChapters: false, excludeNotStarted: false, excludeCompleted: false, updateMangas: false };
+const demoCollections = [{ id: 1, name: "Default", order: 1, default: false, includeInUpdate: "UNSET", includeInDownload: "UNSET" }, { id: 2, name: "Favorites", order: 2, default: false, includeInUpdate: "UNSET", includeInDownload: "UNSET" }];
 const demoDownloadPreferences = { downloadAsCbz: false, maxSourcesInParallel: 6, autoDownloadNewChapters: false, autoDownloadNewChaptersLimit: 0, excludeEntryWithUnreadChapters: true, autoDownloadIgnoreReUploads: false };
 const demoTracks = new Map<number, TrackerRecordFieldsFragment[]>();
 function sampleTrack(mangaId: number, trackerId = 1, remoteId = String(mangaId + 100000), title?: string): TrackerRecordFieldsFragment {
@@ -29,10 +31,7 @@ const mockImpl: any = {
   async GetCategories() {
     return {
       categories: {
-        nodes: [
-          { id: 1, name: "Default", order: 1 },
-          { id: 2, name: "Favorites", order: 2 },
-        ],
+        nodes: demoCollections.map((item) => ({ ...item })),
       },
     };
   },
@@ -67,6 +66,11 @@ const mockImpl: any = {
     };
   },
 
+  async GetLibraryInsights() {
+    const result = await mockImpl.GetLibrary();
+    return { mangas: { ...result.mangas, totalCount: result.mangas.nodes.length, nodes: result.mangas.nodes.map((book: any) => ({ ...book, genre: ["Fantasy", "Original stories"], trackRecords: { totalCount: 0 }, categories: { nodes: demoCollections.filter((item) => book.categories.nodes.some((node: any) => node.id === item.id)).map((item) => ({ id: item.id, name: item.name })) } })) } };
+  },
+  async GetReleaseSample() { return { chapters: { nodes: [] } }; },
   async GetMangaDetails({ id }: any) {
     const isGarden = id === 10001;
     return {
@@ -340,16 +344,24 @@ const mockImpl: any = {
     return { updateManga: { manga: { id: input.id, inLibrary: input.patch.inLibrary } } };
   },
   async CreateCategory({ input }: any) {
-    return { createCategory: { category: { id: 99, name: input.name, order: 9 } } };
+    const category = { id: Math.max(0, ...demoCollections.map((item) => item.id)) + 1, name: input.name, order: demoCollections.length + 1, default: false, includeInUpdate: "UNSET", includeInDownload: "UNSET" };
+    demoCollections.push(category);
+    return { createCategory: { category: { ...category } } };
   },
-  async DeleteCategory() {
-    return { deleteCategory: { clientMutationId: "1" } };
+  async DeleteCategory({ input }: any) {
+    const index = demoCollections.findIndex((item) => item.id === input.categoryId);
+    if (index < 0) throw new Error("Collection no longer exists");
+    demoCollections.splice(index, 1); demoCollections.forEach((item, index) => { item.order = index + 1; });
+    return { deleteCategory: { clientMutationId: input.clientMutationId } };
   },
   async UpdateCategory({ input }: any) {
-    return { updateCategory: { category: { id: input.id, name: input.patch.name || "", order: 1 } } };
+    const item = demoCollections.find((item) => item.id === input.id); if (!item) throw new Error("Collection no longer exists");
+    Object.assign(item, input.patch); return { updateCategory: { category: { ...item } } };
   },
-  async UpdateCategoryOrder() {
-    return { updateCategoryOrder: { categories: [] } };
+  async UpdateCategoryOrder({ input }: any) {
+    const index = demoCollections.findIndex((item) => item.id === input.id); if (index < 0) throw new Error("Collection no longer exists");
+    const [item] = demoCollections.splice(index, 1); demoCollections.splice(input.position - 1, 0, item); demoCollections.forEach((item, index) => { item.order = index + 1; });
+    return { updateCategoryOrder: { categories: demoCollections.map((item) => ({ ...item })) } };
   },
   async UpdateMangaCategories({ input }: any) {
     return { updateMangaCategories: { manga: { id: input.mangaId } } };
@@ -405,8 +417,12 @@ const mockImpl: any = {
     };
   },
   async GetServerSettings() {
-    return { settings: { localSourcePath: "/mock/local", globalUpdateInterval: 12 } };
+    return { settings: { localSourcePath: "/mock/local", globalUpdateInterval: demoLibraryPolicy.globalUpdateInterval } };
   },
+  async GetLibraryPolicy() { return { settings: { ...demoLibraryPolicy }, categories: { nodes: demoCollections.map((item) => ({ ...item })) } }; },
+  async SetLibraryPolicy({ input }: any) { Object.assign(demoLibraryPolicy, input.settings); return { setSettings: { settings: { ...demoLibraryPolicy } } }; },
+  async SetCollectionPolicy({ input }: any) { const item = demoCollections.find((item) => item.id === input.id); if (!item) throw new Error("Collection no longer exists"); Object.assign(item, input.patch); return { updateCategory: { category: { ...item } } }; },
+  async StopLibraryUpdate({ input }: any) { return { updateStop: { clientMutationId: input.clientMutationId } }; },
   async GetServerDownloadPreferences() { return { settings: { ...demoDownloadPreferences } }; },
   async SetServerDownloadPreferences({ input }: any) { Object.assign(demoDownloadPreferences, input.settings); return { setSettings: { settings: { ...demoDownloadPreferences } } }; },
   async UpdateChapterProgress({ input }: any) {

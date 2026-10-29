@@ -1000,3 +1000,16 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
   .yomi-welcome-ready > h2 { font-size: 35px; }
   .yomi-welcome-art { min-height: 210px; height: 210px; }
 }
+
+.yomi-statistics-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); }
+.yomi-statistics-grid > div { padding: 24px 16px 24px 0; border-bottom: 1px solid var(--line); }
+.yomi-statistics-grid dt { color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+.yomi-statistics-grid dd { margin-top: 10px; color: var(--text); font-family: 'Playfair Display Variable', serif; font-size: clamp(26px, 3vw, 38px); line-height: 1.2; font-variant-numeric: lining-nums tabular-nums; }
+.yomi-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.yomi-calendar-weekday { padding: 8px 2px; color: var(--text-muted); font-size: 11px; text-align: center; }
+.yomi-calendar-day { display: flex; min-height: 64px; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border-radius: 8px; color: var(--text); border: 1px solid transparent; font-size: 13px; }
+.yomi-calendar-day small { border-radius: 10px; padding: 1px 7px; color: var(--action-text); background: var(--action-bg); font-size: 10px; }
+.yomi-calendar-day.is-today { border-color: var(--line); }
+.yomi-calendar-day[aria-pressed='true'] { background: rgb(var(--yomi-signature) / .12); border-color: rgb(var(--yomi-signature)); }
+@media (hover: hover) and (pointer: fine) { .yomi-calendar-day:hover { background: rgb(var(--yomi-signature) / .12); } }
+@media (max-width: 700px) { .yomi-statistics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .yomi-calendar-day { min-height: 48px; } }

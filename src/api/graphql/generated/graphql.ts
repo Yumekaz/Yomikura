@@ -4393,6 +4393,10 @@ export type UpdateSourcePreferenceInput = {
   source: unknown;
 };
 
+export type UpdateStopInput = {
+  clientMutationId?: string | null | undefined;
+};
+
 export type UpdateTrackInput = {
   clientMutationId?: string | null | undefined;
   /** This will only work if the tracker of the track record supports reading dates */
@@ -4674,7 +4678,7 @@ export type GetLibraryQueryVariables = Exact<{
 }>;
 
 
-export type GetLibraryQuery = { mangas: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, title: string, thumbnailUrl: string | null, unreadCount: number, downloadCount: number, status: MangaStatus, inLibraryAt: unknown, sourceId: unknown, chapters: { totalCount: number }, latestReadChapter: { lastReadAt: unknown } | null, latestFetchedChapter: { fetchedAt: unknown } | null, latestUploadedChapter: { uploadDate: unknown } | null, lastReadChapter: { id: number } | null, categories: { nodes: Array<{ id: number }> } }> } };
+export type GetLibraryQuery = { mangas: { totalCount: number, pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, title: string, thumbnailUrl: string | null, unreadCount: number, downloadCount: number, status: MangaStatus, inLibraryAt: unknown, sourceId: unknown, chapters: { totalCount: number }, latestReadChapter: { lastReadAt: unknown } | null, latestFetchedChapter: { fetchedAt: unknown } | null, latestUploadedChapter: { uploadDate: unknown } | null, lastReadChapter: { id: number } | null, categories: { nodes: Array<{ id: number }> } }> } };
 
 export type GetBookmarkedLibraryChaptersQueryVariables = Exact<{
   after?: unknown;
@@ -4682,6 +4686,46 @@ export type GetBookmarkedLibraryChaptersQueryVariables = Exact<{
 
 
 export type GetBookmarkedLibraryChaptersQuery = { chapters: { totalCount: number, pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, mangaId: number }> } };
+
+export type GetLibraryInsightsQueryVariables = Exact<{
+  after?: unknown;
+}>;
+
+
+export type GetLibraryInsightsQuery = { mangas: { totalCount: number, pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, title: string, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, unreadCount: number, downloadCount: number, chapters: { totalCount: number }, trackRecords: { totalCount: number }, categories: { nodes: Array<{ id: number, name: string }> } }> } };
+
+export type GetReleaseSampleQueryVariables = Exact<{
+  id: number;
+}>;
+
+
+export type GetReleaseSampleQuery = { chapters: { nodes: Array<{ chapterNumber: number, uploadDate: unknown }> } };
+
+export type GetLibraryPolicyQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetLibraryPolicyQuery = { settings: { globalUpdateInterval: number, excludeUnreadChapters: boolean, excludeNotStarted: boolean, excludeCompleted: boolean, updateMangas: boolean }, categories: { nodes: Array<{ id: number, name: string, order: number, default: boolean, includeInUpdate: IncludeOrExclude, includeInDownload: IncludeOrExclude }> } };
+
+export type SetLibraryPolicyMutationVariables = Exact<{
+  input: SetSettingsInput;
+}>;
+
+
+export type SetLibraryPolicyMutation = { setSettings: { settings: { globalUpdateInterval: number, excludeUnreadChapters: boolean, excludeNotStarted: boolean, excludeCompleted: boolean, updateMangas: boolean } } };
+
+export type SetCollectionPolicyMutationVariables = Exact<{
+  input: UpdateCategoryInput;
+}>;
+
+
+export type SetCollectionPolicyMutation = { updateCategory: { category: { id: number, name: string, order: number, default: boolean, includeInUpdate: IncludeOrExclude, includeInDownload: IncludeOrExclude } } | null };
+
+export type StopLibraryUpdateMutationVariables = Exact<{
+  input: UpdateStopInput;
+}>;
+
+
+export type StopLibraryUpdateMutation = { updateStop: { clientMutationId: string | null } };
 
 export type GetLibraryUpdateStatusQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -4893,7 +4937,7 @@ export type GetUpdatesQueryVariables = Exact<{
 }>;
 
 
-export type GetUpdatesQuery = { chapters: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, uploadDate: unknown, fetchedAt: unknown, scanlator: string | null, mangaId: number, manga: { id: number, inLibraryAt: unknown, title: string, thumbnailUrl: string | null } }> } };
+export type GetUpdatesQuery = { chapters: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, pageCount: number, isDownloaded: boolean, uploadDate: unknown, fetchedAt: unknown, scanlator: string | null, mangaId: number, manga: { id: number, inLibraryAt: unknown, title: string, thumbnailUrl: string | null } }> } };
 
 export type GetHistoryQueryVariables = Exact<{
   filter?: ChapterFilterInput | null | undefined;
@@ -5398,6 +5442,7 @@ export const GetCategoriesDocument = gql`
 export const GetLibraryDocument = gql`
     query GetLibrary($filter: MangaFilterInput, $first: Int, $after: Cursor) {
   mangas(filter: $filter, first: $first, after: $after) {
+    totalCount
     pageInfo {
       hasNextPage
       endCursor
@@ -5452,6 +5497,107 @@ export const GetBookmarkedLibraryChaptersDocument = gql`
       id
       mangaId
     }
+  }
+}
+    `;
+export const GetLibraryInsightsDocument = gql`
+    query GetLibraryInsights($after: Cursor) {
+  mangas(filter: {inLibrary: {equalTo: true}}, first: 100, after: $after) {
+    totalCount
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      id
+      title
+      thumbnailUrl
+      status
+      genre
+      unreadCount
+      downloadCount
+      chapters {
+        totalCount
+      }
+      trackRecords {
+        totalCount
+      }
+      categories {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+  }
+}
+    `;
+export const GetReleaseSampleDocument = gql`
+    query GetReleaseSample($id: Int!) {
+  chapters(
+    filter: {mangaId: {equalTo: $id}}
+    first: 30
+    order: [{by: UPLOAD_DATE, byType: DESC}, {by: ID, byType: DESC}]
+  ) {
+    nodes {
+      chapterNumber
+      uploadDate
+    }
+  }
+}
+    `;
+export const GetLibraryPolicyDocument = gql`
+    query GetLibraryPolicy {
+  settings {
+    globalUpdateInterval
+    excludeUnreadChapters
+    excludeNotStarted
+    excludeCompleted
+    updateMangas
+  }
+  categories {
+    nodes {
+      id
+      name
+      order
+      default
+      includeInUpdate
+      includeInDownload
+    }
+  }
+}
+    `;
+export const SetLibraryPolicyDocument = gql`
+    mutation SetLibraryPolicy($input: SetSettingsInput!) {
+  setSettings(input: $input) {
+    settings {
+      globalUpdateInterval
+      excludeUnreadChapters
+      excludeNotStarted
+      excludeCompleted
+      updateMangas
+    }
+  }
+}
+    `;
+export const SetCollectionPolicyDocument = gql`
+    mutation SetCollectionPolicy($input: UpdateCategoryInput!) {
+  updateCategory(input: $input) {
+    category {
+      id
+      name
+      order
+      default
+      includeInUpdate
+      includeInDownload
+    }
+  }
+}
+    `;
+export const StopLibraryUpdateDocument = gql`
+    mutation StopLibraryUpdate($input: UpdateStopInput!) {
+  updateStop(input: $input) {
+    clientMutationId
   }
 }
     `;
@@ -5870,6 +6016,8 @@ export const GetUpdatesDocument = gql`
       chapterNumber
       isRead
       lastPageRead
+      pageCount
+      isDownloaded
       uploadDate
       fetchedAt
       scanlator
@@ -6034,6 +6182,24 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetBookmarkedLibraryChapters(variables?: GetBookmarkedLibraryChaptersQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetBookmarkedLibraryChaptersQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetBookmarkedLibraryChaptersQuery>({ document: GetBookmarkedLibraryChaptersDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetBookmarkedLibraryChapters', 'query', variables);
+    },
+    GetLibraryInsights(variables?: GetLibraryInsightsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetLibraryInsightsQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetLibraryInsightsQuery>({ document: GetLibraryInsightsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetLibraryInsights', 'query', variables);
+    },
+    GetReleaseSample(variables: GetReleaseSampleQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetReleaseSampleQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetReleaseSampleQuery>({ document: GetReleaseSampleDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetReleaseSample', 'query', variables);
+    },
+    GetLibraryPolicy(variables?: GetLibraryPolicyQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetLibraryPolicyQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetLibraryPolicyQuery>({ document: GetLibraryPolicyDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetLibraryPolicy', 'query', variables);
+    },
+    SetLibraryPolicy(variables: SetLibraryPolicyMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<SetLibraryPolicyMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<SetLibraryPolicyMutation>({ document: SetLibraryPolicyDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'SetLibraryPolicy', 'mutation', variables);
+    },
+    SetCollectionPolicy(variables: SetCollectionPolicyMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<SetCollectionPolicyMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<SetCollectionPolicyMutation>({ document: SetCollectionPolicyDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'SetCollectionPolicy', 'mutation', variables);
+    },
+    StopLibraryUpdate(variables: StopLibraryUpdateMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<StopLibraryUpdateMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<StopLibraryUpdateMutation>({ document: StopLibraryUpdateDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'StopLibraryUpdate', 'mutation', variables);
     },
     GetLibraryUpdateStatus(variables?: GetLibraryUpdateStatusQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetLibraryUpdateStatusQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetLibraryUpdateStatusQuery>({ document: GetLibraryUpdateStatusDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetLibraryUpdateStatus', 'query', variables);

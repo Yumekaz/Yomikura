@@ -1,0 +1,16 @@
+query GetLibraryPolicy {
+  settings { globalUpdateInterval excludeUnreadChapters excludeNotStarted excludeCompleted updateMangas }
+  categories { nodes { id name order default includeInUpdate includeInDownload } }
+}
+
+mutation SetLibraryPolicy($input: SetSettingsInput!) {
+  setSettings(input: $input) { settings { globalUpdateInterval excludeUnreadChapters excludeNotStarted excludeCompleted updateMangas } }
+}
+
+mutation SetCollectionPolicy($input: UpdateCategoryInput!) {
+  updateCategory(input: $input) { category { id name order default includeInUpdate includeInDownload } }
+}
+
+mutation StopLibraryUpdate($input: UpdateStopInput!) {
+  updateStop(input: $input) { clientMutationId }
+}

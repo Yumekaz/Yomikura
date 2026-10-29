@@ -1,0 +1,7 @@
+import { useLibraryUpdate } from "../../hooks/useLibraryUpdate";
+export function LibraryUpdateNotice() {
+  const update = useLibraryUpdate();
+  if (!update.isRunning) return null;
+  const total = Math.max(0, update.totalJobs), finished = Math.max(0, Math.min(total, update.finishedJobs));
+  return <aside className="mx-5 mt-4 flex flex-wrap items-center gap-4 rounded-xl border border-white/10 bg-ink-900 px-4 py-3 text-sm text-slate-300" aria-label="Library update activity"><div className="min-w-40 flex-1"><p role="status">{total ? `Checking your library · ${finished} of ${total}` : "Checking your library…"}{update.skipped > 0 ? ` · ${update.skipped} skipped by your rules` : ""}</p><div role="progressbar" aria-label="Library update progress" aria-valuemin={0} aria-valuemax={total || 100} aria-valuenow={total ? finished : undefined} className="mt-2 h-1 overflow-hidden rounded bg-white/10"><div className={`h-full bg-yomi-jade ${total ? "" : "animate-pulse"}`} style={{ width: total ? `${finished / total * 100}%` : "35%" }} /></div>{update.statusError && <button className="yomi-text-link mt-2 text-xs" onClick={update.retryStatus}>Status couldn’t be refreshed. Retry</button>}</div><button type="button" className="yomi-button yomi-button-secondary" disabled={update.isStopping} onClick={update.stopUpdate}>{update.isStopping ? "Stopping…" : "Stop updates"}</button>{update.error && <p role="alert" className="w-full text-xs text-red-400">Stopping wasn’t confirmed. The library may still be checking.</p>}</aside>;
+}

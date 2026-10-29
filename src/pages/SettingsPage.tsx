@@ -32,6 +32,7 @@ import { AppearanceSettingsPanel } from "../components/settings/AppearanceSettin
 import { BrowseSettingsPanel } from "../components/settings/BrowseSettingsPanel";
 import { DownloadSettingsPanel } from "../components/settings/DownloadSettingsPanel";
 import { ReaderSettingsPanel } from "../components/settings/ReaderSettingsPanel";
+import { LibrarySettingsPanel } from "../components/settings/LibrarySettingsPanel";
 import { validateBackupFile } from "../components/settings/backupValidation";
 import { waitForRestoreStatus } from "../components/settings/backupRestore";
 import { fetchAllLibrary } from "../api/library/fetchAllLibrary";
@@ -42,8 +43,8 @@ import { restoreBackupUpload } from "../api/suwayomi/backupUpload";
 import { progressBackend } from "../api/suwayomi/backendIdentity";
 
 type SettingsTab = SettingsSection;
-const SETTINGS_TABS: SettingsTab[] = ["appearance", "reader", "browse", "offline", "backup", "connection", "advanced", "about"];
-const SETTINGS_TAB_LABELS: Record<SettingsTab, string> = { appearance: "Appearance", reader: "Reader", browse: "Browsing", offline: "Storage", backup: "Backups", connection: "Connection", advanced: "Advanced", about: "About" };
+const SETTINGS_TABS: SettingsTab[] = ["appearance", "reader", "library", "browse", "offline", "backup", "connection", "advanced", "about"];
+const SETTINGS_TAB_LABELS: Record<SettingsTab, string> = { appearance: "Appearance", reader: "Reader", library: "Library", browse: "Browsing", offline: "Storage", backup: "Backups", connection: "Connection", advanced: "Advanced", about: "About" };
 
 function SettingsPage() {
   const navigate = useNavigate();
@@ -632,6 +633,7 @@ function SettingsPage() {
           {activeTab === "appearance" && <AppearanceSettingsPanel />}
 
           {activeTab === "reader" && <ReaderSettingsPanel />}
+          {activeTab === "library" && <LibrarySettingsPanel />}
           {activeTab === "browse" && <BrowseSettingsPanel />}
 
           {activeTab === "backup" && (

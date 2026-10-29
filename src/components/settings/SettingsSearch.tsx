@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 
-export type SettingsSection = "connection" | "appearance" | "reader" | "browse" | "backup" | "offline" | "advanced" | "about";
+export type SettingsSection = "connection" | "appearance" | "reader" | "library" | "browse" | "backup" | "offline" | "advanced" | "about";
 
 const entries: Array<{ section: SettingsSection; title: string; detail: string; keywords: string }> = [
+  { section: "library", title: "Library", detail: "Automatic checks, book information and collection rules", keywords: "update schedule metadata category collection default completed unread started download" },
   { section: "browse", title: "Browsing", detail: "Source content filters, library entries and extension stores", keywords: "browse discover sources nsfw mature extensions stores" },
   { section: "connection", title: "Server profiles", detail: "Connections, URLs, testing, profile import and export", keywords: "suwayomi server url profile connection cors" },
   { section: "appearance", title: "Appearance", detail: "Theme, accent, cover density, language and accessibility", keywords: "dark light system color contrast motion language" },

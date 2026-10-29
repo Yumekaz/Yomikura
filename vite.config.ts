@@ -2,9 +2,16 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
+import { stripIgnoredCharacters } from "graphql";
 
 export default defineConfig({
   plugins: [react(), {
+    name: "compact-library-documents", enforce: "pre",
+    transform(code, id) {
+      if (!id.replace(/\\/g, "/").endsWith("/api/graphql/generated/graphql.ts")) return;
+      return { code: code.replace(/gql`([^`]+)`/g, (_match, document: string) => `gql\`${stripIgnoredCharacters(document)}\``), map: null };
+    },
+  }, {
     name: "yomikura-offline-shell", apply: "build",
     generateBundle(_options, bundle) {
       const template = readFileSync(new URL("./public/sw.js", import.meta.url), "utf8");

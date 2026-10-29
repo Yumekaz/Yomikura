@@ -1,0 +1,18 @@
+query GetLibraryInsights($after: Cursor) {
+  mangas(filter: { inLibrary: { equalTo: true } }, first: 100, after: $after) {
+    totalCount
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      id title thumbnailUrl status genre unreadCount downloadCount
+      chapters { totalCount }
+      trackRecords { totalCount }
+      categories { nodes { id name } }
+    }
+  }
+}
+
+query GetReleaseSample($id: Int!) {
+  chapters(filter: { mangaId: { equalTo: $id } }, first: 30, order: [{ by: UPLOAD_DATE, byType: DESC }, { by: ID, byType: DESC }]) {
+    nodes { chapterNumber uploadDate }
+  }
+}

@@ -20,6 +20,7 @@ const ReposPage = lazy(() => import("../features/extensions/ReposPage"));
 const UpdatesPage = lazy(() => import("../features/updates/UpdatesPage"));
 const HistoryPage = lazy(() => import("../features/history/HistoryPage"));
 const DownloadsPage = lazy(() => import("../features/downloads/DownloadsPage"));
+const InsightsPage = lazy(() => import("../features/insights/InsightsPage"));
 
 // Device caches and a loopback/LAN engine can remain usable when the browser
 // reports offline. Let the actual request and each feature's fallback decide.
@@ -34,6 +35,8 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/library" replace />} />
         <Route element={<AppShell />}>
+          <Route path="/upcoming" element={<InsightsPage />} />
+          <Route path="/statistics" element={<InsightsPage />} />
           {Object.entries(routeCopy).map(([path, copy]) => {
             if (path === "/settings") {
               return <Route key={path} path={path} element={<SettingsPage />} />;

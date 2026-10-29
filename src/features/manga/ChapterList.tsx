@@ -15,6 +15,7 @@ import { useProgressBackend } from "../../hooks/useProgressSynchronization";
 import { mangaReaderSettingsKey } from "../../stores/mangaReaderSettings";
 import { normalizeChapterPolicy, selectChapters, type ChapterFilter } from "./chapterPolicy";
 import { ChapterRowFrame } from "./ChapterRowFrame";
+import { chapterProgressLabel } from "./chapterProgressLabel";
 
 export interface Chapter {
   id: string | number;
@@ -58,6 +59,7 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
       && head.chapter.mangaTitle === mangaTitle && head.chapter.chapterName === chapter.name && head.chapter.chapterNumber === chapter.chapterNumber);
     return saved && (offline || backend?.isDemo || saved.sequence > saved.acknowledgedSequence) ? { ...chapter,
       ...(saved.dirtyFields?.includes("isRead") ? { isRead: saved.patch.isRead } : {}),
+      ...(saved.dirtyFields?.includes("lastPageRead") || offline || backend?.isDemo ? { lastPageRead: saved.patch.lastPageRead } : {}),
       ...(saved.patch.isBookmarked !== undefined ? { isBookmarked: saved.patch.isBookmarked } : {}) } : chapter;
   }), [chapters, localProgress.data, mangaId, mangaTitle, offline, backend]);
   const scanlators = useMemo(() => [...new Set(chapters.map((chapter) => chapter.scanlator).filter((value): value is string => !!value))].sort(), [chapters]);
@@ -133,7 +135,7 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
           const chapterId = Number(chapter.id);
           const isCached = cachedChapterIds.has(chapterId);
           const download = activeDownloads[chapterId];
-          const content = <><span className={`block truncate font-medium ${chapter.isRead ? "text-slate-400" : "text-slate-200"}`}>{chapter.name}</span><span className="yomi-chapter-meta">{chapter.isRead && <span className="yomi-chapter-read"><Check aria-hidden="true" />Read</span>}<span>{formatChapterDate(chapter.uploadDate)}</span>{chapter.scanlator && <><span aria-hidden="true">·</span><span className="truncate">{chapter.scanlator}</span></>}</span></>;
+          const content = <><span className={`block truncate font-medium ${chapter.isRead ? "text-slate-400" : "text-slate-200"}`}>{chapter.name}</span><span className="yomi-chapter-meta">{chapter.isRead && <span className="yomi-chapter-read"><Check aria-hidden="true" />Read</span>}{!chapter.isRead && chapterProgressLabel(chapter) && <span>{chapterProgressLabel(chapter)}</span>}<span>{formatChapterDate(chapter.uploadDate)}</span>{chapter.scanlator && <><span aria-hidden="true">·</span><span className="truncate">{chapter.scanlator}</span></>}</span></>;
           return (
             <ChapterRowFrame key={chapter.id} name={chapter.name} selected={selected.has(chapterId)} selecting={selecting} read={chapter.isRead} bookmarked={chapter.isBookmarked} busy={bulkBusy}
               onRead={() => void updateSelected(chapter.isRead ? { isRead: false, lastPageRead: 0 } : { isRead: true }, new Set([chapterId]))} onBookmark={() => void updateSelected({ isBookmarked: !chapter.isBookmarked }, new Set([chapterId]))} onSelect={() => { setSelecting(true); setSelected(new Set([chapterId])); }}>

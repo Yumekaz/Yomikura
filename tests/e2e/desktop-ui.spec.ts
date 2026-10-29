@@ -190,10 +190,12 @@ test("automatic backup and update schedules persist", async ({ page }) => {
   await enterDemo(page);
   await page.goto("/settings/backup");
   await chooseOption(page.getByLabel("Automatic backup schedule"), "24");
-  await chooseOption(page.getByLabel("Automatic library updates"), "12");
+  await page.goto("/settings/library");
+  await chooseOption(page.getByRole("combobox", { name: "Extra checks while Yomikura is open", exact: true }), "12");
   await page.reload();
+  await expect(page.getByRole("combobox", { name: "Extra checks while Yomikura is open", exact: true })).toHaveAttribute("data-value", "12");
+  await page.goto("/settings/backup");
   await expect(page.getByLabel("Automatic backup schedule")).toHaveAttribute("data-value", "24");
-  await expect(page.getByLabel("Automatic library updates")).toHaveAttribute("data-value", "12");
 });
 
 test("chapter filtering and bulk actions are discoverable", async ({ page }) => {
