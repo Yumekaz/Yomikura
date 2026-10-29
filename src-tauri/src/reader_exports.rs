@@ -78,9 +78,12 @@ pub(crate) fn get_reader_export_directory(app: tauri::AppHandle) -> Result<Optio
 pub(crate) async fn select_reader_export_directory(
     app: tauri::AppHandle,
 ) -> Result<Option<String>, String> {
-    let selected = tauri::async_runtime::spawn_blocking(super::select_directory)
-        .await
-        .map_err(|error| error.to_string())??;
+    let owner = super::folder_dialog_owner(&app);
+    let selected = tauri::async_runtime::spawn_blocking(move || {
+        super::select_directory_sync("Choose your export folder", owner)
+    })
+    .await
+    .map_err(|error| error.to_string())??;
     let Some(selected) = selected else {
         return Ok(None);
     };

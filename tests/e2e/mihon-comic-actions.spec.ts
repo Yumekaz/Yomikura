@@ -34,6 +34,16 @@ test("book details expose source actions, refresh, expandable synopsis and a sti
   const sticky = page.getByRole("link", { name: "Resume Comic actions fixture", exact: true });
   await expect(sticky).toBeVisible(); await expect(sticky).toHaveAttribute("href", "/reader/51");
 });
+
+test("Resume appears when a short action row leaves the space below the sticky toolbar", async ({ page }) => {
+  await fixture(page); await page.goto("/manga/10002");
+  const action = page.locator(".yomi-detail-summary").getByRole("link", { name: "Resume", exact: true });
+  const target = await action.evaluate((element) => element.parentElement!.getBoundingClientRect().bottom + window.scrollY - 55);
+  await page.evaluate((target) => window.scrollTo({ top: target, behavior: "instant" }), target);
+  const sticky = page.getByRole("link", { name: "Resume Comic actions fixture", exact: true });
+  await expect(sticky).toBeVisible(); await expect(sticky).toHaveAttribute("href", "/reader/51");
+  await page.mouse.wheel(0, 160); await expect(sticky).toBeVisible();
+});
 test("chapter context actions support right click and keyboard without adjacent selection controls", async ({ page }) => {
   const state = await fixture(page); await page.goto("/manga/10002");
   const row = page.locator(".yomi-chapter-row").filter({ has: page.getByRole("link", { name: /^Chapter 50\b/ }) });

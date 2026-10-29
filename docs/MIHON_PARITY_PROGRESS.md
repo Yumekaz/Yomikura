@@ -101,4 +101,16 @@ Mihon evidence: `core/common/.../ImageUtil.kt`, `TallImageSplitCalculator.kt` an
 
 ## Remaining implementation
 
+## Desktop verification and navigation corrections
+
+The isolated Windows build completed managed-library setup using an already verified runtime in a separate test folder. The actual listener bound to `127.0.0.1`. A local test comic was added and saved for device reading; backend download flags remained independent. Native original-page and three-page CBZ exports matched every source image byte-for-byte. A native backup passed gzip/checksum verification and retained an unsynced device-note snapshot. Fullscreen entry and returning to a normal window were observed.
+
+The old Windows folder chooser launched a synchronous PowerShell/Forms dialog. It is replaced with the modern native folder dialog on an owned COM worker, with cancellation and Unicode paths preserved. Selection and export were verified in the native build. This does not change system preferences or install a shell helper.
+
+Native review also reproduced two shared navigation problems. The sticky Resume observer now uses its actual clipped viewport boundary, so gradual scrolling cannot leave it hidden. New non-reader routes start at the top; Back restores the previous entry's position, while reader sessions retain their own page/chapter restoration. Validation: 418 unit tests, 23 Rust tests, all-target Clippy, strict spec types and production build/budget passed. Six comic-action checks passed; the combined navigation/comic/continuity run passed 15 cases and exposed a test scroll targeting the sidebar. Both navigation cases passed after aiming at the content pane. Native wake/restart checks and final whole-suite verification are still pending.
+
+REA/JADX also completed static inspection of Mihon's compiled `ImageUtil.splitTallImage` method. Its body confirms animation handling, region decoding, compression, recycling and file cleanup. The official APK was not executed. Suwayomi v2.3.2243 source at `1d583ca4a718646e17a4c62d23fe8e5edccaf774` is now pinned for the remaining backend-contract comparisons.
+
+## Remaining implementation
+
 Update scheduling/statistics, privacy/tracking and remaining desktop-specific equivalents are still being compared and implemented. Source contracts and platform/hardware limitations remain explicit. The full 50-screen work is not yet complete.

@@ -8,6 +8,8 @@ use tauri::Emitter;
 use tauri::WindowEvent;
 use tauri::{Manager, State};
 mod local_import;
+#[cfg(target_os = "windows")]
+mod native_folders;
 mod reader_exports;
 mod reader_platform;
 mod runtime_setup;
@@ -423,32 +425,33 @@ fn get_available_port(start_port: u16) -> u16 {
 }
 
 #[tauri::command]
-fn select_directory() -> Result<Option<String>, String> {
+async fn select_directory(app_handle: tauri::AppHandle) -> Result<Option<String>, String> {
+    let owner = folder_dialog_owner(&app_handle);
+    tauri::async_runtime::spawn_blocking(move || {
+        select_directory_sync("Choose your library folder", owner)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+fn folder_dialog_owner(_app: &tauri::AppHandle) -> isize {
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
-        let output = Command::new("powershell")
-            .arg("-NoProfile")
-            .arg("-Command")
-            .arg("Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.ShowNewFolderButton = $true; if ($f.ShowDialog() -eq 'OK') { $f.SelectedPath }")
-            .creation_flags(0x08000000) // CREATE_NO_WINDOW
-            .output();
+        _app.get_webview_window("main")
+            .and_then(|window| window.hwnd().ok())
+            .map(|hwnd| hwnd.0 as isize)
+            .unwrap_or(0)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        0
+    }
+}
 
-        match output {
-            Ok(out) => {
-                if out.status.success() {
-                    let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                    if path.is_empty() {
-                        Ok(None)
-                    } else {
-                        Ok(Some(path))
-                    }
-                } else {
-                    Ok(None)
-                }
-            }
-            Err(e) => Err(format!("Failed to open folder browser: {}", e)),
-        }
+fn select_directory_sync(_title: &str, _owner: isize) -> Result<Option<String>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        native_folders::choose(_title, _owner)
     }
 
     #[cfg(target_os = "macos")]

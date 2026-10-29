@@ -245,7 +245,7 @@ export default function MangaDetailPage() {
   useEffect(() => { setSynopsisOpen(false); setStickyResume(false); }, [mangaId, policyBackend.key]);
   useEffect(() => {
     const node = actionsRef.current; if (!node) return;
-    const observer = new IntersectionObserver(([entry]) => setStickyResume(!entry.isIntersecting && entry.boundingClientRect.top < 0), { rootMargin: "-60px 0px 0px 0px" });
+    const observer = new IntersectionObserver(([entry]) => setStickyResume(!entry.isIntersecting && entry.boundingClientRect.top < (entry.rootBounds?.top ?? 60)), { rootMargin: "-60px 0px 0px 0px" });
     observer.observe(node); return () => observer.disconnect();
   }, [manga?.id, isLoading, isOfflineMode]);
   const sourceUrl = safeSourceUrl(data?.manga?.realUrl);
