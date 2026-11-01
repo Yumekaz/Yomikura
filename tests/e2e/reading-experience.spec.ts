@@ -123,6 +123,7 @@ test("a fully read book offers Read again rather than pretending it has no chapt
 });
 
 test("web setup recommends the installer and preserves the connection form through retries", async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, "platform", { configurable: true, value: "Win32" }));
   await page.route("https://api.github.com/repos/Yumekaz/Yomikura/releases/latest", (route) => route.fulfill({ json: { assets: [{ name: "Yomikura_x64-setup.exe", browser_download_url: "https://github.com/Yumekaz/Yomikura/releases/download/v1/Yomikura_x64-setup.exe" }] } }));
   await page.route("**/api/graphql", async (route) => {
     if (new URL(route.request().url()).origin !== backend) return route.abort("connectionrefused");

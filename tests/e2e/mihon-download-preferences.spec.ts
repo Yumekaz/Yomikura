@@ -19,20 +19,28 @@ async function fixture(page: Page, options: { unavailable?: boolean; reject?: bo
 test("library format and source concurrency controls round-trip actual supported values", async ({ page }) => {
   const state = await fixture(page); await page.goto("/settings/offline");
   await expect(page.getByRole("combobox", { name: "Library sources at once", exact: true })).toContainText("7");
-  await page.getByRole("checkbox", { name: "Save library downloads as CBZ archives", exact: true }).check();
+  const cbz = page.getByRole("checkbox", { name: "Save library downloads as CBZ archives", exact: true });
+  await cbz.click();
   await expect.poll(() => state.settings.downloadAsCbz).toBe(true);
+  await expect(cbz).toBeChecked();
   await page.getByRole("combobox", { name: "Library sources at once", exact: true }).click(); await page.getByRole("option", { name: "5", exact: true }).click();
   await expect.poll(() => state.settings.maxSourcesInParallel).toBe(5);
   expect(state.writes).toEqual([{ downloadAsCbz: true }, { maxSourcesInParallel: 5 }]);
 });
 test("automatic library downloads get a real positive limit and independent backlog choices", async ({ page }) => {
   const state = await fixture(page); await page.goto("/settings/offline");
-  await page.getByRole("checkbox", { name: "Download new chapters automatically", exact: true }).check();
+  const automatic = page.getByRole("checkbox", { name: "Download new chapters automatically", exact: true });
+  await automatic.click();
   await expect.poll(() => state.settings.autoDownloadNewChaptersLimit).toBe(5);
-  await page.getByRole("checkbox", { name: "Skip books with an unread backlog", exact: true }).uncheck();
+  await expect(automatic).toBeChecked();
+  const backlog = page.getByRole("checkbox", { name: "Skip books with an unread backlog", exact: true });
+  await backlog.click();
   await expect.poll(() => state.settings.excludeEntryWithUnreadChapters).toBe(false);
-  await page.getByRole("checkbox", { name: "Skip re-uploaded chapters", exact: true }).check();
+  await expect(backlog).not.toBeChecked();
+  const reuploads = page.getByRole("checkbox", { name: "Skip re-uploaded chapters", exact: true });
+  await reuploads.click();
   await expect.poll(() => state.settings.autoDownloadIgnoreReUploads).toBe(true);
+  await expect(reuploads).toBeChecked();
 });
 test("unconfirmed library settings keep their prior value and expose recovery", async ({ page }) => {
   await fixture(page, { reject: true }); await page.goto("/settings/offline");

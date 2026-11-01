@@ -32,6 +32,7 @@ test("dropdowns support typeahead, Escape, focus return and the empty collection
   await page.keyboard.press("Enter");
   await expect(page.getByRole("listbox", { name: "Sort library", exact: true })).toBeVisible();
   await page.keyboard.press("u");
+  await expect(page.getByRole("option", { name: "Unread", exact: true })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(sort).toHaveAttribute("data-value", "unread");
   await expect(sort).toBeFocused();
