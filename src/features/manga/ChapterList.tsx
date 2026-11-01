@@ -41,7 +41,7 @@ interface ChapterListProps {
 export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: ChapterListProps) {
   const { confirm, notify } = useFeedback();
   const queryClient = useQueryClient();
-  const { serverBaseUrl, mockMode, chapterPolicies, setChapterPolicy } = useSettingsStore();
+  const { serverBaseUrl, mockMode, chapterPolicies, setChapterPolicy, experience, updateExperience } = useSettingsStore();
   const keepsLocalCopy = isTauri() || mockMode;
   const { activeDownloads, cachedChapterIds, downloadChapter, retryDownload, cancelDownload, deleteChapter } = useDownloadStore();
   const [query, setQuery] = useState("");
@@ -51,8 +51,9 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
 
   const backend = useProgressBackend();
   const policy = normalizeChapterPolicy(backend && mangaId !== undefined ? chapterPolicies[mangaReaderSettingsKey(backend, mangaId)] : undefined);
+  if (experience.downloadedOnly) policy.filter = "downloaded";
   const { filter, scanlator } = policy;
-  const changePolicy = (patch: Partial<typeof policy>) => { if (backend && mangaId !== undefined) setChapterPolicy(mangaId, { ...policy, ...patch }, backend); setSelected(new Set()); setSelecting(false); };
+  const changePolicy = (patch: Partial<typeof policy>) => { if (patch.filter !== undefined && experience.downloadedOnly) updateExperience({ downloadedOnly: false }); if (backend && mangaId !== undefined) setChapterPolicy(mangaId, { ...policy, ...patch }, backend); setSelected(new Set()); setSelecting(false); };
   const localProgress = useQuery({ queryKey: ["progress-local", backend?.key], queryFn: () => getProgressHeads(backend!), enabled: !!backend, retry: false });
   const sortedChapters = useMemo(() => chapters.map((chapter) => {
     const saved = localProgress.data?.find((head) => head.chapter.chapterId === Number(chapter.id) && head.chapter.mangaId === mangaId

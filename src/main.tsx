@@ -2,8 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./app/App";
-import "@fontsource-variable/inter";
-import "@fontsource-variable/playfair-display";
+import "./fonts.css";
 import "./styles.css";
 import { applyPalette, legacyPalette, paletteFor } from "./theme/palettes";
 
@@ -15,7 +14,7 @@ try {
   document.documentElement.classList.toggle("light-theme", !dark);
   document.documentElement.classList.toggle("reduce-motion", saved?.reducedMotion === true);
   document.documentElement.classList.toggle("high-contrast", saved?.highContrastMode === true);
-  applyPalette(document.documentElement, paletteFor(saved?.colorPalette ?? legacyPalette(saved?.accentColor)).id, dark);
+  applyPalette(document.documentElement, paletteFor(saved?.colorPalette ?? legacyPalette(saved?.accentColor)).id, dark, saved?.experience?.pureBlack === true);
 } catch { applyPalette(document.documentElement, "ember", true); }
 
 const runningInTauri = "__TAURI_INTERNALS__" in window;

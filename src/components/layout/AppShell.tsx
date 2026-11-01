@@ -18,6 +18,7 @@ import { useProgressSynchronization } from "../../hooks/useProgressSynchronizati
 import { useDownloadCleanup } from "../../hooks/useDownloadCleanup";
 import { ProgressSyncStatus } from "../ProgressSyncStatus";
 import { LibraryUpdateNotice } from "../library/LibraryUpdateNotice";
+import { ReadingModeNotice } from "../ReadingModeNotice";
 import { BrandLogo, SidebarCompanion, SanctuaryArt } from "../Brand";
 import { applyPalette } from "../../theme/palettes";
 import { DesktopDownloadLink } from "../onboarding/DesktopDownloadLink";
@@ -110,6 +111,7 @@ function AppShell() {
   const navigate = useNavigate();
 
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const pureBlack = useSettingsStore((state) => state.experience.pureBlack);
   const [setupActive, setSetupActive] = useState(false);
   const [managedStartupDismissed, setManagedStartupDismissed] = useState(false);
   const [wasOffline, setWasOffline] = useState(connectionStatus === "error");
@@ -187,7 +189,7 @@ function AppShell() {
     const applyTheme = () => {
       const dark = themeMode === "dark" || themeMode === "system" && systemTheme.matches;
       htmlElement.classList.toggle("light-theme", !dark);
-      applyPalette(htmlElement, colorPalette, dark);
+      applyPalette(htmlElement, colorPalette, dark, pureBlack);
     };
     applyTheme();
     if (themeMode === "system") systemTheme.addEventListener("change", applyTheme);
@@ -195,7 +197,7 @@ function AppShell() {
     htmlElement.classList.toggle("high-contrast", highContrastMode);
     htmlElement.classList.toggle("reduce-motion", reducedMotion);
     return () => systemTheme.removeEventListener("change", applyTheme);
-  }, [themeMode, colorPalette, highContrastMode, reducedMotion]);
+  }, [themeMode, colorPalette, highContrastMode, reducedMotion, pureBlack]);
 
   const showOfflineBanner = (connectionStatus === "error" || connectionStatus === "testing" && wasOffline) && !location.pathname.startsWith("/reader/") && !mockMode;
 
@@ -274,6 +276,7 @@ function AppShell() {
         </div>
         <PwaUpdateNotice />
         <LibraryUpdateNotice />
+        <ReadingModeNotice />
         {mockMode && !location.pathname.startsWith("/reader/") && (
           <div className="yomi-demo-notice">
             <span><Sparkles aria-hidden="true" />Demo library <span className="yomi-demo-description">· Explore with original sample books. Your library stays separate.</span></span>

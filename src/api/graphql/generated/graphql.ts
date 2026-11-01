@@ -3817,6 +3817,13 @@ export type ChapterOrderInput = {
   byType?: SortOrder | null | undefined;
 };
 
+export type ClearCachedImagesInput = {
+  cachedPages?: boolean | null | undefined;
+  cachedThumbnails?: boolean | null | undefined;
+  clientMutationId?: string | null | undefined;
+  downloadedThumbnails?: boolean | null | undefined;
+};
+
 export type ClearDownloaderInput = {
   clientMutationId?: string | null | undefined;
 };
@@ -4354,12 +4361,6 @@ export type UpdateExtensionPatchInput = {
   update?: boolean | null | undefined;
 };
 
-export type UpdateExtensionsInput = {
-  clientMutationId?: string | null | undefined;
-  ids: Array<string>;
-  patch: UpdateExtensionPatchInput;
-};
-
 export type UpdateLibraryInput = {
   categories?: Array<number> | null | undefined;
   clientMutationId?: string | null | undefined;
@@ -4530,12 +4531,12 @@ export type ToggleExtensionInstallMutationVariables = Exact<{
 
 export type ToggleExtensionInstallMutation = { updateExtension: { extension: { pkgName: string, isInstalled: boolean } | null } | null };
 
-export type UpdateExtensionsMutationVariables = Exact<{
-  input: UpdateExtensionsInput;
+export type ClearTemporaryLibraryImagesMutationVariables = Exact<{
+  input: ClearCachedImagesInput;
 }>;
 
 
-export type UpdateExtensionsMutation = { updateExtensions: { extensions: Array<{ pkgName: string, isInstalled: boolean, hasUpdate: boolean, versionName: string }> } | null };
+export type ClearTemporaryLibraryImagesMutation = { clearCachedImages: { clientMutationId: string | null, cachedPages: boolean | null, cachedThumbnails: boolean | null, downloadedThumbnails: boolean | null } };
 
 export type UpdateLibraryMutationVariables = Exact<{
   input: UpdateLibraryInput;
@@ -4586,18 +4587,6 @@ export type GetSourcesQueryVariables = Exact<{
 
 
 export type GetSourcesQuery = { sources: { totalCount: number, pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean, isConfigurable: boolean, extension: { pkgName: string, isInstalled: boolean } }> } };
-
-export type GetSourcesByConditionQueryVariables = Exact<{
-  lang: string;
-}>;
-
-
-export type GetSourcesByConditionQuery = { sources: { totalCount: number, nodes: Array<{ id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean, isConfigurable: boolean }> } };
-
-export type GetInstalledExtensionLangsQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-export type GetInstalledExtensionLangsQuery = { extensions: { totalCount: number, nodes: Array<{ pkgName: string, lang: string }> } };
 
 export type GetCleanupChapterContextQueryVariables = Exact<{
   id: number;
@@ -5155,15 +5144,13 @@ export const ToggleExtensionInstallDocument = gql`
   }
 }
     `;
-export const UpdateExtensionsDocument = gql`
-    mutation UpdateExtensions($input: UpdateExtensionsInput!) {
-  updateExtensions(input: $input) {
-    extensions {
-      pkgName
-      isInstalled
-      hasUpdate
-      versionName
-    }
+export const ClearTemporaryLibraryImagesDocument = gql`
+    mutation ClearTemporaryLibraryImages($input: ClearCachedImagesInput!) {
+  clearCachedImages(input: $input) {
+    clientMutationId
+    cachedPages
+    cachedThumbnails
+    downloadedThumbnails
   }
 }
     `;
@@ -5250,33 +5237,6 @@ export const GetSourcesDocument = gql`
         pkgName
         isInstalled
       }
-    }
-  }
-}
-    `;
-export const GetSourcesByConditionDocument = gql`
-    query GetSourcesByCondition($lang: String!) {
-  sources(condition: {lang: $lang}, first: 2000) {
-    totalCount
-    nodes {
-      id
-      name
-      lang
-      iconUrl
-      supportsLatest
-      isNsfw
-      isConfigurable
-    }
-  }
-}
-    `;
-export const GetInstalledExtensionLangsDocument = gql`
-    query GetInstalledExtensionLangs {
-  extensions(condition: {isInstalled: true}, first: 2000) {
-    totalCount
-    nodes {
-      pkgName
-      lang
     }
   }
 }
@@ -6111,8 +6071,8 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     ToggleExtensionInstall(variables: ToggleExtensionInstallMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ToggleExtensionInstallMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<ToggleExtensionInstallMutation>({ document: ToggleExtensionInstallDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ToggleExtensionInstall', 'mutation', variables);
     },
-    UpdateExtensions(variables: UpdateExtensionsMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateExtensionsMutation> {
-      return withWrapper((wrappedRequestHeaders) => client.request<UpdateExtensionsMutation>({ document: UpdateExtensionsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateExtensions', 'mutation', variables);
+    ClearTemporaryLibraryImages(variables: ClearTemporaryLibraryImagesMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ClearTemporaryLibraryImagesMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<ClearTemporaryLibraryImagesMutation>({ document: ClearTemporaryLibraryImagesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ClearTemporaryLibraryImages', 'mutation', variables);
     },
     UpdateLibrary(variables: UpdateLibraryMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateLibraryMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<UpdateLibraryMutation>({ document: UpdateLibraryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateLibrary', 'mutation', variables);
@@ -6134,12 +6094,6 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetSources(variables?: GetSourcesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetSourcesQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetSourcesQuery>({ document: GetSourcesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetSources', 'query', variables);
-    },
-    GetSourcesByCondition(variables: GetSourcesByConditionQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetSourcesByConditionQuery> {
-      return withWrapper((wrappedRequestHeaders) => client.request<GetSourcesByConditionQuery>({ document: GetSourcesByConditionDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetSourcesByCondition', 'query', variables);
-    },
-    GetInstalledExtensionLangs(variables?: GetInstalledExtensionLangsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetInstalledExtensionLangsQuery> {
-      return withWrapper((wrappedRequestHeaders) => client.request<GetInstalledExtensionLangsQuery>({ document: GetInstalledExtensionLangsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetInstalledExtensionLangs', 'query', variables);
     },
     GetCleanupChapterContext(variables: GetCleanupChapterContextQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetCleanupChapterContextQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetCleanupChapterContextQuery>({ document: GetCleanupChapterContextDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetCleanupChapterContext', 'query', variables);

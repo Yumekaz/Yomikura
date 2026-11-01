@@ -4,6 +4,7 @@ import { lazy, Suspense } from "react";
 import { routeCopy } from "./navigation";
 import { FeedbackProvider } from "../components/ui/FeedbackProvider";
 import { NavigationScroll } from "./NavigationScroll";
+import { PrivacyGuard } from "../components/PrivacyGuard";
 
 const AppShell = lazy(() => import("../components/layout/AppShell"));
 const SettingsPage = lazy(() => import("../pages/SettingsPage"));
@@ -30,7 +31,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <NavigationScroll />
-      <FeedbackProvider>
+      <PrivacyGuard><FeedbackProvider>
       <Suspense fallback={<div className="yomi-route-loading"><span className="yomi-skeleton h-8 w-40" /><span className="yomi-skeleton h-24 w-full" /></div>}>
       <Routes>
         <Route path="/" element={<Navigate to="/library" replace />} />
@@ -91,7 +92,7 @@ function App() {
         </Route>
       </Routes>
       </Suspense>
-      </FeedbackProvider>
+      </FeedbackProvider></PrivacyGuard>
     </QueryClientProvider>
   );
 }

@@ -7,6 +7,8 @@ use tauri::tray::TrayIconBuilder;
 use tauri::Emitter;
 use tauri::WindowEvent;
 use tauri::{Manager, State};
+mod desktop_lock;
+mod desktop_preferences;
 mod local_import;
 #[cfg(target_os = "windows")]
 mod native_folders;
@@ -995,7 +997,11 @@ pub fn run() {
             backend: Mutex::new(None),
             verified_jar: Mutex::new(None),
         })
+        .manage(desktop_preferences::DesktopState::default())
         .invoke_handler(tauri::generate_handler![
+            desktop_preferences::get_desktop_preferences,
+            desktop_preferences::set_desktop_preferences,
+            desktop_preferences::unlock_reading_room,
             reader_platform::set_reader_keep_awake,
             reader_exports::get_reader_export_directory,
             reader_exports::select_reader_export_directory,
@@ -1015,6 +1021,7 @@ pub fn run() {
             local_import::import_local_archives
         ])
         .setup(|app| {
+            desktop_preferences::initialize(app.handle());
             if let Some(window) = app.get_webview_window("main") {
                 if let Err(error) = window_layout::fit_initial_window(&window) {
                     eprintln!("Initial window could not be fitted to the display: {error}");
@@ -1105,12 +1112,27 @@ pub fn run() {
                         _ => {}
                     })
                     .build(app)?;
+                app.state::<desktop_preferences::DesktopState>()
+                    .tray_available
+                    .store(true, std::sync::atomic::Ordering::Release);
             }
 
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { .. } = event {
+            if let WindowEvent::Focused(false) = event {
+                desktop_preferences::lock_when_away(window);
+            }
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                if desktop_preferences::keep_running(
+                    &window
+                        .app_handle()
+                        .state::<desktop_preferences::DesktopState>(),
+                ) {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    return;
+                }
                 let state: State<'_, BackendState> = window.app_handle().state();
                 let mut lock = state.backend.lock().unwrap();
                 if let Some(mut backend) = lock.take() {

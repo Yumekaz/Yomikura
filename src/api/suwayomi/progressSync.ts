@@ -45,6 +45,7 @@ async function mirrorProgress(head: ProgressHead) {
 
 /** The outbox/head transaction is authoritative; legacy caches are derived views. */
 export async function saveProgressIntent(backend: ProgressBackend, intent: ProgressIntent) {
+  if (intent.kind === "reading" && useSettingsStore.getState().experience?.incognito) return { accepted: false as const, reason: "incognito" };
   const result = await enqueueProgress(backend, intent);
   if (result.accepted) {
     await mirrorProgress(result.head).catch((error) => console.warn("Progress is retained; its cached view could not be refreshed.", error));
@@ -176,7 +177,9 @@ export async function writeChapterProgress(backend: ProgressBackend, chapterId: 
     chapter = fallback;
     baseline = head?.lastAcknowledged ?? head?.baseline ?? { isRead: cached?.isRead ?? false, lastPageRead: cached?.lastPageRead ?? 0 };
   }
-  const { head } = await saveProgressIntent(backend, { kind: "explicit", chapter, baseline, patch, hideHistory: options.hideHistory });
+  const saved = await saveProgressIntent(backend, { kind: "explicit", chapter, baseline, patch, hideHistory: options.hideHistory });
+  if (!saved.accepted || !("head" in saved)) throw new Error("The chapter changed while saving. Review its current state and try again.");
+  const { head } = saved;
   await synchronizeProgress(backend);
   const acknowledged = (await getProgressHead(backend, chapterId))!.acknowledgedSequence >= head.sequence;
   if (!acknowledged && options.requireAcknowledgment) throw new Error("The progress change is saved on this device but has not been confirmed by Suwayomi. The operation was paused before removing the original title.");

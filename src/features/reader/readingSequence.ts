@@ -5,8 +5,10 @@ import { getProgressHeads } from "../../api/suwayomi/progressStorage";
 import { type ChapterPolicy, type PolicyChapter } from "../manga/chapterPolicy";
 import { DEFAULT_SEQUENCE_CHOICES, selectReaderSequence, type ReaderSequenceChoices } from "./readerSequencePolicy";
 import { fetchReadingChapters } from "../../api/library/fetchReadingChapters";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 
 export async function loadReadingSequence(backend: ProgressBackend, mangaId: number, title: string, anchorId: number, policy: ChapterPolicy, signal?: AbortSignal, choices: ReaderSequenceChoices = DEFAULT_SEQUENCE_CHOICES) {
+  if (useSettingsStore.getState().experience?.downloadedOnly) { policy = { ...policy, filter: "downloaded" }; choices = { ...choices, skipFiltered: true }; }
   const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { signal }, backend.isDemo ? "demo" : "live");
   let chapters: (PolicyChapter & { mangaId: number })[] = [];
   let offline = false;
@@ -16,7 +18,7 @@ export async function loadReadingSequence(backend: ProgressBackend, mangaId: num
     if (signal?.aborted) throw error;
     const cached = await getCachedChaptersForManga(backend.serverBaseUrl, mangaId, backend.isDemo);
     if (!cached.length) throw error;
-    chapters = cached.filter((chapter) => chapter.mangaTitle === title).map((chapter) => ({ ...chapter, isRead: chapter.isRead ?? false, isDownloaded: true })); offline = true;
+    chapters = cached.filter((chapter) => chapter.mangaTitle === title).map((chapter) => ({ ...chapter, isRead: chapter.isRead ?? false, isDownloaded: false })); offline = true;
   }
   if (signal?.aborted) throw new DOMException("Reader closed", "AbortError");
   if (!chapters.some((chapter) => Number(chapter.id) === anchorId)) throw new Error("The opening chapter is absent from the confirmed list. Reopen the reader.");
@@ -28,6 +30,6 @@ export async function loadReadingSequence(backend: ProgressBackend, mangaId: num
       ...(head.patch.isBookmarked !== undefined ? { isBookmarked: head.patch.isBookmarked } : {}) } : chapter;
   });
   const cachedIds = new Set(cached.map((chapter) => chapter.id));
-  return { chapters: selectReaderSequence(desired, policy, cachedIds, anchorId, choices).map((chapter) => ({ ...chapter, id: Number(chapter.id) })),
+  return { chapters: selectReaderSequence(desired, policy, cachedIds, anchorId, choices).map((chapter) => ({ ...chapter, id: Number(chapter.id), availableOffline: chapter.isDownloaded || cachedIds.has(Number(chapter.id)) })),
     downloadChapters: selectReaderSequence(desired, { ...policy, filter: "all" }, cachedIds, anchorId, { ...choices, skipRead: false }).map((chapter) => ({ ...chapter, id: Number(chapter.id) })), offline };
 }

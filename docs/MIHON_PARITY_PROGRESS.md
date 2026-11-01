@@ -123,6 +123,20 @@ Evidence: Mihon `UpcomingViewModel.kt`, `GetUpcomingManga.kt`, `FetchInterval.kt
 
 Validation: 434 unit tests, 32 browser checks, strict browser-spec types and production build passed. Calendar accessibility passed in light/dark modes; narrow navigation retains its six main destinations. Actual isolated Suwayomi settings/query verification passed, including restoring the original preferences. Hands-on real-library statistics/calendar review completed. The fresh four-title reading run and native follow-up are separate, ongoing gates. No private reference screenshots are included.
 
+## Reading privacy and desktop controls
+
+Incognito pauses new reading progress/history and automatic tracking, while explicit chapter edits remain available. Reader sessions retain their entry privacy state, so a late callback cannot save an incognito session after the mode changes. Per-library automatic tracker policies retain paused work and allow deliberate manual synchronization. Downloaded-only views cover the library, chapter lists and continuation, without treating device copies as server downloads.
+
+An optional privacy curtain hides the interface and removes its controls from focus/accessibility while the window is inactive. Windows builds add an opt-in Windows Hello lock: native verification owns the credential prompt and unlocking requires a confirmed result. No credential is stored in the WebView. This controls app access; library files remain subject to the user’s operating-system account permissions. Other desktop builds expose only supported capabilities.
+
+Native capture protection and close-to-tray preferences are persisted and verified. Tray mode is unavailable without a successfully created tray icon. Normal closing stops the managed engine; tray closing hides the window and keeps the engine available. The isolated Windows runtime confirmed capture exclusion, restored the original capture preference, kept its engine reachable after tray closing, restored the same running window, then stopped its listener after normal closing. Windows Hello authentication with a real user and physical screen-sleep behavior remain unperformed.
+
+Appearance adds pure-black dark surfaces and device/ISO/full chapter date formats. Image maintenance uses Suwayomi’s separate temporary-image and cover stores, confirms the chosen scope, and checks the response before reporting completion. It never calls downloaded-chapter deletion. Backend source `ImageMutation.kt` confirms those separate storage roots. The pinned engine does not expose configurable DoH or custom user-agent settings; its network helper has DoH selection disabled and a managed user-agent flow. The frontend does not pretend those settings can alter source requests.
+
+Build compaction now shares the generated SDK request wrapper; a regression compares every emitted operation’s document, variables, headers, cancellation and middleware metadata with the generated implementation. Unused source-list queries are removed, and the existing system fallback handles historic extended Cyrillic. All supported interface languages retain their previous font coverage. The logo PNG is recompressed with identical palette, alpha and decoded indices; desktop icon files are unchanged. Existing JavaScript and total-size limits are retained.
+
+The real-server reading run passed four Asura titles, two chapters per title, with decoded pages, saved progress and restored reading position. Current targeted browser verification covers incognito/manual actions, paused tracking/profile isolation, downloaded-only exit, focus-event curtain behavior, accessibility, appearance and bounded maintenance. Failed attempts remain in private evidence. Full-suite verification and the final fifty-reference reconciliation remain separate gates.
+
 ## Remaining implementation
 
-Privacy/tracking and remaining desktop-specific equivalents are still being compared and implemented. Source contracts and platform/hardware limitations remain explicit. The full 50-screen work is not yet complete.
+Duplicate-read propagation and remaining platform comparisons are still being reconciled, followed by final whole-suite verification. Source contracts and platform/hardware limits remain explicit. The full 50-screen work is not yet complete.

@@ -63,7 +63,7 @@ type FetchChaptersResponse = {
 
 export default function MangaDetailPage() {
   const { mangaId } = useParams<{ mangaId: string }>();
-  const { serverBaseUrl, mockMode, chapterPolicies } = useSettingsStore();
+  const { serverBaseUrl, mockMode, chapterPolicies, experience } = useSettingsStore();
   const coverAccentEnabled = useCoverAccentEnabled();
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isMigrationOpen, setIsMigrationOpen] = useState(false);
@@ -224,12 +224,13 @@ export default function MangaDetailPage() {
   // Find the first unread chapter to resume reading
   const continuation = useMemo(() => {
     const policy = normalizeChapterPolicy(chapterPolicies[mangaReaderSettingsKey(progressBackend(serverBaseUrl, mockMode), mangaId!)]);
+    if (experience.downloadedOnly) policy.filter = "downloaded";
     const projected = chapters.map((chapter) => {
       const head = localProgress.data?.find((head) => head.chapter.chapterId === Number(chapter.id) && head.chapter.mangaId === Number(mangaId) && head.chapter.chapterName === chapter.name && head.chapter.mangaTitle === manga?.title);
       return head && head.dirtyFields?.includes("isRead") && (isOfflineMode || mockMode || head.sequence > head.acknowledgedSequence) ? { ...chapter, isRead: head.patch.isRead } : chapter;
     });
     return { unread: resumeChapter(projected, policy, cachedChapterIds), first: selectChapters(projected, readingPolicy(policy), cachedChapterIds)[0] };
-  }, [chapters, chapterPolicies, serverBaseUrl, mockMode, mangaId, cachedChapterIds, localProgress.data, manga?.title, isOfflineMode]);
+  }, [chapters, chapterPolicies, serverBaseUrl, mockMode, mangaId, cachedChapterIds, localProgress.data, manga?.title, isOfflineMode, experience.downloadedOnly]);
   const firstUnreadChapter = continuation.unread;
 
   const imageUrl = useMemo(() => {

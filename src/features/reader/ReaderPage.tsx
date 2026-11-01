@@ -34,16 +34,17 @@ import { useConnectionInformation } from "../../hooks/useConnectionInformation";
 export default function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>();
   const location = useLocation();
+  const incognitoAtEntry = useSettingsStore((state) => state.experience.incognito);
   const newToken = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
   const [session, setSession] = useState(() => ({ startId: chapterId!, token: newToken(), entryKey: location.key }));
   if (location.key !== session.entryKey && location.state?.readerSession !== session.token) {
     setSession({ startId: chapterId!, token: newToken(), entryKey: location.key });
     return null;
   }
-  return <ReaderSession key={session.token} startChapterId={session.startId} sessionToken={session.token} />;
+  return <ReaderSession key={`${session.token}:${incognitoAtEntry}`} incognitoAtEntry={incognitoAtEntry} startChapterId={session.startId} sessionToken={session.token} />;
 }
 
-function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapterId: string; sessionToken: string }) {
+function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEntry }: { startChapterId: string; sessionToken: string; incognitoAtEntry: boolean }) {
   const { chapterId: routeChapterId } = useParams<{ chapterId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
@@ -237,6 +238,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
   });
 
   const updateProgress = useCallback(async (backend: ProgressBackend, progress: ProgressSnapshot) => {
+    if (incognitoAtEntry) return;
     try {
       const atEnd = progress.canComplete !== false && progress.pageCount > 0 && progress.pageIndex >= progress.pageCount - 1;
       const result = await saveProgressIntent(backend, {
@@ -246,6 +248,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
         deleteAfterAck: autoDeleteReadChapters && atEnd,
       });
       if (!result.accepted) {
+        if (result.reason === "incognito") { failedProgressRef.current = null; setProgressSaveError(""); return; }
         setProgressSaveError(result.reason === "identity" ? "The saved progress belongs to an earlier chapter record. Review pending progress before saving this chapter." : "Progress was reset in another view. Reopen this chapter to begin a new reading session.");
         return;
       }
@@ -256,7 +259,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
       lastSavedPagesRef.current.delete(progress.chapterId);
       setProgressSaveError("Reading progress could not be saved on this device. Check storage and retry before closing the reader.");
     }
-  }, [autoDeleteReadChapters]);
+  }, [autoDeleteReadChapters, incognitoAtEntry]);
 
   const rootPages = pagesData ?? [];
   const pages = activeChapter?.pages ?? rootPages;
@@ -827,6 +830,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
   return (
     <div className="min-h-screen yomi-reader-surface" data-reader-session style={{ "--reader-background": readerPreferences.background === "black" ? "#000" : readerPreferences.background === "paper" ? "#f4ecdc" : readerPreferences.background === "gray" ? "#303030" : "var(--ink-950)" } as CSSProperties}>
       <ReaderHints mode={readerMode} preferences={readerPreferences} />
+      {experience.incognito && showOverlay && <p role="status" className="yomi-reader-capability-note">Incognito · Reading progress, history and automatic tracking are paused.</p>}
       <ReaderRefreshFlash enabled={readerPreferences.eInkFlash} position={`${activeChapter.id}:${currentPage}:${splitHalf}`} />
       {readerPreferences.verticalNavigator && showOverlay && pages.length > 1 && <div className={`yomi-reader-vertical-nav ${readerPreferences.navigatorLeft ? "on-left" : ""}`} style={{ height: `${readerPreferences.navigatorHeight}vh` }}><span aria-hidden="true">{currentPage + 1}</span><input type="range" aria-label="Vertical page navigator" aria-valuetext={`Page ${currentPage + 1} of ${pages.length}`} min={0} max={pages.length - 1} value={currentPage} onChange={(event) => handleJumpToPage(Number(event.target.value))} /><span aria-hidden="true">{pages.length}</span></div>}
       {transitionTarget && <section className="yomi-chapter-transition" aria-label="Chapter transition"><h2>Ready for the next chapter?</h2><p>{activeChapter.name} is behind you. Continue when you’re ready.</p><div><button className="yomi-button yomi-button-secondary" onClick={() => setTransitionTarget(undefined)}>Stay here</button><button className="yomi-button yomi-button-primary" onClick={() => navigate(`/reader/${transitionTarget}`)}>Continue reading</button></div></section>}

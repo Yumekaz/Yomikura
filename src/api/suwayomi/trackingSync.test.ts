@@ -6,6 +6,7 @@ import { acknowledgeProgress, acquireProgressLease, enqueueProgress, getPendingT
 import { synchronizeTracking } from "./trackingSync";
 import { TrackingBusyError, withTrackingLock } from "./trackingCoordination";
 import { pushLinkedTrackerProgress } from "./trackingActions";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 
 const mocks = vi.hoisted(() => ({ key: "" }));
 vi.mock("./trackingActions", () => ({
@@ -22,12 +23,24 @@ async function complete(id: number, target = backend) {
   await releaseProgressLease(target, "reader");
 }
 beforeEach(() => {
+  useSettingsStore.setState({ ...useSettingsStore.getInitialState() });
   vi.resetAllMocks(); vi.stubGlobal("indexedDB", new IDBFactory()); vi.stubGlobal("navigator", { locks: undefined }); mocks.key = backend.key;
   vi.mocked(pushLinkedTrackerProgress).mockResolvedValue({ skipped: false, confirmed: 1 });
 });
 afterEach(() => vi.unstubAllGlobals());
 
 describe("durable coalesced tracker replay", () => {
+  it("retains tracker requests while paused and permits a deliberate manual retry", async () => {
+    useSettingsStore.getState().updateExperience({ trackingPolicies: { [backend.key]: { automaticProgress: false } } });
+    await complete(1); await synchronizeTracking(backend);
+    expect(pushLinkedTrackerProgress).not.toHaveBeenCalled(); expect(await getPendingTracking(backend)).toHaveLength(1);
+    await synchronizeTracking(backend, { force: true }); expect(pushLinkedTrackerProgress).toHaveBeenCalledTimes(1); expect(await getPendingTracking(backend)).toEqual([]);
+  });
+  it("incognito pauses existing automatic tracker retries without discarding them", async () => {
+    await complete(1); useSettingsStore.getState().updateExperience({ incognito: true }); await synchronizeTracking(backend);
+    expect(pushLinkedTrackerProgress).not.toHaveBeenCalled(); expect(await getPendingTracking(backend)).toHaveLength(1);
+    useSettingsStore.getState().updateExperience({ incognito: false }); await synchronizeTracking(backend); expect(await getPendingTracking(backend)).toEqual([]);
+  });
   it("coalesces completed chapters for one manga into one verified update", async () => {
     await complete(1); await complete(2); await synchronizeTracking(backend);
     expect(pushLinkedTrackerProgress).toHaveBeenCalledTimes(1); expect(await getPendingTracking(backend)).toEqual([]);

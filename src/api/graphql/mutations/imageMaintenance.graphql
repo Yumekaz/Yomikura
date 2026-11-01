@@ -1,0 +1,5 @@
+mutation ClearTemporaryLibraryImages($input: ClearCachedImagesInput!) {
+  clearCachedImages(input: $input) {
+    clientMutationId cachedPages cachedThumbnails downloadedThumbnails
+  }
+}

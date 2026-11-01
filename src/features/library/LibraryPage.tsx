@@ -32,8 +32,9 @@ export default function LibraryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategoryId, setActiveCategoryId] = useState<string | number | null>(null);
   const filterChoices = normalizeLibraryFilters(experience.libraryFilters[backendKey]);
+  if (experience.downloadedOnly) filterChoices.downloaded = "include";
   const activeFilterCount = activeLibraryFilterCount(filterChoices);
-  const changeFilters = (value: LibraryFilterSet) => updateExperience((current) => ({ libraryFilters: { ...current.libraryFilters, [backendKey]: value } }));
+  const changeFilters = (value: LibraryFilterSet) => updateExperience((current) => ({ downloadedOnly: current.downloadedOnly && value.downloaded === "include", libraryFilters: { ...current.libraryFilters, [backendKey]: { ...value, downloaded: current.downloadedOnly && value.downloaded === "include" ? current.libraryFilters[backendKey]?.downloaded ?? "any" : value.downloaded } } }));
   const sortScope = librarySortScope(backendKey, activeCategoryId);
   const savedSort = experience.perCategorySort ? experience.categorySorts[sortScope] : undefined;
   const sortMode = validLibrarySort(savedSort?.mode) ? savedSort.mode : validLibrarySort(librarySortMode) ? librarySortMode : "title";

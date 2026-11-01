@@ -71,6 +71,7 @@ const mockImpl: any = {
     return { mangas: { ...result.mangas, totalCount: result.mangas.nodes.length, nodes: result.mangas.nodes.map((book: any) => ({ ...book, genre: ["Fantasy", "Original stories"], trackRecords: { totalCount: 0 }, categories: { nodes: demoCollections.filter((item) => book.categories.nodes.some((node: any) => node.id === item.id)).map((item) => ({ id: item.id, name: item.name })) } })) } };
   },
   async GetReleaseSample() { return { chapters: { nodes: [] } }; },
+  async ClearTemporaryLibraryImages({ input }: any) { return { clearCachedImages: { ...input } }; },
   async GetMangaDetails({ id }: any) {
     const isGarden = id === 10001;
     return {
@@ -214,39 +215,6 @@ const mockImpl: any = {
               isInstalled: true,
             },
           },
-        ],
-      },
-    };
-  },
-
-  async GetSourcesByCondition({ lang }: any) {
-    if (lang !== "en" && lang !== "__all__") {
-      return { sources: { totalCount: 0, nodes: [] } };
-    }
-    return {
-      sources: {
-        totalCount: 1,
-        nodes: [
-          {
-            id: "mock-source",
-            name: "Yomikura Playground",
-            lang: "en",
-            iconUrl: "",
-            supportsLatest: true,
-            isNsfw: false,
-            isConfigurable: false,
-          },
-        ],
-      },
-    };
-  },
-
-  async GetInstalledExtensionLangs() {
-    return {
-      extensions: {
-        totalCount: 1,
-        nodes: [
-          { pkgName: "mock.playground.manga", lang: "en" },
         ],
       },
     };

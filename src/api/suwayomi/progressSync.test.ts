@@ -7,7 +7,7 @@ import * as storage from "./progressStorage";
 import { getCachedChapter, getReadingHistory, saveCachedChapter } from "./offlineCache";
 
 const mocks = vi.hoisted(() => ({
-  active: { serverBaseUrl: "http://localhost:4567", mockMode: false, connectionStatus: "connected", errorMessage: "" },
+  active: { serverBaseUrl: "http://localhost:4567", mockMode: false, connectionStatus: "connected", errorMessage: "", experience: { incognito: false } },
   read: vi.fn(), update: vi.fn(), remove: vi.fn(), modes: [] as string[],
 }));
 vi.mock("../../stores/useSettingsStore", () => ({
@@ -28,6 +28,7 @@ let servers: Map<string, ReturnType<typeof remoteChapter>>;
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.active.experience.incognito = false;
   mocks.modes.length = 0;
   Object.assign(mocks.active, { serverBaseUrl: first.serverBaseUrl, mockMode: false, connectionStatus: "connected", errorMessage: "" });
   servers = new Map([[first.serverBaseUrl, remoteChapter()], [second.serverBaseUrl, remoteChapter()]]);
@@ -288,4 +289,14 @@ describe("progress replay and acknowledgement", () => {
     expect((await getProgressHead(first, 12))!.patch).toEqual({ isRead: false, lastPageRead: 0 });
     expect(mocks.update).not.toHaveBeenCalled();
   });
+});
+
+it("incognito reading creates no progress, history or tracker work but explicit actions remain available", async () => {
+  mocks.active.experience.incognito = true;
+  expect(await saveProgressIntent(first, reading(3))).toMatchObject({ accepted: false, reason: "incognito" });
+  expect(await getProgressOperations(first)).toEqual([]);
+  expect(await getProgressHead(first, 12)).toBeUndefined();
+  expect(await getReadingHistory(first.serverBaseUrl)).toEqual([]);
+  await writeChapterProgress(first, 12, { isBookmarked: true }, { fallback: chapter });
+  expect(mocks.update).toHaveBeenCalledTimes(1);
 });
