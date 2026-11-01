@@ -3,3 +3,7 @@ mutation FetchMangaDetails($input: FetchMangaInput!) {
     manga { id initialized }
   }
 }
+
+mutation SaveMangaNote($input: SetMangaMetaInput!) {
+  setMangaMeta(input: $input) { meta { mangaId key value } }
+}

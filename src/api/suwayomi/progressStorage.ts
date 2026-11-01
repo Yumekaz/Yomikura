@@ -13,6 +13,7 @@ export type ProgressIntent = {
   deleteAfterAck?: boolean;
   expectedSequence?: number;
   trackCompletion?: boolean;
+  duplicateOf?: { chapterId: number; epoch: number; sequence: number };
 };
 export interface ProgressHead {
   entityKey: string;
@@ -154,6 +155,10 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
     const operations = tx.objectStore("operations");
     const key = entityKey(backend, intent.chapter.chapterId);
     const previous = await read<ProgressHead | undefined>(heads.get(key));
+    if (intent.duplicateOf) {
+      const origin = await read<ProgressHead | undefined>(heads.get(entityKey(backend, intent.duplicateOf.chapterId)));
+      if (!origin || !origin.patch.isRead || origin.epoch !== intent.duplicateOf.epoch || origin.chapter.mangaId !== intent.chapter.mangaId || origin.chapter.mangaTitle !== intent.chapter.mangaTitle || origin.chapter.chapterNumber !== intent.chapter.chapterNumber) return { head: previous!, accepted: false, reason: "origin" };
+    }
     if (intent.expectedSequence !== undefined && (previous?.sequence ?? 0) !== intent.expectedSequence) return { head: previous!, accepted: false, reason: "changed" };
     const sameChapter = previous && chapterIdentityMatches(previous.chapter, intent.chapter);
     const previousPending = !!previous && previous.sequence > previous.acknowledgedSequence;
@@ -170,7 +175,8 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
       lastPageRead: Math.max(0, intent.patch.lastPageRead ?? (pending ? previous.patch.lastPageRead : baseline.lastPageRead)),
       ...(intent.patch.isBookmarked !== undefined ? { isBookmarked: intent.patch.isBookmarked } : pending && previous.patch.isBookmarked !== undefined ? { isBookmarked: previous.patch.isBookmarked } : {}),
     };
-    const epoch = (previous?.epoch ?? 0) + (intent.kind === "explicit" || identityTransition ? 1 : 0);
+    const resetsReader = intent.kind === "explicit" && (intent.patch.isRead !== undefined || intent.patch.lastPageRead !== undefined);
+    const epoch = (previous?.epoch ?? 0) + (resetsReader || identityTransition ? 1 : 0);
     if (intent.kind === "reading" && sameChapter && pending && previous.lastKind === "reading" && !previous.hideHistory && JSON.stringify(previous.patch) === JSON.stringify(patch)) return { head: previous, accepted: true };
     const older = await read<ProgressOperation[]>(operations.index("entity").getAll(key));
     for (const operation of older) {
@@ -180,17 +186,22 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
     const deleteAfterAck = intent.kind === "reading" && patch.isRead && (intent.deleteAfterAck && !(sameChapter ? previous.patch.isRead : baseline.isRead)
       || older.some((item) => item.epoch === epoch && item.deleteAfterAck));
     const fields = [...new Set([...(Object.keys(intent.patch) as (keyof ProgressPatch)[]), ...(pending ? previous.dirtyFields ?? ["isRead", "lastPageRead"] as (keyof ProgressPatch)[] : [])])];
-    const operation = { ...intent, backend, entityKey: key, patch, epoch, createdAt, status: "pending", deleteAfterAck, fields };
+    // Bookmark-only edits may coalesce an unsent completion, but must retain
+    // its tracker work without becoming a new read/reset fence themselves.
+    const bookmarkOnly = intent.kind === "explicit" && !resetsReader && intent.patch.isBookmarked !== undefined;
+    const trackCompletion = intent.trackCompletion || bookmarkOnly && patch.isRead && older.some((item) => item.epoch === epoch && (item.kind === "reading" && !item.duplicateOf || item.trackCompletion) && item.patch.isRead);
+    const duplicateOf = intent.duplicateOf ?? (bookmarkOnly ? older.find((item) => item.epoch === epoch && item.duplicateOf)?.duplicateOf : undefined);
+    const operation = { ...intent, duplicateOf, trackCompletion, backend, entityKey: key, patch, epoch, createdAt, status: "pending", deleteAfterAck, fields };
     const sequence = Number(await read(operations.add(operation)));
     const head: ProgressHead = {
       entityKey: key, backend, chapter: intent.chapter, epoch, sequence,
       acknowledgedSequence: previous?.acknowledgedSequence ?? 0, patch,
       baseline: sameChapter && pending ? previous.baseline : baseline,
       ...(sameChapter ? { lastAcknowledged: previous.lastAcknowledged } : {}),
-      hasActivity: intent.kind === "reading" || (sameChapter ? previous.hasActivity : false),
-      hideHistory: intent.kind === "reading" ? false : intent.hideHistory ?? (sameChapter ? previous.hideHistory : false),
+      hasActivity: intent.kind === "reading" && !intent.duplicateOf || (sameChapter ? previous.hasActivity : false),
+      hideHistory: intent.kind === "reading" && !intent.duplicateOf ? false : intent.hideHistory ?? (sameChapter ? previous.hideHistory : false),
       updatedAt: createdAt,
-      activityAt: intent.kind === "reading" ? createdAt : previous?.activityAt,
+      activityAt: intent.kind === "reading" && !intent.duplicateOf ? createdAt : previous?.activityAt,
       dirtyFields: fields,
       lastKind: intent.kind,
       serverRevision: previous?.serverRevision ?? 0,
@@ -245,7 +256,7 @@ export async function acknowledgeProgress(operation: ProgressOperation, owner: s
     const head = await read<ProgressHead>(tx.objectStore("heads").get(operation.entityKey));
     if (operation.sequence > head.acknowledgedSequence) {
       const isLatest = head.sequence === operation.sequence;
-      const completed = (operation.kind === "reading" || operation.trackCompletion) && acknowledged.isRead && head.patch.isRead && operation.epoch === head.epoch
+      const completed = (operation.kind === "reading" && !operation.duplicateOf || operation.trackCompletion) && acknowledged.isRead && head.patch.isRead && operation.epoch === head.epoch
         && operation.sequence > (head.trackingCancelledThrough ?? 0) && !(head.lastAcknowledged?.isRead ?? head.baseline.isRead) && Number.isFinite(operation.chapter.chapterNumber) && operation.chapter.chapterNumber > 0;
       tx.objectStore("heads").put({ ...head, acknowledgedSequence: operation.sequence, lastAcknowledged: acknowledged,
         serverRevision: (head.serverRevision ?? 0) + 1,

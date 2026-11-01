@@ -44,18 +44,18 @@ export function OfflineSettingsPanel({
         <div className="mt-6">
           <div className="flex justify-between items-center text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
             <span>Space Used</span>
-            <span>{formatBytes(storageUsage)} / {formatBytes(storageQuota || 10 * 1024 * 1024 * 1024)}</span>
+            <span>{formatBytes(storageUsage)}{storageQuota > 0 ? ` / ${formatBytes(storageQuota)}` : " · Capacity unavailable"}</span>
           </div>
-          <div className="w-full bg-ink-950 rounded-full h-3.5 border border-white/5 p-0.5 overflow-hidden">
+          {storageQuota > 0 && <div className="w-full bg-ink-950 rounded-full h-3.5 border border-white/5 p-0.5 overflow-hidden" role="meter" aria-label="Device storage used" aria-valuenow={Math.min(100, storageUsage / storageQuota * 100)} aria-valuemin={0} aria-valuemax={100}>
             <div
               className="bg-yomi-jade h-full rounded-full transition-[width] duration-200 ease-out"
               style={{ width: `${Math.min(100, Math.max(1, storageQuota ? (storageUsage / storageQuota) * 100 : 0))}%` }}
             />
-          </div>
-          <div className="flex justify-between text-xs text-slate-500 mt-1.5 font-medium">
+          </div>}
+          {storageQuota > 0 && <div className="flex justify-between text-xs text-slate-500 mt-1.5 font-medium">
             <span>Used: {storageQuota ? ((storageUsage / storageQuota) * 100).toFixed(2) : "0"}%</span>
             <span>Capacity: {formatBytes(storageQuota)}</span>
-          </div>
+          </div>}
         </div>
 
         <div className="mt-6 border-t border-white/5 pt-5 flex justify-end">
@@ -79,7 +79,7 @@ export function OfflineSettingsPanel({
           Cached Chapters ({cachedChapters.length})
         </h3>
         <p className="mt-1 text-xs text-slate-500">
-          Chapters currently saved inside browser memory for offline reading.
+          Chapters saved on this device for offline reading.
         </p>
 
         {cachedChapters.length === 0 ? (

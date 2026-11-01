@@ -7,6 +7,8 @@ import { createGraphqlClient } from "../../api/graphql/client";
 import { FetchSourceMangaType } from "../../api/graphql/generated/graphql";
 import { classifySourceProblem, getErrorMessage } from "../../api/suwayomi/errors";
 import { buildSourceBrowsePath } from "./sourceBrowseRoute";
+import { fetchAllSources } from "../../api/library/fetchAllSources";
+import { progressBackend } from "../../api/suwayomi/backendIdentity";
 
 const GLOBAL_SEARCH_CONCURRENCY = 6;
 
@@ -163,7 +165,8 @@ function GlobalSourceSearchResults({
 export default function GlobalSearchPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { serverBaseUrl } = useSettingsStore();
+  const { serverBaseUrl, mockMode, experience, showNsfw } = useSettingsStore();
+  const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
   const urlQuery = searchParams.get("q") || "";
 
   const [searchInput, setSearchInput] = useState(urlQuery);
@@ -171,54 +174,12 @@ export default function GlobalSearchPage() {
 
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-    return createGraphqlClient(`${cleanUrl}/api/graphql`);
-  }, [serverBaseUrl]);
+    return createGraphqlClient(`${cleanUrl}/api/graphql`, undefined, mockMode ? "demo" : "live");
+  }, [serverBaseUrl, mockMode]);
 
-  // Discover all sources language-wise (bypasses server configuration enabled filter)
-  const { data: extData } = useQuery({
-    queryKey: ["installed-ext-langs", serverBaseUrl],
-    queryFn: () => sdk.GetInstalledExtensionLangs(),
-    enabled: !!serverBaseUrl,
-  });
-
-  const installedLangs = useMemo(() => {
-    if (!extData?.extensions?.nodes) return [];
-    const langs = new Set<string>();
-    extData.extensions.nodes.forEach((extension) => {
-      if (extension?.lang) langs.add(extension.lang);
-    });
-    langs.add("localsourcelang");
-    langs.add("en");
-    return Array.from(langs);
-  }, [extData]);
-
-  const { data: sources, isLoading: loadingSources } = useQuery({
-    queryKey: ["all-sources", serverBaseUrl, installedLangs],
-    queryFn: async () => {
-      const results = await Promise.all(
-        installedLangs.map((lang) => sdk.GetSourcesByCondition({ lang }))
-      );
-      const seen = new Set<string>();
-      const allSources: SearchSource[] = [];
-      for (const result of results) {
-        for (const source of result.sources?.nodes || []) {
-          if (source && !seen.has(String(source.id))) {
-            seen.add(String(source.id));
-            allSources.push({
-              id: String(source.id),
-              name: source.name,
-              lang: source.lang,
-              iconUrl: source.iconUrl,
-              supportsLatest: source.supportsLatest,
-              isNsfw: source.isNsfw,
-            });
-          }
-        }
-      }
-      return allSources.sort((a, b) => a.name.localeCompare(b.name));
-    },
-    enabled: !!serverBaseUrl && installedLangs.length > 0,
-  });
+  const sourceList = useQuery({ queryKey: ["sources", backend.key], queryFn: ({ signal }) => fetchAllSources(sdk, signal), enabled: !!serverBaseUrl });
+  const loadingSources = sourceList.isPending;
+  const sources = useMemo(() => sourceList.data?.sources.nodes.filter((source) => source.extension?.isInstalled !== false && (!experience.applyContentFilterToInstalled || showNsfw || !source.isNsfw)).map((source) => ({ ...source, id: String(source.id) })), [sourceList.data, experience.applyContentFilterToInstalled, showNsfw]);
 
   // Global Search V2 Filters States
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
@@ -247,7 +208,7 @@ export default function GlobalSearchPage() {
     isError: searchFailed,
     error: searchError,
   } = useQuery({
-    queryKey: ["global-search-batch", serverBaseUrl, activeQuery, scopedSources.map((source) => source.id).join("|")],
+    queryKey: ["global-search-batch", backend.key, activeQuery, scopedSources.map((source) => source.id).join("|")],
     queryFn: () => searchSourcesWithLimit({ query: activeQuery, sdk, sources: scopedSources }),
     enabled: !!serverBaseUrl && !!activeQuery && scopedSources.length > 0,
     staleTime: 5 * 60 * 1000,
@@ -277,7 +238,7 @@ export default function GlobalSearchPage() {
 
     // Process each outcome: sort mangas inside by relevance
     const processed = filtered.map(outcome => {
-      const sortedMangas = [...outcome.mangas].sort((a, b) => {
+      const sortedMangas = outcome.mangas.filter((manga) => !experience.hideLibraryEntries || !manga.inLibrary).sort((a, b) => {
         const scoreA = getRelevanceScore(a.title, activeQuery);
         const scoreB = getRelevanceScore(b.title, activeQuery);
         return scoreB - scoreA;
@@ -291,7 +252,7 @@ export default function GlobalSearchPage() {
 
     // Sort the outcomes themselves so that sources with higher relevance scores appear first
     return processed.sort((a, b) => b.maxScore - a.maxScore);
-  }, [outcomes, selectedLanguage, activeQuery]);
+  }, [outcomes, selectedLanguage, activeQuery, experience.hideLibraryEntries]);
 
   const resultOutcomes = processedOutcomes.filter((outcome) => outcome.mangas.length > 0);
   const failedOutcomes = processedOutcomes.filter((outcome) => outcome.error);

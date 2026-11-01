@@ -5,12 +5,14 @@ import { exportLibraryBackup } from "../../api/suwayomi/libraryBackups";
 import { normalizeCacheServerUrl } from "../../api/suwayomi/offlineCache";
 import { isTauri, useSettingsStore } from "../../stores/useSettingsStore";
 import { useFeedback } from "../ui/FeedbackProvider";
+import { downloadNoteExport, importNoteExport } from "../../features/manga/notePortability";
+import { progressBackend } from "../../api/suwayomi/backendIdentity";
 
 export function SavedBackupsPanel({ busy, onRestore }: { busy: boolean; onRestore: (file: File) => Promise<void> }) {
   const { serverBaseUrl, mockMode } = useSettingsStore();
   const server = normalizeCacheServerUrl(serverBaseUrl);
   const client = useQueryClient();
-  const { confirm } = useFeedback();
+  const { confirm, notify } = useFeedback();
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState("");
   const queryKey = ["library-backups", server];
@@ -40,7 +42,7 @@ export function SavedBackupsPanel({ busy, onRestore }: { busy: boolean; onRestor
     <h3 className="font-semibold text-slate-200">Saved backups</h3>
     <p className="text-xs leading-5 text-slate-400">
       {isTauri() ? "Copies are retained in this app’s backup folder." : "Copies are retained in this browser. Export a copy to keep it if browser data is cleared."}
-      {" "}Only backups for the selected server are shown. Downloaded pages and Yomikura settings are not included.
+      {" "}Only backups for the selected server are shown. New backups retain a separate snapshot of device notes. Downloaded pages and Yomikura settings are not included.
     </p>
     {isTauri() && <button type="button" className="yomi-button yomi-button-secondary" disabled={busy || working} onClick={() => void run(openLibraryBackupFolder)}>Open backup folder</button>}
     {(message || backups.error) && <p role="alert" className="text-sm text-red-400">{message || backupErrorMessage(backups.error)}</p>}
@@ -52,6 +54,12 @@ export function SavedBackupsPanel({ busy, onRestore }: { busy: boolean; onRestor
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" className="yomi-button yomi-button-secondary" disabled={busy || working} onClick={() => void run(() => exportLibraryBackup(server, backup.id))}>Export</button>
           <button type="button" className="yomi-button yomi-button-secondary" disabled={busy || working || mockMode} onClick={() => void run(() => restore(backup))}>Restore</button>
+          {backup.notesSnapshot && <><button type="button" className="yomi-button yomi-button-secondary" disabled={busy || working} onClick={() => void run(async () => downloadNoteExport((await readLibraryBackup(server, backup.id)).backup.notesSnapshot!, backup.fileName.replace(/\.tachibk$/, "-notes.json")))}>Export saved notes</button><button type="button" className="yomi-button yomi-button-secondary" disabled={busy || working || mockMode} onClick={() => void run(async () => {
+            if (await confirm({ title: "Add missing notes from backup?", detail: "Book names and IDs must match the selected library. Existing device notes are kept; imported notes remain drafts. You can export saved notes to compare older versions.", confirmLabel: "Add missing notes" })) {
+              const result = await importNoteExport((await readLibraryBackup(server, backup.id)).backup.notesSnapshot!, progressBackend(server));
+              notify(`${result.added} notes added; ${result.kept} existing notes kept; ${result.unmatched} unmatched books skipped.`, "success");
+            }
+          })}>Add missing notes</button></>}
           <button type="button" className="yomi-button yomi-button-secondary" disabled={busy || working} onClick={() => void run(async () => {
             if (await confirm({ title: "Remove saved backup?", detail: `Remove “${backup.fileName}” from this device? Keep an exported recovery copy before removing it.`, confirmLabel: "Remove backup", danger: true })) {
               await removeLibraryBackup(server, backup.id);

@@ -1,5 +1,5 @@
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -19,6 +19,7 @@ import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { performVerifiedExtensionAction } from "./extensionLifecycle";
+import { fetchAllExtensions } from "../../api/library/fetchAllExtensions";
 
 type ExtensionAction = {
   pkgName: string;
@@ -36,21 +37,23 @@ const ALL_LANG_FILTER = "__all__";
 
 export default function ExtensionsPage() {
   const { confirm } = useFeedback();
-  const { serverBaseUrl, showNsfw, setShowNsfw } = useSettingsStore();
+  const { serverBaseUrl, showNsfw, setShowNsfw, mockMode } = useSettingsStore();
   const queryClient = useQueryClient();
   const [searchInput, setSearchInput] = useState("");
   const [langFilter, setLangFilter] = useState(ALL_LANG_FILTER);
   const [activeExtensionPkgs, setActiveExtensionPkgs] = useState<Set<string>>(() => new Set());
   const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null);
+  const [visibleLimit, setVisibleLimit] = useState(100);
+  useEffect(() => setVisibleLimit(100), [searchInput, langFilter, showNsfw]);
 
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-    return createGraphqlClient(`${cleanUrl}/api/graphql`);
-  }, [serverBaseUrl]);
+    return createGraphqlClient(`${cleanUrl}/api/graphql`, undefined, mockMode ? "demo" : "live");
+  }, [serverBaseUrl, mockMode]);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["extensions", serverBaseUrl],
-    queryFn: () => sdk.GetExtensions(),
+    queryKey: ["extensions", serverBaseUrl, mockMode],
+    queryFn: ({ signal }) => fetchAllExtensions(sdk, signal),
     enabled: !!serverBaseUrl,
   });
 
@@ -400,7 +403,7 @@ export default function ExtensionsPage() {
           </div>
         ) : (
           <div className="yomi-catalog">
-            {filteredExtensions.map(ext => {
+            {filteredExtensions.slice(0, visibleLimit).map(ext => {
               const isCardBusy = activeExtensionPkgs.has(ext.pkgName);
 
               return (
@@ -428,10 +431,13 @@ export default function ExtensionsPage() {
                       <span className="uppercase">{ext.lang}</span>
                       <span>•</span>
                       <span>v{ext.versionName}</span>
+                      {ext.contentWarning === "MIXED" && <span className="yomi-chip">Mixed content</span>}
+                      {ext.isObsolete && <span className="yomi-chip">No longer listed</span>}
                       {ext.isInstalled && ext.hasUpdate && (
                         <span className="rounded bg-yomi-jade/10 px-1 py-0.5 text-xs font-bold text-yomi-jade">Update Available</span>
                       )}
                     </div>
+                    <p className="mt-1 text-xs text-slate-400">{ext.extensionStore?.name || "Publisher not reported"}</p>
                   </div>
                   {ext.isInstalled && ext.hasUpdate && (
                     <button
@@ -465,6 +471,7 @@ export default function ExtensionsPage() {
             })}
           </div>
         )}
+        {!isLoading && !isError && filteredExtensions.length > 100 && <div className="mt-6 flex flex-wrap items-center justify-between gap-4"><p className="text-xs text-slate-400">Showing {Math.min(visibleLimit, filteredExtensions.length)} of {filteredExtensions.length} matching extensions. Search checks the full catalog.</p>{visibleLimit < filteredExtensions.length && <button className="yomi-button yomi-button-secondary" onClick={() => setVisibleLimit((value) => value + 100)}>Show more extensions</button>}</div>}
       </div>
     </div>
   );

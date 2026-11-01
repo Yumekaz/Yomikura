@@ -38,12 +38,14 @@ export function legacyPalette(accent: unknown): PaletteId {
 export function rgb(hex: string) {
   return [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16)).join(", ");
 }
-export function applyPalette(element: HTMLElement, id: PaletteId, dark: boolean) {
+export function applyPalette(element: HTMLElement, id: PaletteId, dark: boolean, pureBlack = false) {
+  // Text and its surface change together; an intermediate color can lose contrast.
+  element.dataset.themeUpdating = "true";
   const palette = paletteFor(id);
   const tokens = dark ? palette.dark : palette.light;
   element.dataset.palette = palette.id;
   const properties: Record<string, string> = {
-    "--ink-950": tokens.canvas, "--ink-900": tokens.surface, "--ink-850": tokens.elevated, "--ink-800": tokens.raised,
+    "--ink-950": dark && pureBlack ? "#000000" : tokens.canvas, "--ink-900": dark && pureBlack ? "#080808" : tokens.surface, "--ink-850": tokens.elevated, "--ink-800": tokens.raised,
     "--surface-rgb": rgb(tokens.surface), "--text-strong": tokens.strong, "--text": tokens.text, "--text-muted": tokens.muted,
     "--yomi-accent": rgb(tokens.accent), "--yomi-signature": rgb(tokens.accent),
     "--action-bg": tokens.action, "--action-text": tokens.actionText,
@@ -54,4 +56,8 @@ export function applyPalette(element: HTMLElement, id: PaletteId, dark: boolean)
   if (element.ownerDocument.documentElement === element) {
     element.ownerDocument.querySelector('meta[name="theme-color"]')?.setAttribute("content", tokens.canvas);
   }
+  void element.offsetHeight;
+  const frame = element.ownerDocument.defaultView?.requestAnimationFrame;
+  if (frame) frame.call(element.ownerDocument.defaultView, () => delete element.dataset.themeUpdating);
+  else delete element.dataset.themeUpdating;
 }

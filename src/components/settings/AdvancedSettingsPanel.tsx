@@ -7,6 +7,7 @@ import { useTranslation } from "../../hooks/useTranslation";
 import { isTauri, useSettingsStore } from "../../stores/useSettingsStore";
 import { OpdsPanel } from "./OpdsPanel";
 import { TrackerSettingsPanel } from "./TrackerSettingsPanel";
+import { ImageMaintenancePanel } from "./ImageMaintenancePanel";
 
 function Switch({ checked, label, onChange }: { checked: boolean; label: string; onChange: () => void }) {
   return (
@@ -78,6 +79,7 @@ export function AdvancedSettingsPanel() {
   return (
     <div className="space-y-6">
       <LocalImportSection />
+      <ImageMaintenancePanel />
 
       <section className="rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-panel" aria-labelledby="integrations-title">
         <h2 id="integrations-title" className="flex items-center gap-2 text-lg font-semibold text-white"><Sliders className="h-5 w-5 text-yomi-jade" />Integrations</h2>

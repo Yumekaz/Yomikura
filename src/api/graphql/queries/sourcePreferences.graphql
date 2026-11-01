@@ -43,12 +43,18 @@ query GetSourcePreferences($sourceId: LongString!) {
         enabled
         visible
       }
+      ... on MultiSelectListPreference {
+        key title summary enabled visible entries entryValues
+        defaultStrings: default
+        valueStrings: currentValue
+      }
     }
   }
 }
 
 mutation UpdateSourcePreference($input: UpdateSourcePreferenceInput!) {
   updateSourcePreference(input: $input) {
+    source { id }
     preferences {
       __typename
       ... on CheckBoxPreference {
@@ -67,6 +73,7 @@ mutation UpdateSourcePreference($input: UpdateSourcePreferenceInput!) {
         key
         valueBool: currentValue
       }
+      ... on MultiSelectListPreference { key valueStrings: currentValue }
     }
   }
 }

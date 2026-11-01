@@ -1,8 +1,10 @@
 import { useState, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { X, Plus, Trash2, Edit2, Loader2, Save } from "lucide-react";
+import { X, Plus, Trash2, Edit2, Loader2, Save, ArrowUp, ArrowDown } from "lucide-react";
 import { createGraphqlClient } from "../../api/graphql/client";
-import { useSettingsStore } from "../../stores/useSettingsStore";
+import { useProgressBackend } from "../../hooks/useProgressSynchronization";
+import type { ProgressBackend } from "../../api/suwayomi/backendIdentity";
+import { isSelectedLibrary } from "../../api/suwayomi/libraryUpdateState";
 import { getErrorMessage } from "../../api/suwayomi/errors";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { useModalFocus } from "../../hooks/useModalFocus";
@@ -19,9 +21,13 @@ interface CategoryDialogProps {
 }
 
 export function CategoryDialog({ isOpen, onClose, categories }: CategoryDialogProps) {
+  const backend = useProgressBackend();
+  return backend ? <CategoryManager key={backend.key} backend={backend} isOpen={isOpen} onClose={onClose} categories={categories.filter((item) => Number(item.id) > 0)} /> : null;
+}
+
+function CategoryManager({ isOpen, onClose, categories, backend }: CategoryDialogProps & { backend: ProgressBackend }) {
   const modal = useModalFocus(isOpen, onClose);
   const { confirm } = useFeedback();
-  const { serverBaseUrl } = useSettingsStore();
   const queryClient = useQueryClient();
   const [newCatName, setNewCatName] = useState("");
   const [editingId, setEditingId] = useState<string | number | null>(null);
@@ -29,16 +35,25 @@ export function CategoryDialog({ isOpen, onClose, categories }: CategoryDialogPr
   const [errorMsg, setErrorMsg] = useState("");
 
   const sdk = useMemo(() => {
-    const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-    return createGraphqlClient(`${cleanUrl}/api/graphql`);
-  }, [serverBaseUrl]);
+    return createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live");
+  }, [backend]);
+  const assertSelected = () => { if (!isSelectedLibrary(backend)) throw new Error("Your active library changed. Open its collection manager again."); };
+  const { mutate: moveCategory, isPending: moving } = useMutation({ mutationFn: async ({ id, position }: { id: number; position: number }) => {
+    assertSelected();
+    const saved = (await sdk.UpdateCategoryOrder({ input: { id, position } }, undefined, AbortSignal.timeout(15000))).updateCategoryOrder?.categories;
+    if (!saved || saved.find((item) => item.id === id)?.order !== position) throw new Error("Your library did not confirm the collection order.");
+  }, onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ["categories"] }); void queryClient.invalidateQueries({ queryKey: ["library-policy", backend.key] }); }, onError: () => setErrorMsg("The order wasn’t confirmed. Reload the collection list and try again.") });
 
   // Mutation: Create Category
   const { mutate: createCat, isPending: creating } = useMutation({
-    mutationFn: (name: string) =>
-      sdk.CreateCategory({
+    mutationFn: async (name: string) => {
+      assertSelected();
+      const saved = await sdk.CreateCategory({
         input: { name },
-      }),
+      }, undefined, AbortSignal.timeout(15000));
+      if (!saved.createCategory?.category || saved.createCategory.category.name !== name) throw new Error("The new collection wasn’t confirmed.");
+      return saved;
+    },
     onSuccess: () => {
       setNewCatName("");
       setErrorMsg("");
@@ -52,10 +67,12 @@ export function CategoryDialog({ isOpen, onClose, categories }: CategoryDialogPr
 
   // Mutation: Delete Category
   const { mutate: deleteCat } = useMutation({
-    mutationFn: (id: number) =>
-      sdk.DeleteCategory({
-        input: { categoryId: id },
-      }),
+    mutationFn: async (id: number) => {
+      assertSelected();
+      const clientMutationId = crypto.randomUUID();
+      const saved = await sdk.DeleteCategory({ input: { categoryId: id, clientMutationId } }, undefined, AbortSignal.timeout(15000));
+      if (saved.deleteCategory?.clientMutationId !== clientMutationId) throw new Error("The removal wasn’t confirmed.");
+    },
     onSuccess: () => {
       setErrorMsg("");
       queryClient.invalidateQueries({ queryKey: ["categories"] });
@@ -68,13 +85,16 @@ export function CategoryDialog({ isOpen, onClose, categories }: CategoryDialogPr
 
   // Mutation: Rename Category
   const { mutate: updateCat, isPending: updating } = useMutation({
-    mutationFn: ({ id, name }: { id: number; name: string }) =>
-      sdk.UpdateCategory({
+    mutationFn: async ({ id, name }: { id: number; name: string }) => {
+      assertSelected();
+      const saved = await sdk.UpdateCategory({
         input: {
           id,
           patch: { name },
         },
-      }),
+      }, undefined, AbortSignal.timeout(15000));
+      if (saved.updateCategory?.category?.id !== id || saved.updateCategory.category.name !== name) throw new Error("The new name wasn’t confirmed.");
+    },
     onSuccess: () => {
       setEditingId(null);
       setEditingName("");
@@ -121,11 +141,11 @@ export function CategoryDialog({ isOpen, onClose, categories }: CategoryDialogPr
         </div>
 
         {/* Error Message */}
-        {errorMsg && <p className="mt-3 text-sm text-red-400">{errorMsg}</p>}
+        {errorMsg && <p role="alert" className="mt-3 text-sm text-red-400">{errorMsg}</p>}
 
         {/* Categories List */}
         <div className="mt-4 max-h-60 overflow-y-auto space-y-2 pr-1">
-          {categories.map((cat) => (
+          {categories.map((cat, index) => (
             <div
               key={cat.id}
               className="flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-ink-950/40 p-2.5"
@@ -144,6 +164,8 @@ export function CategoryDialog({ isOpen, onClose, categories }: CategoryDialogPr
               )}
 
               <div className="flex items-center gap-1 shrink-0">
+                <button type="button" aria-label={`Move ${cat.name} up`} disabled={moving || index === 0} onClick={() => moveCategory({ id: Number(cat.id), position: index })} className="yomi-icon-button disabled:opacity-30"><ArrowUp /></button>
+                <button type="button" aria-label={`Move ${cat.name} down`} disabled={moving || index === categories.length - 1} onClick={() => moveCategory({ id: Number(cat.id), position: index + 2 })} className="yomi-icon-button disabled:opacity-30"><ArrowDown /></button>
                 {editingId === cat.id ? (
                   <button
                     onClick={() => handleSaveRename(cat.id)}

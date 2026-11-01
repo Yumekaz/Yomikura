@@ -8,6 +8,12 @@ import type { TrackerRecordFieldsFragment } from "./generated/graphql";
 const recentDemoTimestamp = () => new Date(Date.now() - 13 * 60_000).toISOString();
 const demoCover = (name: string) => new URL(`/demo/${name}.webp`, typeof window === "undefined" ? "http://localhost" : window.location.origin).href;
 const demoMembership = new Map<number, boolean>();
+const demoBookmarks = new Map<number, boolean>();
+const demoNotes = new Map<number, string>();
+const demoSignedOut = new Set<number>();
+const demoLibraryPolicy = { globalUpdateInterval: 12, excludeUnreadChapters: false, excludeNotStarted: false, excludeCompleted: false, updateMangas: false };
+const demoCollections = [{ id: 1, name: "Default", order: 1, default: false, includeInUpdate: "UNSET", includeInDownload: "UNSET" }, { id: 2, name: "Favorites", order: 2, default: false, includeInUpdate: "UNSET", includeInDownload: "UNSET" }];
+const demoDownloadPreferences = { downloadAsCbz: false, maxSourcesInParallel: 6, autoDownloadNewChapters: false, autoDownloadNewChaptersLimit: 0, excludeEntryWithUnreadChapters: true, autoDownloadIgnoreReUploads: false };
 const demoTracks = new Map<number, TrackerRecordFieldsFragment[]>();
 function sampleTrack(mangaId: number, trackerId = 1, remoteId = String(mangaId + 100000), title?: string): TrackerRecordFieldsFragment {
   return { id: mangaId * 10 + trackerId, mangaId, trackerId, remoteId, title: title ?? (mangaId === 10001 ? "The Paper Garden (Synced)" : "Moonlit Courier (Synced)"),
@@ -26,10 +32,7 @@ const mockImpl: any = {
   async GetCategories() {
     return {
       categories: {
-        nodes: [
-          { id: 1, name: "Default", order: 1 },
-          { id: 2, name: "Favorites", order: 2 },
-        ],
+        nodes: demoCollections.map((item) => ({ ...item })),
       },
     };
   },
@@ -45,6 +48,7 @@ const mockImpl: any = {
             thumbnailUrl: demoCover("paper-garden"),
             unreadCount: 1,
             downloadCount: 0,
+            sourceId: "mock-source", status: "COMPLETED", chapters: { totalCount: 1 }, inLibraryAt: "1780272000000",
             lastReadChapter: null,
             categories: { nodes: [{ id: 1 }] },
           },
@@ -54,6 +58,7 @@ const mockImpl: any = {
             thumbnailUrl: demoCover("moonlit-courier"),
             unreadCount: 1,
             downloadCount: 0,
+            sourceId: "mock-source", status: "COMPLETED", chapters: { totalCount: 2 }, inLibraryAt: "1780272000001",
             lastReadChapter: { id: 20002 },
             categories: { nodes: [{ id: 1 }] },
           },
@@ -62,6 +67,12 @@ const mockImpl: any = {
     };
   },
 
+  async GetLibraryInsights() {
+    const result = await mockImpl.GetLibrary();
+    return { mangas: { ...result.mangas, totalCount: result.mangas.nodes.length, nodes: result.mangas.nodes.map((book: any) => ({ ...book, genre: ["Fantasy", "Original stories"], trackRecords: { totalCount: 0 }, categories: { nodes: demoCollections.filter((item) => book.categories.nodes.some((node: any) => node.id === item.id)).map((item) => ({ id: item.id, name: item.name })) } })) } };
+  },
+  async GetReleaseSample() { return { chapters: { nodes: [] } }; },
+  async ClearTemporaryLibraryImages({ input }: any) { return { clearCachedImages: { ...input } }; },
   async GetMangaDetails({ id }: any) {
     const isGarden = id === 10001;
     return {
@@ -163,6 +174,7 @@ const mockImpl: any = {
     return {
       extensions: {
         totalCount: 2,
+        pageInfo: { hasNextPage: false, endCursor: null },
         nodes: [
           {
             pkgName: "mock.playground.manga",
@@ -209,38 +221,10 @@ const mockImpl: any = {
       },
     };
   },
-
-  async GetSourcesByCondition({ lang }: any) {
-    if (lang !== "en" && lang !== "__all__") {
-      return { sources: { totalCount: 0, nodes: [] } };
-    }
-    return {
-      sources: {
-        totalCount: 1,
-        nodes: [
-          {
-            id: "mock-source",
-            name: "Yomikura Playground",
-            lang: "en",
-            iconUrl: "",
-            supportsLatest: true,
-            isNsfw: false,
-            isConfigurable: false,
-          },
-        ],
-      },
-    };
-  },
-
-  async GetInstalledExtensionLangs() {
-    return {
-      extensions: {
-        totalCount: 1,
-        nodes: [
-          { pkgName: "mock.playground.manga", lang: "en" },
-        ],
-      },
-    };
+  async GetExtensionState({ pkgName }: any) {
+    const extension = (await mockImpl.GetExtensions()).extensions.nodes.find((item: any) => item.pkgName === pkgName);
+    if (!extension) throw new Error("The extension is no longer listed.");
+    return { extension: { ...extension, hasUpdate: extension.hasUpdate ?? false } };
   },
 
   async FetchSourceManga() {
@@ -335,16 +319,24 @@ const mockImpl: any = {
     return { updateManga: { manga: { id: input.id, inLibrary: input.patch.inLibrary } } };
   },
   async CreateCategory({ input }: any) {
-    return { createCategory: { category: { id: 99, name: input.name, order: 9 } } };
+    const category = { id: Math.max(0, ...demoCollections.map((item) => item.id)) + 1, name: input.name, order: demoCollections.length + 1, default: false, includeInUpdate: "UNSET", includeInDownload: "UNSET" };
+    demoCollections.push(category);
+    return { createCategory: { category: { ...category } } };
   },
-  async DeleteCategory() {
-    return { deleteCategory: { clientMutationId: "1" } };
+  async DeleteCategory({ input }: any) {
+    const index = demoCollections.findIndex((item) => item.id === input.categoryId);
+    if (index < 0) throw new Error("Collection no longer exists");
+    demoCollections.splice(index, 1); demoCollections.forEach((item, index) => { item.order = index + 1; });
+    return { deleteCategory: { clientMutationId: input.clientMutationId } };
   },
   async UpdateCategory({ input }: any) {
-    return { updateCategory: { category: { id: input.id, name: input.patch.name || "", order: 1 } } };
+    const item = demoCollections.find((item) => item.id === input.id); if (!item) throw new Error("Collection no longer exists");
+    Object.assign(item, input.patch); return { updateCategory: { category: { ...item } } };
   },
-  async UpdateCategoryOrder() {
-    return { updateCategoryOrder: { categories: [] } };
+  async UpdateCategoryOrder({ input }: any) {
+    const index = demoCollections.findIndex((item) => item.id === input.id); if (index < 0) throw new Error("Collection no longer exists");
+    const [item] = demoCollections.splice(index, 1); demoCollections.splice(input.position - 1, 0, item); demoCollections.forEach((item, index) => { item.order = index + 1; });
+    return { updateCategoryOrder: { categories: demoCollections.map((item) => ({ ...item })) } };
   },
   async UpdateMangaCategories({ input }: any) {
     return { updateMangaCategories: { manga: { id: input.mangaId } } };
@@ -400,11 +392,25 @@ const mockImpl: any = {
     };
   },
   async GetServerSettings() {
-    return { settings: { localSourcePath: "/mock/local", globalUpdateInterval: 12 } };
+    return { settings: { localSourcePath: "/mock/local", globalUpdateInterval: demoLibraryPolicy.globalUpdateInterval } };
   },
+  async GetLibraryPolicy() { return { settings: { ...demoLibraryPolicy }, categories: { nodes: demoCollections.map((item) => ({ ...item })) } }; },
+  async SetLibraryPolicy({ input }: any) { Object.assign(demoLibraryPolicy, input.settings); return { setSettings: { settings: { ...demoLibraryPolicy } } }; },
+  async SetCollectionPolicy({ input }: any) { const item = demoCollections.find((item) => item.id === input.id); if (!item) throw new Error("Collection no longer exists"); Object.assign(item, input.patch); return { updateCategory: { category: { ...item } } }; },
+  async StopLibraryUpdate({ input }: any) { return { updateStop: { clientMutationId: input.clientMutationId } }; },
+  async GetServerDownloadPreferences() { return { settings: { ...demoDownloadPreferences } }; },
+  async SetServerDownloadPreferences({ input }: any) { Object.assign(demoDownloadPreferences, input.settings); return { setSettings: { settings: { ...demoDownloadPreferences } } }; },
   async UpdateChapterProgress({ input }: any) {
-    return { updateChapter: { chapter: { id: input.id, isRead: !!input.patch?.isRead, lastPageRead: input.patch?.lastPageRead || 0 } } };
+    if (typeof input.patch?.isBookmarked === "boolean") demoBookmarks.set(input.id, input.patch.isBookmarked);
+    return { updateChapter: { chapter: { id: input.id, isRead: !!input.patch?.isRead, isBookmarked: demoBookmarks.get(input.id) ?? false, lastPageRead: input.patch?.lastPageRead || 0 } } };
   },
+  async GetBookmarkedLibraryChapters() {
+    const nodes = [...demoBookmarks].filter(([, marked]) => marked).map(([id]) => ({ id, mangaId: id === 20001 ? 10001 : 10002 }));
+    return { chapters: { nodes, totalCount: nodes.length, pageInfo: { hasNextPage: false, endCursor: null } } };
+  },
+  async GetMangaNotes({ id }: any) { return { manga: { id, meta: [{ key: "yomikura.notes.v1", value: demoNotes.get(id) ?? "" }] } }; },
+  async GetCleanupChapterContext({ id }: any) { const { chapter } = await mockImpl.GetChapter({ id }); return { chapter: { ...chapter, isDownloaded: false, isBookmarked: demoBookmarks.get(id) ?? false, manga: { ...chapter.manga, categories: { nodes: [] } } } }; },
+  async SaveMangaNote({ input }: any) { demoNotes.set(input.meta.mangaId, input.meta.value); return { setMangaMeta: { meta: input.meta } }; },
   async GetDownloadStatus() {
     return { downloadStatus: { state: "STOPPED", queue: [] } };
   },
@@ -446,7 +452,7 @@ const mockImpl: any = {
             id: 1,
             name: "AniList",
             icon: "https://anilist.co/img/icons/favicon-32x32.png",
-            isLoggedIn: true,
+            isLoggedIn: !demoSignedOut.has(1),
             isTokenExpired: false,
             supportsPrivateTracking: true,
             authUrl: "",
@@ -481,6 +487,11 @@ const mockImpl: any = {
     const { manga } = await mockImpl.GetMangaDetails({ id: mangaId });
     return { ...(await mockImpl.GetTrackers()), manga: { id: mangaId, title: manga.title, trackRecords: { nodes: tracksFor(mangaId) } }, chapters: { nodes: mangaId === 10001 || mangaId === 10002 ? [{ chapterNumber: 1 }] : [] } };
   },
+  async LogoutTracker({ input }: any) {
+    const tracker = (await mockImpl.GetTrackers()).trackers.nodes.find((item: any) => item.id === input.trackerId);
+    if (!tracker?.isLoggedIn) throw new Error("The tracker is already signed out.");
+    demoSignedOut.add(input.trackerId); return { logoutTracker: { tracker: { id: input.trackerId, isLoggedIn: false } } };
+  },
   async SearchTracker({ input }: any) {
     return { searchTracker: { trackSearches: [0, 1].map((index) => ({ id: index + 1, trackerId: input.trackerId, remoteId: String(700000 + index), title: `[Demo] ${input.query}${index ? " — alternative edition" : ""}`, coverUrl: "", summary: "Sample search results stay in the demo sandbox.", totalChapters: 24, lastChapterRead: 0, trackingUrl: "https://anilist.co", private: false, publishingType: "Manga", publishingStatus: "Sample" })) } };
   },
@@ -514,16 +525,6 @@ const mockImpl: any = {
     return { updateTrack: { trackRecord: record } };
   },
 
-  async LogoutTracker({ input }: any) {
-    return {
-      logoutTracker: {
-        tracker: {
-          id: input.id,
-          isLoggedIn: false,
-        },
-      },
-    };
-  },
 };
 
 // These demo records retain their legacy literal layout above; SDK consumers
@@ -531,7 +532,7 @@ const mockImpl: any = {
 const demoMangaDetails = mockImpl.GetMangaDetails;
 mockImpl.GetMangaDetails = async (variables: unknown) => {
   const { manga } = await demoMangaDetails(variables);
-  return { manga: { ...manga, categories: { ...manga.categories, nodes: manga.categories.edges.map((edge: any) => edge.node) }, chapters: { ...manga.chapters, nodes: manga.chapters.edges.map((edge: any) => edge.node) } } };
+  return { manga: { ...manga, categories: { ...manga.categories, nodes: manga.categories.edges.map((edge: any) => edge.node) }, chapters: { ...manga.chapters, nodes: manga.chapters.edges.map((edge: any) => ({ ...edge.node, isBookmarked: demoBookmarks.get(edge.node.id) ?? false })) } } };
 };
 for (const name of ["GetUpdates", "GetHistory"]) {
   const original = mockImpl[name];

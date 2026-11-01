@@ -10,6 +10,7 @@ query GetMangaDetails($id: Int!) {
     status
     genre
     inLibrary
+    realUrl
     categories {
       nodes { id }
     }
@@ -32,4 +33,8 @@ query GetMangaDetails($id: Int!) {
       }
     }
   }
+}
+
+query GetMangaNotes($id: Int!) {
+  manga(id: $id) { id meta { key value } }
 }

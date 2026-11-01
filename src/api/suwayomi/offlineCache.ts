@@ -1,3 +1,5 @@
+export type CachedPageTiles = { index: number; width: number; height: number; tiles: { url: string; height: number }[] };
+export const cachedPageUrls = (chapter: CachedChapter) => [...chapter.cachedUrls, ...(chapter.pageTiles ?? []).flatMap((page) => page.tiles.map((tile) => tile.url))];
 export interface CachedChapter {
   cacheKey: string;
   serverBaseUrl: string;
@@ -10,6 +12,7 @@ export interface CachedChapter {
   pageCount: number;
   pages: string[];
   cachedUrls: string[];
+  pageTiles?: CachedPageTiles[];
   networkUrls?: string[];
   totalSizeBytes: number;
   cachedAt: number;
@@ -120,17 +123,18 @@ async function offlineTransaction<T>(names: string[], mode: IDBTransactionMode, 
 }
 const offlineRead = <T>(request: IDBRequest<T>) => new Promise<T>((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
 const pageClaims = new Map<string, Set<string>>();
-const pageIndexes = new Map<string, { expires: number; promise: Promise<Map<string, string>> }>();
+type CachedPageAddress = { url: string; tiles?: CachedPageTiles };
+const pageIndexes = new Map<string, { expires: number; promise: Promise<Map<string, CachedPageAddress>> }>();
 const imageCacheKey = (value: string) => { try { return new URL(value).toString(); } catch { return value; } };
 function invalidatePageIndexes(serverBaseUrl?: string) {
   if (!serverBaseUrl) { pageIndexes.clear(); return; }
   for (const demo of [false, true]) pageIndexes.delete(JSON.stringify([normalizeCacheServerUrl(serverBaseUrl), demo]));
 }
 export function reserveCachedPage(url: string, owner: string) { const owners = pageClaims.get(url) ?? new Set<string>(); owners.add(owner); pageClaims.set(url, owners); }
-export function releaseCachedPageClaims(owner: string) { for (const [url, owners] of pageClaims) { owners.delete(owner); if (!owners.size) pageClaims.delete(url); } }
+export function releaseCachedPageClaims(owner: string, urls?: string[]) { for (const [url, owners] of pageClaims) { if (urls && !urls.includes(url)) continue; owners.delete(owner); if (!owners.size) pageClaims.delete(url); } }
 export async function cleanupUnreferencedCachedPages(urls: string[]) {
   const chapters = await offlineTransaction([STORE_NAME], "readonly", (tx) => offlineRead<CachedChapter[]>(tx.objectStore(STORE_NAME).getAll()));
-  const retained = new Set(chapters.flatMap((chapter) => chapter.cachedUrls));
+  const retained = new Set(chapters.flatMap(cachedPageUrls));
   const cache = await caches.open("yomikura-page-cache");
   for (const url of new Set(urls)) if (!retained.has(url) && !pageClaims.has(url)) await cache.delete(url);
 }
@@ -287,7 +291,7 @@ export async function saveCachedChapter(chapter: CachedChapter, signal?: AbortSi
       if (!await offlineRead(store.get(preserved))) store.put({ ...previous, cacheKey: preserved, isDemo: isDemoCacheRecord(previous) });
     }
     store.put(record);
-    return (!!previous && isDemoCacheRecord(previous) !== isDemo) || JSON.stringify([previous?.pages, previous?.cachedUrls, previous?.networkUrls]) !== JSON.stringify([record.pages, record.cachedUrls, record.networkUrls]);
+    return (!!previous && isDemoCacheRecord(previous) !== isDemo) || JSON.stringify([previous?.pages, previous?.cachedUrls, previous?.networkUrls, previous?.pageTiles]) !== JSON.stringify([record.pages, record.cachedUrls, record.networkUrls, record.pageTiles]);
   }, signal);
   if (changed) invalidatePageIndexes(serverBaseUrl);
 }
@@ -301,7 +305,7 @@ export async function deleteCachedChapter(serverBaseUrl: string, chapterId: numb
   const urls = await offlineTransaction([STORE_NAME], "readwrite", async (tx) => {
     const store = tx.objectStore(STORE_NAME); const removed: string[] = [];
     for (const chapter of await offlineRead<CachedChapter[]>(store.getAll())) {
-      if (chapter.id === chapterId && normalizeCacheServerUrl(chapter.serverBaseUrl) === normalizeCacheServerUrl(serverBaseUrl) && isDemoCacheRecord(chapter) === isDemo) { removed.push(...chapter.cachedUrls); store.delete(chapter.cacheKey); }
+      if (chapter.id === chapterId && normalizeCacheServerUrl(chapter.serverBaseUrl) === normalizeCacheServerUrl(serverBaseUrl) && isDemoCacheRecord(chapter) === isDemo) { removed.push(...cachedPageUrls(chapter)); store.delete(chapter.cacheKey); }
     }
     return removed;
   });
@@ -326,19 +330,19 @@ export async function clearBackendCache(serverBaseUrl: string, isDemo = false): 
 }
 
 /** Page bytes may be shared by URL, but only a matching backend/mode record grants an offline lookup. */
-export async function getOwnedCachedPage(source: string, serverBaseUrl: string, isDemo = false): Promise<Response | undefined> {
+async function ownedCachedPageAddress(source: string, serverBaseUrl: string, isDemo = false): Promise<CachedPageAddress | undefined> {
   if (!serverBaseUrl.trim()) return undefined;
   const key = JSON.stringify([normalizeCacheServerUrl(serverBaseUrl), isDemo]);
   let index = pageIndexes.get(key);
   if (!index || index.expires <= Date.now()) {
-    const loading = { expires: Infinity, promise: Promise.resolve(new Map<string, string>()) };
+    const loading = { expires: Infinity, promise: Promise.resolve(new Map<string, CachedPageAddress>()) };
     loading.promise = (async () => {
-      const pages = new Map<string, string>();
-      const add = (url: string, stored: string) => pages.set(imageCacheKey(url), stored);
+      const pages = new Map<string, CachedPageAddress>();
+      const add = (url: string, stored: CachedPageAddress) => pages.set(imageCacheKey(url), stored);
       for (const chapter of await getCachedChapters(serverBaseUrl, isDemo)) {
         for (let page = 0; page < chapter.pages.length; page += 1) {
-          const original = chapter.pages[page]; const stored = chapter.cachedUrls[page] ?? original;
-          add(stored, stored); add(original, stored);
+          const original = chapter.pages[page]; const stored = { url: chapter.cachedUrls[page] ?? original, tiles: chapter.pageTiles?.find((tile) => tile.index === page) };
+          add(stored.url, stored); add(original, stored);
           add(/^https?:\/\//i.test(original) ? original : `${normalizeCacheServerUrl(serverBaseUrl)}${original.startsWith("/") ? "" : "/"}${original}`, stored);
           if (chapter.networkUrls?.[page]) add(chapter.networkUrls[page], stored);
         }
@@ -348,8 +352,15 @@ export async function getOwnedCachedPage(source: string, serverBaseUrl: string, 
     index = loading; pageIndexes.set(key, loading);
     if (pageIndexes.size > 4) pageIndexes.delete(pageIndexes.keys().next().value!);
   }
-  const stored = (await index.promise).get(imageCacheKey(source));
-  return stored ? (await caches.open("yomikura-page-cache")).match(stored) : undefined;
+  return (await index.promise).get(imageCacheKey(source));
+}
+
+export async function getOwnedCachedPage(source: string, serverBaseUrl: string, isDemo = false): Promise<Response | undefined> {
+  const stored = await ownedCachedPageAddress(source, serverBaseUrl, isDemo);
+  return stored ? (await caches.open("yomikura-page-cache")).match(stored.url) : undefined;
+}
+export async function getOwnedCachedPageTiles(source: string, serverBaseUrl: string, isDemo = false) {
+  return (await ownedCachedPageAddress(source, serverBaseUrl, isDemo))?.tiles;
 }
 
 

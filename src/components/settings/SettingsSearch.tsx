@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 
-export type SettingsSection = "connection" | "appearance" | "reader" | "backup" | "offline" | "advanced" | "about";
+export type SettingsSection = "connection" | "appearance" | "reader" | "library" | "privacy" | "browse" | "backup" | "offline" | "advanced" | "about";
 
 const entries: Array<{ section: SettingsSection; title: string; detail: string; keywords: string }> = [
+  { section: "privacy", title: "Reading and privacy", detail: "Incognito, downloaded books, privacy curtain and automatic tracking", keywords: "privacy incognito history recording offline downloaded tracking curtain hide window" },
+  { section: "library", title: "Library", detail: "Automatic checks, book information and collection rules", keywords: "update schedule metadata category collection default completed unread started download" },
+  { section: "browse", title: "Browsing", detail: "Source content filters, library entries and extension stores", keywords: "browse discover sources nsfw mature extensions stores" },
   { section: "connection", title: "Server profiles", detail: "Connections, URLs, testing, profile import and export", keywords: "suwayomi server url profile connection cors" },
   { section: "appearance", title: "Appearance", detail: "Theme, accent, cover density, language and accessibility", keywords: "dark light system color contrast motion language" },
-  { section: "reader", title: "Reader", detail: "Reading mode, spreads, transitions, downloads and key bindings", keywords: "webtoon rtl ltr pages keyboard auto scroll concurrency" },
+  { section: "reader", title: "Reader", detail: "Reading direction, page display, zoom, navigation and keyboard shortcuts", keywords: "webtoon rtl ltr pages keyboard auto scroll concurrency fullscreen keep screen awake background crop zoom pan rotate skip duplicate navigator page number" },
   { section: "backup", title: "Backup and restore", detail: "Create, download, validate and restore library backups", keywords: "backup restore data recovery" },
   { section: "offline", title: "Offline storage", detail: "Saved chapters, storage usage and cleanup", keywords: "cache disk delete downloads storage" },
   { section: "advanced", title: "Advanced tools", detail: "Local imports, OPDS, trackers, diagnostics and maintenance", keywords: "cbz cbr pdf opds tracker extension duplicate reset portable" },

@@ -15,7 +15,10 @@ import { useScheduledBackup } from "../../hooks/useScheduledBackup";
 import { useScheduledLibraryUpdate } from "../../hooks/useScheduledLibraryUpdate";
 import { getCachedChapters } from "../../api/suwayomi/offlineCache";
 import { useProgressSynchronization } from "../../hooks/useProgressSynchronization";
+import { useDownloadCleanup } from "../../hooks/useDownloadCleanup";
 import { ProgressSyncStatus } from "../ProgressSyncStatus";
+import { LibraryUpdateNotice } from "../library/LibraryUpdateNotice";
+import { ReadingModeNotice } from "../ReadingModeNotice";
 import { BrandLogo, SidebarCompanion, SanctuaryArt } from "../Brand";
 import { applyPalette } from "../../theme/palettes";
 import { DesktopDownloadLink } from "../onboarding/DesktopDownloadLink";
@@ -108,6 +111,7 @@ function AppShell() {
   const navigate = useNavigate();
 
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const pureBlack = useSettingsStore((state) => state.experience.pureBlack);
   const [setupActive, setSetupActive] = useState(false);
   const [managedStartupDismissed, setManagedStartupDismissed] = useState(false);
   const [wasOffline, setWasOffline] = useState(connectionStatus === "error");
@@ -121,6 +125,7 @@ function AppShell() {
   useScheduledBackup();
   useScheduledLibraryUpdate();
   useProgressSynchronization();
+  useDownloadCleanup();
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -184,7 +189,7 @@ function AppShell() {
     const applyTheme = () => {
       const dark = themeMode === "dark" || themeMode === "system" && systemTheme.matches;
       htmlElement.classList.toggle("light-theme", !dark);
-      applyPalette(htmlElement, colorPalette, dark);
+      applyPalette(htmlElement, colorPalette, dark, pureBlack);
     };
     applyTheme();
     if (themeMode === "system") systemTheme.addEventListener("change", applyTheme);
@@ -192,7 +197,7 @@ function AppShell() {
     htmlElement.classList.toggle("high-contrast", highContrastMode);
     htmlElement.classList.toggle("reduce-motion", reducedMotion);
     return () => systemTheme.removeEventListener("change", applyTheme);
-  }, [themeMode, colorPalette, highContrastMode, reducedMotion]);
+  }, [themeMode, colorPalette, highContrastMode, reducedMotion, pureBlack]);
 
   const showOfflineBanner = (connectionStatus === "error" || connectionStatus === "testing" && wasOffline) && !location.pathname.startsWith("/reader/") && !mockMode;
 
@@ -270,6 +275,8 @@ function AppShell() {
           <UpdateNotificationBanner />
         </div>
         <PwaUpdateNotice />
+        <LibraryUpdateNotice />
+        <ReadingModeNotice />
         {mockMode && !location.pathname.startsWith("/reader/") && (
           <div className="yomi-demo-notice">
             <span><Sparkles aria-hidden="true" />Demo library <span className="yomi-demo-description">· Explore with original sample books. Your library stays separate.</span></span>
@@ -761,7 +768,7 @@ function MobileNav() {
       aria-label="Mobile navigation"
     >
       <div className="grid grid-cols-6 gap-1">
-        {[...primaryNav, ...utilityNav].map((item) => {
+        {[...primaryNav, ...utilityNav.filter((item) => item.path !== "/statistics")].map((item) => {
           const Icon = item.icon;
           const translationKey = item.label.toLowerCase().replace(" ", "_") as any;
           const label = t(translationKey) === translationKey ? item.label : t(translationKey);

@@ -19,6 +19,7 @@ export interface ProgressSnapshot {
   pageIndex: number;
   pageCount: number;
   wasRead: boolean;
+  canComplete?: boolean;
   sourceOrder?: number;
   progressEpoch: number;
   baseline: { isRead: boolean; lastPageRead: number };

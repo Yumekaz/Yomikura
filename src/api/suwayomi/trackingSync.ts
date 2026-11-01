@@ -2,10 +2,13 @@ import type { ProgressBackend } from "./backendIdentity";
 import { acquireTrackingLease, getPendingTracking, getProgressOperations, recordTrackingResult, type ProgressHead } from "./progressStorage";
 import { assertTrackingBackend, pushLinkedTrackerProgress, trackingErrorMessage } from "./trackingActions";
 import { TrackingBusyError, withTrackingLock } from "./trackingCoordination";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 
 const inFlight = new Map<string, { promise: Promise<void>; rerun: boolean; force: boolean }>();
 const current = (backend: ProgressBackend) => { try { assertTrackingBackend(backend); return true; } catch { return false; } };
 async function drain(backend: ProgressBackend, force: boolean) {
+  const enabled = () => { const prefs = useSettingsStore.getState().experience; return force || !prefs?.incognito && prefs?.trackingPolicies?.[backend.key]?.automaticProgress !== false; };
+  if (!enabled()) return;
   try {
     await withTrackingLock(backend, async (owner) => {
     const groups = new Map<string, ProgressHead[]>();
@@ -15,11 +18,11 @@ async function drain(backend: ProgressBackend, force: boolean) {
     }
     for (const requests of groups.values()) {
       if (!force && requests.every((head) => (head.trackingRetryAt ?? 0) > Date.now())) continue;
-      if (!current(backend)) return;
+      if (!current(backend) || !enabled()) return;
       if (!await acquireTrackingLease(backend, owner)) return;
       const mangaId = requests[0].chapter.mangaId;
       const shouldProceed = async () => {
-        if (!current(backend)) return false;
+        if (!current(backend) || !enabled()) return false;
         const pending = await getPendingTracking(backend);
         if (!pending.some((head) => requests.some((request) => head.entityKey === request.entityKey && head.trackingDueSequence === request.trackingDueSequence))) return false;
         return !(await getProgressOperations(backend)).some((operation) => operation.chapter.mangaId === mangaId);

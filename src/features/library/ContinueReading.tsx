@@ -33,7 +33,7 @@ function timestamp(value: unknown) {
 }
 
 export function ContinueReading({ books }: { books: { id: number; title: string }[] }) {
-  const { serverBaseUrl, mockMode, chapterPolicies } = useSettingsStore();
+  const { serverBaseUrl, mockMode, chapterPolicies, experience } = useSettingsStore();
   const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
   const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`, undefined, mockMode ? "demo" : "live"), [serverBaseUrl, mockMode]);
   const server = useQuery({
@@ -54,17 +54,17 @@ export function ContinueReading({ books }: { books: { id: number; title: string 
   const latest = candidates.latest;
   const policy = normalizeChapterPolicy(latest ? chapterPolicies[mangaReaderSettingsKey(backend, latest.mangaId)] : undefined);
   const nextUnread = useQuery({
-    queryKey: ["history", "continue-target", backend.key, latest?.chapterId, latest?.readAt, policy.sort, policy.filter, policy.scanlator],
-    enabled: !!latest?.isRead, retry: false,
+    queryKey: ["history", "continue-target", backend.key, latest?.chapterId, latest?.readAt, policy.sort, policy.filter, policy.scanlator, experience.downloadedOnly],
+    enabled: !!latest && (latest.isRead || experience.downloadedOnly), retry: false,
     queryFn: async ({ signal }) => {
       const result = await loadReadingSequence(backend, latest!.mangaId, latest!.title, latest!.chapterId, policy, signal);
-      return result.chapters.find((chapter) => chapter.isRead === false) ?? null;
+      return result.chapters.find((chapter) => chapter.isRead === false && (!experience.downloadedOnly || chapter.availableOffline)) ?? null;
     },
   });
-  const item: ReadingCandidate | undefined = latest?.isRead ? nextUnread.data ? {
+  const item: ReadingCandidate | undefined = latest && (latest.isRead || experience.downloadedOnly) ? nextUnread.data ? {
     ...latest, chapterId: nextUnread.data.id, chapterName: nextUnread.data.name || `Chapter ${nextUnread.data.chapterNumber}`,
     lastPageRead: nextUnread.data.lastPageRead ?? 0, pageCount: nextUnread.data.pageCount, isRead: false,
-  } : candidates.unfinished : latest;
+  } : experience.downloadedOnly ? undefined : candidates.unfinished : latest;
   if (!item) return null;
   const cover = item.thumbnailUrl ? (item.thumbnailUrl.startsWith("http") || item.thumbnailUrl.startsWith("blob:") ? item.thumbnailUrl : `${serverBaseUrl.replace(/\/$/, "")}${item.thumbnailUrl}`) : "/placeholder-cover.svg";
   const page = Math.max(1, item.lastPageRead + 1);

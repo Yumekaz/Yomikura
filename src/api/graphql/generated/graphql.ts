@@ -5,7 +5,7 @@ type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
 /** Internal type. DO NOT USE DIRECTLY. */
 export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
 import { GraphQLClient, RequestOptions } from 'graphql-request';
-import gql from 'graphql-tag';
+import { gql } from '../transport';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
 type GraphQLClientRequestHeaders = RequestOptions['requestHeaders'];
@@ -3733,6 +3733,12 @@ export type AddExtensionStoreInput = {
   indexUrl: string;
 };
 
+export type AuthMode =
+  | 'BASIC_AUTH'
+  | 'NONE'
+  | 'SIMPLE_LOGIN'
+  | 'UI_LOGIN';
+
 export type BackupRestoreState =
   | 'FAILURE'
   | 'IDLE'
@@ -3768,6 +3774,11 @@ export type BooleanFilterInput = {
   notEqualToAny?: Array<boolean> | null | undefined;
   notIn?: Array<boolean> | null | undefined;
 };
+
+export type CbzMediaType =
+  | 'COMPATIBLE'
+  | 'LEGACY'
+  | 'MODERN';
 
 export type ChapterFilterInput = {
   and?: Array<ChapterFilterInput> | null | undefined;
@@ -3806,9 +3817,21 @@ export type ChapterOrderInput = {
   byType?: SortOrder | null | undefined;
 };
 
+export type ClearCachedImagesInput = {
+  cachedPages?: boolean | null | undefined;
+  cachedThumbnails?: boolean | null | undefined;
+  clientMutationId?: string | null | undefined;
+  downloadedThumbnails?: boolean | null | undefined;
+};
+
 export type ClearDownloaderInput = {
   clientMutationId?: string | null | undefined;
 };
+
+export type ContentWarning =
+  | 'MIXED'
+  | 'NSFW'
+  | 'SAFE';
 
 export type CreateBackupInput = {
   clientMutationId?: string | null | undefined;
@@ -3823,6 +3846,10 @@ export type CreateCategoryInput = {
   name: string;
   order?: number | null | undefined;
 };
+
+export type DatabaseType =
+  | 'H2'
+  | 'POSTGRESQL';
 
 export type DeleteCategoryInput = {
   categoryId: number;
@@ -3946,6 +3973,16 @@ export type IntFilterInput = {
   notIn?: Array<number> | null | undefined;
 };
 
+export type KoreaderSyncChecksumMethod =
+  | 'BINARY'
+  | 'FILENAME';
+
+export type KoreaderSyncConflictStrategy =
+  | 'DISABLED'
+  | 'KEEP_LOCAL'
+  | 'KEEP_REMOTE'
+  | 'PROMPT';
+
 export type LogoutTrackerInput = {
   clientMutationId?: string | null | undefined;
   trackerId: number;
@@ -3992,6 +4029,12 @@ export type MangaFilterInput = {
   url?: StringFilterInput | null | undefined;
 };
 
+export type MangaMetaTypeInput = {
+  key: string;
+  mangaId: number;
+  value: string;
+};
+
 export type MangaStatus =
   | 'CANCELLED'
   | 'COMPLETED'
@@ -4029,6 +4072,94 @@ export type PartialBackupFlagsInput = {
   includeTracking?: boolean | null | undefined;
 };
 
+export type PartialSettingsTypeInput = {
+  authMode?: AuthMode | null | undefined;
+  authPassword?: string | null | undefined;
+  authUsername?: string | null | undefined;
+  autoBackupIncludeCategories?: boolean | null | undefined;
+  autoBackupIncludeChapters?: boolean | null | undefined;
+  autoBackupIncludeClientData?: boolean | null | undefined;
+  autoBackupIncludeHistory?: boolean | null | undefined;
+  autoBackupIncludeManga?: boolean | null | undefined;
+  autoBackupIncludeServerSettings?: boolean | null | undefined;
+  autoBackupIncludeTracking?: boolean | null | undefined;
+  autoDownloadIgnoreReUploads?: boolean | null | undefined;
+  autoDownloadNewChapters?: boolean | null | undefined;
+  autoDownloadNewChaptersLimit?: number | null | undefined;
+  backupInterval?: number | null | undefined;
+  backupPath?: string | null | undefined;
+  backupTTL?: number | null | undefined;
+  backupTime?: string | null | undefined;
+  databasePassword?: string | null | undefined;
+  databaseType?: DatabaseType | null | undefined;
+  databaseUrl?: string | null | undefined;
+  databaseUsername?: string | null | undefined;
+  debugLogsEnabled?: boolean | null | undefined;
+  downloadAsCbz?: boolean | null | undefined;
+  downloadConversions?: Array<SettingsDownloadConversionTypeInput> | null | undefined;
+  downloadsPath?: string | null | undefined;
+  electronPath?: string | null | undefined;
+  excludeCompleted?: boolean | null | undefined;
+  excludeEntryWithUnreadChapters?: boolean | null | undefined;
+  excludeNotStarted?: boolean | null | undefined;
+  excludeUnreadChapters?: boolean | null | undefined;
+  flareSolverrAsResponseFallback?: boolean | null | undefined;
+  flareSolverrEnabled?: boolean | null | undefined;
+  flareSolverrSessionName?: string | null | undefined;
+  flareSolverrSessionTtl?: number | null | undefined;
+  flareSolverrTimeout?: number | null | undefined;
+  flareSolverrUrl?: string | null | undefined;
+  globalUpdateInterval?: number | null | undefined;
+  initialOpenInBrowserEnabled?: boolean | null | undefined;
+  ip?: string | null | undefined;
+  jwtAudience?: string | null | undefined;
+  jwtRefreshExpiry?: unknown;
+  jwtTokenExpiry?: unknown;
+  kcefEnabled?: boolean | null | undefined;
+  koreaderSyncChecksumMethod?: KoreaderSyncChecksumMethod | null | undefined;
+  koreaderSyncPercentageTolerance?: number | null | undefined;
+  koreaderSyncStrategyBackward?: KoreaderSyncConflictStrategy | null | undefined;
+  koreaderSyncStrategyForward?: KoreaderSyncConflictStrategy | null | undefined;
+  localSourcePath?: string | null | undefined;
+  maxLogFileSize?: string | null | undefined;
+  maxLogFiles?: number | null | undefined;
+  maxLogFolderSize?: string | null | undefined;
+  maxSourcesInParallel?: number | null | undefined;
+  opdsCbzMimetype?: CbzMediaType | null | undefined;
+  opdsChapterSortOrder?: SortOrder | null | undefined;
+  opdsEnablePageReadProgress?: boolean | null | undefined;
+  opdsItemsPerPage?: number | null | undefined;
+  opdsMarkAsReadOnDownload?: boolean | null | undefined;
+  opdsShowOnlyDownloadedChapters?: boolean | null | undefined;
+  opdsShowOnlyUnreadChapters?: boolean | null | undefined;
+  opdsSkipChapterMetadataFeed?: boolean | null | undefined;
+  opdsUseBinaryFileSizes?: boolean | null | undefined;
+  port?: number | null | undefined;
+  serveConversions?: Array<SettingsDownloadConversionTypeInput> | null | undefined;
+  socksProxyEnabled?: boolean | null | undefined;
+  socksProxyHost?: string | null | undefined;
+  socksProxyPassword?: string | null | undefined;
+  socksProxyPort?: string | null | undefined;
+  socksProxyUsername?: string | null | undefined;
+  socksProxyVersion?: number | null | undefined;
+  syncDataCategories?: boolean | null | undefined;
+  syncDataChapters?: boolean | null | undefined;
+  syncDataHistory?: boolean | null | undefined;
+  syncDataManga?: boolean | null | undefined;
+  syncDataTracking?: boolean | null | undefined;
+  syncInterval?: unknown;
+  syncYomiApiKey?: string | null | undefined;
+  syncYomiEnabled?: boolean | null | undefined;
+  syncYomiHost?: string | null | undefined;
+  systemTrayEnabled?: boolean | null | undefined;
+  updateMangas?: boolean | null | undefined;
+  useHikariConnectionPool?: boolean | null | undefined;
+  webUIChannel?: WebUiChannel | null | undefined;
+  webUIFlavor?: WebUiFlavor | null | undefined;
+  webUIInterface?: WebUiInterface | null | undefined;
+  webUIUpdateCheckInterval?: number | null | undefined;
+};
+
 export type RemoveExtensionStoreInput = {
   clientMutationId?: string | null | undefined;
   indexUrl: string;
@@ -4043,6 +4174,30 @@ export type RestoreBackupInput = {
 export type SearchTrackerInput = {
   query: string;
   trackerId: number;
+};
+
+export type SetMangaMetaInput = {
+  clientMutationId?: string | null | undefined;
+  meta: MangaMetaTypeInput;
+};
+
+export type SetSettingsInput = {
+  clientMutationId?: string | null | undefined;
+  settings: PartialSettingsTypeInput;
+};
+
+export type SettingsDownloadConversionHeaderTypeInput = {
+  name: string;
+  value: string;
+};
+
+export type SettingsDownloadConversionTypeInput = {
+  callTimeout?: unknown;
+  compressionLevel?: number | null | undefined;
+  connectTimeout?: unknown;
+  headers?: Array<SettingsDownloadConversionHeaderTypeInput> | null | undefined;
+  mimeType: string;
+  target: string;
 };
 
 export type SortOrder =
@@ -4211,12 +4366,6 @@ export type UpdateExtensionPatchInput = {
   update?: boolean | null | undefined;
 };
 
-export type UpdateExtensionsInput = {
-  clientMutationId?: string | null | undefined;
-  ids: Array<string>;
-  patch: UpdateExtensionPatchInput;
-};
-
 export type UpdateLibraryInput = {
   categories?: Array<number> | null | undefined;
   clientMutationId?: string | null | undefined;
@@ -4250,6 +4399,10 @@ export type UpdateSourcePreferenceInput = {
   source: unknown;
 };
 
+export type UpdateStopInput = {
+  clientMutationId?: string | null | undefined;
+};
+
 export type UpdateTrackInput = {
   clientMutationId?: string | null | undefined;
   /** This will only work if the tracker of the track record supports reading dates */
@@ -4263,6 +4416,20 @@ export type UpdateTrackInput = {
   startDate?: unknown;
   status?: number | null | undefined;
 };
+
+export type WebUiChannel =
+  | 'BUNDLED'
+  | 'PREVIEW'
+  | 'STABLE';
+
+export type WebUiFlavor =
+  | 'CUSTOM'
+  | 'VUI'
+  | 'WEBUI';
+
+export type WebUiInterface =
+  | 'BROWSER'
+  | 'ELECTRON';
 
 export type CreateBackupMutationVariables = Exact<{
   input?: CreateBackupInput | null | undefined;
@@ -4369,12 +4536,12 @@ export type ToggleExtensionInstallMutationVariables = Exact<{
 
 export type ToggleExtensionInstallMutation = { updateExtension: { extension: { pkgName: string, isInstalled: boolean } | null } | null };
 
-export type UpdateExtensionsMutationVariables = Exact<{
-  input: UpdateExtensionsInput;
+export type ClearTemporaryLibraryImagesMutationVariables = Exact<{
+  input: ClearCachedImagesInput;
 }>;
 
 
-export type UpdateExtensionsMutation = { updateExtensions: { extensions: Array<{ pkgName: string, isInstalled: boolean, hasUpdate: boolean, versionName: string }> } | null };
+export type ClearTemporaryLibraryImagesMutation = { clearCachedImages: { clientMutationId: string | null, cachedPages: boolean | null, cachedThumbnails: boolean | null, downloadedThumbnails: boolean | null } };
 
 export type UpdateLibraryMutationVariables = Exact<{
   input: UpdateLibraryInput;
@@ -4390,6 +4557,13 @@ export type FetchMangaDetailsMutationVariables = Exact<{
 
 export type FetchMangaDetailsMutation = { fetchManga: { manga: { id: number, initialized: boolean } } | null };
 
+export type SaveMangaNoteMutationVariables = Exact<{
+  input: SetMangaMetaInput;
+}>;
+
+
+export type SaveMangaNoteMutation = { setMangaMeta: { meta: { mangaId: number, key: string, value: string } } | null };
+
 export type FetchChapterPagesMutationVariables = Exact<{
   input: FetchChapterPagesInput;
 }>;
@@ -4402,7 +4576,7 @@ export type UpdateChapterProgressMutationVariables = Exact<{
 }>;
 
 
-export type UpdateChapterProgressMutation = { updateChapter: { chapter: { id: number, isRead: boolean, lastPageRead: number } } | null };
+export type UpdateChapterProgressMutation = { updateChapter: { chapter: { id: number, isRead: boolean, isBookmarked: boolean, lastPageRead: number } } | null };
 
 export type GetRestoreStatusQueryVariables = Exact<{
   id: string;
@@ -4411,27 +4585,37 @@ export type GetRestoreStatusQueryVariables = Exact<{
 
 export type GetRestoreStatusQuery = { restoreStatus: { state: BackupRestoreState, mangaProgress: number, totalManga: number } | null };
 
-export type GetSourcesQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-export type GetSourcesQuery = { sources: { totalCount: number, nodes: Array<{ id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean, isConfigurable: boolean, extension: { pkgName: string, isInstalled: boolean } }> } };
-
-export type GetSourcesByConditionQueryVariables = Exact<{
-  lang: string;
+export type GetSourcesQueryVariables = Exact<{
+  first?: number | null | undefined;
+  after?: unknown;
 }>;
 
 
-export type GetSourcesByConditionQuery = { sources: { totalCount: number, nodes: Array<{ id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean, isConfigurable: boolean }> } };
+export type GetSourcesQuery = { sources: { totalCount: number, pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: unknown, name: string, lang: string, iconUrl: string, supportsLatest: boolean, isNsfw: boolean, isConfigurable: boolean, extension: { pkgName: string, isInstalled: boolean } }> } };
 
-export type GetInstalledExtensionLangsQueryVariables = Exact<{ [key: string]: never; }>;
+export type GetCleanupChapterContextQueryVariables = Exact<{
+  id: number;
+}>;
 
 
-export type GetInstalledExtensionLangsQuery = { extensions: { totalCount: number, nodes: Array<{ pkgName: string, lang: string }> } };
+export type GetCleanupChapterContextQuery = { chapter: { id: number, name: string, chapterNumber: number, sourceOrder: number, pageCount: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, mangaId: number, manga: { title: string, categories: { nodes: Array<{ id: number }> } } } };
 
 export type ConnectionTestQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type ConnectionTestQuery = { __typename: 'Query' };
+
+export type GetServerDownloadPreferencesQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetServerDownloadPreferencesQuery = { settings: { downloadAsCbz: boolean, maxSourcesInParallel: number, autoDownloadNewChapters: boolean, autoDownloadNewChaptersLimit: number, excludeEntryWithUnreadChapters: boolean, autoDownloadIgnoreReUploads: boolean } };
+
+export type SetServerDownloadPreferencesMutationVariables = Exact<{
+  input: SetSettingsInput;
+}>;
+
+
+export type SetServerDownloadPreferencesMutation = { setSettings: { settings: { downloadAsCbz: boolean, maxSourcesInParallel: number, autoDownloadNewChapters: boolean, autoDownloadNewChaptersLimit: number, excludeEntryWithUnreadChapters: boolean, autoDownloadIgnoreReUploads: boolean } } };
 
 export type GetDownloadStatusQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -4469,12 +4653,22 @@ export type DequeueChapterDownloadMutation = { dequeueChapterDownload: { downloa
 export type GetExtensionStoresQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetExtensionStoresQuery = { extensionStores: { totalCount: number, nodes: Array<{ name: string, indexUrl: string, isLegacy: boolean, signingKey: string, badgeLabel: string, contactWebsite: string, extensionListUrl: string | null }> } };
+export type GetExtensionStoresQuery = { extensionStores: { totalCount: number, nodes: Array<{ name: string, indexUrl: string, isLegacy: boolean, signingKey: string, badgeLabel: string, contactWebsite: string, contactDiscord: string | null, extensionListUrl: string | null }> } };
 
-export type GetExtensionsQueryVariables = Exact<{ [key: string]: never; }>;
+export type GetExtensionsQueryVariables = Exact<{
+  first?: number | null | undefined;
+  after?: unknown;
+}>;
 
 
-export type GetExtensionsQuery = { extensions: { totalCount: number, nodes: Array<{ pkgName: string, name: string, lang: string, isNsfw: boolean, isInstalled: boolean, iconUrl: string, versionName: string, hasUpdate: boolean, isObsolete: boolean }> } };
+export type GetExtensionsQuery = { extensions: { totalCount: number, pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ pkgName: string, name: string, lang: string, isNsfw: boolean, isInstalled: boolean, iconUrl: string, versionName: string, hasUpdate: boolean, isObsolete: boolean, contentWarning: ContentWarning, extensionStore: { name: string, indexUrl: string } | null }> } };
+
+export type GetExtensionStateQueryVariables = Exact<{
+  pkgName: string;
+}>;
+
+
+export type GetExtensionStateQuery = { extension: { pkgName: string, isInstalled: boolean, hasUpdate: boolean, versionName: string } };
 
 export type GetCategoriesQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -4488,7 +4682,54 @@ export type GetLibraryQueryVariables = Exact<{
 }>;
 
 
-export type GetLibraryQuery = { mangas: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, title: string, thumbnailUrl: string | null, unreadCount: number, downloadCount: number, lastReadChapter: { id: number } | null, categories: { nodes: Array<{ id: number }> } }> } };
+export type GetLibraryQuery = { mangas: { totalCount: number, pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, title: string, thumbnailUrl: string | null, unreadCount: number, downloadCount: number, status: MangaStatus, inLibraryAt: unknown, sourceId: unknown, chapters: { totalCount: number }, latestReadChapter: { lastReadAt: unknown } | null, latestFetchedChapter: { fetchedAt: unknown } | null, latestUploadedChapter: { uploadDate: unknown } | null, lastReadChapter: { id: number } | null, categories: { nodes: Array<{ id: number }> } }> } };
+
+export type GetBookmarkedLibraryChaptersQueryVariables = Exact<{
+  after?: unknown;
+}>;
+
+
+export type GetBookmarkedLibraryChaptersQuery = { chapters: { totalCount: number, pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, mangaId: number }> } };
+
+export type GetLibraryInsightsQueryVariables = Exact<{
+  after?: unknown;
+}>;
+
+
+export type GetLibraryInsightsQuery = { mangas: { totalCount: number, pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, title: string, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, unreadCount: number, downloadCount: number, chapters: { totalCount: number }, trackRecords: { totalCount: number }, categories: { nodes: Array<{ id: number, name: string }> } }> } };
+
+export type GetReleaseSampleQueryVariables = Exact<{
+  id: number;
+}>;
+
+
+export type GetReleaseSampleQuery = { chapters: { nodes: Array<{ chapterNumber: number, uploadDate: unknown }> } };
+
+export type GetLibraryPolicyQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetLibraryPolicyQuery = { settings: { globalUpdateInterval: number, excludeUnreadChapters: boolean, excludeNotStarted: boolean, excludeCompleted: boolean, updateMangas: boolean }, categories: { nodes: Array<{ id: number, name: string, order: number, default: boolean, includeInUpdate: IncludeOrExclude, includeInDownload: IncludeOrExclude }> } };
+
+export type SetLibraryPolicyMutationVariables = Exact<{
+  input: SetSettingsInput;
+}>;
+
+
+export type SetLibraryPolicyMutation = { setSettings: { settings: { globalUpdateInterval: number, excludeUnreadChapters: boolean, excludeNotStarted: boolean, excludeCompleted: boolean, updateMangas: boolean } } };
+
+export type SetCollectionPolicyMutationVariables = Exact<{
+  input: UpdateCategoryInput;
+}>;
+
+
+export type SetCollectionPolicyMutation = { updateCategory: { category: { id: number, name: string, order: number, default: boolean, includeInUpdate: IncludeOrExclude, includeInDownload: IncludeOrExclude } } | null };
+
+export type StopLibraryUpdateMutationVariables = Exact<{
+  input: UpdateStopInput;
+}>;
+
+
+export type StopLibraryUpdateMutation = { updateStop: { clientMutationId: string | null } };
 
 export type GetLibraryUpdateStatusQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -4500,7 +4741,14 @@ export type GetMangaDetailsQueryVariables = Exact<{
 }>;
 
 
-export type GetMangaDetailsQuery = { manga: { id: number, initialized: boolean, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, categories: { nodes: Array<{ id: number }> }, source: { name: string } | null, chapters: { nodes: Array<{ id: number, name: string, chapterNumber: number, sourceOrder: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, lastPageRead: number, pageCount: number, uploadDate: unknown, scanlator: string | null }> } } };
+export type GetMangaDetailsQuery = { manga: { id: number, initialized: boolean, title: string, author: string | null, artist: string | null, description: string | null, thumbnailUrl: string | null, status: MangaStatus, genre: Array<string>, inLibrary: boolean, realUrl: string | null, categories: { nodes: Array<{ id: number }> }, source: { name: string } | null, chapters: { nodes: Array<{ id: number, name: string, chapterNumber: number, sourceOrder: number, isRead: boolean, isBookmarked: boolean, isDownloaded: boolean, lastPageRead: number, pageCount: number, uploadDate: unknown, scanlator: string | null }> } } };
+
+export type GetMangaNotesQueryVariables = Exact<{
+  id: number;
+}>;
+
+
+export type GetMangaNotesQuery = { manga: { id: number, meta: Array<{ key: string, value: string }> } };
 
 export type GetMigrationMangaQueryVariables = Exact<{
   id: number;
@@ -4605,7 +4853,7 @@ export type GetSourcePreferencesQuery = { source: { id: unknown, name: string, i
       | { __typename: 'CheckBoxPreference', key: string | null, title: string | null, summary: string | null, enabled: boolean, visible: boolean, defaultBool: boolean, valueBool: boolean | null }
       | { __typename: 'EditTextPreference', key: string | null, title: string | null, summary: string | null, enabled: boolean, visible: boolean, defaultString: string | null, valueString: string | null }
       | { __typename: 'ListPreference', key: string | null, title: string | null, summary: string | null, entries: Array<string>, entryValues: Array<string>, enabled: boolean, visible: boolean, defaultString: string | null, valueString: string | null }
-      | { __typename: 'MultiSelectListPreference' }
+      | { __typename: 'MultiSelectListPreference', key: string | null, title: string | null, summary: string | null, enabled: boolean, visible: boolean, entries: Array<string>, entryValues: Array<string>, defaultStrings: Array<string> | null, valueStrings: Array<string> | null }
       | { __typename: 'SwitchPreference', key: string | null, title: string | null, summary: string | null, enabled: boolean, visible: boolean, defaultBool: boolean, valueBool: boolean | null }
     > } };
 
@@ -4614,11 +4862,11 @@ export type UpdateSourcePreferenceMutationVariables = Exact<{
 }>;
 
 
-export type UpdateSourcePreferenceMutation = { updateSourcePreference: { preferences: Array<
+export type UpdateSourcePreferenceMutation = { updateSourcePreference: { source: { id: unknown }, preferences: Array<
       | { __typename: 'CheckBoxPreference', key: string | null, valueBool: boolean | null }
       | { __typename: 'EditTextPreference', key: string | null, valueString: string | null }
       | { __typename: 'ListPreference', key: string | null, valueString: string | null }
-      | { __typename: 'MultiSelectListPreference' }
+      | { __typename: 'MultiSelectListPreference', key: string | null, valueStrings: Array<string> | null }
       | { __typename: 'SwitchPreference', key: string | null, valueBool: boolean | null }
     > } | null };
 
@@ -4693,7 +4941,7 @@ export type GetUpdatesQueryVariables = Exact<{
 }>;
 
 
-export type GetUpdatesQuery = { chapters: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, uploadDate: unknown, fetchedAt: unknown, scanlator: string | null, mangaId: number, manga: { id: number, inLibraryAt: unknown, title: string, thumbnailUrl: string | null } }> } };
+export type GetUpdatesQuery = { chapters: { pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ id: number, name: string, chapterNumber: number, isRead: boolean, lastPageRead: number, pageCount: number, isDownloaded: boolean, uploadDate: unknown, fetchedAt: unknown, scanlator: string | null, mangaId: number, manga: { id: number, inLibraryAt: unknown, title: string, thumbnailUrl: string | null } }> } };
 
 export type GetHistoryQueryVariables = Exact<{
   filter?: ChapterFilterInput | null | undefined;
@@ -4911,15 +5159,13 @@ export const ToggleExtensionInstallDocument = gql`
   }
 }
     `;
-export const UpdateExtensionsDocument = gql`
-    mutation UpdateExtensions($input: UpdateExtensionsInput!) {
-  updateExtensions(input: $input) {
-    extensions {
-      pkgName
-      isInstalled
-      hasUpdate
-      versionName
-    }
+export const ClearTemporaryLibraryImagesDocument = gql`
+    mutation ClearTemporaryLibraryImages($input: ClearCachedImagesInput!) {
+  clearCachedImages(input: $input) {
+    clientMutationId
+    cachedPages
+    cachedThumbnails
+    downloadedThumbnails
   }
 }
     `;
@@ -4947,6 +5193,17 @@ export const FetchMangaDetailsDocument = gql`
   }
 }
     `;
+export const SaveMangaNoteDocument = gql`
+    mutation SaveMangaNote($input: SetMangaMetaInput!) {
+  setMangaMeta(input: $input) {
+    meta {
+      mangaId
+      key
+      value
+    }
+  }
+}
+    `;
 export const FetchChapterPagesDocument = gql`
     mutation FetchChapterPages($input: FetchChapterPagesInput!) {
   fetchChapterPages(input: $input) {
@@ -4960,6 +5217,7 @@ export const UpdateChapterProgressDocument = gql`
     chapter {
       id
       isRead
+      isBookmarked
       lastPageRead
     }
   }
@@ -4975,9 +5233,13 @@ export const GetRestoreStatusDocument = gql`
 }
     `;
 export const GetSourcesDocument = gql`
-    query GetSources {
-  sources(first: 2000) {
+    query GetSources($first: Int = 2000, $after: Cursor) {
+  sources(first: $first, after: $after) {
     totalCount
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
     nodes {
       id
       name
@@ -4994,29 +5256,25 @@ export const GetSourcesDocument = gql`
   }
 }
     `;
-export const GetSourcesByConditionDocument = gql`
-    query GetSourcesByCondition($lang: String!) {
-  sources(condition: {lang: $lang}, first: 2000) {
-    totalCount
-    nodes {
-      id
-      name
-      lang
-      iconUrl
-      supportsLatest
-      isNsfw
-      isConfigurable
-    }
-  }
-}
-    `;
-export const GetInstalledExtensionLangsDocument = gql`
-    query GetInstalledExtensionLangs {
-  extensions(condition: {isInstalled: true}, first: 2000) {
-    totalCount
-    nodes {
-      pkgName
-      lang
+export const GetCleanupChapterContextDocument = gql`
+    query GetCleanupChapterContext($id: Int!) {
+  chapter(id: $id) {
+    id
+    name
+    chapterNumber
+    sourceOrder
+    pageCount
+    isRead
+    isBookmarked
+    isDownloaded
+    mangaId
+    manga {
+      title
+      categories {
+        nodes {
+          id
+        }
+      }
     }
   }
 }
@@ -5024,6 +5282,32 @@ export const GetInstalledExtensionLangsDocument = gql`
 export const ConnectionTestDocument = gql`
     query ConnectionTest {
   __typename
+}
+    `;
+export const GetServerDownloadPreferencesDocument = gql`
+    query GetServerDownloadPreferences {
+  settings {
+    downloadAsCbz
+    maxSourcesInParallel
+    autoDownloadNewChapters
+    autoDownloadNewChaptersLimit
+    excludeEntryWithUnreadChapters
+    autoDownloadIgnoreReUploads
+  }
+}
+    `;
+export const SetServerDownloadPreferencesDocument = gql`
+    mutation SetServerDownloadPreferences($input: SetSettingsInput!) {
+  setSettings(input: $input) {
+    settings {
+      downloadAsCbz
+      maxSourcesInParallel
+      autoDownloadNewChapters
+      autoDownloadNewChaptersLimit
+      excludeEntryWithUnreadChapters
+      autoDownloadIgnoreReUploads
+    }
+  }
 }
     `;
 export const GetDownloadStatusDocument = gql`
@@ -5096,15 +5380,20 @@ export const GetExtensionStoresDocument = gql`
       signingKey
       badgeLabel
       contactWebsite
+      contactDiscord
       extensionListUrl
     }
   }
 }
     `;
 export const GetExtensionsDocument = gql`
-    query GetExtensions {
-  extensions(first: 2000) {
+    query GetExtensions($first: Int = 2000, $after: Cursor) {
+  extensions(first: $first, after: $after) {
     totalCount
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
     nodes {
       pkgName
       name
@@ -5115,7 +5404,22 @@ export const GetExtensionsDocument = gql`
       versionName
       hasUpdate
       isObsolete
+      contentWarning
+      extensionStore {
+        name
+        indexUrl
+      }
     }
+  }
+}
+    `;
+export const GetExtensionStateDocument = gql`
+    query GetExtensionState($pkgName: String!) {
+  extension(pkgName: $pkgName) {
+    pkgName
+    isInstalled
+    hasUpdate
+    versionName
   }
 }
     `;
@@ -5133,6 +5437,7 @@ export const GetCategoriesDocument = gql`
 export const GetLibraryDocument = gql`
     query GetLibrary($filter: MangaFilterInput, $first: Int, $after: Cursor) {
   mangas(filter: $filter, first: $first, after: $after) {
+    totalCount
     pageInfo {
       hasNextPage
       endCursor
@@ -5143,6 +5448,21 @@ export const GetLibraryDocument = gql`
       thumbnailUrl
       unreadCount
       downloadCount
+      status
+      inLibraryAt
+      sourceId
+      chapters {
+        totalCount
+      }
+      latestReadChapter {
+        lastReadAt
+      }
+      latestFetchedChapter {
+        fetchedAt
+      }
+      latestUploadedChapter {
+        uploadDate
+      }
       lastReadChapter {
         id
       }
@@ -5152,6 +5472,127 @@ export const GetLibraryDocument = gql`
         }
       }
     }
+  }
+}
+    `;
+export const GetBookmarkedLibraryChaptersDocument = gql`
+    query GetBookmarkedLibraryChapters($after: Cursor) {
+  chapters(
+    filter: {inLibrary: {equalTo: true}, isBookmarked: {equalTo: true}}
+    first: 200
+    after: $after
+    order: [{by: ID, byType: ASC}]
+  ) {
+    totalCount
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      id
+      mangaId
+    }
+  }
+}
+    `;
+export const GetLibraryInsightsDocument = gql`
+    query GetLibraryInsights($after: Cursor) {
+  mangas(filter: {inLibrary: {equalTo: true}}, first: 100, after: $after) {
+    totalCount
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      id
+      title
+      thumbnailUrl
+      status
+      genre
+      unreadCount
+      downloadCount
+      chapters {
+        totalCount
+      }
+      trackRecords {
+        totalCount
+      }
+      categories {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+  }
+}
+    `;
+export const GetReleaseSampleDocument = gql`
+    query GetReleaseSample($id: Int!) {
+  chapters(
+    filter: {mangaId: {equalTo: $id}}
+    first: 30
+    order: [{by: UPLOAD_DATE, byType: DESC}, {by: ID, byType: DESC}]
+  ) {
+    nodes {
+      chapterNumber
+      uploadDate
+    }
+  }
+}
+    `;
+export const GetLibraryPolicyDocument = gql`
+    query GetLibraryPolicy {
+  settings {
+    globalUpdateInterval
+    excludeUnreadChapters
+    excludeNotStarted
+    excludeCompleted
+    updateMangas
+  }
+  categories {
+    nodes {
+      id
+      name
+      order
+      default
+      includeInUpdate
+      includeInDownload
+    }
+  }
+}
+    `;
+export const SetLibraryPolicyDocument = gql`
+    mutation SetLibraryPolicy($input: SetSettingsInput!) {
+  setSettings(input: $input) {
+    settings {
+      globalUpdateInterval
+      excludeUnreadChapters
+      excludeNotStarted
+      excludeCompleted
+      updateMangas
+    }
+  }
+}
+    `;
+export const SetCollectionPolicyDocument = gql`
+    mutation SetCollectionPolicy($input: UpdateCategoryInput!) {
+  updateCategory(input: $input) {
+    category {
+      id
+      name
+      order
+      default
+      includeInUpdate
+      includeInDownload
+    }
+  }
+}
+    `;
+export const StopLibraryUpdateDocument = gql`
+    mutation StopLibraryUpdate($input: UpdateStopInput!) {
+  updateStop(input: $input) {
+    clientMutationId
   }
 }
     `;
@@ -5180,6 +5621,7 @@ export const GetMangaDetailsDocument = gql`
     status
     genre
     inLibrary
+    realUrl
     categories {
       nodes {
         id
@@ -5202,6 +5644,17 @@ export const GetMangaDetailsDocument = gql`
         uploadDate
         scanlator
       }
+    }
+  }
+}
+    `;
+export const GetMangaNotesDocument = gql`
+    query GetMangaNotes($id: Int!) {
+  manga(id: $id) {
+    id
+    meta {
+      key
+      value
     }
   }
 }
@@ -5383,6 +5836,17 @@ export const GetSourcePreferencesDocument = gql`
         enabled
         visible
       }
+      ... on MultiSelectListPreference {
+        key
+        title
+        summary
+        enabled
+        visible
+        entries
+        entryValues
+        defaultStrings: default
+        valueStrings: currentValue
+      }
     }
   }
 }
@@ -5390,6 +5854,9 @@ export const GetSourcePreferencesDocument = gql`
 export const UpdateSourcePreferenceDocument = gql`
     mutation UpdateSourcePreference($input: UpdateSourcePreferenceInput!) {
   updateSourcePreference(input: $input) {
+    source {
+      id
+    }
     preferences {
       __typename
       ... on CheckBoxPreference {
@@ -5407,6 +5874,10 @@ export const UpdateSourcePreferenceDocument = gql`
       ... on SwitchPreference {
         key
         valueBool: currentValue
+      }
+      ... on MultiSelectListPreference {
+        key
+        valueStrings: currentValue
       }
     }
   }
@@ -5558,6 +6029,8 @@ export const GetUpdatesDocument = gql`
       chapterNumber
       isRead
       lastPageRead
+      pageCount
+      isDownloaded
       uploadDate
       fetchedAt
       scanlator
@@ -5651,14 +6124,17 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     ToggleExtensionInstall(variables: ToggleExtensionInstallMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ToggleExtensionInstallMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<ToggleExtensionInstallMutation>({ document: ToggleExtensionInstallDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ToggleExtensionInstall', 'mutation', variables);
     },
-    UpdateExtensions(variables: UpdateExtensionsMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateExtensionsMutation> {
-      return withWrapper((wrappedRequestHeaders) => client.request<UpdateExtensionsMutation>({ document: UpdateExtensionsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateExtensions', 'mutation', variables);
+    ClearTemporaryLibraryImages(variables: ClearTemporaryLibraryImagesMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ClearTemporaryLibraryImagesMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<ClearTemporaryLibraryImagesMutation>({ document: ClearTemporaryLibraryImagesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ClearTemporaryLibraryImages', 'mutation', variables);
     },
     UpdateLibrary(variables: UpdateLibraryMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateLibraryMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<UpdateLibraryMutation>({ document: UpdateLibraryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateLibrary', 'mutation', variables);
     },
     FetchMangaDetails(variables: FetchMangaDetailsMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<FetchMangaDetailsMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<FetchMangaDetailsMutation>({ document: FetchMangaDetailsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'FetchMangaDetails', 'mutation', variables);
+    },
+    SaveMangaNote(variables: SaveMangaNoteMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<SaveMangaNoteMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<SaveMangaNoteMutation>({ document: SaveMangaNoteDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'SaveMangaNote', 'mutation', variables);
     },
     FetchChapterPages(variables: FetchChapterPagesMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<FetchChapterPagesMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<FetchChapterPagesMutation>({ document: FetchChapterPagesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'FetchChapterPages', 'mutation', variables);
@@ -5672,14 +6148,17 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     GetSources(variables?: GetSourcesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetSourcesQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetSourcesQuery>({ document: GetSourcesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetSources', 'query', variables);
     },
-    GetSourcesByCondition(variables: GetSourcesByConditionQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetSourcesByConditionQuery> {
-      return withWrapper((wrappedRequestHeaders) => client.request<GetSourcesByConditionQuery>({ document: GetSourcesByConditionDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetSourcesByCondition', 'query', variables);
-    },
-    GetInstalledExtensionLangs(variables?: GetInstalledExtensionLangsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetInstalledExtensionLangsQuery> {
-      return withWrapper((wrappedRequestHeaders) => client.request<GetInstalledExtensionLangsQuery>({ document: GetInstalledExtensionLangsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetInstalledExtensionLangs', 'query', variables);
+    GetCleanupChapterContext(variables: GetCleanupChapterContextQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetCleanupChapterContextQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetCleanupChapterContextQuery>({ document: GetCleanupChapterContextDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetCleanupChapterContext', 'query', variables);
     },
     ConnectionTest(variables?: ConnectionTestQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ConnectionTestQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<ConnectionTestQuery>({ document: ConnectionTestDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ConnectionTest', 'query', variables);
+    },
+    GetServerDownloadPreferences(variables?: GetServerDownloadPreferencesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetServerDownloadPreferencesQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetServerDownloadPreferencesQuery>({ document: GetServerDownloadPreferencesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetServerDownloadPreferences', 'query', variables);
+    },
+    SetServerDownloadPreferences(variables: SetServerDownloadPreferencesMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<SetServerDownloadPreferencesMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<SetServerDownloadPreferencesMutation>({ document: SetServerDownloadPreferencesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'SetServerDownloadPreferences', 'mutation', variables);
     },
     GetDownloadStatus(variables?: GetDownloadStatusQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetDownloadStatusQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetDownloadStatusQuery>({ document: GetDownloadStatusDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetDownloadStatus', 'query', variables);
@@ -5702,17 +6181,44 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     GetExtensions(variables?: GetExtensionsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetExtensionsQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetExtensionsQuery>({ document: GetExtensionsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetExtensions', 'query', variables);
     },
+    GetExtensionState(variables: GetExtensionStateQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetExtensionStateQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetExtensionStateQuery>({ document: GetExtensionStateDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetExtensionState', 'query', variables);
+    },
     GetCategories(variables?: GetCategoriesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetCategoriesQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetCategoriesQuery>({ document: GetCategoriesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetCategories', 'query', variables);
     },
     GetLibrary(variables?: GetLibraryQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetLibraryQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetLibraryQuery>({ document: GetLibraryDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetLibrary', 'query', variables);
     },
+    GetBookmarkedLibraryChapters(variables?: GetBookmarkedLibraryChaptersQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetBookmarkedLibraryChaptersQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetBookmarkedLibraryChaptersQuery>({ document: GetBookmarkedLibraryChaptersDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetBookmarkedLibraryChapters', 'query', variables);
+    },
+    GetLibraryInsights(variables?: GetLibraryInsightsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetLibraryInsightsQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetLibraryInsightsQuery>({ document: GetLibraryInsightsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetLibraryInsights', 'query', variables);
+    },
+    GetReleaseSample(variables: GetReleaseSampleQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetReleaseSampleQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetReleaseSampleQuery>({ document: GetReleaseSampleDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetReleaseSample', 'query', variables);
+    },
+    GetLibraryPolicy(variables?: GetLibraryPolicyQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetLibraryPolicyQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetLibraryPolicyQuery>({ document: GetLibraryPolicyDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetLibraryPolicy', 'query', variables);
+    },
+    SetLibraryPolicy(variables: SetLibraryPolicyMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<SetLibraryPolicyMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<SetLibraryPolicyMutation>({ document: SetLibraryPolicyDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'SetLibraryPolicy', 'mutation', variables);
+    },
+    SetCollectionPolicy(variables: SetCollectionPolicyMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<SetCollectionPolicyMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<SetCollectionPolicyMutation>({ document: SetCollectionPolicyDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'SetCollectionPolicy', 'mutation', variables);
+    },
+    StopLibraryUpdate(variables: StopLibraryUpdateMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<StopLibraryUpdateMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<StopLibraryUpdateMutation>({ document: StopLibraryUpdateDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'StopLibraryUpdate', 'mutation', variables);
+    },
     GetLibraryUpdateStatus(variables?: GetLibraryUpdateStatusQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetLibraryUpdateStatusQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetLibraryUpdateStatusQuery>({ document: GetLibraryUpdateStatusDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetLibraryUpdateStatus', 'query', variables);
     },
     GetMangaDetails(variables: GetMangaDetailsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetMangaDetailsQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetMangaDetailsQuery>({ document: GetMangaDetailsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetMangaDetails', 'query', variables);
+    },
+    GetMangaNotes(variables: GetMangaNotesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetMangaNotesQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetMangaNotesQuery>({ document: GetMangaNotesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetMangaNotes', 'query', variables);
     },
     GetMigrationManga(variables: GetMigrationMangaQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetMigrationMangaQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetMigrationMangaQuery>({ document: GetMigrationMangaDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetMigrationManga', 'query', variables);

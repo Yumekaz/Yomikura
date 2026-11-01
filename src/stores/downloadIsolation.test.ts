@@ -5,16 +5,20 @@ import { createDownloadStore } from "./useDownloadStore";
 import { progressBackend } from "../api/suwayomi/backendIdentity";
 import * as cache from "../api/suwayomi/offlineCache";
 import * as progress from "../api/suwayomi/progressStorage";
+import { DEFAULT_DOWNLOAD_EXPERIENCE, type DownloadExperience } from "./downloadExperience";
 
 const mocks = vi.hoisted(() => ({
-  settings: { serverBaseUrl: "http://first.example", mockMode: false, downloadConcurrency: 2 }, native: true,
-  listeners: new Set<(next: any, previous: any) => void>(), client: vi.fn(), invoke: vi.fn(),
+  settings: { serverBaseUrl: "http://first.example", mockMode: false, downloadConcurrency: 2 } as { serverBaseUrl: string; mockMode: boolean; downloadConcurrency: number; experience?: { downloads: DownloadExperience } }, native: true,
+  listeners: new Set<(next: any, previous: any) => void>(), client: vi.fn(), invoke: vi.fn(), tiles: vi.fn(),
 }));
 vi.mock("./useSettingsStore", () => ({ isTauri: () => mocks.native, useSettingsStore: { getState: () => mocks.settings,
   subscribe: (listener: (next: any, previous: any) => void) => { mocks.listeners.add(listener); return () => mocks.listeners.delete(listener); },
 } }));
 vi.mock("../api/graphql/client", () => ({ createGraphqlClient: (...args: unknown[]) => mocks.client(...args) }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => mocks.invoke(...args) }));
+// These tests exercise storage ownership with labelled byte fixtures. Decoder behavior has its own real-browser coverage.
+vi.mock("../api/suwayomi/validatePageBlob", () => ({ validatePageBlob: vi.fn(async () => undefined) }));
+vi.mock("../api/suwayomi/tallImageTiles", () => ({ splitTallImage: (...args: unknown[]) => mocks.tiles(...args) }));
 
 const first = progressBackend("http://first.example"); const second = progressBackend("http://second.example");
 const liveUrl = (target = first, index = 0) => `${target.serverBaseUrl}/api/v1/manga/42/chapter/1/page/${index}`;
@@ -35,6 +39,7 @@ function holdNative(target = first) {
 beforeEach(() => {
   vi.restoreAllMocks(); vi.resetAllMocks(); mocks.listeners.clear(); mocks.native = true; mocks.settings = { serverBaseUrl: first.serverBaseUrl, mockMode: false, downloadConcurrency: 2 };
   vi.stubGlobal("indexedDB", new IDBFactory()); releases = []; objects = new Map();
+  mocks.tiles.mockResolvedValue(undefined);
   vi.stubGlobal("caches", { open: async () => ({ match: async (key: string) => objects.get(String(key))?.clone(), put: async (key: string, value: Response) => { objects.set(String(key), value.clone()); }, delete: async (key: string) => objects.delete(String(key)), keys: async () => [...objects.keys()].map((url) => new Request(url)) }), delete: async () => { objects.clear(); return true; } });
   mocks.invoke.mockImplementation(async (_command, args) => png(args.serverBaseUrl));
   vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(`demo:${url}`, { headers: { "content-type": "image/png" } })));
@@ -52,6 +57,53 @@ beforeEach(() => {
 afterEach(async () => { releases.forEach((release) => release()); await store.dispose(); vi.unstubAllGlobals(); });
 
 describe("download backend ownership", () => {
+  it("keeps originals and optional tiles in one owning chapter and deletes both together", async () => {
+    mocks.tiles.mockResolvedValue({ width: 400, height: 8000, tiles: [{ blob: new Blob(["first tile"], { type: "image/png" }), height: 4000 }, { blob: new Blob(["second tile"], { type: "image/png" }), height: 4000 }] });
+    await store.getState().downloadChapter(12, "First title", first); await vi.waitFor(async () => expect(await saved()).not.toBeNull());
+    const chapter = (await saved())!; expect(chapter.pageCount).toBe(2); expect(chapter.cachedUrls).toHaveLength(2); expect(chapter.pageTiles).toHaveLength(2); expect(objects.size).toBe(6);
+    expect(await cache.getOwnedCachedPageTiles(liveUrl(), first.serverBaseUrl)).toMatchObject({ index: 0, height: 8000 });
+    expect(await cache.getOwnedCachedPageTiles(liveUrl(), second.serverBaseUrl)).toBeUndefined();
+    expect(await objects.get(chapter.cachedUrls[0])!.text()).toBe(first.serverBaseUrl);
+    await store.getState().deleteChapter(12, first); expect(objects.size).toBe(0);
+  });
+  it("keeps a valid original when optional tile storage runs out of space", async () => {
+    mocks.tiles.mockResolvedValue({ width: 400, height: 8000, tiles: [{ blob: new Blob(["first tile"]), height: 4000 }, { blob: new Blob(["second tile"]), height: 4000 }] });
+    vi.stubGlobal("caches", { open: async () => ({ match: async (key: string) => objects.get(String(key))?.clone(), put: async (key: string, value: Response) => { if (String(key).includes("__yomi_tile=1")) throw new DOMException("Full", "QuotaExceededError"); objects.set(String(key), value.clone()); }, delete: async (key: string) => objects.delete(String(key)) }) });
+    await store.getState().downloadChapter(12, "First title", first); await vi.waitFor(async () => expect(await saved()).not.toBeNull());
+    expect((await saved())!.pageTiles).toEqual([]); expect(objects.size).toBe(2);
+  });
+  it("keeps parallel pages in reading order when later pages finish first", async () => {
+    mocks.settings.experience = { downloads: { ...DEFAULT_DOWNLOAD_EXPERIENCE, pageConcurrency: 2 } };
+    let release!: () => void; const waiting = new Promise<void>((resolve) => { release = resolve; }); releases.push(release);
+    mocks.invoke.mockImplementation(async (_command, args) => { const index = Number(args.url.split("/").at(-1)); if (index === 0) await waiting; return png(String(index)); });
+    await store.getState().downloadChapter(12, "First title", first);
+    await vi.waitFor(() => expect(store.getState().activeDownloads[12].progress).toBe(1)); release();
+    await vi.waitFor(async () => expect(await saved()).not.toBeNull()); const chapter = (await saved())!;
+    expect(chapter.networkUrls).toEqual([liveUrl(first, 0), liveUrl(first, 1)]);
+    expect(await objects.get(chapter.cachedUrls[0])!.text()).toBe("0"); expect(await objects.get(chapter.cachedUrls[1])!.text()).toBe("1");
+  });
+  it("retains blocked jobs and starts them after the connection cost changes", async () => {
+    mocks.settings.experience = { downloads: { ...DEFAULT_DOWNLOAD_EXPERIENCE, unmeteredOnly: true, connectionCost: "metered" } };
+    await store.getState().downloadChapter(12, "First title", first);
+    expect(store.getState().activeDownloads[12]).toMatchObject({ status: "queued", waitingForNetwork: true }); expect(mocks.invoke).not.toHaveBeenCalled();
+    const previous = mocks.settings; mocks.settings = { ...previous, experience: { downloads: { ...previous.experience!.downloads, connectionCost: "unmetered" } } };
+    for (const listener of mocks.listeners) listener(mocks.settings, previous);
+    await vi.waitFor(async () => expect(await saved()).not.toBeNull());
+  });
+  it("retains a bookmark edited while the chapter is downloading", async () => {
+    const held = holdNative(first); await store.getState().downloadChapter(12, "First title", first); await held.entered;
+    await progress.enqueueProgress(first, { kind: "explicit", chapter: { chapterId: 12, chapterName: "Chapter 12", chapterNumber: 1, mangaId: 42, mangaTitle: "First title", sourceOrder: 1, pageCount: 2 }, baseline: { isRead: false, lastPageRead: 0 }, patch: { isBookmarked: true } });
+    held.release(); await vi.waitFor(async () => expect((await saved())?.isBookmarked).toBe(true));
+  });
+  it("settles other parallel writes before cleaning up a failed attempt", async () => {
+    mocks.settings.experience = { downloads: { ...DEFAULT_DOWNLOAD_EXPERIENCE, pageConcurrency: 2 } };
+    let release!: () => void; const waiting = new Promise<void>((resolve) => { release = resolve; }); releases.push(release);
+    mocks.invoke.mockImplementation(async (_command, args) => { if (args.url.endsWith("/0")) { await waiting; return png("first"); } throw new Error("HTTP 503 fixture"); });
+    await store.getState().downloadChapter(12, "First title", first);
+    await vi.waitFor(() => expect(mocks.invoke).toHaveBeenCalledTimes(2)); release();
+    await vi.waitFor(() => expect(store.getState().activeDownloads[12]).toMatchObject({ status: "error", error: "HTTP 503 fixture" }));
+    expect(await saved()).toBeNull(); expect(objects.size).toBe(0); expect((await cache.getDownloadJobs(first.serverBaseUrl))[0].status).toBe("failed");
+  });
   it("keeps same chapter IDs independent while profiles switch and cancellation targets only the selected owner", async () => {
     const held = holdNative(first); await store.getState().downloadChapter(12, "First title", first); await held.entered;
     const firstController = store.getState().downloadControllers[12]; switchTo(second);

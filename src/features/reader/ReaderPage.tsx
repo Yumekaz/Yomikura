@@ -1,8 +1,8 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef, type CSSProperties } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { useSettingsStore, FitMode, PageSpread, ReaderMode } from "../../stores/useSettingsStore";
+import { isTauri, useSettingsStore, FitMode, PageSpread, ReaderMode } from "../../stores/useSettingsStore";
 import { useDownloadStore } from "../../stores/useDownloadStore";
 import { classifySourceProblem, getErrorMessage } from "../../api/suwayomi/errors";
 import { buildSuwayomiPageUrl, resolveBackendUrl } from "../../api/suwayomi/pageUrls";
@@ -22,20 +22,29 @@ import type { ImageFilters, MangaOverride } from "../../stores/useSettingsStore"
 import { normalizeChapterPolicy } from "../manga/chapterPolicy";
 import { loadReadingSequence } from "./readingSequence";
 import { readerShortcutAllowed } from "./readerKeyboard";
+import { useReaderDisplay } from "./useReaderDisplay";
+import { ReaderHints } from "./ReaderHints";
+import { readerTapAction } from "./tapNavigation";
+import { ReaderPageTools } from "./ReaderPageTools";
+import { ReaderRefreshFlash } from "./ReaderRefreshFlash";
+import { ChapterEndBoundary } from "./ChapterEndBoundary";
+import { allowDeviceDownload, allowedPreloadPages } from "../../api/suwayomi/networkPolicy";
+import { useConnectionInformation } from "../../hooks/useConnectionInformation";
 
 export default function ReaderPage() {
   const { chapterId } = useParams<{ chapterId: string }>();
   const location = useLocation();
+  const incognitoAtEntry = useSettingsStore((state) => state.experience.incognito);
   const newToken = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
   const [session, setSession] = useState(() => ({ startId: chapterId!, token: newToken(), entryKey: location.key }));
   if (location.key !== session.entryKey && location.state?.readerSession !== session.token) {
     setSession({ startId: chapterId!, token: newToken(), entryKey: location.key });
     return null;
   }
-  return <ReaderSession key={session.token} startChapterId={session.startId} sessionToken={session.token} />;
+  return <ReaderSession key={`${session.token}:${incognitoAtEntry}`} incognitoAtEntry={incognitoAtEntry} startChapterId={session.startId} sessionToken={session.token} />;
 }
 
-function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapterId: string; sessionToken: string }) {
+function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEntry }: { startChapterId: string; sessionToken: string; incognitoAtEntry: boolean }) {
   const { chapterId: routeChapterId } = useParams<{ chapterId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
@@ -68,15 +77,28 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
     setPageTransition: setGlobalPageTransition,
     setAutoDownloadCount: setGlobalAutoDownloadCount,
     readerNavigationMode,
+    experience,
+    updateExperience,
   } = useSettingsStore();
+  const readerPreferences = experience.reader;
+  const network = useConnectionInformation();
+  const preloadCount = allowedPreloadPages(experience.downloads, network.connection);
 
   const { downloadChapter, cachedChapters } = useDownloadStore();
 
   const [showOverlay, setShowOverlay] = useState(true);
+  const [transitionTarget, setTransitionTarget] = useState<number>();
+  const [pageToolsOpen, setPageToolsOpen] = useState(false);
+  const [pageToolsTarget, setPageToolsTarget] = useState<{ url: string; title: string; page: number; chapter: ReaderChapter; backend: ProgressBackend }>();
+  const closePageTools = useCallback(() => setPageToolsOpen(false), []);
+  useEffect(() => { if (!showOverlay) setPageToolsOpen(false); }, [showOverlay]);
+  const display = useReaderDisplay(readerPreferences, setShowOverlay);
+  const pointerClickTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(pointerClickTimer.current), []);
   const [currentPage, setCurrentPage] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isAutoScrolling, setIsAutoScrolling] = useState(false);
-  const lastSavedPagesRef = useRef(new Map<number, number>());
+  const lastSavedPagesRef = useRef(new Map<number, string>());
   const [progressSaveError, setProgressSaveError] = useState("");
   const failedProgressRef = useRef<{ backend: ProgressBackend; progress: ProgressSnapshot } | null>(null);
   const scrollRef = useRef<number | null>(null);
@@ -85,10 +107,16 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
 
   type StreamChapter = ReaderChapter;
   const readyPagesRef = useRef(new Set<string>());
+  const failedPagesRef = useRef(new Set<string>());
   const [readyPageVersion, setReadyPageVersion] = useState(0);
   const pageIdentity = useCallback((id: number, index: number) => `${serverBaseUrl}::${id}::${index}`, [serverBaseUrl]);
   const [streamChapters, setStreamChapters] = useState<StreamChapter[]>([]);
   const [activeChapterId, setActiveChapterId] = useState<number | null>(null);
+  const [wideImages, setWideImages] = useState<Record<string, boolean>>({});
+  const [splitCursor, setSplitCursor] = useState({ key: "", half: 0 as 0 | 1 });
+  const partStates = useRef(new Map<string, "loading" | "ready" | "error">());
+  const completionParts = useRef(new Map<string, boolean>());
+  const splitPolicy = useRef({ vertical: false, wide: wideImages });
   const activeChapter = streamChapters.find((item) => item.id === activeChapterId) ?? streamChapters[0];
   const initialized = useRef(false);
   const streamRef = useRef(streamChapters); streamRef.current = streamChapters;
@@ -121,6 +149,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
   const override = overrideKey !== undefined ? mangaSettingsOverrides[overrideKey] : undefined;
   const hasOverride = override !== undefined;
   const readerMode = override?.readerMode ?? globalReaderMode;
+  splitPolicy.current = { vertical: readerMode === "WEBTOON" && readerPreferences.wideWebtoon === "split", wide: wideImages };
   const fitMode = override?.fitMode ?? globalFitMode;
   const pageSpread = override?.pageSpread ?? globalPageSpread;
   const pageTransition = override?.pageTransition ?? globalPageTransition;
@@ -129,6 +158,14 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
     ? { ...globalImageFilters, ...override.imageFilters }
     : globalImageFilters;
   const effectiveCropBorders = override?.cropBorders ?? globalCropBorders;
+  const splitKey = `${activeChapter?.id}:${currentPage}`;
+  const splitHalf = splitCursor.key === splitKey ? splitCursor.half : 0;
+  const splitWide = readerMode !== "WEBTOON" && pageSpread === "SINGLE" && readerPreferences.widePages === "split" && wideImages[splitKey] === true;
+  const rememberDimensions = useCallback((id: number, index: number, width: number, height: number) => {
+    if (width <= 0 || height <= 0) return;
+    const key = `${id}:${index}`, wide = width > height;
+    setWideImages((previous) => previous[key] === wide ? previous : { ...previous, [key]: wide });
+  }, []);
 
   const handleReaderModeChange = useCallback((mode: ReaderMode) => {
     if (mangaId !== undefined && hasOverride) {
@@ -201,8 +238,9 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
   });
 
   const updateProgress = useCallback(async (backend: ProgressBackend, progress: ProgressSnapshot) => {
+    if (incognitoAtEntry) return;
     try {
-      const atEnd = progress.pageCount > 0 && progress.pageIndex >= progress.pageCount - 1;
+      const atEnd = progress.canComplete !== false && progress.pageCount > 0 && progress.pageIndex >= progress.pageCount - 1;
       const result = await saveProgressIntent(backend, {
         kind: "reading", chapter: { chapterId: progress.chapterId, chapterName: progress.chapterName, chapterNumber: progress.chapterNumber, mangaId: progress.mangaId, mangaTitle: progress.mangaTitle, pageCount: progress.pageCount, sourceOrder: progress.sourceOrder },
         epoch: progress.progressEpoch, baseline: progress.baseline,
@@ -210,6 +248,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
         deleteAfterAck: autoDeleteReadChapters && atEnd,
       });
       if (!result.accepted) {
+        if (result.reason === "incognito") { failedProgressRef.current = null; setProgressSaveError(""); return; }
         setProgressSaveError(result.reason === "identity" ? "The saved progress belongs to an earlier chapter record. Review pending progress before saving this chapter." : "Progress was reset in another view. Reopen this chapter to begin a new reading session.");
         return;
       }
@@ -220,7 +259,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
       lastSavedPagesRef.current.delete(progress.chapterId);
       setProgressSaveError("Reading progress could not be saved on this device. Check storage and retry before closing the reader.");
     }
-  }, [autoDeleteReadChapters]);
+  }, [autoDeleteReadChapters, incognitoAtEntry]);
 
   const rootPages = pagesData ?? [];
   const pages = activeChapter?.pages ?? rootPages;
@@ -235,7 +274,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
   if (chapter && !sequencePolicy.current) sequencePolicy.current = normalizeChapterPolicy(chapterPolicies[mangaReaderSettingsKey(progressTarget, chapter.mangaId)]);
   const readingSequence = useQuery({
     queryKey: ["reading-sequence", progressTarget.key, sessionToken],
-    queryFn: ({ signal }) => loadReadingSequence(progressTarget, chapter!.mangaId, chapter!.manga?.title ?? "Unknown Manga", Number(chapterId), sequencePolicy.current!, signal),
+    queryFn: ({ signal }) => loadReadingSequence(progressTarget, chapter!.mangaId, chapter!.manga?.title ?? "Unknown Manga", Number(chapterId), sequencePolicy.current!, signal, readerPreferences),
     enabled: !!chapter,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
@@ -255,17 +294,19 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
 
   // Auto-Download Queue effect
   useEffect(() => {
-    if (!activeChapter || effectiveAutoDownloadCount <= 0 || siblingChapters.length === 0) return;
+    const available = readingSequence.data?.downloadChapters ?? [];
+    if (!activeChapter || effectiveAutoDownloadCount <= 0 || !available.length || isTauri() && !mockMode && !allowDeviceDownload(experience.downloads, network.connection)) return;
 
-    const idx = siblingChapters.findIndex(c => c.id === activeChapter.id);
+    const idx = available.findIndex(c => c.id === activeChapter.id);
     if (idx === -1) return;
-
-    const nextChapters = siblingChapters.slice(idx + 1, idx + 1 + effectiveAutoDownloadCount);
+    const saved = (id: number) => cachedChapters.some((chapter) => chapter.id === id) || available.some((chapter) => chapter.id === id && chapter.isDownloaded);
+    if (!available[idx + 1] || !saved(activeChapter.id) || !saved(available[idx + 1].id)) return;
+    const nextChapters = available.slice(idx + 1, idx + 1 + effectiveAutoDownloadCount);
 
     const triggerDownloads = async () => {
       for (const ch of nextChapters) {
         if (!isCurrentProgressBackend(progressTarget)) break;
-        const isAlreadyDownloaded = cachedChapters?.some(cc => cc.id === ch.id);
+        const isAlreadyDownloaded = saved(ch.id);
         if (!isAlreadyDownloaded) {
           try {
             await downloadChapter(ch.id, activeChapter.mangaTitle, progressTarget);
@@ -277,7 +318,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
     };
 
     void triggerDownloads();
-  }, [activeChapter?.id, effectiveAutoDownloadCount, siblingChapters, cachedChapters, downloadChapter, progressTarget]);
+  }, [activeChapter?.id, effectiveAutoDownloadCount, readingSequence.data, cachedChapters, downloadChapter, progressTarget, experience.downloads, network.connection, network.revision]);
 
   const getNextSiblingId = useCallback(
     (afterChapterId: number) => {
@@ -315,16 +356,18 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
   }, [streamChapters, getNextSiblingId, progressTarget]);
 
   // Commit immediately. Only network synchronization is debounced by the app shell.
-  const saveProgress = useCallback((streamChapter: StreamChapter, pageIndex: number) => {
+  const saveProgress = useCallback((streamChapter: StreamChapter, pageIndex: number, canComplete = true) => {
     if (!readyPagesRef.current.has(pageIdentity(streamChapter.id, pageIndex))) return;
-    if (lastSavedPagesRef.current.get(streamChapter.id) === pageIndex) return;
-    lastSavedPagesRef.current.set(streamChapter.id, pageIndex);
+    const complete = canComplete && ![...completionParts.current].some(([part, ready]) => part.startsWith(`${pageIdentity(streamChapter.id, pageIndex)}:`) && !ready);
+    const savedKey = `${pageIndex}:${complete}`;
+    if (lastSavedPagesRef.current.get(streamChapter.id) === savedKey) return;
+    lastSavedPagesRef.current.set(streamChapter.id, savedKey);
 
     const progress = createProgressSnapshot(streamChapter, streamChapter.mangaTitle, pageIndex);
-    void updateProgress(progressTarget, progress);
+    void updateProgress(progressTarget, { ...progress, canComplete: complete });
   }, [updateProgress, pageIdentity, progressTarget]);
 
-  const publishCursor = useCallback((cursor: ReaderCursor, ready: boolean) => {
+  const publishCursor = useCallback((cursor: ReaderCursor, ready: boolean, endVisible = true) => {
     const owner = streamRef.current.find((item) => item.id === cursor.chapterId);
     if (!owner) return;
     const previous = cursorRef.current;
@@ -336,7 +379,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
       lastWrittenCursor.current = key;
       navigate(`/reader/${cursor.chapterId}`, { replace: true, preventScrollReset: true, state: { readerSession: sessionToken, readerPage: cursor.pageIndex } });
     }
-    if (ready) saveProgress(owner, cursor.pageIndex);
+    if (ready) saveProgress(owner, cursor.pageIndex, endVisible);
   }, [navigate, saveProgress, sessionToken]);
   const webtoon = useWebtoonNavigation(readerMode === "WEBTOON", publishCursor);
 
@@ -374,12 +417,26 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
   }, [routeChapterId, location.key, location.state, readerMode, sessionToken, webtoon.jump]);
   useEffect(() => () => clearTimeout(transitionTimer.current), []);
 
-  const handlePageReady = useCallback((owner: StreamChapter, index: number, ready: boolean) => {
+  const handleCompletionState = useCallback((owner: StreamChapter, index: number, variant: string, ready: boolean | undefined) => {
+    const key = `${pageIdentity(owner.id, index)}:${variant}`;
+    if (completionParts.current.get(key) === ready) return;
+    if (ready === undefined) completionParts.current.delete(key); else completionParts.current.set(key, ready);
+    setReadyPageVersion((value) => value + 1);
+  }, [pageIdentity]);
+  const handlePageState = useCallback((owner: StreamChapter, index: number, variant: string, state: "loading" | "ready" | "error" | "unmounted") => {
     const key = pageIdentity(owner.id, index);
+    const partKey = `${key}:${variant}`;
+    if (state === "unmounted") partStates.current.delete(partKey); else partStates.current.set(partKey, state);
+    const expected = splitPolicy.current.vertical && splitPolicy.current.wide[`${owner.id}:${index}`] ? ["half-0", "half-1"] : ["full"];
+    const ready = expected.every((part) => partStates.current.get(`${key}:${part}`) === "ready");
+    const failed = expected.some((part) => partStates.current.get(`${key}:${part}`) === "error");
+    const absent = expected.every((part) => !partStates.current.has(`${key}:${part}`));
+    if (failed) failedPagesRef.current.add(key); else if (ready) failedPagesRef.current.delete(key);
+    webtoon.onImageState(owner.id, index, ready ? "ready" : failed ? "error" : absent ? "unmounted" : "loading");
     if (readyPagesRef.current.has(key) === ready) return;
     if (ready) readyPagesRef.current.add(key); else readyPagesRef.current.delete(key);
     setReadyPageVersion((value) => value + 1);
-  }, [pageIdentity]);
+  }, [pageIdentity, webtoon.onImageState]);
 
   // Page Transitions Engine
   const changePageWithTransition = useCallback((nextIndex: number) => {
@@ -428,12 +485,15 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
     if (!initialChapter) return;
     const displayed = [idxA, idxB].filter((index): index is number => index !== null && index < pages.length);
     if (displayed.every((index) => readyPagesRef.current.has(pageIdentity(initialChapter.id, index)))) {
-      saveProgress(initialChapter, activePage);
+      if (readerPreferences.widePages === "split" && pageSpread === "SINGLE" && wideImages[splitKey] === undefined) return;
+      saveProgress(initialChapter, activePage, !splitWide || splitHalf === 1);
     }
-  }, [idxA, idxB, readerMode, pages.length, saveProgress, activeChapter, readyPageVersion, pageIdentity]);
+  }, [idxA, idxB, readerMode, pages.length, saveProgress, activeChapter, readyPageVersion, pageIdentity, readerPreferences.widePages, pageSpread, wideImages, splitKey, splitWide, splitHalf]);
 
   // Navigation Logic
   const navigatePage = useCallback((dir: number) => {
+    if (splitWide && dir > 0 && splitHalf === 0) { setSplitCursor({ key: splitKey, half: 1 }); return; }
+    if (splitWide && dir < 0 && splitHalf === 1) { setSplitCursor({ key: splitKey, half: 0 }); return; }
     let next = currentPage + dir;
     
     if (readerMode !== "WEBTOON" && pageSpread !== "SINGLE") {
@@ -462,36 +522,29 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
     }
 
     if (next >= 0 && next < pages.length) {
+      if (dir < 0 && readerPreferences.widePages === "split" && pageSpread === "SINGLE" && wideImages[`${activeChapter?.id}:${next}`]) setSplitCursor({ key: `${activeChapter?.id}:${next}`, half: 1 });
       changePageWithTransition(next);
     } else if (next >= pages.length && nextChapterId) {
-      navigate(`/reader/${nextChapterId}`);
+      if (readerPreferences.pauseBetweenChapters && transitionTarget !== nextChapterId) { setTransitionTarget(nextChapterId); setShowOverlay(true); }
+      else navigate(`/reader/${nextChapterId}`);
     } else if (next < 0 && prevChapterId) {
       navigate(`/reader/${prevChapterId}`);
     }
-  }, [currentPage, readerMode, pageSpread, pages.length, nextChapterId, prevChapterId, navigate, changePageWithTransition]);
+  }, [currentPage, readerMode, pageSpread, pages.length, nextChapterId, prevChapterId, navigate, changePageWithTransition, readerPreferences.pauseBetweenChapters, transitionTarget, splitWide, splitHalf, splitKey, readerPreferences.widePages, wideImages, activeChapter?.id]);
 
   const handlePageClick = useCallback((e: React.MouseEvent) => {
-    const width = window.innerWidth;
-    const x = e.clientX;
-    const threshold = width * (readerNavigationMode === "wide" ? 0.42 : 0.28);
-
-    if (readerMode !== "WEBTOON") {
-      e.stopPropagation();
-      if (readerNavigationMode === "disabled") {
-        setShowOverlay(!showOverlay);
-      } else if (x < threshold) {
-        const dir = readerMode === "RTL" ? 1 : -1;
-        navigatePage(dir);
-      } else if (x > width - threshold) {
-        const dir = readerMode === "RTL" ? -1 : 1;
-        navigatePage(dir);
-      } else {
-        setShowOverlay(!showOverlay);
-      }
-    } else {
-      setShowOverlay(!showOverlay);
-    }
-  }, [navigatePage, readerMode, readerNavigationMode, showOverlay]);
+    if (e.defaultPrevented || (e.target as Element).closest("button,a,input,textarea,summary")) return;
+    clearTimeout(pointerClickTimer.current);
+    if (e.detail > 1) return;
+    const x = e.clientX, y = e.clientY;
+    const run = () => {
+      const action = readerNavigationMode === "disabled" || readerMode === "WEBTOON" && !readerPreferences.webtoonTapNavigation ? "controls" : readerTapAction(x, y, window.innerWidth, window.innerHeight, readerNavigationMode === "wide", readerMode === "RTL", readerPreferences);
+      if (action === "controls") setShowOverlay((value) => !value);
+      else if (readerMode === "WEBTOON") window.scrollBy({ top: window.innerHeight * .8 * (action === "next" ? 1 : -1), behavior: "instant" });
+      else navigatePage(action === "next" ? 1 : -1);
+    };
+    if (readerPreferences.doubleTapZoom) pointerClickTimer.current = setTimeout(run, 220); else run();
+  }, [navigatePage, readerMode, readerNavigationMode, readerPreferences]);
 
   const handleJumpToPage = useCallback((pageIndex: number) => {
     const target = Math.min(Math.max(0, pageIndex), pages.length - 1);
@@ -503,7 +556,6 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
     if (pages.length === 0 || !activeChapter || !serverBaseUrl) return;
 
     const preloadedImages: HTMLImageElement[] = [];
-    const preloadCount = 3;
 
     for (let j = 1; j <= preloadCount; j++) {
       const nextIdx = currentPage + j;
@@ -528,7 +580,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
         img.src = "";
       });
     };
-  }, [currentPage, pages, activeChapter, mockMode, serverBaseUrl]);
+  }, [currentPage, pages, activeChapter, mockMode, serverBaseUrl, preloadCount]);
 
   // Webtoon infinite-scroll binge (append chapters or navigate)
   useEffect(() => {
@@ -536,8 +588,9 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
     const tail = streamChapters[streamChapters.length - 1];
     const nextId = tail ? getNextSiblingId(tail.id) : undefined;
     if (!nextId || webtoon.target) return;
+    if (readerPreferences.pauseBetweenChapters) return;
 
-    if (infiniteChapterReading) {
+    if (infiniteChapterReading && !readerPreferences.pauseBetweenChapters) {
       if (!tailAnchor.current || appendError) return;
       const observer = new IntersectionObserver(([entry]) => {
         if (entry.isIntersecting && !bingeLoadingRef.current) void appendNextBingeChapter();
@@ -570,6 +623,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
     appendError,
     webtoon.target,
     progressTarget,
+    readerPreferences.pauseBetweenChapters,
   ]);
 
   // Auto-scroll loop
@@ -774,7 +828,14 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
   }
 
   return (
-    <div className="min-h-screen bg-black" data-reader-session>
+    <div className="min-h-screen yomi-reader-surface" data-reader-session style={{ "--reader-background": readerPreferences.background === "black" ? "#000" : readerPreferences.background === "paper" ? "#f4ecdc" : readerPreferences.background === "gray" ? "#303030" : "var(--ink-950)" } as CSSProperties}>
+      <ReaderHints mode={readerMode} preferences={readerPreferences} />
+      {experience.incognito && showOverlay && <p role="status" className="yomi-reader-capability-note">Incognito · Reading progress, history and automatic tracking are paused.</p>}
+      <ReaderRefreshFlash enabled={readerPreferences.eInkFlash} position={`${activeChapter.id}:${currentPage}:${splitHalf}`} />
+      {readerPreferences.verticalNavigator && showOverlay && pages.length > 1 && <div className={`yomi-reader-vertical-nav ${readerPreferences.navigatorLeft ? "on-left" : ""}`} style={{ height: `${readerPreferences.navigatorHeight}vh` }}><span aria-hidden="true">{currentPage + 1}</span><input type="range" aria-label="Vertical page navigator" aria-valuetext={`Page ${currentPage + 1} of ${pages.length}`} min={0} max={pages.length - 1} value={currentPage} onChange={(event) => handleJumpToPage(Number(event.target.value))} /><span aria-hidden="true">{pages.length}</span></div>}
+      {transitionTarget && <section className="yomi-chapter-transition" aria-label="Chapter transition"><h2>Ready for the next chapter?</h2><p>{activeChapter.name} is behind you. Continue when you’re ready.</p><div><button className="yomi-button yomi-button-secondary" onClick={() => setTransitionTarget(undefined)}>Stay here</button><button className="yomi-button yomi-button-primary" onClick={() => navigate(`/reader/${transitionTarget}`)}>Continue reading</button></div></section>}
+      {readerPreferences.showPageNumber && !showOverlay && <output className="yomi-reader-page-number" aria-label="Reading position">{currentPage + 1} / {pages.length}{splitWide ? ` · ${splitHalf + 1}/2` : ""}</output>}
+      {readerPreferences.keepAwake && display.wakeState === "unavailable" && showOverlay && <p className="yomi-reader-capability-note" role="status">This device couldn’t keep the screen awake.</p>}
       {readingSequence.isError && <div role="alert" className="fixed bottom-5 left-4 z-[60] max-w-md rounded-lg border border-amber-300/30 bg-ink-950 p-3 text-sm text-slate-200"><p>Chapter continuation could not be confirmed. This chapter remains readable.</p><button type="button" className="mt-2 text-yomi-jade underline" onClick={() => void readingSequence.refetch()}>Retry chapter list</button></div>}
       {readingSequence.data?.offline && <p role="status" className="fixed bottom-3 left-3 z-30 rounded bg-ink-950/90 px-3 py-1 text-xs text-slate-300">Offline continuation uses saved chapters only.</p>}
       {progressSaveError && <div role="alert" className="fixed left-4 top-20 z-[60] max-w-md rounded-lg border border-red-400/30 bg-ink-950 p-3 text-sm text-slate-200">
@@ -815,6 +876,9 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
         onHeaderRef={webtoon.onHeaderRef}
         isAutoScrolling={isAutoScrolling}
         onToggleAutoScroll={() => setIsAutoScrolling(!isAutoScrolling)}
+        fullscreen={display.fullscreen}
+        onToggleFullscreen={() => void display.toggleFullscreen().catch(() => undefined)}
+        pageTools={readerPreferences.pageActions && <ReaderPageTools open={pageToolsOpen} onToggle={() => { if (!pageToolsOpen) setPageToolsTarget({ url: buildPageUrl(currentPage), title: activeChapter.mangaTitle, page: currentPage + 1, chapter: activeChapter, backend: progressTarget }); setPageToolsOpen(!pageToolsOpen); }} onClose={closePageTools} url={pageToolsTarget?.url ?? buildPageUrl(currentPage)} title={pageToolsTarget?.title ?? activeChapter.mangaTitle} page={pageToolsTarget?.page ?? currentPage + 1} chapter={pageToolsTarget?.chapter ?? activeChapter} backend={pageToolsTarget?.backend ?? progressTarget} onRotate={() => updateExperience((current) => ({ reader: { ...current.reader, rotation: ((current.reader.rotation + 90) % 360) as 0 | 90 | 180 | 270 } }))} />}
       />
 
       {/* Pages Container */}
@@ -831,10 +895,11 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
         aria-describedby="reader-keyboard-help"
         tabIndex={0}
         onClick={handlePageClick}
+        onKeyDown={(event) => { if (readerPreferences.pageActions && (event.key === "ContextMenu" || event.shiftKey && event.key === "F10")) { event.preventDefault(); event.stopPropagation(); setPageToolsTarget({ url: buildPageUrl(currentPage), title: activeChapter.mangaTitle, page: currentPage + 1, chapter: activeChapter, backend: progressTarget }); setShowOverlay(true); setPageToolsOpen(true); } }}
       >
         <p id="reader-keyboard-help" className="sr-only">Reader shortcuts work here. Use Tab and Shift+Tab to reach the controls.</p>
         {readerMode === "WEBTOON" ? (
-          <div className="flex flex-col w-full" style={{ paddingTop: webtoon.headerInset, paddingBottom: `calc(100vh - ${webtoon.headerInset}px)` }}>
+          <div className="flex flex-col w-full" style={{ paddingTop: webtoon.headerInset, paddingBottom: `calc(100vh - ${webtoon.headerInset}px)`, paddingInline: `${readerPreferences.sidePadding}%` }}>
             {streamChapters.map((streamCh, ci) => (
               <div key={streamCh.id} className="flex w-full flex-col">
                 {ci > 0 && (
@@ -844,9 +909,10 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
                 )}
                 {streamCh.pages.map((url, i) => (
                   <WebtoonPage key={`${streamCh.id}-${i}`} chapterId={streamCh.id} pageIndex={i}
+                    preloadMargin={preloadCount > 0 ? 1200 : 0}
                     forceVisible={webtoon.target?.chapterId === streamCh.id && webtoon.target.pageIndex === i}
                     onAnchor={webtoon.onAnchor} onLayout={webtoon.onLayout}>
-                    <ReaderImage
+                    {(readerPreferences.wideWebtoon === "split" && wideImages[`${streamCh.id}:${i}`] ? [0, 1] as const : [undefined]).map((half) => <ReaderImage key={half === undefined ? "full" : `half-${half}`}
                       url={mockMode
                         ? resolveBackendUrl(serverBaseUrl, url)
                         : buildSuwayomiPageUrl({
@@ -857,13 +923,17 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
                           })}
                       fallbackUrl={resolveBackendUrl(serverBaseUrl, url)}
                       pageNumber={i}
-                      onReadyChange={(ready) => handlePageReady(streamCh, i, ready)}
-                      onLoadStateChange={(state) => webtoon.onImageState(streamCh.id, i, state)}
+                      onLoadStateChange={(state) => handlePageState(streamCh, i, half === undefined ? "full" : `half-${half}`, state)}
+                      onCompletionReadyChange={(ready) => handleCompletionState(streamCh, i, half === undefined ? "full" : `half-${half}`, ready)}
                       imageFilters={effectiveImageFilters}
                       cropBorders={effectiveCropBorders}
-                    />
+                      splitHalf={half}
+                      onDimensions={(width, height) => rememberDimensions(streamCh.id, i, width, height)}
+                      onPageActions={() => { setShowOverlay(true); setPageToolsTarget({ url: mockMode ? resolveBackendUrl(serverBaseUrl, url) : buildSuwayomiPageUrl({ serverBaseUrl, mangaId: streamCh.mangaId, chapterSourceOrder: streamCh.sourceOrder, pageIndex: i }), title: streamCh.mangaTitle, page: i + 1, chapter: streamCh, backend: progressTarget }); setPageToolsOpen(true); }}
+                    />)}
                   </WebtoonPage>
                 ))}
+                <ChapterEndBoundary readiness={readyPageVersion} onReached={() => { if (!streamCh.pages.some((_, index) => failedPagesRef.current.has(pageIdentity(streamCh.id, index)))) saveProgress(streamCh, streamCh.pages.length - 1, true); }} />
               </div>
             ))}
             <div ref={tailAnchor} aria-hidden="true" className="h-px" />
@@ -872,10 +942,10 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
               <p>{appendError}</p><button type="button" className="yomi-button yomi-button-secondary" onClick={(event) => { event.stopPropagation(); void appendNextBingeChapter(); }}>Retry next chapter</button>
             </div>}
 
-            {!infiniteChapterReading && nextChapterId && (
+            {(!infiniteChapterReading || readerPreferences.pauseBetweenChapters) && nextChapterId && (
               <div className="flex w-full flex-col items-center justify-center gap-3 border-t border-white/5 bg-ink-950 p-8 text-center">
                 <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                  {t("completed_chapter")}
+                  End of chapter
                 </span>
                 <button
                   onClick={(e) => {
@@ -903,14 +973,16 @@ function ReaderSession({ startChapterId: chapterId, sessionToken }: { startChapt
                     url={buildPageUrl(idx)}
                     fallbackUrl={resolveBackendUrl(serverBaseUrl, pages[idx])}
                     pageNumber={idx}
-                    onReadyChange={(ready) => {
-                      const owner = activeChapter;
-                      if (owner) handlePageReady(owner, idx, ready);
-                    }}
+                    onLoadStateChange={(state) => handlePageState(activeChapter, idx, "full", state)}
+                    onCompletionReadyChange={(ready) => handleCompletionState(activeChapter, idx, "full", ready)}
                     mode="single"
                     fitMode={fitMode}
                     imageFilters={effectiveImageFilters}
                     cropBorders={effectiveCropBorders}
+                    rtl={readerMode === "RTL"}
+                    splitHalf={splitWide ? (readerMode === "RTL" ? splitHalf === 0 ? 1 : 0 : splitHalf) : undefined}
+                    onDimensions={(width, height) => rememberDimensions(activeChapter.id, idx, width, height)}
+                    onPageActions={() => { setShowOverlay(true); setPageToolsTarget({ url: buildPageUrl(idx), title: activeChapter.mangaTitle, page: idx + 1, chapter: activeChapter, backend: progressTarget }); setPageToolsOpen(true); }}
                   />
                 </div>
               );

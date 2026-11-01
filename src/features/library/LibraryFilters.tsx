@@ -3,9 +3,15 @@ import { ArrowDownAZ, ArrowUpAZ, FolderEdit, Grid2X2, List, X } from "lucide-rea
 import type { LibrarySortMode, LibraryViewMode } from "../../stores/useSettingsStore";
 import { useTranslation } from "../../hooks/useTranslation";
 import { LibraryUpdateButton } from "../../components/library/LibraryUpdateButton";
+import { LibraryFilterChoices } from "./LibraryFilterChoices";
+import type { LibraryFilterSet } from "../../stores/experiencePreferences";
 
 export interface Category { id: string | number; name: string }
 interface LibraryFiltersProps {
+  filterChoices: LibraryFilterSet;
+  onFilterChoicesChange: (value: LibraryFilterSet) => void;
+  perCategorySort: boolean;
+  onPerCategorySortChange: (enabled: boolean) => void;
   downloadCounts?: Partial<Record<string, number>>;
   serverAvailable?: boolean;
   categories: Category[];
@@ -24,7 +30,7 @@ interface LibraryFiltersProps {
   onSortModeChange: (mode: LibrarySortMode) => void;
   onSortDirectionChange: (descending: boolean) => void;
 }
-export function LibraryFilters({ downloadCounts = {}, serverAvailable = true, categories, activeCategoryId, onCategorySelect, onManageCategories, isSelectMode, selectedCount, onSelectAll, onCancelSelect, onStartSelect, viewMode, sortMode, sortDescending, onViewModeChange, onSortModeChange, onSortDirectionChange }: LibraryFiltersProps) {
+export function LibraryFilters({ filterChoices, onFilterChoicesChange, perCategorySort, onPerCategorySortChange, downloadCounts = {}, serverAvailable = true, categories, activeCategoryId, onCategorySelect, onManageCategories, isSelectMode, selectedCount, onSelectAll, onCancelSelect, onStartSelect, viewMode, sortMode, sortDescending, onViewModeChange, onSortModeChange, onSortDirectionChange }: LibraryFiltersProps) {
   const { t } = useTranslation();
   if (isSelectMode) return <div className="yomi-selection-bar">
     <button className="yomi-icon-button" onClick={onCancelSelect} aria-label="Cancel selection"><X /></button>
@@ -53,10 +59,11 @@ export function LibraryFilters({ downloadCounts = {}, serverAvailable = true, ca
         <option value="">Collections</option>{categories.map((cat) => <option key={cat.id} value={String(cat.id)}>{cat.name}</option>)}
       </ThemedSelect>
       <button className="yomi-icon-button" aria-label="Manage Categories" title="Manage collections" onClick={onManageCategories}><FolderEdit /></button>
+      <LibraryFilterChoices value={filterChoices} onChange={onFilterChoicesChange} perCategorySort={perCategorySort} onPerCategorySortChange={onPerCategorySortChange} />
       <LibraryUpdateButton />
       <span className="yomi-control-divider" aria-hidden="true" />
       <ThemedSelect className="yomi-field yomi-sort-select" aria-label="Sort library" value={sortMode} onValueChange={(value) => onSortModeChange(value as LibrarySortMode)}>
-        <option value="title">Title</option><option value="unread">Unread</option><option value="status">Reading status</option>
+        <option value="title">Title</option><option value="unread">Unread</option><option value="status">Reading status</option><option value="last_read">Last read</option><option value="latest_update">Latest chapter</option><option value="date_added">Date added</option><option value="total_chapters">Total chapters</option>
       </ThemedSelect>
       <button className="yomi-icon-button" aria-label={sortDescending ? "Sort ascending" : "Sort descending"} title={sortDescending ? "Sort ascending" : "Sort descending"} onClick={() => onSortDirectionChange(!sortDescending)}>{sortDescending ? <ArrowDownAZ /> : <ArrowUpAZ />}</button>
       <div className="yomi-view-switch" role="group" aria-label="Library view">

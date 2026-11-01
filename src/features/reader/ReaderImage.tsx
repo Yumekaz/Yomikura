@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 
 import { FitMode, ImageFilters, useSettingsStore } from "../../stores/useSettingsStore";
 import { useReaderImageSource } from "./useReaderImageSource";
+import { useImageLayout } from "./useImageLayout";
 
 interface ReaderImageProps {
   url: string;
@@ -12,11 +13,16 @@ interface ReaderImageProps {
   onIntersect?: (pageIndex: number) => void;
   onVisibilityChange?: (pageIndex: number, visible: boolean) => void;
   onReadyChange?: (ready: boolean) => void;
+  onCompletionReadyChange?: (ready: boolean | undefined) => void;
   onLoadStateChange?: (state: "loading" | "ready" | "error" | "unmounted") => void;
   mode?: "webtoon" | "single";
   fitMode?: FitMode;
   imageFilters?: ImageFilters;
   cropBorders?: boolean;
+  splitHalf?: 0 | 1;
+  rtl?: boolean;
+  onDimensions?: (width: number, height: number) => void;
+  onPageActions?: () => void;
 }
 
 export function ReaderImage({
@@ -26,37 +32,52 @@ export function ReaderImage({
   onIntersect,
   onVisibilityChange,
   onReadyChange,
+  onCompletionReadyChange,
   onLoadStateChange,
   mode = "webtoon",
   fitMode = "FIT_SCREEN",
   imageFilters: imageFiltersProp,
   cropBorders: cropBordersProp,
+  splitHalf,
+  rtl = false,
+  onDimensions,
+  onPageActions,
 }: ReaderImageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const longPress = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number }>();
+  const longPressUntil = useRef(0);
   const instanceId = useId();
   const [loadedUrl, setLoadedUrl] = useState("");
+  const [tileLoaded, setTileLoaded] = useState<{ source: string; urls: Set<string> }>(), [failedTiles, setFailedTiles] = useState("");
   const [error, setError] = useState(false);
   const [usingFallback, setUsingFallback] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const retryTimer = useRef<ReturnType<typeof setTimeout>>();
-  const callbacks = useRef({ onIntersect, onVisibilityChange, onReadyChange, onLoadStateChange });
-  callbacks.current = { onIntersect, onVisibilityChange, onReadyChange, onLoadStateChange };
+  const callbacks = useRef({ onIntersect, onVisibilityChange, onReadyChange, onCompletionReadyChange, onLoadStateChange, onDimensions });
+  callbacks.current = { onIntersect, onVisibilityChange, onReadyChange, onCompletionReadyChange, onLoadStateChange, onDimensions };
 
-  const { imageFilters: storeFilters, cropBorders: storeCrop } = useSettingsStore();
+  const { imageFilters: storeFilters, cropBorders: storeCrop, experience, reducedMotion } = useSettingsStore();
   const imageFilters = imageFiltersProp ?? storeFilters;
   const cropBorders = cropBordersProp ?? storeCrop;
 
   const imageUrl = usingFallback && fallbackUrl ? fallbackUrl : url;
-  const { url: displayUrl, reload } = useReaderImageSource(imageUrl);
-  const loaded = !!displayUrl && loadedUrl === displayUrl && !error;
+  const { url: displayUrl, tiles, reload } = useReaderImageSource(imageUrl);
+  const usingTiles = mode === "webtoon" && !!tiles && !cropBorders && experience.reader.rotation === 0 && failedTiles !== displayUrl;
+  const loaded = !!displayUrl && !error && (usingTiles ? tileLoaded?.source === displayUrl && tileLoaded.urls.size > 0 : loadedUrl === displayUrl);
+  const completionReady = loaded && (!usingTiles || !!tileLoaded?.urls.has(tiles!.tiles[tiles!.tiles.length - 1].url));
+  const geometry = useImageLayout({ url: displayUrl, container: containerRef, image: imageRef, mode, fit: fitMode, crop: cropBorders, preferences: experience.reader, half: splitHalf, rtl });
+  const layout = geometry.layout;
+  useEffect(() => { if (usingTiles && tiles) { geometry.dimensions(tiles.width, tiles.height); callbacks.current.onDimensions?.(tiles.width, tiles.height); } }, [usingTiles, tiles, geometry.dimensions]);
   const observesVisibility = !!(onIntersect || onVisibilityChange);
 
   useEffect(() => {
+    clearTimeout(longPress.current?.timer);
     setLoadedUrl("");
     setError(false);
     setUsingFallback(false);
     setRetryCount(0);
-    return () => clearTimeout(retryTimer.current);
+    return () => { clearTimeout(retryTimer.current); clearTimeout(longPress.current?.timer); };
   }, [url, fallbackUrl]);
 
   useEffect(() => {
@@ -64,6 +85,7 @@ export function ReaderImage({
     publish?.(loaded);
     return () => publish?.(false);
   }, [loaded, imageUrl]);
+  useEffect(() => { const publish = callbacks.current.onCompletionReadyChange; publish?.(completionReady); return () => publish?.(undefined); }, [completionReady, imageUrl]);
 
   useEffect(() => {
     const publish = callbacks.current.onLoadStateChange;
@@ -152,14 +174,25 @@ export function ReaderImage({
       ref={containerRef}
       id={`reader-page-${instanceId}`}
       className={containerClass}
+      style={{ backgroundColor: "var(--reader-background, #000)", minHeight: mode === "webtoon" && layout ? 0 : undefined, touchAction: geometry.zoom !== 1 ? "none" : "pan-y" }}
+      data-border-crop={geometry.cropState}
+      data-image-zoom={geometry.zoom.toFixed(2)}
+      data-reader-half={splitHalf === undefined ? "full" : String(splitHalf)}
+      onDoubleClick={geometry.doubleClick}
+      onContextMenu={(event) => { if (experience.reader.pageActions && onPageActions) { event.preventDefault(); event.stopPropagation(); onPageActions(); } }}
+      onPointerDown={(event) => { geometry.pointerDown(event); if (!event.defaultPrevented && event.pointerType === "touch" && experience.reader.pageActions && onPageActions) { const x = event.clientX, y = event.clientY; longPress.current = { x, y, timer: setTimeout(() => { longPressUntil.current = Date.now() + 600; onPageActions(); }, 550) }; } }}
+      onPointerMove={(event) => { geometry.pointerMove(event); if (longPress.current && Math.abs(event.clientX - longPress.current.x) + Math.abs(event.clientY - longPress.current.y) > 10) clearTimeout(longPress.current.timer); }}
+      onPointerUp={() => { geometry.pointerUp(); clearTimeout(longPress.current?.timer); }}
+      onPointerCancel={() => { geometry.pointerUp(); clearTimeout(longPress.current?.timer); }}
+      onClickCapture={(event) => { if ((event.target as Element).closest("button,a")) return; if (Date.now() < longPressUntil.current) { event.preventDefault(); event.stopPropagation(); } else geometry.captureClick(event); }}
     >
-      {!loaded && !error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black">
+      {!loaded && !error && (!usingTiles || tileLoaded?.source !== displayUrl || tileLoaded.urls.size === 0) && (
+        <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "var(--reader-background, #000)" }}>
           <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
         </div>
       )}
       {error && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black px-6 text-center text-slate-500">
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6 text-center text-slate-500" style={{ backgroundColor: "var(--reader-background, #000)" }}>
           <span>Failed to load page {pageNumber + 1}</span>
           <button onClick={handleRetry} className="mt-2 text-sm text-yomi-jade hover:underline">
             Retry
@@ -182,19 +215,22 @@ export function ReaderImage({
           </Link>
         </div>
       )}
-      <img
+      <div className="yomi-reader-image-viewport w-full" style={layout ? { position: "relative", width: layout.viewportWidth, height: layout.viewportHeight, flexShrink: 0, overflow: "hidden" } : undefined}>
+      <div style={layout ? { position: "absolute", left: "50%", top: "50%", width: layout.cropWidth, height: layout.cropHeight, overflow: "hidden", transform: `translate(-50%, -50%) translate(${geometry.pan.x}px, ${geometry.pan.y}px) scale(${geometry.zoom}) rotate(${layout.rotation}deg)`, transition: geometry.dragging || reducedMotion ? "none" : `transform ${experience.reader.zoomAnimationMs}ms ease-out`, willChange: geometry.dragging ? "transform" : undefined } : undefined}>
+      {usingTiles ? <div role="img" aria-label={`Page ${pageNumber + 1}`} data-reader-tile-layout={layout ? "ready" : undefined} data-tile-count={tiles!.tiles.length} style={layout && geometry.natural ? { position: "absolute", width: geometry.natural.width * layout.scale, height: geometry.natural.height * layout.scale, left: -layout.visible.x * layout.scale, top: -layout.visible.y * layout.scale } : undefined}>{tiles!.tiles.map((tile) => <img key={tile.url} src={tile.url} alt="" aria-hidden="true" loading="lazy" decoding="async" draggable={false} width={tiles!.width} height={tile.height} style={{ display: "block", width: "100%", height: layout ? tile.height * layout.scale : "auto", filter: filterStyle }} onLoad={() => setTileLoaded((previous) => ({ source: displayUrl, urls: new Set([...(previous?.source === displayUrl ? previous.urls : []), tile.url]) }))} onError={() => { setFailedTiles(displayUrl); setLoadedUrl(""); }} />)}</div> : <img ref={imageRef}
         src={displayUrl || undefined}
         alt={`Page ${pageNumber + 1}`}
-        className={`${imageClass} ${loaded ? "opacity-100" : "opacity-0"}`}
+        className={`${layout ? "block object-contain transition-opacity duration-150" : imageClass} ${loaded ? "opacity-100" : "opacity-0"}`}
+        draggable={false}
         style={{
           filter: filterStyle,
-          transform: cropBorders ? "scale(1.12)" : "none",
-          transformOrigin: "center",
-          clipPath: cropBorders ? "inset(2% 2% 2% 2%)" : "none",
+          ...(layout && geometry.natural ? { position: "absolute", width: geometry.natural.width * layout.scale, height: geometry.natural.height * layout.scale, maxWidth: "none", left: -layout.visible.x * layout.scale, top: -layout.visible.y * layout.scale } as const : {}),
         }}
-        onLoad={() => setLoadedUrl(displayUrl)}
+        onLoad={(event) => { geometry.loaded(event.currentTarget); onDimensions?.(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight); setLoadedUrl(displayUrl); }}
         onError={handleError}
-      />
+      />}
+      </div></div>
+      {geometry.zoom !== 1 && <button type="button" className="yomi-reader-reset-zoom" onClick={(event) => { event.stopPropagation(); geometry.reset(); }}>Fit page</button>}
     </div>
   );
 }

@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { lazy, Suspense } from "react";
 import { routeCopy } from "./navigation";
 import { FeedbackProvider } from "../components/ui/FeedbackProvider";
+import { NavigationScroll } from "./NavigationScroll";
+import { PrivacyGuard } from "../components/PrivacyGuard";
 
 const AppShell = lazy(() => import("../components/layout/AppShell"));
 const SettingsPage = lazy(() => import("../pages/SettingsPage"));
@@ -19,6 +21,7 @@ const ReposPage = lazy(() => import("../features/extensions/ReposPage"));
 const UpdatesPage = lazy(() => import("../features/updates/UpdatesPage"));
 const HistoryPage = lazy(() => import("../features/history/HistoryPage"));
 const DownloadsPage = lazy(() => import("../features/downloads/DownloadsPage"));
+const InsightsPage = lazy(() => import("../features/insights/InsightsPage"));
 
 // Device caches and a loopback/LAN engine can remain usable when the browser
 // reports offline. Let the actual request and each feature's fallback decide.
@@ -27,11 +30,14 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { networkMode: 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <FeedbackProvider>
+      <NavigationScroll />
+      <PrivacyGuard><FeedbackProvider>
       <Suspense fallback={<div className="yomi-route-loading"><span className="yomi-skeleton h-8 w-40" /><span className="yomi-skeleton h-24 w-full" /></div>}>
       <Routes>
         <Route path="/" element={<Navigate to="/library" replace />} />
         <Route element={<AppShell />}>
+          <Route path="/upcoming" element={<InsightsPage />} />
+          <Route path="/statistics" element={<InsightsPage />} />
           {Object.entries(routeCopy).map(([path, copy]) => {
             if (path === "/settings") {
               return <Route key={path} path={path} element={<SettingsPage />} />;
@@ -86,7 +92,7 @@ function App() {
         </Route>
       </Routes>
       </Suspense>
-      </FeedbackProvider>
+      </FeedbackProvider></PrivacyGuard>
     </QueryClientProvider>
   );
 }

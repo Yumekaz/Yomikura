@@ -8,6 +8,7 @@ export function AppearanceSettingsPanel() {
   const { t } = useTranslation();
   const { colorPalette, setColorPalette, showReadingSpirit, setShowReadingSpirit, coverDensity, setCoverDensity, themeMode, setThemeMode, highContrastMode, setHighContrastMode, reducedMotion, setReducedMotion, coverDynamicTheme, setCoverDynamicTheme, language, setLanguage } = useSettingsStore();
   const selected = paletteFor(colorPalette);
+  const { experience, updateExperience } = useSettingsStore();
   return <section className="yomi-appearance" aria-labelledby="appearance-settings-title">
     <div className="yomi-appearance-heading"><h2 id="appearance-settings-title">Appearance and theme</h2><p>A reading room that feels like you.</p></div>
     <fieldset className="yomi-appearance-section">
@@ -43,6 +44,7 @@ export function AppearanceSettingsPanel() {
     <fieldset className="yomi-appearance-section">
       <legend>Library cover density</legend><div className="yomi-density-options">{(["compact", "normal", "spacious"] as const).map((density) => <button key={density} type="button" aria-pressed={coverDensity === density} onClick={() => setCoverDensity(density)}>{density[0].toUpperCase() + density.slice(1)}</button>)}</div>
     </fieldset>
+    <fieldset className="yomi-appearance-section"><legend>Background and dates</legend><label className="yomi-preference-toggle"><span><strong>Pure black in dark mode</strong><small>Keep the palette’s accents with a quieter black background.</small></span><input type="checkbox" aria-label="Pure black in dark mode" checked={experience.pureBlack} onChange={(event) => updateExperience({ pureBlack: event.target.checked })} /></label><label className="yomi-preference-choice">Chapter dates<ThemedSelect aria-label="Chapter date format" value={experience.chapterDateFormat} onValueChange={(value) => updateExperience({ chapterDateFormat: value as typeof experience.chapterDateFormat })}><option value="locale">Follow my device</option><option value="iso">Year-month-day</option><option value="long">Full date</option></ThemedSelect></label></fieldset>
     <fieldset className="yomi-appearance-section">
       <legend>Comfort and accessibility</legend>
       <div className="yomi-comfort-options">

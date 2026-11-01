@@ -29,7 +29,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { SettingsSearch, type SettingsSection } from "../components/settings/SettingsSearch";
 import { AdvancedSettingsPanel } from "../components/settings/AdvancedSettingsPanel";
 import { AppearanceSettingsPanel } from "../components/settings/AppearanceSettingsPanel";
+import { BrowseSettingsPanel } from "../components/settings/BrowseSettingsPanel";
+import { DownloadSettingsPanel } from "../components/settings/DownloadSettingsPanel";
 import { ReaderSettingsPanel } from "../components/settings/ReaderSettingsPanel";
+import { LibrarySettingsPanel } from "../components/settings/LibrarySettingsPanel";
+import { PrivacySettingsPanel } from "../components/settings/PrivacySettingsPanel";
 import { validateBackupFile } from "../components/settings/backupValidation";
 import { waitForRestoreStatus } from "../components/settings/backupRestore";
 import { fetchAllLibrary } from "../api/library/fetchAllLibrary";
@@ -40,7 +44,8 @@ import { restoreBackupUpload } from "../api/suwayomi/backupUpload";
 import { progressBackend } from "../api/suwayomi/backendIdentity";
 
 type SettingsTab = SettingsSection;
-const SETTINGS_TABS: SettingsTab[] = ["appearance", "reader", "offline", "backup", "connection", "advanced", "about"];
+const SETTINGS_TABS: SettingsTab[] = ["appearance", "reader", "library", "privacy", "browse", "offline", "backup", "connection", "advanced", "about"];
+const SETTINGS_TAB_LABELS: Record<SettingsTab, string> = { appearance: "Appearance", reader: "Reader", library: "Library", privacy: "Privacy", browse: "Browsing", offline: "Storage", backup: "Backups", connection: "Connection", advanced: "Advanced", about: "About" };
 
 function SettingsPage() {
   const navigate = useNavigate();
@@ -366,7 +371,7 @@ function SettingsPage() {
                   : ""
               }`}
             >
-              {tab === "appearance" ? "Appearance" : tab === "offline" ? "Storage" : tab}
+              {SETTINGS_TAB_LABELS[tab]}
             </button>
           ))}
         </div>
@@ -629,6 +634,9 @@ function SettingsPage() {
           {activeTab === "appearance" && <AppearanceSettingsPanel />}
 
           {activeTab === "reader" && <ReaderSettingsPanel />}
+          {activeTab === "library" && <LibrarySettingsPanel />}
+          {activeTab === "privacy" && <PrivacySettingsPanel />}
+          {activeTab === "browse" && <BrowseSettingsPanel />}
 
           {activeTab === "backup" && (
             <BackupSettingsPanel
@@ -643,7 +651,7 @@ function SettingsPage() {
           )}
 
           {activeTab === "offline" && (
-            <OfflineSettingsPanel
+            <><DownloadSettingsPanel /><OfflineSettingsPanel
               cachedChapters={cachedChapters}
               pendingJobs={Object.keys(activeDownloads).length}
               storageUsage={storageUsage}
@@ -651,7 +659,7 @@ function SettingsPage() {
               clearAll={() => clearAll(progressBackend(serverBaseUrl, mockMode)).catch((error) => { notify(error instanceof Error ? error.message : "Saved chapters could not be cleared.", "error"); })}
               deleteChapter={(id) => deleteChapter(id, progressBackend(serverBaseUrl, mockMode)).catch((error) => { notify(error instanceof Error ? error.message : "Saved chapter could not be removed.", "error"); })}
               confirm={confirm}
-            />
+              /></>
           )}
 
           {activeTab === "advanced" && <AdvancedSettingsPanel />}

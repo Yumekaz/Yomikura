@@ -6,6 +6,7 @@ import {
   History,
   Settings,
   Download,
+  ChartNoAxesCombined,
 } from "lucide-react";
 
 export type NavItem = {
@@ -25,6 +26,7 @@ export const browseNav: NavItem[] = [];
 
 export const utilityNav: NavItem[] = [
   { label: "History", path: "/history", icon: History },
+  { label: "Statistics", path: "/statistics", icon: ChartNoAxesCombined },
   { label: "Settings", path: "/settings", icon: Settings },
 ];
 

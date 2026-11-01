@@ -80,7 +80,7 @@ test("history and settings remain usable through real navigation", async ({ page
 
   await page.getByRole("link", { name: "Settings", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "advanced", exact: true }).click();
+  await page.getByRole("button", { name: "Advanced", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Developer and recovery tools", exact: true })).toBeVisible();
 });
 
@@ -95,7 +95,7 @@ test("downloads combines offline files and server activity", async ({ page }) =>
 test("dangerous settings actions use an accessible, cancellable dialog", async ({ page }) => {
   await enterDemo(page);
   await page.getByRole("link", { name: "Settings", exact: true }).click();
-  await page.getByRole("button", { name: "advanced", exact: true }).click();
+  await page.getByRole("button", { name: "Advanced", exact: true }).click();
   await page.getByRole("button", { name: "Reset settings", exact: true }).click();
   const dialog = page.getByRole("alertdialog", { name: "Reset all settings?" });
   await expect(dialog).toBeVisible();
@@ -190,10 +190,12 @@ test("automatic backup and update schedules persist", async ({ page }) => {
   await enterDemo(page);
   await page.goto("/settings/backup");
   await chooseOption(page.getByLabel("Automatic backup schedule"), "24");
-  await chooseOption(page.getByLabel("Automatic library updates"), "12");
+  await page.goto("/settings/library");
+  await chooseOption(page.getByRole("combobox", { name: "Extra checks while Yomikura is open", exact: true }), "12");
   await page.reload();
+  await expect(page.getByRole("combobox", { name: "Extra checks while Yomikura is open", exact: true })).toHaveAttribute("data-value", "12");
+  await page.goto("/settings/backup");
   await expect(page.getByLabel("Automatic backup schedule")).toHaveAttribute("data-value", "24");
-  await expect(page.getByLabel("Automatic library updates")).toHaveAttribute("data-value", "12");
 });
 
 test("chapter filtering and bulk actions are discoverable", async ({ page }) => {

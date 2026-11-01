@@ -1,6 +1,7 @@
-query GetSources {
-  sources(first: 2000) {
+query GetSources($first: Int = 2000, $after: Cursor) {
+  sources(first: $first, after: $after) {
     totalCount
+    pageInfo { hasNextPage endCursor }
     nodes {
       id
       name
@@ -13,31 +14,6 @@ query GetSources {
         pkgName
         isInstalled
       }
-    }
-  }
-}
-
-query GetSourcesByCondition($lang: String!) {
-  sources(condition: { lang: $lang }, first: 2000) {
-    totalCount
-    nodes {
-      id
-      name
-      lang
-      iconUrl
-      supportsLatest
-      isNsfw
-      isConfigurable
-    }
-  }
-}
-
-query GetInstalledExtensionLangs {
-  extensions(condition: { isInstalled: true }, first: 2000) {
-    totalCount
-    nodes {
-      pkgName
-      lang
     }
   }
 }

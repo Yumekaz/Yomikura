@@ -1,8 +1,10 @@
 import { createGraphqlClient } from "../graphql/client";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { chapterIdentityMatches, progressBackend, type ChapterProgressIdentity, type ProgressBackend } from "./backendIdentity";
-import { deleteCachedChapter, getCachedChapter, getReadingHistory, hideReadingHistoryItem, recordReadingActivity, saveCachedChapter, type CachedChapter } from "./offlineCache";
+import { getCachedChapter, getReadingHistory, hideReadingHistoryItem, recordReadingActivity, saveCachedChapter, type CachedChapter } from "./offlineCache";
 import { acknowledgeProgress, acquireProgressLease, enqueueProgress, getProgressHead, getProgressHeads, getProgressOperations, markProgressOperation, observeChapterProgress, progressChanged, releaseProgressLease, type ProgressHead, type ProgressIntent, type ProgressOperation, type ProgressPatch } from "./progressStorage";
+import { queueDownloadCleanup, runDownloadCleanup } from "./downloadCleanup";
+import { duplicateOriginValid, queueDuplicateReads } from "./duplicateRead";
 
 type RemoteChapter = { id: number; name: string; chapterNumber: number; mangaId: number; sourceOrder: number; pageCount: number; isRead: boolean; lastPageRead: number; manga?: { title: string } | null };
 const inFlight = new Map<string, { promise: Promise<void>; rerun: boolean }>();
@@ -29,9 +31,12 @@ function client(backend: ProgressBackend) {
 async function mirrorProgress(head: ProgressHead) {
   const { backend, chapter, patch } = head;
   const cached = await getCachedChapter(backend.serverBaseUrl, chapter.chapterId, backend.isDemo);
-  if (cached && chapterIdentityMatches(chapter, cachedIdentity(cached))) await saveCachedChapter({ ...cached, isDemo: backend.isDemo, lastPageRead: patch.lastPageRead, isRead: patch.isRead });
+  const fields = head.dirtyFields ?? ["isRead", "lastPageRead"];
+  if (cached && chapterIdentityMatches(chapter, cachedIdentity(cached))) await saveCachedChapter({ ...cached, isDemo: backend.isDemo,
+    ...(fields.includes("lastPageRead") ? { lastPageRead: patch.lastPageRead } : {}), ...(fields.includes("isRead") ? { isRead: patch.isRead } : {}),
+    ...(fields.includes("isBookmarked") ? { isBookmarked: patch.isBookmarked } : {}) });
   // Cached chapters have mode-specific keys; legacy history still shares URL/ID keys.
-  if (backend.isDemo) return;
+  if (backend.isDemo || !fields.includes("isRead") && !fields.includes("lastPageRead")) return;
   const existing = (await getReadingHistory(backend.serverBaseUrl)).find((item) => item.chapterId === chapter.chapterId && !!item.isDemo === backend.isDemo);
   if (!head.hasActivity && !existing) return;
   const event = { chapterId: chapter.chapterId, chapterName: chapter.chapterName, chapterNumber: chapter.chapterNumber, mangaId: chapter.mangaId, mangaTitle: chapter.mangaTitle, lastPageRead: patch.lastPageRead, pageCount: chapter.pageCount, isRead: patch.isRead, isDemo: backend.isDemo, readAt: head.activityAt ?? existing?.readAt, isHidden: head.hideHistory };
@@ -41,6 +46,7 @@ async function mirrorProgress(head: ProgressHead) {
 
 /** The outbox/head transaction is authoritative; legacy caches are derived views. */
 export async function saveProgressIntent(backend: ProgressBackend, intent: ProgressIntent) {
+  if (intent.kind === "reading" && useSettingsStore.getState().experience?.incognito) return { accepted: false as const, reason: "incognito" };
   const result = await enqueueProgress(backend, intent);
   if (result.accepted) {
     await mirrorProgress(result.head).catch((error) => console.warn("Progress is retained; its cached view could not be refreshed.", error));
@@ -56,7 +62,8 @@ export async function projectChapterProgress<T extends RemoteChapter>(backend: P
   const matches = head && chapterIdentityMatches(head.chapter, progressChapterIdentity(chapter));
   if (observation.stale && head && !matches) throw new Error("The chapter changed while loading. Retry the reader.");
   const pending = head && (backend.isDemo || options.offline || observation.stale || head.sequence > head.acknowledgedSequence) && matches;
-  return { ...chapter, ...(pending ? { isRead: head.patch.isRead, lastPageRead: backend.isDemo || options.offline || head.dirtyFields?.includes("lastPageRead") || observation.stale && head.sequence <= head.acknowledgedSequence ? head.patch.lastPageRead : chapter.lastPageRead } : {}), progressEpoch: head?.epoch ?? 0,
+  return { ...chapter, ...(pending ? { isRead: backend.isDemo || options.offline || head.dirtyFields?.includes("isRead") || observation.stale ? head.patch.isRead : chapter.isRead, lastPageRead: backend.isDemo || options.offline || head.dirtyFields?.includes("lastPageRead") || observation.stale && head.sequence <= head.acknowledgedSequence ? head.patch.lastPageRead : chapter.lastPageRead,
+    ...(head.patch.isBookmarked !== undefined ? { isBookmarked: head.patch.isBookmarked } : {}) } : {}), progressEpoch: head?.epoch ?? 0,
     progressBaseline: pending ? head.lastAcknowledged ?? head.baseline : { isRead: chapter.isRead, lastPageRead: chapter.lastPageRead },
   };
 }
@@ -79,31 +86,38 @@ async function sendOperation(backend: ProgressBackend, operation: ProgressOperat
   }
   const head = await getProgressHead(backend, operation.chapter.chapterId);
   const state = { isRead: remote.isRead, lastPageRead: remote.lastPageRead };
+  const cancelledDuplicate = !await duplicateOriginValid(operation);
+  const requestedFields = (operation.fields ?? ["isRead", "lastPageRead"]).filter((field) => !cancelledDuplicate || field === "isBookmarked");
+  if (cancelledDuplicate && !requestedFields.length) {
+    await acknowledgeProgress(operation, owner, { ...operation.patch, ...state });
+    progressChanged(backend);
+    return;
+  }
   // Exact explicit actions are user intent. Automatic writes pause on competing server edits.
-  if (operation.kind === "reading" && !sameState(state, head?.lastAcknowledged ?? head?.baseline ?? operation.baseline) && !sameState(state, operation.patch)) {
+  if ((operation.kind === "reading" || operation.duplicateOf) && !cancelledDuplicate && !sameState(state, head?.lastAcknowledged ?? head?.baseline ?? operation.baseline) && !sameState(state, operation.patch)) {
     await markProgressOperation(operation, owner, "blocked", "Reading progress changed on the server. Open this chapter to review it, or use an explicit read/unread action.");
     progressChanged(backend, "error");
     return;
   }
-  const patch = Object.fromEntries((operation.fields ?? ["isRead", "lastPageRead"]).map((field) => [field, operation.patch[field]])) as Partial<ProgressPatch>;
-  if (operation.kind === "reading") patch.isRead = operation.patch.isRead || remote.isRead;
+  const patch = Object.fromEntries(requestedFields.map((field) => [field, operation.patch[field]])) as Partial<ProgressPatch>;
+  if (operation.kind === "reading" && !cancelledDuplicate) patch.isRead = operation.patch.isRead || remote.isRead;
   const response = await client(backend).UpdateChapterProgress({ input: { id: operation.chapter.chapterId, patch } });
   const acknowledged = response.updateChapter?.chapter;
-  if (!acknowledged || acknowledged.id !== operation.chapter.chapterId || (patch.lastPageRead !== undefined && acknowledged.lastPageRead !== patch.lastPageRead) || (patch.isRead !== undefined && acknowledged.isRead !== patch.isRead)) {
+  if (!acknowledged || acknowledged.id !== operation.chapter.chapterId || (patch.lastPageRead !== undefined && acknowledged.lastPageRead !== patch.lastPageRead) || (patch.isRead !== undefined && acknowledged.isRead !== patch.isRead) || (patch.isBookmarked !== undefined && acknowledged.isBookmarked !== patch.isBookmarked)) {
     throw new Error("Suwayomi did not confirm the saved progress.");
   }
+  if (acknowledged.isRead && (!remote.isRead || !operation.baseline.isRead)) await queueDuplicateReads(backend, operation, client(backend));
   if (!await acknowledgeProgress(operation, owner, { ...operation.patch, isRead: acknowledged.isRead, lastPageRead: acknowledged.lastPageRead })) return;
   if (isCurrentProgressBackend(backend)) useSettingsStore.setState({ connectionStatus: "connected", errorMessage: "" });
   progressChanged(backend);
   const latest = await getProgressHead(backend, operation.chapter.chapterId);
   if (latest) await mirrorProgress(latest).catch(() => undefined);
-  if (operation.deleteAfterAck && latest?.epoch === operation.epoch && latest.patch.isRead && isCurrentProgressBackend(backend)) {
-    // Capture the backend for both operations; deleteChapter() in the UI store resolves the current profile.
+  const manualCleanup = !operation.duplicateOf && operation.kind === "explicit" && (operation.fields ?? ["isRead", "lastPageRead"]).includes("isRead") && operation.patch.isRead && useSettingsStore.getState().experience?.downloads?.removeAfterMarkedRead;
+  if ((operation.deleteAfterAck || manualCleanup) && latest?.epoch === operation.epoch && latest.patch.isRead && isCurrentProgressBackend(backend)) {
     try {
-      await client(backend).DeleteDownloadedChapter({ input: { id: operation.chapter.chapterId } });
-      await deleteCachedChapter(backend.serverBaseUrl, operation.chapter.chapterId, backend.isDemo);
-      progressChanged(backend);
-    } catch (error) { console.warn("Progress synchronized; automatic download removal did not finish.", error); }
+      await queueDownloadCleanup(backend, operation.chapter, operation.epoch, operation.sequence, operation.deleteAfterAck ? "automatic" : "manual");
+      void runDownloadCleanup(backend).catch(() => undefined);
+    } catch { console.warn("Progress synchronized; download removal was retained because its cleanup job could not be saved."); }
   }
 }
 
@@ -116,7 +130,9 @@ async function drain(backend: ProgressBackend, exclusiveBrowserLock = false) {
       const operation = (await getProgressOperations(backend)).find((item) => item.status !== "blocked");
       if (!operation) break;
       if (backend.isDemo) {
-        await acknowledgeProgress(operation, owner, operation.patch);
+        const valid = await duplicateOriginValid(operation);
+        if (valid) await queueDuplicateReads(backend, operation, client(backend));
+        await acknowledgeProgress(operation, owner, valid ? operation.patch : { ...operation.patch, ...operation.baseline });
         progressChanged(backend);
       } else {
         try { await sendOperation(backend, operation, owner); }
@@ -172,7 +188,9 @@ export async function writeChapterProgress(backend: ProgressBackend, chapterId: 
     chapter = fallback;
     baseline = head?.lastAcknowledged ?? head?.baseline ?? { isRead: cached?.isRead ?? false, lastPageRead: cached?.lastPageRead ?? 0 };
   }
-  const { head } = await saveProgressIntent(backend, { kind: "explicit", chapter, baseline, patch, hideHistory: options.hideHistory });
+  const saved = await saveProgressIntent(backend, { kind: "explicit", chapter, baseline, patch, hideHistory: options.hideHistory });
+  if (!saved.accepted || !("head" in saved)) throw new Error("The chapter changed while saving. Review its current state and try again.");
+  const { head } = saved;
   await synchronizeProgress(backend);
   const acknowledged = (await getProgressHead(backend, chapterId))!.acknowledgedSequence >= head.sequence;
   if (!acknowledged && options.requireAcknowledgment) throw new Error("The progress change is saved on this device but has not been confirmed by Suwayomi. The operation was paused before removing the original title.");
@@ -202,6 +220,7 @@ export async function readProgressHistory(backend: ProgressBackend) {
   const events = await getReadingHistory(backend.serverBaseUrl);
   const heads = await getProgressHeads(backend);
   for (const head of heads) {
+    if (head.dirtyFields?.length && !head.dirtyFields.some((field) => field === "isRead" || field === "lastPageRead")) continue;
     const index = events.findIndex((event) => !event.hideMangaBefore && event.chapterId === head.chapter.chapterId && (event.isDemo ?? event.mangaTitle.startsWith("[Demo]")) === backend.isDemo);
     if (head.sequence <= head.acknowledgedSequence && index >= 0 && !head.hideHistory && (head.activityAt ?? 0) < events[index].readAt) continue;
     if (!head.hasActivity && index < 0 && !head.hideHistory) continue;

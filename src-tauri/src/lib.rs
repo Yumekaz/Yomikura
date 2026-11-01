@@ -7,7 +7,13 @@ use tauri::tray::TrayIconBuilder;
 use tauri::Emitter;
 use tauri::WindowEvent;
 use tauri::{Manager, State};
+mod desktop_lock;
+mod desktop_preferences;
 mod local_import;
+#[cfg(target_os = "windows")]
+mod native_folders;
+mod reader_exports;
+mod reader_platform;
 mod runtime_setup;
 mod window_layout;
 
@@ -421,32 +427,33 @@ fn get_available_port(start_port: u16) -> u16 {
 }
 
 #[tauri::command]
-fn select_directory() -> Result<Option<String>, String> {
+async fn select_directory(app_handle: tauri::AppHandle) -> Result<Option<String>, String> {
+    let owner = folder_dialog_owner(&app_handle);
+    tauri::async_runtime::spawn_blocking(move || {
+        select_directory_sync("Choose your library folder", owner)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+fn folder_dialog_owner(_app: &tauri::AppHandle) -> isize {
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
-        let output = Command::new("powershell")
-            .arg("-NoProfile")
-            .arg("-Command")
-            .arg("Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.ShowNewFolderButton = $true; if ($f.ShowDialog() -eq 'OK') { $f.SelectedPath }")
-            .creation_flags(0x08000000) // CREATE_NO_WINDOW
-            .output();
+        _app.get_webview_window("main")
+            .and_then(|window| window.hwnd().ok())
+            .map(|hwnd| hwnd.0 as isize)
+            .unwrap_or(0)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        0
+    }
+}
 
-        match output {
-            Ok(out) => {
-                if out.status.success() {
-                    let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                    if path.is_empty() {
-                        Ok(None)
-                    } else {
-                        Ok(Some(path))
-                    }
-                } else {
-                    Ok(None)
-                }
-            }
-            Err(e) => Err(format!("Failed to open folder browser: {}", e)),
-        }
+fn select_directory_sync(_title: &str, _owner: isize) -> Result<Option<String>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        native_folders::choose(_title, _owner)
     }
 
     #[cfg(target_os = "macos")]
@@ -990,7 +997,15 @@ pub fn run() {
             backend: Mutex::new(None),
             verified_jar: Mutex::new(None),
         })
+        .manage(desktop_preferences::DesktopState::default())
         .invoke_handler(tauri::generate_handler![
+            desktop_preferences::get_desktop_preferences,
+            desktop_preferences::set_desktop_preferences,
+            desktop_preferences::unlock_reading_room,
+            reader_platform::set_reader_keep_awake,
+            reader_exports::get_reader_export_directory,
+            reader_exports::select_reader_export_directory,
+            reader_exports::save_reader_export,
             wipe_all_data,
             select_directory,
             check_java_installed,
@@ -1006,6 +1021,7 @@ pub fn run() {
             local_import::import_local_archives
         ])
         .setup(|app| {
+            desktop_preferences::initialize(app.handle());
             if let Some(window) = app.get_webview_window("main") {
                 if let Err(error) = window_layout::fit_initial_window(&window) {
                     eprintln!("Initial window could not be fitted to the display: {error}");
@@ -1096,12 +1112,27 @@ pub fn run() {
                         _ => {}
                     })
                     .build(app)?;
+                app.state::<desktop_preferences::DesktopState>()
+                    .tray_available
+                    .store(true, std::sync::atomic::Ordering::Release);
             }
 
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { .. } = event {
+            if let WindowEvent::Focused(false) = event {
+                desktop_preferences::lock_when_away(window);
+            }
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                if desktop_preferences::keep_running(
+                    &window
+                        .app_handle()
+                        .state::<desktop_preferences::DesktopState>(),
+                ) {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    return;
+                }
                 let state: State<'_, BackendState> = window.app_handle().state();
                 let mut lock = state.backend.lock().unwrap();
                 if let Some(mut backend) = lock.take() {

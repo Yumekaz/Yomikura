@@ -3,6 +3,8 @@ import type { ChangeEvent } from "react";
 import { Download, Layout, Loader2, Upload } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { SavedBackupsPanel } from "./SavedBackupsPanel";
+import { NotePortabilityPanel } from "./NotePortabilityPanel";
+import { Link } from "react-router-dom";
 
 export type BackupMessage = {
   kind: "success" | "error" | "info";
@@ -28,7 +30,7 @@ export function BackupSettingsPanel({
   exportLibraryCsv,
   restoreSavedBackup,
 }: BackupSettingsPanelProps) {
-  const { mockMode, backupIntervalHours, setBackupIntervalHours, lastScheduledBackupAt, scheduledBackupStatus, scheduledBackupError, libraryUpdateIntervalHours, setLibraryUpdateIntervalHours, lastLibraryUpdateAt, scheduledLibraryUpdateStatus, scheduledLibraryUpdateError } = useSettingsStore();
+  const { mockMode, backupIntervalHours, setBackupIntervalHours, lastScheduledBackupAt, scheduledBackupStatus, scheduledBackupError } = useSettingsStore();
   return (
     <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel space-y-6">
       <div>
@@ -42,14 +44,7 @@ export function BackupSettingsPanel({
         </p>
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-ink-950/35 p-4">
-        <label htmlFor="library-update-schedule" className="text-sm font-semibold text-slate-200">Automatic library updates</label>
-        <p className="mt-1 text-xs leading-5 text-slate-400">Checks when Yomikura starts and while it remains open. Missed checks run after the next successful connection.</p>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <ThemedSelect aria-label="Automatic library updates" id="library-update-schedule" value={libraryUpdateIntervalHours} onValueChange={(value) => setLibraryUpdateIntervalHours(Number(value))} className="yomi-field min-w-52"><option value={0}>Off</option><option value={6}>Every 6 hours</option><option value={12}>Every 12 hours</option><option value={24}>Daily</option></ThemedSelect>
-          <span className="text-xs text-slate-400" role="status">{scheduledLibraryUpdateStatus === "running" ? "Checking library…" : scheduledLibraryUpdateStatus === "error" ? `Last check failed: ${scheduledLibraryUpdateError}` : lastLibraryUpdateAt ? `Last automatic check: ${new Date(lastLibraryUpdateAt).toLocaleString()}` : "No automatic check yet"}</span>
-        </div>
-      </div>
+      <p className="text-sm text-slate-400">For automatic chapter checks, open <Link className="yomi-text-link" to="/settings/library">Library update preferences</Link>.</p>
 
       {backupMessage && (
         <div role={backupMessage.kind === "error" ? "alert" : "status"} className={`flex items-start gap-3 rounded-md border p-4 text-sm ${
@@ -107,6 +102,7 @@ export function BackupSettingsPanel({
 
       <button type="button" onClick={exportLibraryCsv} className="yomi-button yomi-button-secondary w-full sm:w-auto">Export library list as CSV</button>
       <SavedBackupsPanel busy={creatingBackup || restoringBackup} onRestore={restoreSavedBackup} />
+      <NotePortabilityPanel />
     </div>
   );
 }

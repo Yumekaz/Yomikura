@@ -2,13 +2,13 @@ import { IDBFactory } from "fake-indexeddb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { progressBackend } from "./backendIdentity";
 import { getProgressHead, getProgressOperations, type ProgressIntent } from "./progressStorage";
-import { projectChapterProgress, readProgressHistory, resolveProgressConflict, saveProgressIntent, synchronizeProgress } from "./progressSync";
+import { projectChapterProgress, readProgressHistory, resolveProgressConflict, saveProgressIntent, synchronizeProgress, writeChapterProgress } from "./progressSync";
 import * as storage from "./progressStorage";
 import { getCachedChapter, getReadingHistory, saveCachedChapter } from "./offlineCache";
 
 const mocks = vi.hoisted(() => ({
-  active: { serverBaseUrl: "http://localhost:4567", mockMode: false, connectionStatus: "connected", errorMessage: "" },
-  read: vi.fn(), update: vi.fn(), remove: vi.fn(), modes: [] as string[],
+  active: { serverBaseUrl: "http://localhost:4567", mockMode: false, connectionStatus: "connected", errorMessage: "", experience: { incognito: false, duplicateReadLibraries: {} as Record<string, boolean> } },
+  read: vi.fn(), update: vi.fn(), remove: vi.fn(), peers: vi.fn(), modes: [] as string[],
 }));
 vi.mock("../../stores/useSettingsStore", () => ({
   useSettingsStore: { getState: () => mocks.active, setState: (patch: object) => Object.assign(mocks.active, patch) }, isTauri: () => false,
@@ -16,7 +16,7 @@ vi.mock("../../stores/useSettingsStore", () => ({
 vi.mock("../graphql/client", () => ({ createGraphqlClient: (endpoint: string, _options: unknown, mode: string) => {
   mocks.modes.push(mode);
   const server = endpoint.replace(/\/api\/graphql$/, "");
-  return { GetChapter: ({ id }: { id: number }) => mocks.read(server, id), UpdateChapterProgress: ({ input }: { input: unknown }) => mocks.update(server, input), DeleteDownloadedChapter: (input: unknown) => mocks.remove(server, input) };
+  return { GetChapter: ({ id }: { id: number }) => mocks.read(server, id), GetReadingChapters: mocks.peers, UpdateChapterProgress: ({ input }: { input: unknown }) => mocks.update(server, input), DeleteDownloadedChapter: (input: unknown) => mocks.remove(server, input) };
 } }));
 
 const first = progressBackend("http://localhost:4567");
@@ -28,6 +28,8 @@ let servers: Map<string, ReturnType<typeof remoteChapter>>;
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.active.experience.incognito = false;
+  mocks.active.experience.duplicateReadLibraries = {};
   mocks.modes.length = 0;
   Object.assign(mocks.active, { serverBaseUrl: first.serverBaseUrl, mockMode: false, connectionStatus: "connected", errorMessage: "" });
   servers = new Map([[first.serverBaseUrl, remoteChapter()], [second.serverBaseUrl, remoteChapter()]]);
@@ -43,6 +45,39 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("progress replay and acknowledgement", () => {
+  it("persists and replays a bookmark without resetting a live reader or changing its read state", async () => {
+    const original = servers.get(first.serverBaseUrl)!; original.isRead = true; original.lastPageRead = 2;
+    const result = await writeChapterProgress(first, 12, { isBookmarked: true });
+    expect(result.acknowledged).toBe(true);
+    expect(mocks.update.mock.calls[0][1].patch).toEqual({ isBookmarked: true });
+    expect(original).toMatchObject({ isRead: true, lastPageRead: 2, isBookmarked: true });
+    expect((await getProgressHead(first, 12))!.epoch).toBe(0);
+    expect(await getReadingHistory(first.serverBaseUrl)).toEqual([]);
+  });
+  it("keeps an unconfirmed bookmark queued and projects only the fields that were changed", async () => {
+    await saveProgressIntent(first, { kind: "explicit", chapter, baseline: { isRead: false, lastPageRead: 0 }, patch: { isBookmarked: true } });
+    const remote = { ...remoteChapter(), isRead: true, lastPageRead: 3, isBookmarked: false };
+    const projected = await projectChapterProgress(first, remote);
+    expect(projected).toMatchObject({ isRead: true, lastPageRead: 3, isBookmarked: true });
+    mocks.update.mockImplementationOnce(async () => ({ updateChapter: { chapter: { ...remote, isBookmarked: false } } }));
+    await synchronizeProgress(first);
+    expect(await getProgressOperations(first)).toHaveLength(1);
+    await synchronizeProgress(first);
+    expect(await getProgressOperations(first)).toHaveLength(0);
+  });
+  it("does not lose an offline bookmark when the active reader writes its next page", async () => {
+    await saveProgressIntent(first, reading(1));
+    await saveProgressIntent(first, { kind: "explicit", chapter, baseline: { isRead: false, lastPageRead: 0 }, patch: { isBookmarked: true } });
+    expect((await saveProgressIntent(first, reading(2))).accepted).toBe(true);
+    await synchronizeProgress(first);
+    expect(servers.get(first.serverBaseUrl)).toMatchObject({ lastPageRead: 2, isBookmarked: true });
+  });
+  it("retains tracker work when a bookmark coalesces an unsent completed page", async () => {
+    await saveProgressIntent(first, reading(3));
+    await saveProgressIntent(first, { kind: "explicit", chapter, baseline: { isRead: false, lastPageRead: 0 }, patch: { isBookmarked: true } });
+    await synchronizeProgress(first);
+    expect((await getProgressHead(first, 12))!.trackingDueSequence).toBeGreaterThan(0);
+  });
   it("retains progress across a failed request and replays it after reconnecting", async () => {
     await saveProgressIntent(first, reading(2));
     mocks.read.mockRejectedValueOnce(new TypeError("offline"));
@@ -255,4 +290,44 @@ describe("progress replay and acknowledgement", () => {
     expect((await getProgressHead(first, 12))!.patch).toEqual({ isRead: false, lastPageRead: 0 });
     expect(mocks.update).not.toHaveBeenCalled();
   });
+});
+
+it("incognito reading creates no progress, history or tracker work but explicit actions remain available", async () => {
+  mocks.active.experience.incognito = true;
+  expect(await saveProgressIntent(first, reading(3))).toMatchObject({ accepted: false, reason: "incognito" });
+  expect(await getProgressOperations(first)).toEqual([]);
+  expect(await getProgressHead(first, 12)).toBeUndefined();
+  expect(await getReadingHistory(first.serverBaseUrl)).toEqual([]);
+  await writeChapterProgress(first, 12, { isBookmarked: true }, { fallback: chapter });
+  expect(mocks.update).toHaveBeenCalledTimes(1);
+});
+
+function duplicateFixture() {
+  mocks.active.experience.duplicateReadLibraries[first.key] = true;
+  const peer = { ...remoteChapter(), id: 13, name: 'Chapter 1 · B', sourceOrder: 2, lastPageRead: 2 };
+  mocks.read.mockImplementation(async (_server: string, id: number) => ({ chapter: structuredClone(id === 13 ? peer : servers.get(first.serverBaseUrl)!) }));
+  mocks.update.mockImplementation(async (_server: string, input: { id: number; patch: object }) => {
+    const target = input.id === 13 ? peer : servers.get(first.serverBaseUrl)!;
+    Object.assign(target, input.patch); return { updateChapter: { chapter: structuredClone(target) } };
+  });
+  mocks.peers.mockImplementation(async () => ({ chapters: { totalCount: 2, pageInfo: { hasNextPage: false }, nodes: [servers.get(first.serverBaseUrl)!, peer] } }));
+  return peer;
+}
+it('retries duplicate discovery after an outage without losing the original completion', async () => {
+  const peer = duplicateFixture(); mocks.peers.mockRejectedValueOnce(new Error('temporary lookup outage'));
+  await saveProgressIntent(first, reading(3)); await synchronizeProgress(first);
+  expect((await getProgressOperations(first))).toHaveLength(1); expect(servers.get(first.serverBaseUrl)!.isRead).toBe(true); expect(peer.isRead).toBe(false);
+  await synchronizeProgress(first); expect(await getProgressOperations(first)).toEqual([]); expect(peer).toMatchObject({ isRead: true, lastPageRead: 2 });
+  const history = await getReadingHistory(first.serverBaseUrl); expect(history.map(item => item.chapterId)).toEqual([12]);
+});
+it('a primary reset cancels its duplicate read while retaining a coalesced bookmark edit', async () => {
+  const peer = duplicateFixture(); await saveProgressIntent(first, reading(3));
+  const original = (await getProgressOperations(first))[0];
+  const identity = { ...chapter, chapterId: 13, chapterName: peer.name, sourceOrder: 2 };
+  await saveProgressIntent(first, { kind: 'reading', chapter: identity, baseline: { isRead: false, lastPageRead: 2 }, patch: { isRead: true }, duplicateOf: { chapterId: 12, epoch: original.epoch, sequence: original.sequence } });
+  await saveProgressIntent(first, { kind: 'explicit', chapter: identity, baseline: { isRead: false, lastPageRead: 2 }, patch: { isBookmarked: true } });
+  await saveProgressIntent(first, { kind: 'explicit', chapter, baseline: { isRead: false, lastPageRead: 0 }, patch: { isRead: false, lastPageRead: 0 } });
+  await synchronizeProgress(first);
+  expect(peer).toMatchObject({ isRead: false, lastPageRead: 2, isBookmarked: true });
+  expect(mocks.update.mock.calls.filter(([, input]) => input.id === 13).map(([, input]) => input.patch)).toEqual([{ isBookmarked: true }]);
 });
