@@ -12,6 +12,8 @@ pnpm run test:e2e
 The release verification command runs TypeScript checks, unit tests, a production build, and a bundle-size budget check. CI additionally runs the production dependency audit and the Windows installer lifecycle test.
 Tag-triggered publishing repeats the release verification and browser interaction suite, and rejects tags that do not match the synchronized application version.
 
+Pushes to `codex/reading-room` also run Verify and upload the Windows installer as the `yomikura-windows-installer` workflow artifact after the installer smoke test. This test build does not create a GitHub release. Verify also supports manual dispatch after the `workflow_dispatch` trigger is present on the default branch; until then, a push to the test branch starts the workflow. Artifacts expire after seven days.
+
 ## Installed-app checks
 
 On a clean Windows runner, the verification workflow must prove:
