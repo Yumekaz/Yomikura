@@ -1,11 +1,12 @@
 import { expect, test } from "@playwright/test";
+test.use({ serviceWorkers: "block" });
 
 test("an HTTP-success error page is never retained as a complete offline chapter", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: "http://127.0.0.1:4567", mockMode: true, connectionStatus: "connected", autoDeleteReadChapters: false, autoDownloadCount: 0 } })));
-  let broken = true;
-  await page.route("**/demo/paper-garden-page.webp", (route) => route.fulfill(broken
+  let broken = true, corruptResponses = 0;
+  await page.route("**/demo/paper-garden-page.webp", (route) => { if (broken) corruptResponses++; return route.fulfill(broken
     ? { status: 200, contentType: "image/webp", body: "<html>Temporary source error</html>" }
-    : { contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="480"><rect width="320" height="480" fill="#31574e"/></svg>' }));
+    : { contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="480"><rect width="320" height="480" fill="#31574e"/></svg>' }); });
   await page.goto("/manga/10001");
   await page.getByRole("button", { name: "Save Chapter 1: The Journey Begins for offline reading", exact: true }).click();
   await expect(page.getByRole("button", { name: "Retry download of Chapter 1: The Journey Begins", exact: true })).toBeVisible();
@@ -16,6 +17,7 @@ test("an HTTP-success error page is never retained as a complete offline chapter
     finally { db.close(); }
   });
   expect(await stored()).toBe(0);
+  expect(corruptResponses).toBeGreaterThan(0);
   broken = false; await page.getByRole("button", { name: "Retry download of Chapter 1: The Journey Begins", exact: true }).click();
   await expect(page.getByRole("button", { name: "Remove offline download of Chapter 1: The Journey Begins", exact: true })).toBeVisible();
   expect(await stored()).toBe(1);

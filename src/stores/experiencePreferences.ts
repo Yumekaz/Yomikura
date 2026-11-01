@@ -12,6 +12,7 @@ export interface ExperiencePreferences {
   privacyCurtain: boolean;
   pureBlack: boolean;
   chapterDateFormat: "locale" | "iso" | "long";
+  duplicateReadLibraries: Record<string, boolean>;
   trackingPolicies: Record<string, { automaticProgress: boolean }>;
   sourcePins: Record<string, string[]>;
   recentSources: Record<string, string[]>;
@@ -22,7 +23,7 @@ export interface ExperiencePreferences {
   categorySorts: Record<string, { mode: string; descending: boolean }>;
   libraryUpdateRuns: Record<string, { requestedAt: number; status: "idle" | "running" | "success" | "error"; error: string }>;
 }
-export const DEFAULT_EXPERIENCE: ExperiencePreferences = { reader: DEFAULT_READER_EXPERIENCE, downloads: DEFAULT_DOWNLOAD_EXPERIENCE, incognito: false, downloadedOnly: false, privacyCurtain: false, pureBlack: false, chapterDateFormat: "locale", trackingPolicies: {}, sourcePins: {}, recentSources: {}, hideLibraryEntries: false, applyContentFilterToInstalled: false, libraryFilters: {}, perCategorySort: false, categorySorts: {}, libraryUpdateRuns: {} };
+export const DEFAULT_EXPERIENCE: ExperiencePreferences = { reader: DEFAULT_READER_EXPERIENCE, downloads: DEFAULT_DOWNLOAD_EXPERIENCE, incognito: false, downloadedOnly: false, privacyCurtain: false, pureBlack: false, chapterDateFormat: "locale", duplicateReadLibraries: {}, trackingPolicies: {}, sourcePins: {}, recentSources: {}, hideLibraryEntries: false, applyContentFilterToInstalled: false, libraryFilters: {}, perCategorySort: false, categorySorts: {}, libraryUpdateRuns: {} };
 
 export function normalizeLibraryFilters(value?: Partial<LibraryFilterSet>): LibraryFilterSet {
   return Object.fromEntries(Object.keys(EMPTY_LIBRARY_FILTERS).map((key) => {
@@ -42,6 +43,7 @@ export function normalizeExperience(value: unknown): ExperiencePreferences {
     downloads: normalizeDownloadExperience(input.downloads),
     incognito: input.incognito === true, downloadedOnly: input.downloadedOnly === true, privacyCurtain: input.privacyCurtain === true, pureBlack: input.pureBlack === true,
     chapterDateFormat: input.chapterDateFormat === "iso" || input.chapterDateFormat === "long" ? input.chapterDateFormat : "locale",
+    duplicateReadLibraries: input.duplicateReadLibraries && typeof input.duplicateReadLibraries === "object" ? Object.fromEntries(Object.entries(input.duplicateReadLibraries).filter(([, value]) => typeof value === "boolean")) : {},
     trackingPolicies: input.trackingPolicies && typeof input.trackingPolicies === "object" ? Object.fromEntries(Object.entries(input.trackingPolicies).filter(([, value]) => value && typeof value === "object").map(([key, value]) => [key, { automaticProgress: value.automaticProgress !== false }])) : {},
     sourcePins: ids(input.sourcePins), recentSources: ids(input.recentSources),
     hideLibraryEntries: input.hideLibraryEntries === true, applyContentFilterToInstalled: input.applyContentFilterToInstalled === true,

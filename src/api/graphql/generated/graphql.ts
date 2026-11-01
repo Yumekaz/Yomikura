@@ -3828,6 +3828,11 @@ export type ClearDownloaderInput = {
   clientMutationId?: string | null | undefined;
 };
 
+export type ContentWarning =
+  | 'MIXED'
+  | 'NSFW'
+  | 'SAFE';
+
 export type CreateBackupInput = {
   clientMutationId?: string | null | undefined;
   flags?: PartialBackupFlagsInput | null | undefined;
@@ -4648,12 +4653,22 @@ export type DequeueChapterDownloadMutation = { dequeueChapterDownload: { downloa
 export type GetExtensionStoresQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetExtensionStoresQuery = { extensionStores: { totalCount: number, nodes: Array<{ name: string, indexUrl: string, isLegacy: boolean, signingKey: string, badgeLabel: string, contactWebsite: string, extensionListUrl: string | null }> } };
+export type GetExtensionStoresQuery = { extensionStores: { totalCount: number, nodes: Array<{ name: string, indexUrl: string, isLegacy: boolean, signingKey: string, badgeLabel: string, contactWebsite: string, contactDiscord: string | null, extensionListUrl: string | null }> } };
 
-export type GetExtensionsQueryVariables = Exact<{ [key: string]: never; }>;
+export type GetExtensionsQueryVariables = Exact<{
+  first?: number | null | undefined;
+  after?: unknown;
+}>;
 
 
-export type GetExtensionsQuery = { extensions: { totalCount: number, nodes: Array<{ pkgName: string, name: string, lang: string, isNsfw: boolean, isInstalled: boolean, iconUrl: string, versionName: string, hasUpdate: boolean, isObsolete: boolean }> } };
+export type GetExtensionsQuery = { extensions: { totalCount: number, pageInfo: { hasNextPage: boolean, endCursor: unknown }, nodes: Array<{ pkgName: string, name: string, lang: string, isNsfw: boolean, isInstalled: boolean, iconUrl: string, versionName: string, hasUpdate: boolean, isObsolete: boolean, contentWarning: ContentWarning, extensionStore: { name: string, indexUrl: string } | null }> } };
+
+export type GetExtensionStateQueryVariables = Exact<{
+  pkgName: string;
+}>;
+
+
+export type GetExtensionStateQuery = { extension: { pkgName: string, isInstalled: boolean, hasUpdate: boolean, versionName: string } };
 
 export type GetCategoriesQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -4838,7 +4853,7 @@ export type GetSourcePreferencesQuery = { source: { id: unknown, name: string, i
       | { __typename: 'CheckBoxPreference', key: string | null, title: string | null, summary: string | null, enabled: boolean, visible: boolean, defaultBool: boolean, valueBool: boolean | null }
       | { __typename: 'EditTextPreference', key: string | null, title: string | null, summary: string | null, enabled: boolean, visible: boolean, defaultString: string | null, valueString: string | null }
       | { __typename: 'ListPreference', key: string | null, title: string | null, summary: string | null, entries: Array<string>, entryValues: Array<string>, enabled: boolean, visible: boolean, defaultString: string | null, valueString: string | null }
-      | { __typename: 'MultiSelectListPreference' }
+      | { __typename: 'MultiSelectListPreference', key: string | null, title: string | null, summary: string | null, enabled: boolean, visible: boolean, entries: Array<string>, entryValues: Array<string>, defaultStrings: Array<string> | null, valueStrings: Array<string> | null }
       | { __typename: 'SwitchPreference', key: string | null, title: string | null, summary: string | null, enabled: boolean, visible: boolean, defaultBool: boolean, valueBool: boolean | null }
     > } };
 
@@ -4847,11 +4862,11 @@ export type UpdateSourcePreferenceMutationVariables = Exact<{
 }>;
 
 
-export type UpdateSourcePreferenceMutation = { updateSourcePreference: { preferences: Array<
+export type UpdateSourcePreferenceMutation = { updateSourcePreference: { source: { id: unknown }, preferences: Array<
       | { __typename: 'CheckBoxPreference', key: string | null, valueBool: boolean | null }
       | { __typename: 'EditTextPreference', key: string | null, valueString: string | null }
       | { __typename: 'ListPreference', key: string | null, valueString: string | null }
-      | { __typename: 'MultiSelectListPreference' }
+      | { __typename: 'MultiSelectListPreference', key: string | null, valueStrings: Array<string> | null }
       | { __typename: 'SwitchPreference', key: string | null, valueBool: boolean | null }
     > } | null };
 
@@ -5365,15 +5380,20 @@ export const GetExtensionStoresDocument = gql`
       signingKey
       badgeLabel
       contactWebsite
+      contactDiscord
       extensionListUrl
     }
   }
 }
     `;
 export const GetExtensionsDocument = gql`
-    query GetExtensions {
-  extensions(first: 2000) {
+    query GetExtensions($first: Int = 2000, $after: Cursor) {
+  extensions(first: $first, after: $after) {
     totalCount
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
     nodes {
       pkgName
       name
@@ -5384,7 +5404,22 @@ export const GetExtensionsDocument = gql`
       versionName
       hasUpdate
       isObsolete
+      contentWarning
+      extensionStore {
+        name
+        indexUrl
+      }
     }
+  }
+}
+    `;
+export const GetExtensionStateDocument = gql`
+    query GetExtensionState($pkgName: String!) {
+  extension(pkgName: $pkgName) {
+    pkgName
+    isInstalled
+    hasUpdate
+    versionName
   }
 }
     `;
@@ -5801,6 +5836,17 @@ export const GetSourcePreferencesDocument = gql`
         enabled
         visible
       }
+      ... on MultiSelectListPreference {
+        key
+        title
+        summary
+        enabled
+        visible
+        entries
+        entryValues
+        defaultStrings: default
+        valueStrings: currentValue
+      }
     }
   }
 }
@@ -5808,6 +5854,9 @@ export const GetSourcePreferencesDocument = gql`
 export const UpdateSourcePreferenceDocument = gql`
     mutation UpdateSourcePreference($input: UpdateSourcePreferenceInput!) {
   updateSourcePreference(input: $input) {
+    source {
+      id
+    }
     preferences {
       __typename
       ... on CheckBoxPreference {
@@ -5825,6 +5874,10 @@ export const UpdateSourcePreferenceDocument = gql`
       ... on SwitchPreference {
         key
         valueBool: currentValue
+      }
+      ... on MultiSelectListPreference {
+        key
+        valueStrings: currentValue
       }
     }
   }
@@ -6127,6 +6180,9 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetExtensions(variables?: GetExtensionsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetExtensionsQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetExtensionsQuery>({ document: GetExtensionsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetExtensions', 'query', variables);
+    },
+    GetExtensionState(variables: GetExtensionStateQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetExtensionStateQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetExtensionStateQuery>({ document: GetExtensionStateDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetExtensionState', 'query', variables);
     },
     GetCategories(variables?: GetCategoriesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetCategoriesQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetCategoriesQuery>({ document: GetCategoriesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetCategories', 'query', variables);

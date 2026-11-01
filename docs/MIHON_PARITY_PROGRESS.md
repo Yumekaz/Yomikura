@@ -137,6 +137,27 @@ Build compaction now shares the generated SDK request wrapper; a regression comp
 
 The real-server reading run passed four Asura titles, two chapters per title, with decoded pages, saved progress and restored reading position. Current targeted browser verification covers incognito/manual actions, paused tracking/profile isolation, downloaded-only exit, focus-event curtain behavior, accessibility, appearance and bounded maintenance. Failed attempts remain in private evidence. Full-suite verification and the final fifty-reference reconciliation remain separate gates.
 
-## Remaining implementation
+## Final reference reconciliation and validation — 2026-11-01
 
-Duplicate-read propagation and remaining platform comparisons are still being reconciled, followed by final whole-suite verification. Source contracts and platform/hardware limits remain explicit. The full 50-screen work is not yet complete.
+All 50 private references were individually reviewed and reconciled in [MIHON_REFERENCE_IMPLEMENTATION.md](MIHON_REFERENCE_IMPLEMENTATION.md). Each has an implementation pointer and an explicit result: implemented, adapted, or bounded by a concrete platform/backend contract. All 50 image fingerprints still match the private originals; no reference image, raw audit note, APK, personal backup or local trace is tracked for publication. This is coverage of the supplied references, not a claim that every Mihon feature or hardware/provider scenario is identical.
+
+The final batch adds optional propagation to existing numbered duplicate editions. It queues peers before acknowledging the original completion so an interrupted inventory lookup remains retryable. Peers retain their page position and gain neither a fake history entry nor another automatic tracker event. Explicit unread/reset priority is retained; invalidated duplicate work cannot swallow a coalesced bookmark edit. Future source discoveries and release-aware engine scheduling remain backend limitations.
+
+Source management now reads complete extension catalogs, presents publisher/mixed-content/obsolete metadata, and renders large matching lists in batches. Individual extension verification uses the exact package identity. Store cards expose safe website/community links and copying. Source preferences support multi-choice sets, preserve hidden-field positions, respect disabled fields, mask sensitive text, recheck identity before writing and require a matching response before reporting success. Tracker accounts handle expiry and confirmed sign-out without deleting linked works.
+
+| Check | Final result |
+| --- | --- |
+| Unit tests | 447 passed across 67 files |
+| Browser inventory | All 220 expected cases verified passing against the frozen final build |
+| Browser execution detail | Initial run interrupted after case 157; 156 had passed. Its corrupt-image fixture was corrected to block service workers, then the remaining cases and overlapping safety cases passed in a 66-case completion run. No cases are missing; earlier failures remain preserved. |
+| Source and browser-spec typechecking | Passed |
+| Production build, version consistency and bundle limits | Passed: 3,126,706 total bytes; 1,046,565 JavaScript bytes; limits unchanged |
+| Native Rust and all-target Clippy | 25 tests passed; Clippy passed with warnings denied |
+| Updated Windows build | Compiled and launched using the isolated application identity |
+| Actual engine reading | Four Asura titles, two chapters each: decoded pages, acknowledged progress and reopened position passed |
+| Actual engine contracts | Download/update preferences, complete source/catalog queries and temporary-image cleanup verified; settings restored and library progress/download counts preserved |
+| Native persistence and isolation | Saved library recovered on restart. Local profile showed one device chapter; remote profile showed four books and zero device chapters; restoring local recovered its saved copy. Original profile restored. |
+| Native capture/lifecycle | Capture exclusion observed; tray close retained the engine, restoring reopened the same window, and normal close stopped the listener. Original preferences restored. |
+| Native backups/exports/fullscreen | Verified backup and notes, exact original-page/CBZ bytes, chosen-folder writes and fullscreen restoration passed in earlier batches |
+
+Unperformed runtime checks remain explicit: Windows Hello with a real user, a signed-in tracking provider, physical display sleep/e-ink response, and other operating systems. Real authentication remains a manual gate; no credential or authentication success is invented. The per-reference report records API/platform differences instead of hiding them behind nonfunctional controls.

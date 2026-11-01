@@ -8,14 +8,16 @@ query GetExtensionStores {
       signingKey
       badgeLabel
       contactWebsite
+      contactDiscord
       extensionListUrl
     }
   }
 }
 
-query GetExtensions {
-  extensions(first: 2000) {
+query GetExtensions($first: Int = 2000, $after: Cursor) {
+  extensions(first: $first, after: $after) {
     totalCount
+    pageInfo { hasNextPage endCursor }
     nodes {
       pkgName
       name
@@ -26,6 +28,12 @@ query GetExtensions {
       versionName
       hasUpdate
       isObsolete
+      contentWarning
+      extensionStore { name indexUrl }
     }
   }
+}
+
+query GetExtensionState($pkgName: String!) {
+  extension(pkgName: $pkgName) { pkgName isInstalled hasUpdate versionName }
 }

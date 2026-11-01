@@ -4,6 +4,7 @@ import { chapterIdentityMatches, progressBackend, type ChapterProgressIdentity, 
 import { getCachedChapter, getReadingHistory, hideReadingHistoryItem, recordReadingActivity, saveCachedChapter, type CachedChapter } from "./offlineCache";
 import { acknowledgeProgress, acquireProgressLease, enqueueProgress, getProgressHead, getProgressHeads, getProgressOperations, markProgressOperation, observeChapterProgress, progressChanged, releaseProgressLease, type ProgressHead, type ProgressIntent, type ProgressOperation, type ProgressPatch } from "./progressStorage";
 import { queueDownloadCleanup, runDownloadCleanup } from "./downloadCleanup";
+import { duplicateOriginValid, queueDuplicateReads } from "./duplicateRead";
 
 type RemoteChapter = { id: number; name: string; chapterNumber: number; mangaId: number; sourceOrder: number; pageCount: number; isRead: boolean; lastPageRead: number; manga?: { title: string } | null };
 const inFlight = new Map<string, { promise: Promise<void>; rerun: boolean }>();
@@ -85,25 +86,33 @@ async function sendOperation(backend: ProgressBackend, operation: ProgressOperat
   }
   const head = await getProgressHead(backend, operation.chapter.chapterId);
   const state = { isRead: remote.isRead, lastPageRead: remote.lastPageRead };
+  const cancelledDuplicate = !await duplicateOriginValid(operation);
+  const requestedFields = (operation.fields ?? ["isRead", "lastPageRead"]).filter((field) => !cancelledDuplicate || field === "isBookmarked");
+  if (cancelledDuplicate && !requestedFields.length) {
+    await acknowledgeProgress(operation, owner, { ...operation.patch, ...state });
+    progressChanged(backend);
+    return;
+  }
   // Exact explicit actions are user intent. Automatic writes pause on competing server edits.
-  if (operation.kind === "reading" && !sameState(state, head?.lastAcknowledged ?? head?.baseline ?? operation.baseline) && !sameState(state, operation.patch)) {
+  if ((operation.kind === "reading" || operation.duplicateOf) && !cancelledDuplicate && !sameState(state, head?.lastAcknowledged ?? head?.baseline ?? operation.baseline) && !sameState(state, operation.patch)) {
     await markProgressOperation(operation, owner, "blocked", "Reading progress changed on the server. Open this chapter to review it, or use an explicit read/unread action.");
     progressChanged(backend, "error");
     return;
   }
-  const patch = Object.fromEntries((operation.fields ?? ["isRead", "lastPageRead"]).map((field) => [field, operation.patch[field]])) as Partial<ProgressPatch>;
-  if (operation.kind === "reading") patch.isRead = operation.patch.isRead || remote.isRead;
+  const patch = Object.fromEntries(requestedFields.map((field) => [field, operation.patch[field]])) as Partial<ProgressPatch>;
+  if (operation.kind === "reading" && !cancelledDuplicate) patch.isRead = operation.patch.isRead || remote.isRead;
   const response = await client(backend).UpdateChapterProgress({ input: { id: operation.chapter.chapterId, patch } });
   const acknowledged = response.updateChapter?.chapter;
   if (!acknowledged || acknowledged.id !== operation.chapter.chapterId || (patch.lastPageRead !== undefined && acknowledged.lastPageRead !== patch.lastPageRead) || (patch.isRead !== undefined && acknowledged.isRead !== patch.isRead) || (patch.isBookmarked !== undefined && acknowledged.isBookmarked !== patch.isBookmarked)) {
     throw new Error("Suwayomi did not confirm the saved progress.");
   }
+  if (acknowledged.isRead && (!remote.isRead || !operation.baseline.isRead)) await queueDuplicateReads(backend, operation, client(backend));
   if (!await acknowledgeProgress(operation, owner, { ...operation.patch, isRead: acknowledged.isRead, lastPageRead: acknowledged.lastPageRead })) return;
   if (isCurrentProgressBackend(backend)) useSettingsStore.setState({ connectionStatus: "connected", errorMessage: "" });
   progressChanged(backend);
   const latest = await getProgressHead(backend, operation.chapter.chapterId);
   if (latest) await mirrorProgress(latest).catch(() => undefined);
-  const manualCleanup = operation.kind === "explicit" && (operation.fields ?? ["isRead", "lastPageRead"]).includes("isRead") && operation.patch.isRead && useSettingsStore.getState().experience?.downloads?.removeAfterMarkedRead;
+  const manualCleanup = !operation.duplicateOf && operation.kind === "explicit" && (operation.fields ?? ["isRead", "lastPageRead"]).includes("isRead") && operation.patch.isRead && useSettingsStore.getState().experience?.downloads?.removeAfterMarkedRead;
   if ((operation.deleteAfterAck || manualCleanup) && latest?.epoch === operation.epoch && latest.patch.isRead && isCurrentProgressBackend(backend)) {
     try {
       await queueDownloadCleanup(backend, operation.chapter, operation.epoch, operation.sequence, operation.deleteAfterAck ? "automatic" : "manual");
@@ -121,7 +130,9 @@ async function drain(backend: ProgressBackend, exclusiveBrowserLock = false) {
       const operation = (await getProgressOperations(backend)).find((item) => item.status !== "blocked");
       if (!operation) break;
       if (backend.isDemo) {
-        await acknowledgeProgress(operation, owner, operation.patch);
+        const valid = await duplicateOriginValid(operation);
+        if (valid) await queueDuplicateReads(backend, operation, client(backend));
+        await acknowledgeProgress(operation, owner, valid ? operation.patch : { ...operation.patch, ...operation.baseline });
         progressChanged(backend);
       } else {
         try { await sendOperation(backend, operation, owner); }

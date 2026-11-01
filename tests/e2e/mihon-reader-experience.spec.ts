@@ -112,6 +112,14 @@ test("the vertical navigator has independent keyboard focus and reflects real pa
   const navigator = page.getByRole("slider", { name: "Vertical page navigator", exact: true }); await navigator.focus(); await navigator.press("End");
   await expect(navigator).toHaveValue("2"); await expect(images(page).getByRole("img", { name: "Page 3", exact: true })).toBeVisible();
 });
+test("two touch taps zoom the page and the fit control restores its reading position", async ({ page, context }) => {
+  await fixture(page, { reader: { doubleTapZoom: true } }); await page.goto("/reader/12");
+  await expect(images(page).getByRole("img", { name: "Page 1", exact: true })).toHaveCSS("opacity", "1");
+  const box = await images(page).boundingBox(); if (!box) throw new Error("Reading image is unavailable");
+  const input = await context.newCDPSession(page), point = { x: box.x + box.width / 2, y: Math.min(box.y + box.height / 2, 500), id: 1 };
+  for (let index = 0; index < 2; index++) { await input.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] }); await input.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }); }
+  await expect(images(page)).toHaveAttribute("data-image-zoom", "2.00"); await page.getByRole("button", { name: "Fit page", exact: true }).click(); await expect(images(page)).toHaveAttribute("data-image-zoom", "1.00"); await expect(page).toHaveURL(/\/reader\/12$/);
+});
 test("reader preferences persist through reload with themed controls in light and dark modes", async ({ page }) => {
   await fixture(page); await page.goto("/settings/reader");
   await page.getByRole("combobox", { name: "Reader background", exact: true }).click(); await page.getByRole("option", { name: "Warm paper", exact: true }).click();

@@ -6,6 +6,7 @@ type ExtensionSnapshot = {
 };
 
 type ExtensionSdk = {
+  GetExtensionState?(variables: { pkgName: string }): Promise<{ extension: ExtensionSnapshot }>;
   GetExtensions(): Promise<{ extensions?: { nodes?: Array<ExtensionSnapshot | null> } }>;
   ToggleExtensionInstall(input: {
     input: { id: string; patch: { install?: boolean; uninstall?: boolean; update?: boolean } };
@@ -26,6 +27,11 @@ function actionCompleted(action: "install" | "uninstall" | "update", extension: 
 }
 
 async function readExtension(sdk: ExtensionSdk, pkgName: string) {
+  if (sdk.GetExtensionState) {
+    const extension = (await sdk.GetExtensionState({ pkgName })).extension;
+    if (!extension || extension.pkgName !== pkgName) throw new Error("The requested extension state wasn’t confirmed.");
+    return extension;
+  }
   const result = await sdk.GetExtensions();
   return result.extensions?.nodes?.find((extension) => extension?.pkgName === pkgName) ?? null;
 }

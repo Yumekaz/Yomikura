@@ -21,11 +21,40 @@ test("automatic tracker pause retains progress and a deliberate sync remains ava
   expect(state.trackCalls).toBe(0); await expect(page.getByText(/Tracker sync pending/)).toBeVisible();
   await page.getByRole("button", { name: "Sync linked trackers", exact: true }).click(); await expect.poll(() => state.remote.get(501)).toBe(1);
 });
+test("completing a chapter marks matching editions read without recording another reading event", async ({ page }) => {
+  const state = trackerFixture({ linked: true }); await installTrackerFixture(page, [state]);
+  const peer = { ...state.chapter, id: 13, name: "Tracker chapter · alternate edition", sourceOrder: 2, lastPageRead: 1 };
+  await page.route("**/api/graphql", async (route) => {
+    const request = route.request().postDataJSON(), variables = request.variables ?? {}; let data;
+    if (request.operationName === "GetReadingChapters") data = { chapters: { totalCount: 2, pageInfo: { hasNextPage: false }, nodes: [state.chapter, peer] } };
+    else if (request.operationName === "GetChapter" && variables.id === 13) data = { chapter: { ...peer, manga: { title: state.title } } };
+    else if (request.operationName === "UpdateChapterProgress" && variables.input.id === 13) { Object.assign(peer, variables.input.patch); data = { updateChapter: { chapter: peer } }; }
+    else return route.fallback();
+    await route.fulfill({ json: { data } });
+  });
+  await page.goto("/settings/library"); await page.getByRole("checkbox", { name: "Mark existing duplicate editions read", exact: true }).click();
+  await finishTrackerChapter(page); await expect.poll(() => peer.isRead).toBe(true); expect(peer.lastPageRead).toBe(1);
+  await expect.poll(() => state.trackCalls).toBe(1);
+  const heads = await trackingHeads(page); expect(heads.filter((head) => head.hasActivity).map((head) => head.chapter.chapterId)).toEqual([12]);
+});
 test("tracking preferences remain isolated when switching libraries", async ({ page }) => {
   const first = trackerFixture(), second = trackerFixture({ backend: "http://127.0.0.1:45678", title: "Other library" }); await installTrackerFixture(page, [first, second]); await page.goto("/settings/privacy");
   await page.getByRole("checkbox", { name: "Update linked trackers after reading", exact: true }).click();
   await page.getByRole("combobox", { name: "Server profile", exact: true }).click(); await page.getByRole("option", { name: "Second fixture", exact: true }).click();
   await expect(page.getByRole("checkbox", { name: "Update linked trackers after reading", exact: true })).toBeChecked();
+});
+test("tracker account status handles expiry and sign-out requires a confirmed provider response", async ({ page }) => {
+  const state = trackerFixture({ linked: true, expired: true }); await installTrackerFixture(page, [state]); let requests = 0;
+  await page.route("**/api/graphql", async (route) => {
+    const request = route.request().postDataJSON(); let data;
+    if (request.operationName === "GetTrackers") data = { trackers: { nodes: state.providers } };
+    else if (request.operationName === "LogoutTracker") { requests++; const tracker = state.providers.find((item) => item.id === request.variables.input.trackerId)!; tracker.isLoggedIn = false; tracker.isTokenExpired = false; data = { logoutTracker: { tracker } }; }
+    else return route.fallback(); await route.fulfill({ json: { data } });
+  });
+  await page.goto("/settings/advanced"); await expect(page.getByText("Sign-in expired", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sign in again", exact: true })).toHaveAttribute("href", "https://tracker.example/login");
+  await page.getByRole("button", { name: "Sign out of First tracker", exact: true }).click(); await page.getByRole("alertdialog").getByRole("button", { name: "Cancel", exact: true }).click(); expect(requests).toBe(0);
+  await page.getByRole("button", { name: "Sign out of First tracker", exact: true }).click(); await page.getByRole("alertdialog").getByRole("button", { name: "Sign out", exact: true }).click(); await expect(page.getByText("Not signed in", { exact: true })).toBeVisible(); expect(requests).toBe(1); expect(state.records).toHaveLength(1);
 });
 test("downloaded-only mode has an obvious exit and preserves unrelated library filters", async ({ page }) => {
   const state = trackerFixture(); await installTrackerFixture(page, [state]);

@@ -10,6 +10,7 @@ const demoCover = (name: string) => new URL(`/demo/${name}.webp`, typeof window 
 const demoMembership = new Map<number, boolean>();
 const demoBookmarks = new Map<number, boolean>();
 const demoNotes = new Map<number, string>();
+const demoSignedOut = new Set<number>();
 const demoLibraryPolicy = { globalUpdateInterval: 12, excludeUnreadChapters: false, excludeNotStarted: false, excludeCompleted: false, updateMangas: false };
 const demoCollections = [{ id: 1, name: "Default", order: 1, default: false, includeInUpdate: "UNSET", includeInDownload: "UNSET" }, { id: 2, name: "Favorites", order: 2, default: false, includeInUpdate: "UNSET", includeInDownload: "UNSET" }];
 const demoDownloadPreferences = { downloadAsCbz: false, maxSourcesInParallel: 6, autoDownloadNewChapters: false, autoDownloadNewChaptersLimit: 0, excludeEntryWithUnreadChapters: true, autoDownloadIgnoreReUploads: false };
@@ -173,6 +174,7 @@ const mockImpl: any = {
     return {
       extensions: {
         totalCount: 2,
+        pageInfo: { hasNextPage: false, endCursor: null },
         nodes: [
           {
             pkgName: "mock.playground.manga",
@@ -218,6 +220,11 @@ const mockImpl: any = {
         ],
       },
     };
+  },
+  async GetExtensionState({ pkgName }: any) {
+    const extension = (await mockImpl.GetExtensions()).extensions.nodes.find((item: any) => item.pkgName === pkgName);
+    if (!extension) throw new Error("The extension is no longer listed.");
+    return { extension: { ...extension, hasUpdate: extension.hasUpdate ?? false } };
   },
 
   async FetchSourceManga() {
@@ -445,7 +452,7 @@ const mockImpl: any = {
             id: 1,
             name: "AniList",
             icon: "https://anilist.co/img/icons/favicon-32x32.png",
-            isLoggedIn: true,
+            isLoggedIn: !demoSignedOut.has(1),
             isTokenExpired: false,
             supportsPrivateTracking: true,
             authUrl: "",
@@ -480,6 +487,11 @@ const mockImpl: any = {
     const { manga } = await mockImpl.GetMangaDetails({ id: mangaId });
     return { ...(await mockImpl.GetTrackers()), manga: { id: mangaId, title: manga.title, trackRecords: { nodes: tracksFor(mangaId) } }, chapters: { nodes: mangaId === 10001 || mangaId === 10002 ? [{ chapterNumber: 1 }] : [] } };
   },
+  async LogoutTracker({ input }: any) {
+    const tracker = (await mockImpl.GetTrackers()).trackers.nodes.find((item: any) => item.id === input.trackerId);
+    if (!tracker?.isLoggedIn) throw new Error("The tracker is already signed out.");
+    demoSignedOut.add(input.trackerId); return { logoutTracker: { tracker: { id: input.trackerId, isLoggedIn: false } } };
+  },
   async SearchTracker({ input }: any) {
     return { searchTracker: { trackSearches: [0, 1].map((index) => ({ id: index + 1, trackerId: input.trackerId, remoteId: String(700000 + index), title: `[Demo] ${input.query}${index ? " — alternative edition" : ""}`, coverUrl: "", summary: "Sample search results stay in the demo sandbox.", totalChapters: 24, lastChapterRead: 0, trackingUrl: "https://anilist.co", private: false, publishingType: "Manga", publishingStatus: "Sample" })) } };
   },
@@ -513,16 +525,6 @@ const mockImpl: any = {
     return { updateTrack: { trackRecord: record } };
   },
 
-  async LogoutTracker({ input }: any) {
-    return {
-      logoutTracker: {
-        tracker: {
-          id: input.id,
-          isLoggedIn: false,
-        },
-      },
-    };
-  },
 };
 
 // These demo records retain their legacy literal layout above; SDK consumers
