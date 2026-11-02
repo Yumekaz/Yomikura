@@ -10,6 +10,8 @@ test.beforeEach(async ({ page }) => {
 
 test("chapter selection is deliberate, titles toggle selection, and Done returns to reading", async ({ page }) => {
   await page.goto("/manga/10002");
+  await expect(page.getByText("By Yomikura", { exact: true })).toBeVisible();
+  await expect(page.getByText("Art: Yomikura", { exact: true })).toHaveCount(0);
   const rows = page.locator(".yomi-chapter-row");
   await expect(rows.first().getByRole("link")).toBeVisible();
   await expect(rows.getByRole("checkbox")).toHaveCount(0);

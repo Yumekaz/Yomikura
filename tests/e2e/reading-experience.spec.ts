@@ -23,7 +23,7 @@ async function fixture(page: Page, options: { allRead?: boolean; marathon?: bool
     let data: unknown;
     if (name === "GetMangaDetails") {
       const original = await mockSdk.GetMangaDetails({ id: 10002 });
-      data = { manga: { ...original.manga, initialized: true, title: "Fixture comic", thumbnailUrl: null, chapters: { nodes: chapters }, categories: { nodes: [] } } };
+      data = { manga: { ...original.manga, initialized: true, title: "Fixture comic", author: "Story creator", artist: "Art creator", thumbnailUrl: null, chapters: { nodes: chapters }, categories: { nodes: [] } } };
     } else if (name === "GetLibrary") data = { mangas: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [
       { id: 10002, title: "Fixture comic", thumbnailUrl: null, unreadCount: chapters.filter((chapter) => !chapter.isRead).length, downloadCount: 0, lastReadChapter: null, categories: { nodes: [] } },
       { id: 20002, title: "Another comic", thumbnailUrl: null, unreadCount: 1, downloadCount: 0, lastReadChapter: null, categories: { nodes: [] } },
@@ -51,6 +51,13 @@ async function fixture(page: Page, options: { allRead?: boolean; marathon?: bool
   await page.route("**/api/v1/manga/*/chapter/*/page/*", (route) => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="600" height="900" fill="#31483b"/></svg>' }));
   return { chapters, writes, seenCursors, offline: () => { online = false; } };
 }
+
+test("book details distinguish author and artist when both are supplied", async ({ page }) => {
+  await fixture(page);
+  await page.goto("/manga/10002");
+  await expect(page.getByText("By Story creator", { exact: true })).toBeVisible();
+  await expect(page.getByText("Art: Art creator", { exact: true })).toBeVisible();
+});
 
 test("Resume advances from 50 completed chapters to chapter 51 in either display direction", async ({ page }) => {
   const state = await fixture(page);

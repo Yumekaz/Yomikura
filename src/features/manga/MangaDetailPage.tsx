@@ -133,6 +133,7 @@ export default function MangaDetailPage() {
         thumbnailUrl: null,
         inLibrary: false,
         author: null,
+        artist: null,
         status: "UNKNOWN",
         source: { name: "Saved on this device" },
         genre: [],
@@ -310,7 +311,8 @@ export default function MangaDetailPage() {
               </h1>
 
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-slate-300">
-                {manga.author && <span>{manga.author}</span>}
+                {manga.author && <span>By {manga.author}</span>}
+                {manga.artist && manga.artist.trim().toLocaleLowerCase() !== manga.author?.trim().toLocaleLowerCase() && <span>Art: {manga.artist}</span>}
                 {manga.status && manga.status !== "UNKNOWN" && (
                   <span className="rounded bg-white/10 px-2 py-0.5 text-xs text-slate-200">
                     {manga.status.replace(/_/g, " ")}
