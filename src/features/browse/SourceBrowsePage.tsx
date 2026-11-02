@@ -115,7 +115,7 @@ export default function SourceBrowsePage() {
           const nextFilters = hasEnvelope ? restored.serialized : undefined;
           if (page === 1 && input === query && nextFilters === (rawFilters ?? undefined) && ready) void catalog.refetch();
           navigate(buildSourceBrowsePath(sourceId, input, nextFilters));
-        }}><label className="relative min-w-0 flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" /><input aria-label="Search manga in source" placeholder="Search manga in source..." className="yomi-field w-full pl-10" value={input} onChange={(event) => setInput(event.target.value)} /></label><button type="submit" className="yomi-button yomi-button-secondary">Search</button></form>
+        }}><label className="relative min-w-0 flex-1"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" /><input aria-label="Search manga in source" placeholder="Search manga in source..." className="yomi-field w-full !pl-10" value={input} onChange={(event) => setInput(event.target.value)} /></label><button type="submit" className="yomi-button yomi-button-secondary">Search</button></form>
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" disabled={metadata.isLoading || !!model && !model.nodes.length} aria-expanded={!!editor} onClick={() => editor ? setEditor(undefined) : openFilters()} className="yomi-button yomi-button-secondary"><SlidersHorizontal />{metadata.isError ? "Retry filters" : hasEnvelope ? `Filters applied${activeCount ? ` (${activeCount})` : ""}` : "Filters"}</button>
           {hasEnvelope && <button type="button" onClick={clear} className="text-xs text-yomi-jade underline">Clear filters</button>}

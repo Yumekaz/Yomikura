@@ -224,15 +224,9 @@ export function ReaderOverlay({
                       onClick={onToggleOverride}
                       aria-label="Remember reader settings for this manga"
                       aria-pressed={hasOverride}
-                      className={`relative inline-flex h-5.5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        hasOverride ? "bg-yomi-jade" : "bg-ink-950 border-white/10"
-                      }`}
+                      className="yomi-reader-remember-switch"
                     >
-                      <span
-                        className={`pointer-events-none inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          hasOverride ? "translate-x-4.5 bg-ink-950" : "translate-x-0"
-                        }`}
-                      />
+                      <span aria-hidden="true" />
                     </button>
                   </div>
                 )}

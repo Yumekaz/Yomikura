@@ -56,6 +56,9 @@ async function saved(page: Page) {
 
 test("title controls retain their own values across backend switches, reload and clear", async ({ page }, info) => {
   await fixture(page); await openReader(page, "First");
+  const switchSize = await remembered(page).boundingBox();
+  expect(switchSize!.width).toBeGreaterThanOrEqual(38);
+  expect(switchSize!.height).toBeGreaterThanOrEqual(24);
   await remembered(page).click();
   await page.getByRole("button", { name: "RTL", exact: true }).click();
   await chooseOption(page.getByRole("combobox", { name: "Page transition", exact: true }), "fade");

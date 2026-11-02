@@ -48,16 +48,16 @@ async function fixture(page: Page) {
 test("library download views cover all four combinations with correct title counts", async ({ page }) => {
   const { mangas } = await fixture(page);
   await page.getByRole("button", { name: "On this device", exact: true }).click();
-  await expect(page.getByText("2 books in your collection", { exact: true })).toBeVisible();
+  await expect(page.getByText("2 books shown", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Device only", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Server only", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "On server", exact: true }).click();
-  await expect(page.getByText("2 books in your collection", { exact: true })).toBeVisible();
+  await expect(page.getByText("2 books shown", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Device only", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Downloaded", exact: true }).click();
-  await expect(page.getByText("3 books in your collection", { exact: true })).toBeVisible(); expect(mangas[0].downloadCount).toBe(0);
+  await expect(page.getByText("3 books shown", { exact: true })).toBeVisible(); expect(mangas[0].downloadCount).toBe(0);
   await chooseOption(page.getByRole("combobox", { name: "Server profile", exact: true }), "second");
-  await page.getByRole("button", { name: "On this device", exact: true }).click(); await expect(page.getByText("0 books in your collection", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "On this device", exact: true }).click(); await expect(page.getByText("0 books shown", { exact: true })).toBeVisible();
 });
 test("scanlator/unread policy is shared by Resume and next/previous and persists on reload", async ({ page }) => {
   const state = await fixture(page); await page.goto("/manga/42");

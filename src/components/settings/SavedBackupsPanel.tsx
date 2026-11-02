@@ -42,7 +42,7 @@ export function SavedBackupsPanel({ busy, onRestore }: { busy: boolean; onRestor
     <h3 className="font-semibold text-slate-200">Saved backups</h3>
     <p className="text-xs leading-5 text-slate-400">
       {isTauri() ? "Copies are retained in this app’s backup folder." : "Copies are retained in this browser. Export a copy to keep it if browser data is cleared."}
-      {" "}Only backups for the selected server are shown. New backups retain a separate snapshot of device notes. Downloaded pages and Yomikura settings are not included.
+      {" "}Backups are grouped by server address. If a different library has used the same address, check which library a backup came from before restoring it. New backups retain a separate snapshot of device notes. Downloaded pages and Yomikura settings are not included.
     </p>
     {isTauri() && <button type="button" className="yomi-button yomi-button-secondary" disabled={busy || working} onClick={() => void run(openLibraryBackupFolder)}>Open backup folder</button>}
     {(message || backups.error) && <p role="alert" className="text-sm text-red-400">{message || backupErrorMessage(backups.error)}</p>}

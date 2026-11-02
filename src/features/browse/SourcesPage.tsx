@@ -17,7 +17,7 @@ export default function SourcesPage() {
   const sources = (sourcesQuery.data?.sources.nodes ?? []).filter((source) => source.extension?.isInstalled !== false && (!experience.applyContentFilterToInstalled || showNsfw || !source.isNsfw));
   const pins = experience.sourcePins[backend.key] ?? [];
   const groups = groupReadingSources(sources, pins, experience.recentSources[backend.key] ?? []);
-  const sourceRows = (items: SourceSummary[]) => <div className="yomi-catalog">{items.map((source) => {
+  const sourceRows = (items: SourceSummary[]) => <div className="yomi-catalog yomi-source-catalog">{items.map((source) => {
     const id = String(source.id), pinned = pins.includes(id);
     const icon = source.iconUrl ? source.iconUrl.startsWith("http") ? source.iconUrl : `${backend.serverBaseUrl}${source.iconUrl.startsWith("/") ? "" : "/"}${source.iconUrl}` : undefined;
     return <div key={id} className="yomi-catalog-item">

@@ -322,7 +322,7 @@ export default function LibraryPage() {
       <header className="yomi-library-header">
         <div>
           <h1>Library</h1>
-          <p>{isOfflineMode && activeCategoryId === "smart:on_server" ? "Reconnect to check server availability. Select On this device to read saved copies." : `${displayMangas.length} book${displayMangas.length === 1 ? "" : "s"}${isOfflineMode ? " saved on this device" : " in your collection"}`}</p>
+          <p>{isOfflineMode && activeCategoryId === "smart:on_server" ? "Reconnect to check server availability. Select On this device to read saved copies." : `${displayMangas.length} book${displayMangas.length === 1 ? "" : "s"}${searchQuery.trim() || activeCategoryId !== null || activeFilterCount > 0 ? " shown" : isOfflineMode ? " saved on this device" : " in your collection"}`}</p>
         </div>
         <div className="yomi-library-header-actions"><label className="yomi-search"><Search aria-hidden="true" /><input type="search" aria-label="Search library" placeholder="Search library..." value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label><Link className="yomi-button yomi-button-primary" to="/browse/sources"><Plus aria-hidden="true" />Add books</Link></div>
       </header>

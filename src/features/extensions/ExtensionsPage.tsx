@@ -204,7 +204,6 @@ export default function ExtensionsPage() {
     const knownTotal = data?.extensions?.totalCount ?? extensions.length;
 
     return {
-      visible: showNsfw ? extensions.length : extensions.length - hiddenByNsfw,
       hiddenByNsfw: showNsfw ? 0 : hiddenByNsfw,
       total: knownTotal,
       installed,
@@ -289,13 +288,14 @@ export default function ExtensionsPage() {
 
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
               <input
                 type="text"
+                aria-label="Search extensions"
                 placeholder="Search extensions..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                className="yomi-field py-2 pl-10 pr-4"
+                className="yomi-field py-2 !pl-10 pr-4"
               />
             </div>
             <div className="flex items-center gap-3">
@@ -327,7 +327,7 @@ export default function ExtensionsPage() {
           {!isLoading && !isError && extensions.length > 0 && (
             <div className="flex flex-wrap gap-2 text-xs font-medium text-slate-400">
               <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
-                {extensionCounts.visible.toLocaleString()} visible
+                {filteredExtensions.length.toLocaleString()} matching
               </span>
               <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
                 {showNsfw

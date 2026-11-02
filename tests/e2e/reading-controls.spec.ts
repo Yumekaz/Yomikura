@@ -25,6 +25,44 @@ test("chapter selection is deliberate, titles toggle selection, and Done returns
   await expect(page.getByRole("button", { name: "Mark read", exact: true })).toHaveCount(0);
 });
 
+test("chapter actions remain inside the viewport and restore keyboard focus", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 640 });
+  await page.goto("/manga/10002");
+  const trigger = page.getByRole("button", { name: "Actions for Chapter 1: The Journey Begins", exact: true });
+  await trigger.scrollIntoViewIfNeeded();
+  await trigger.evaluate((element) => {
+    window.scrollBy(0, element.getBoundingClientRect().bottom - (window.innerHeight - 16));
+  });
+  const anchor = await trigger.boundingBox();
+  expect(anchor!.y).toBeGreaterThan(320);
+  await trigger.click();
+  const menu = page.getByRole("menu", { name: "Actions for Chapter 1: The Journey Begins", exact: true });
+  await expect(menu).toBeVisible();
+  const rect = await menu.boundingBox();
+  expect(rect!.x).toBeGreaterThanOrEqual(0);
+  expect(rect!.y).toBeGreaterThanOrEqual(0);
+  expect(rect!.x + rect!.width).toBeLessThanOrEqual(1280);
+  expect(rect!.y + rect!.height).toBeLessThanOrEqual(640);
+  await expect(menu.getByRole("menuitem", { name: "Bookmark", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+test("search icons leave room for typed text on discovery screens", async ({ page }) => {
+  for (const [path, label] of [["/browse/search", "Search manga title globally"], ["/browse/mock-source", "Search manga in source"], ["/browse/extensions", "Search extensions"]]) {
+    await page.goto(path);
+    const input = page.getByRole("textbox", { name: label, exact: true });
+    await expect(input).toBeVisible();
+    await input.fill("Test query");
+    const field = await input.boundingBox();
+    const icon = await input.locator("..").locator("svg").first().boundingBox();
+    const padding = await input.evaluate((element) => parseFloat(getComputedStyle(element).paddingLeft));
+    expect(field!.x + padding).toBeGreaterThanOrEqual(icon!.x + icon!.width + 4);
+    await expect(input).toHaveValue("Test query");
+  }
+});
+
 test("dropdowns support typeahead, Escape, focus return and the empty collection choice", async ({ page }) => {
   await page.goto("/library");
   const sort = page.getByRole("combobox", { name: "Sort library", exact: true });

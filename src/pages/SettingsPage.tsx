@@ -234,7 +234,7 @@ function SettingsPage() {
       return;
     }
 
-    const confirmRestore = await confirm({ title: "Restore this backup?", detail: "Yomikura will first save and verify a safety backup on this device, then restore this file. Library, history, and categories may change.", confirmLabel: "Back up and restore", danger: true });
+    const confirmRestore = await confirm({ title: "Restore this backup?", detail: `Check that “${file.name}” is the backup you intend to restore. A server address can be reused by a different library. Yomikura will first save and verify a safety backup on this device. Library, history, and categories may change.`, confirmLabel: "Back up and restore", danger: true });
 
     if (confirmRestore) {
       if (normalizeCacheServerUrl(useSettingsStore.getState().serverBaseUrl) !== normalizeCacheServerUrl(server)) {

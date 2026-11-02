@@ -40,4 +40,8 @@ test("extension catalogs load beyond the first page and expose publisher and con
   const row = (name: string) => ({ pkgName: name, name, lang: "en", isInstalled: false, isNsfw: false, isObsolete: name === "Third extension", contentWarning: name === "Third extension" ? "MIXED" : "SAFE", hasUpdate: false, versionName: "1.0", extensionStore: { name: "Example publisher", indexUrl: "https://extensions.example/repo.json" } });
   await page.route("**/api/graphql", async (route) => { const request = route.request().postDataJSON(); if (request.operationName !== "GetExtensions") return route.fallback(); const after = request.variables?.after; cursors.push(after ?? null); await route.fulfill({ json: { data: { extensions: { totalCount: 3, nodes: after ? [row("Third extension")] : [row("First extension"), row("Second extension")], pageInfo: { hasNextPage: !after, endCursor: after ? null : "next" } } } } }); });
   await page.goto("/extensions"); await expect(page.getByText("Third extension", { exact: true })).toBeVisible(); await expect(page.getByText("3 total", { exact: true })).toBeVisible(); await expect(page.getByText("Mixed content", { exact: true })).toBeVisible(); await expect(page.getByText("No longer listed", { exact: true })).toBeVisible(); expect([...new Set(cursors)]).toEqual([null, "next"]);
+  await page.getByRole("textbox", { name: "Search extensions", exact: true }).fill("Third");
+  await expect(page.getByText("1 matching", { exact: true })).toBeVisible();
+  await expect(page.getByText("First extension", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Third extension", { exact: true })).toBeVisible();
 });
