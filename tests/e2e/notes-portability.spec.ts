@@ -7,6 +7,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript((backend) => { if (!localStorage.getItem("yomikura-settings")) localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: backend, mockMode: false, connectionStatus: "connected" } })); }, backend);
   await page.route(`${backend}/api/graphql`, async (route) => {
     const { query, operationName, variables = {} } = route.request().postDataJSON(), name = operationName || /\b(?:query|mutation)\s+(\w+)/.exec(query)?.[1];
+    if (name === "YomikuraLibraryIdentity") return route.fulfill({ json: { data: { metas: { nodes: [{ key: "yomikura.library.identity.v1", value: "11111111-1111-4111-8111-111111111111" }] } } } });
     if (name === "CreateBackup") return route.fulfill({ json: { data: { createBackup: { url: "/export/notes-fixture.tachibk" } } } });
     const method = (mockSdk as unknown as Record<string, (args: unknown) => Promise<unknown>>)[name];
     await route.fulfill({ json: { data: method ? await method(variables) : { __typename: "Query" } } });
