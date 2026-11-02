@@ -114,9 +114,10 @@ export async function getProgressHeads(backend: ProgressBackend, includeEarlier 
   const marker = backend.isDemo ? undefined : rememberedLibrary(backend.serverBaseUrl)?.marker;
   return includeEarlier ? heads : heads.filter((head) => (head.libraryId ?? undefined) === marker);
 }
-export async function getEarlierProgress() {
+export async function getEarlierProgress(currentServer?: string) {
   const heads = await transaction(["heads"], "readonly", (tx) => read<ProgressHead[]>(tx.objectStore("heads").getAll()));
-  return heads.filter((head) => !head.backend.isDemo && (head.backend.key.startsWith("earlier:") || head.libraryId !== rememberedLibrary(head.backend.serverBaseUrl)?.marker));
+  const selected = currentServer ? new URL(currentServer).toString().replace(/\/+$/, "") : undefined;
+  return heads.filter((head) => !head.backend.isDemo && (selected && head.backend.serverBaseUrl !== selected || head.backend.key.startsWith("earlier:") || head.libraryId !== rememberedLibrary(head.backend.serverBaseUrl)?.marker));
 }
 
 export function progressHeadVersion(head: ProgressHead | undefined) {

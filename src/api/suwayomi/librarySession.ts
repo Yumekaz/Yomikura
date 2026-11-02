@@ -24,7 +24,7 @@ export function rememberLibrary(server: string, identity: LibraryIdentity) {
   if (values[key]?.marker === identity.marker) return;
   values[key] = identity;
   localStorage.setItem(KEY, JSON.stringify(values));
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(LIBRARY_SESSION_EVENT));
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(LIBRARY_SESSION_EVENT, { detail: key }));
 }
 /** Never adopt a replacement marker as part of a mutation or replay. */
 export async function assertLibrarySession(server: string, expected = rememberedLibrary(server)?.marker) {

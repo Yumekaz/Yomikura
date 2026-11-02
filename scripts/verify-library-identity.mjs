@@ -6,6 +6,7 @@ import { copyFile, mkdir, mkdtemp } from "node:fs/promises";
 import { createServer as createNetServer } from "node:net";
 import path from "node:path";
 import { createServer } from "vite";
+import { IDBFactory } from "fake-indexeddb";
 
 if (process.env.CI !== "true") throw new Error("Run the live identity test on the disposable CI runner only.");
 const argument = (name) => process.argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -19,8 +20,28 @@ await new Promise((resolve, reject) => { reservation.once("error", reject); rese
 const port = reservation.address().port;
 await new Promise((resolve) => reservation.close(resolve));
 const base = `http://127.0.0.1:${port}`;
-const compiler = await createServer({ configFile: false, server: { middlewareMode: true }, appType: "custom" });
+const compiler = await createServer({ configFile: false, server: { middlewareMode: true, watch: { ignored: ["**/.cache/**"] } }, appType: "custom" });
+// Exercise the production data services with isolated client storage as well.
+// No browser profile, installed app, or personal library is used by this runner.
+const localValues = new Map();
+globalThis.localStorage = { getItem: (key) => localValues.get(key) ?? null, setItem: (key, value) => localValues.set(key, value), removeItem: (key) => localValues.delete(key) };
+globalThis.indexedDB = new IDBFactory();
+globalThis.window = Object.assign(new EventTarget(), { setInterval, clearInterval, setTimeout, clearTimeout, location: { origin: "http://client-fixture.example" } });
+Object.defineProperty(globalThis, "navigator", { value: {}, configurable: true });
 const { establishLibraryIdentity, readLibraryIdentity, verifyLibraryIdentity, replaceLibraryIdentity } = await compiler.ssrLoadModule("/src/api/suwayomi/libraryIdentity.ts");
+const { useSettingsStore } = await compiler.ssrLoadModule("/src/stores/useSettingsStore.ts");
+await useSettingsStore.persist.rehydrate();
+useSettingsStore.setState({ hasHydrated: true, serverBaseUrl: base, mockMode: false, connectionStatus: "connected", backupIntervalHours: 0, autoDeleteReadChapters: false, autoDownloadCount: 0 });
+const { progressBackend } = await compiler.ssrLoadModule("/src/api/suwayomi/backendIdentity.ts");
+const { rememberLibrary, assertLibrarySession } = await compiler.ssrLoadModule("/src/api/suwayomi/librarySession.ts");
+const { createGraphqlClient } = await compiler.ssrLoadModule("/src/api/graphql/client.ts");
+const { saveProgressIntent, synchronizeProgress, resolveProgressConflict, progressChapterIdentity } = await compiler.ssrLoadModule("/src/api/suwayomi/progressSync.ts");
+const { getProgressOperations, getEarlierProgress } = await compiler.ssrLoadModule("/src/api/suwayomi/progressStorage.ts");
+const { createLibraryBackup } = await compiler.ssrLoadModule("/src/api/suwayomi/libraryBackups.ts");
+const { readLibraryBackup } = await compiler.ssrLoadModule("/src/api/suwayomi/backupStorage.ts");
+const { beginLibraryRestore, recordLibraryRestore, finishLibraryRestore, pendingLibraryRestore } = await compiler.ssrLoadModule("/src/api/suwayomi/restoreIdentity.ts");
+const { restoreBackupUpload } = await compiler.ssrLoadModule("/src/api/suwayomi/backupUpload.ts");
+const { waitForRestoreStatus } = await compiler.ssrLoadModule("/src/components/settings/backupRestore.ts");
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function graphql(query, variables) {
   const response = await fetch(`${base}/api/graphql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, variables }), signal: AbortSignal.timeout(5000) });
@@ -74,15 +95,23 @@ async function fixtureChapter() {
   return { mangaId: manga.id, ...details.fetchMangaAndChapters.chapters[0] };
 }
 try {
-  let firstChapter;
+  let firstChapter, firstArchive, firstClient;
   const first = await withLibrary("first-library", async () => {
     firstChapter = await fixtureChapter();
     await graphql("mutation IdentityRead($id: Int!) { updateChapter(input: { id: $id, patch: { isRead: true } }) { chapter { id isRead } } }", { id: firstChapter.id });
     const identity = await establishLibraryIdentity(base);
     console.log(`First library marker: ${identity.marker}`);
     await verifyLibraryIdentity(base, identity);
-    const backup = await graphql("mutation IdentityBackup { createBackup(input: {}) { url } }");
-    assert.ok(backup.createBackup.url);
+    await graphql("mutation IdentityAdd($id: Int!) { updateManga(input: { id: $id, patch: { inLibrary: true } }) { manga { id } } }", { id: firstChapter.mangaId });
+    rememberLibrary(base, identity);
+    firstClient = createGraphqlClient(`${base}/api/graphql`, undefined, "live");
+    const backup = await createLibraryBackup(firstClient, base, "manual");
+    firstArchive = (await readLibraryBackup(base, backup.id)).bytes;
+    assert.equal(backup.libraryId, identity.marker);
+    const chapter = (await firstClient.GetChapter({ id: firstChapter.id })).chapter;
+    const saved = await saveProgressIntent(progressBackend(base), { kind: "explicit", chapter: progressChapterIdentity(chapter), baseline: { isRead: chapter.isRead, lastPageRead: chapter.lastPageRead }, patch: { isBookmarked: true } });
+    assert.equal(saved.accepted, true);
+    assert.equal((await getProgressOperations(progressBackend(base))).length, 1);
     return identity;
   });
   await withLibrary("second-library", async () => {
@@ -96,6 +125,38 @@ try {
     assert.notEqual(second.marker, first.marker);
     await verifyLibraryIdentity(base, second);
     await assert.rejects(verifyLibraryIdentity(base, first), /changed/);
+    rememberLibrary(base, second);
+    const secondBackend = progressBackend(base), secondClient = createGraphqlClient(`${base}/api/graphql`, undefined, "live");
+    await synchronizeProgress(secondBackend);
+    const quarantined = await getProgressOperations(secondBackend);
+    assert.equal(quarantined.length, 1); assert.equal(quarantined[0].status, "blocked"); assert.equal(quarantined[0].libraryId, first.marker);
+    await assert.rejects(firstClient.UpdateChapterProgress({ input: { id: secondChapter.id, patch: { isBookmarked: true } } }), /different library/);
+    assert.equal((await secondClient.GetChapter({ id: secondChapter.id })).chapter.isBookmarked, false);
+    await resolveProgressConflict(secondBackend, secondChapter.id, false, quarantined[0].sequence);
+    assert.equal((await getProgressOperations(secondBackend)).length, 0);
+    assert.ok((await getEarlierProgress(base)).some((head) => head.libraryId === first.marker));
+    const chapter = (await secondClient.GetChapter({ id: secondChapter.id })).chapter;
+    assert.equal((await saveProgressIntent(secondBackend, { kind: "explicit", chapter: progressChapterIdentity(chapter), baseline: { isRead: chapter.isRead, lastPageRead: chapter.lastPageRead }, patch: { isBookmarked: true } })).accepted, true);
+    const safety = await createLibraryBackup(secondClient, base, "safety");
+    assert.equal(safety.libraryId, second.marker);
+    assert.ok((await readLibraryBackup(base, safety.id)).bytes.length);
+    const token = beginLibraryRestore(base);
+    await assert.rejects(assertLibrarySession(base, second.marker), /restore/);
+    const restore = await restoreBackupUpload(`${base}/api/graphql`, new File([firstArchive], "first-library.tachibk", { type: "application/gzip" }));
+    recordLibraryRestore(base, token, restore.id);
+    const completed = await waitForRestoreStatus((id) => secondClient.GetRestoreStatus({ id }), restore.id);
+    assert.equal(completed.completed, true);
+    await finishLibraryRestore(base, token);
+    assert.equal(pendingLibraryRestore(base), undefined);
+    const restored = await readLibraryIdentity(base);
+    assert.ok(restored); assert.notEqual(restored.marker, first.marker); assert.notEqual(restored.marker, second.marker);
+    await synchronizeProgress(progressBackend(base));
+    const preRestore = await getProgressOperations(progressBackend(base));
+    assert.equal(preRestore.length, 1); assert.equal(preRestore[0].status, "blocked"); assert.equal(preRestore[0].libraryId, second.marker);
+    const restoredClient = createGraphqlClient(`${base}/api/graphql`, undefined, "live");
+    assert.equal((await restoredClient.GetChapter({ id: secondChapter.id })).chapter.isBookmarked, false);
+    assert.equal((await restoredClient.GetChapter({ id: secondChapter.id })).chapter.isRead, true);
+    console.log("PASS: production replay quarantined earlier pending progress, explicit review retained an archived record, a verified safety copy preceded real restore, and pre-restore work stayed blocked after marker renewal.");
     // Simulate a clone/restore that carries the first library's client marker.
     await graphql('mutation IdentityClone($value: String!) { setGlobalMeta(input: { meta: { key: "yomikura.library.identity.v1", value: $value } }) { meta { value } } }', { value: first.marker });
     const separated = await replaceLibraryIdentity(base, first);
@@ -111,5 +172,5 @@ try {
     assert.deepEqual(reopened, first);
     await verifyLibraryIdentity(base, first);
   });
-  console.log("PASS: two real Suwayomi databases reused one endpoint; markers stayed distinct, stale identity was rejected, exports succeeded, and the first identity survived restart.");
+  console.log("PASS: two real Suwayomi databases reused one endpoint; stale progress and mutations were rejected, backup/restore and copied-marker separation succeeded, and the first identity survived idle restart.");
 } finally { await compiler.close(); }

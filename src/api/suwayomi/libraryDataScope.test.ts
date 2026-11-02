@@ -4,6 +4,7 @@ import { rememberLibrary } from "./librarySession";
 import { deleteCachedChapter, getCachedChapter, getCachedChapters, saveCachedChapter, saveDownloadJob, getDownloadJobs, recordReadingActivity, getReadingHistory, type CachedChapter } from "./offlineCache";
 import { progressBackend } from "./backendIdentity";
 import { bookNoteScope, getBookNoteDraft, saveBookNoteDraft } from "../../features/manga/bookNoteStorage";
+import { enqueueProgress, getEarlierProgress, getProgressOperations } from "./progressStorage";
 const server = "http://library.example", first = "11111111-1111-4111-8111-111111111111", second = "22222222-2222-4222-8222-222222222222";
 beforeEach(() => {
   vi.stubGlobal("indexedDB", new IDBFactory());
@@ -44,4 +45,12 @@ it("does not reassign a legacy record when an older callback writes after verifi
   await saveCachedChapter({ ...earlier!, lastPageRead: 0 });
   expect(await getCachedChapter(server, 12)).toBeNull();
   expect((await getCachedChapters())[0].libraryId).toBeUndefined();
+});
+it("retains progress at an earlier address for deliberate recovery rather than silently moving it", async () => {
+  rememberLibrary(server, { marker: first }); const backend = progressBackend(server);
+  await enqueueProgress(backend, { kind: "reading", chapter: { chapterId: 12, chapterName: "Chapter 1", chapterNumber: 1, mangaId: 42, mangaTitle: "Same title", pageCount: 2 }, baseline: { isRead: false, lastPageRead: 0 }, patch: { isRead: false, lastPageRead: 1 } });
+  const moved = "http://moved-library.example"; rememberLibrary(moved, { marker: first });
+  expect(await getEarlierProgress(moved)).toHaveLength(1);
+  expect(await getProgressOperations(progressBackend(moved))).toEqual([]);
+  expect(await getProgressOperations(backend)).toHaveLength(1);
 });

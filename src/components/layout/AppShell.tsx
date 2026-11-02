@@ -13,7 +13,7 @@ import { UpdateNotificationBanner } from "../UpdateNotificationBanner";
 import { useDeviceProfileBootstrap } from "../../hooks/useDeviceProfile";
 import { useScheduledBackup } from "../../hooks/useScheduledBackup";
 import { useScheduledLibraryUpdate } from "../../hooks/useScheduledLibraryUpdate";
-import { getCachedChapters } from "../../api/suwayomi/offlineCache";
+import { getCachedChapters, normalizeCacheServerUrl } from "../../api/suwayomi/offlineCache";
 import { useProgressSynchronization } from "../../hooks/useProgressSynchronization";
 import { useDownloadCleanup } from "../../hooks/useDownloadCleanup";
 import { ProgressSyncStatus } from "../ProgressSyncStatus";
@@ -805,7 +805,11 @@ function LibrarySessionBoundary() {
   const [revision, setRevision] = useState(0);
   const [restoreRevision, setRestoreRevision] = useState(0);
   useEffect(() => {
-    const changed = () => { useDownloadStore.getState().pauseForShutdown(); client.clear(); setRevision((value) => value + 1); };
+    const changed = (event?: Event) => {
+      const server = (event as CustomEvent<string> | undefined)?.detail;
+      if (typeof server === "string" && normalizeCacheServerUrl(useSettingsStore.getState().serverBaseUrl) !== server) return;
+      useDownloadStore.getState().pauseForShutdown(); client.clear(); setRevision((value) => value + 1);
+    };
     window.addEventListener(LIBRARY_SESSION_EVENT, changed);
     const restoreChanged = () => { useDownloadStore.getState().pauseForShutdown(); setRestoreRevision((value) => value + 1); };
     window.addEventListener(LIBRARY_RESTORE_EVENT, restoreChanged);

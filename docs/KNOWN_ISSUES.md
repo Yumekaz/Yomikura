@@ -22,7 +22,9 @@ Windows receives the automated install, local-engine readiness, shutdown, uninst
 
 ## Reusing a server address for a different library
 
-Some client data, including saved-backup lists, is scoped by server address rather than a verified server-instance identity. If a different Suwayomi library later uses the same address, old backups can appear alongside the new library's backups. The same address-based boundary is used by other local reading stores and needs a broader identity audit. Check a backup's origin before restoring it; avoid replacing a library behind an existing address until its client data has been reviewed.
+Yomikura now verifies a client metadata marker, records backup origins, and tags new progress, notes and saved chapters with their library marker. Earlier or unverified data is retained for review rather than silently assigned. Backups with another marker cannot postpone a fresh scheduled backup. Earlier saved pages and notes remain available in Settings → Storage.
+
+A restored or copied Suwayomi database can carry the same marker. There is no server-instance identifier or conditional-write API that distinguishes an identical clone at the same address. Use Connection → Separate this library's saved data when a copied server should be treated separately. Metadata checks are not atomic with server mutations. Restore recovery pauses writes from this client until confirmed; it cannot lock other clients. Abrupt termination immediately after metadata writes did not retain the marker in the first CI probe, so crash-durable server metadata is not claimed. See [identity implementation and evidence](LIBRARY_IDENTITY_2026-11-02.md) for validation boundaries.
 
 ## Local-source Date search sorting in Suwayomi v2.3.2243
 
