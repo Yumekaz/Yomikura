@@ -35,3 +35,11 @@ export async function establishLibraryIdentity(server: string): Promise<LibraryI
 export async function verifyLibraryIdentity(server: string, expected: LibraryIdentity) {
   if ((await readLibraryIdentity(server))?.marker !== expected.marker) throw new Error("The library at this address changed during the operation. Reconnect and try again. Existing recovery copies are retained.");
 }
+/** Deliberate user action for restored/cloned libraries with a copied marker. */
+export async function replaceLibraryIdentity(server: string, expected: LibraryIdentity) {
+  await verifyLibraryIdentity(server, expected);
+  const replacement = { marker: crypto.randomUUID() };
+  await request(server, WRITE, { value: replacement.marker });
+  await verifyLibraryIdentity(server, replacement);
+  return replacement;
+}

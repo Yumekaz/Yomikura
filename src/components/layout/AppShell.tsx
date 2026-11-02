@@ -22,7 +22,7 @@ import { ReadingModeNotice } from "../ReadingModeNotice";
 import { BrandLogo, SidebarCompanion, SanctuaryArt } from "../Brand";
 import { applyPalette } from "../../theme/palettes";
 import { DesktopDownloadLink } from "../onboarding/DesktopDownloadLink";
-import { DEFAULT_SERVER_BASE_URL } from "../../config/server";
+import { DEFAULT_SERVER_BASE_URL, validateServerBaseUrl } from "../../config/server";
 import { LIBRARY_SESSION_EVENT, rememberedLibrary } from "../../api/suwayomi/librarySession";
 
 function ProfileSwitcher() {
@@ -804,7 +804,7 @@ function LibrarySessionBoundary() {
     window.addEventListener("storage", storageChanged);
     return () => { window.removeEventListener(LIBRARY_SESSION_EVENT, changed); window.removeEventListener("storage", storageChanged); };
   }, [client]);
-  const marker = mockMode ? "demo" : (serverBaseUrl.trim() ? rememberedLibrary(serverBaseUrl)?.marker : undefined) ?? "unverified";
+  const marker = mockMode ? "demo" : (validateServerBaseUrl(serverBaseUrl).valid ? rememberedLibrary(serverBaseUrl)?.marker : undefined) ?? "unverified";
   return <AppShell key={`${marker}:${revision}`} />;
 }
 export default LibrarySessionBoundary;

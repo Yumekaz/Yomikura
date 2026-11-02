@@ -1,5 +1,5 @@
 import { validateServerBaseUrl } from "../../config/server";
-import { readLibraryIdentity, type LibraryIdentity, validLibraryMarker } from "./libraryIdentity";
+import { readLibraryIdentity, replaceLibraryIdentity, type LibraryIdentity, validLibraryMarker } from "./libraryIdentity";
 
 const KEY = "yomikura-library-sessions-v1";
 export const LIBRARY_SESSION_EVENT = "yomikura-library-session-changed";
@@ -30,4 +30,10 @@ export async function assertLibrarySession(server: string, expected = remembered
   if (!expected) return;
   const remote = await readLibraryIdentity(server);
   if (remote?.marker !== expected) throw new Error("This address now points to a different library. Pending updates are kept on this device. Reconnect and review them before syncing.");
+}
+export async function separateLibrarySession(server: string) {
+  const expected = rememberedLibrary(server);
+  if (!expected) throw new Error("Reconnect before separating this library's saved data.");
+  const identity = await replaceLibraryIdentity(server, expected);
+  rememberLibrary(server, identity);
 }

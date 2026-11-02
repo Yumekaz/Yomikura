@@ -24,6 +24,7 @@ import { AboutSettingsPanel } from "../components/settings/AboutSettingsPanel";
 import { SettingsStatusPanel } from "../components/settings/SettingsStatusPanel";
 import { OfflineSettingsPanel } from "../components/settings/OfflineSettingsPanel";
 import { EarlierLibraryData } from "../components/settings/EarlierLibraryData";
+import { LibraryIdentityPanel } from "../components/settings/LibraryIdentityPanel";
 import { BackupSettingsPanel, type BackupMessage } from "../components/settings/BackupSettingsPanel";
 import { useFeedback } from "../components/ui/FeedbackProvider";
 import { useNavigate, useParams } from "react-router-dom";
@@ -603,6 +604,7 @@ function SettingsPage() {
                 </div>
               </div>
 
+              <LibraryIdentityPanel />
               {/* Portability: Backup Server Profiles */}
               <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
                 <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">

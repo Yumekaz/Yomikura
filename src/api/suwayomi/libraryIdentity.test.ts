@@ -1,8 +1,23 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { establishLibraryIdentity, LIBRARY_MARKER, readLibraryIdentity, verifyLibraryIdentity } from "./libraryIdentity";
+import { establishLibraryIdentity, LIBRARY_MARKER, readLibraryIdentity, verifyLibraryIdentity, replaceLibraryIdentity } from "./libraryIdentity";
 const first = "11111111-1111-4111-8111-111111111111", second = "22222222-2222-4222-8222-222222222222";
 const reply = (marker?: string) => new Response(JSON.stringify({ data: { metas: { nodes: marker ? [{ key: LIBRARY_MARKER, value: marker }] : [] } } }), { headers: { "content-type": "application/json" } });
 afterEach(() => vi.unstubAllGlobals());
+it("separates a copied marker only after verifying the currently connected library", async () => {
+  let marker = first;
+  vi.stubGlobal("fetch", vi.fn(async (_url, options: RequestInit) => {
+    const body = JSON.parse(String(options.body));
+    if (body.variables?.value) marker = body.variables.value;
+    return reply(marker);
+  }));
+  const changed = await replaceLibraryIdentity("http://localhost:4567", { marker: first });
+  expect(changed.marker).not.toBe(first); expect(changed.marker).toBe(marker);
+});
+it("does not overwrite a replacement server while separating a copied library", async () => {
+  const fetcher = vi.fn(async () => reply(second)); vi.stubGlobal("fetch", fetcher);
+  await expect(replaceLibraryIdentity("http://localhost:4567", { marker: first })).rejects.toThrow("changed");
+  expect(fetcher).toHaveBeenCalledOnce();
+});
 
 it("retains an existing marker without overwriting another client's identity", async () => {
   const fetcher = vi.fn(async () => reply(first)); vi.stubGlobal("fetch", fetcher);

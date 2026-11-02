@@ -20,7 +20,7 @@ const port = reservation.address().port;
 await new Promise((resolve) => reservation.close(resolve));
 const base = `http://127.0.0.1:${port}`;
 const compiler = await createServer({ configFile: false, server: { middlewareMode: true }, appType: "custom" });
-const { establishLibraryIdentity, readLibraryIdentity, verifyLibraryIdentity } = await compiler.ssrLoadModule("/src/api/suwayomi/libraryIdentity.ts");
+const { establishLibraryIdentity, readLibraryIdentity, verifyLibraryIdentity, replaceLibraryIdentity } = await compiler.ssrLoadModule("/src/api/suwayomi/libraryIdentity.ts");
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function graphql(query, variables) {
   const response = await fetch(`${base}/api/graphql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, variables }), signal: AbortSignal.timeout(5000) });
@@ -95,6 +95,12 @@ try {
     console.log(`Second library marker: ${second.marker}`);
     assert.notEqual(second.marker, first.marker);
     await verifyLibraryIdentity(base, second);
+    await assert.rejects(verifyLibraryIdentity(base, first), /changed/);
+    // Simulate a clone/restore that carries the first library's client marker.
+    await graphql('mutation IdentityClone($value: String!) { setGlobalMeta(input: { meta: { key: "yomikura.library.identity.v1", value: $value } }) { meta { value } } }', { value: first.marker });
+    const separated = await replaceLibraryIdentity(base, first);
+    assert.notEqual(separated.marker, first.marker);
+    await verifyLibraryIdentity(base, separated);
     await assert.rejects(verifyLibraryIdentity(base, first), /changed/);
     const backup = await graphql("mutation IdentityBackup { createBackup(input: {}) { url } }");
     assert.ok(backup.createBackup.url);
