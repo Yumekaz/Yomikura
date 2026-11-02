@@ -20,7 +20,7 @@ const port = reservation.address().port;
 await new Promise((resolve) => reservation.close(resolve));
 const base = `http://127.0.0.1:${port}`;
 const compiler = await createServer({ configFile: false, server: { middlewareMode: true }, appType: "custom" });
-const { establishLibraryIdentity, verifyLibraryIdentity } = await compiler.ssrLoadModule("/src/api/suwayomi/libraryIdentity.ts");
+const { establishLibraryIdentity, readLibraryIdentity, verifyLibraryIdentity } = await compiler.ssrLoadModule("/src/api/suwayomi/libraryIdentity.ts");
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function graphql(query, variables) {
   const response = await fetch(`${base}/api/graphql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, variables }), signal: AbortSignal.timeout(5000) });
@@ -54,7 +54,11 @@ async function withLibrary(name, callback) {
       try { await graphql("query IdentityReadiness { __typename }"); break; }
       catch (error) { if (Date.now() >= deadline) throw error; await pause(1000); }
     }
-    return await callback();
+    const result = await callback();
+    // Windows child.kill() is immediate termination, not a graceful JVM exit.
+    // Check an idle restart here; the first abrupt-stop attempt is retained as a failure.
+    await pause(2000);
+    return result;
   } finally {
     if (!stopped) child.kill();
     await Promise.race([exited, pause(15000).then(() => { if (!stopped) throw new Error("The isolated backend did not stop."); })]);
@@ -75,6 +79,7 @@ try {
     firstChapter = await fixtureChapter();
     await graphql("mutation IdentityRead($id: Int!) { updateChapter(input: { id: $id, patch: { isRead: true } }) { chapter { id isRead } } }", { id: firstChapter.id });
     const identity = await establishLibraryIdentity(base);
+    console.log(`First library marker: ${identity.marker}`);
     await verifyLibraryIdentity(base, identity);
     const backup = await graphql("mutation IdentityBackup { createBackup(input: {}) { url } }");
     assert.ok(backup.createBackup.url);
@@ -87,6 +92,7 @@ try {
     const unchanged = await graphql("query IdentityUnchanged($id: Int!) { chapter(id: $id) { isRead } }", { id: secondChapter.id });
     assert.equal(unchanged.chapter.isRead, false);
     const second = await establishLibraryIdentity(base);
+    console.log(`Second library marker: ${second.marker}`);
     assert.notEqual(second.marker, first.marker);
     await verifyLibraryIdentity(base, second);
     await assert.rejects(verifyLibraryIdentity(base, first), /changed/);
@@ -94,7 +100,9 @@ try {
     assert.ok(backup.createBackup.url);
   });
   await withLibrary("first-library", async () => {
-    assert.deepEqual(await establishLibraryIdentity(base), first);
+    const reopened = await readLibraryIdentity(base);
+    console.log(`Reopened first library marker: ${reopened?.marker ?? "MISSING"}`);
+    assert.deepEqual(reopened, first);
     await verifyLibraryIdentity(base, first);
   });
   console.log("PASS: two real Suwayomi databases reused one endpoint; markers stayed distinct, stale identity was rejected, exports succeeded, and the first identity survived restart.");

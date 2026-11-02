@@ -18,7 +18,7 @@ export function SavedBackupsPanel({ busy, onRestore }: { busy: boolean; onRestor
   const [message, setMessage] = useState("");
   const queryKey = ["library-backups", server];
   const backups = useQuery({ queryKey, queryFn: () => listLibraryBackups(server), enabled: !!server && !mockMode });
-  const identity = useQuery({ queryKey: ["backup-library-identity", server], queryFn: () => readLibraryIdentity(server), enabled: !!server && !mockMode && connectionStatus === "connected", retry: false, refetchInterval: 30000 });
+  const identity = useQuery({ queryKey: ["backup-library-identity", server], queryFn: async () => await readLibraryIdentity(server) ?? null, enabled: !!server && !mockMode && connectionStatus === "connected", retry: false, refetchInterval: 30000 });
 
   useEffect(() => {
     setMessage("");
