@@ -274,7 +274,6 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
           <SidebarCompanion />
           {utilityNav.map((item) => <ShellNavLink key={item.path} item={item} />)}
           <BackendHealthBadge />
-          <ProgressSyncStatus />
         </div>
       </aside>
       <main id="main-content" className="yomi-main" tabIndex={-1}>
@@ -284,6 +283,7 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
         <PwaUpdateNotice />
         <LibraryUpdateNotice />
         <ReadingModeNotice />
+        <ProgressSyncStatus wide />
         {mockMode && !location.pathname.startsWith("/reader/") && (
           <div className="yomi-demo-notice">
             <span><Sparkles aria-hidden="true" />Demo library <span className="yomi-demo-description">· Explore with original sample books. Your library stays separate.</span></span>

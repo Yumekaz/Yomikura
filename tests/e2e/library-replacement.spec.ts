@@ -44,6 +44,7 @@ test("replacement library quarantines offline progress and retains earlier pages
   await page.goto("/settings/offline");
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("yomikura-library-sessions-v1") ?? "{}")["http://127.0.0.1:45679"]?.marker)).toBe(second);
   await expect(page.getByRole("status", { name: "Progress synchronization" })).toContainText("earlier or unverified library");
+  await expect(page.getByRole("status", { name: "Progress synchronization" })).toBeInViewport();
   expect(writes).toHaveLength(0);
   await page.getByText("Earlier saved libraries", { exact: true }).click();
   await expect(page.getByText("Earlier library thought", { exact: true })).toBeVisible();
