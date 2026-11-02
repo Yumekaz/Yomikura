@@ -23,7 +23,7 @@ export function recentReading(server: ReadingCandidate[], local: ReadingCandidat
   for (const item of local) {
     const previous = merged.get(item.chapterId);
     if (previous && (previous.mangaId !== item.mangaId || previous.title !== item.title || previous.chapterName !== item.chapterName)) continue;
-    if (item.authoritative || item.isHidden || !previous || item.readAt >= previous.readAt) merged.set(item.chapterId, item);
+    if (item.authoritative || item.isHidden || !previous || item.readAt >= previous.readAt) merged.set(item.chapterId, { ...item, thumbnailUrl: item.thumbnailUrl || previous?.thumbnailUrl });
   }
   return [...merged.values()].filter((item) => libraryIds.has(item.mangaId) && (includeCompleted || !item.isRead) && !item.isHidden && item.readAt > 0).sort((a, b) => b.readAt - a.readAt)[0];
 }
@@ -32,7 +32,7 @@ function timestamp(value: unknown) {
   return Number.isFinite(number) ? (number < 30_000_000_000 ? number * 1000 : number) : Date.parse(String(value)) || 0;
 }
 
-export function ContinueReading({ books }: { books: { id: number; title: string }[] }) {
+export function ContinueReading({ books }: { books: { id: number; title: string; thumbnailUrl?: string | null }[] }) {
   const { serverBaseUrl, mockMode, chapterPolicies, experience } = useSettingsStore();
   const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
   const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`, undefined, mockMode ? "demo" : "live"), [serverBaseUrl, mockMode]);
@@ -45,9 +45,10 @@ export function ContinueReading({ books }: { books: { id: number; title: string 
   const heads = useQuery({ queryKey: ["progress-local", progressBackend(serverBaseUrl, mockMode).key], queryFn: () => getProgressHeads(progressBackend(serverBaseUrl, mockMode)), enabled: !!serverBaseUrl });
   const candidates = useMemo(() => {
     const titles = new Map(books.map((book) => [book.id, book.title]));
+    const covers = new Map(books.map((book) => [book.id, book.thumbnailUrl]));
     const cutoffs = historyCutoffs(local.data ?? [], mockMode);
     const remote = (server.data?.chapters.nodes ?? []).filter((chapter) => titles.get(chapter.mangaId) === chapter.manga.title && timestamp(chapter.lastReadAt) > (cutoffs.get(historyTitleKey(chapter.mangaId, chapter.manga.title))?.serverBefore ?? 0)).map((chapter) => ({ chapterId: chapter.id, mangaId: chapter.mangaId, title: chapter.manga.title, chapterName: chapter.name, thumbnailUrl: chapter.manga.thumbnailUrl, lastPageRead: chapter.lastPageRead, readAt: timestamp(chapter.lastReadAt), isRead: chapter.isRead }));
-    const saved = (local.data ?? []).filter((event) => !event.hideMangaBefore && (event.isDemo ?? event.mangaTitle.startsWith("[Demo]")) === mockMode && titles.get(event.mangaId) === event.mangaTitle && (event.isHidden || event.readAt > (cutoffs.get(historyTitleKey(event.mangaId, event.mangaTitle))?.localBefore ?? 0))).map((event) => ({ chapterId: event.chapterId, mangaId: event.mangaId, title: event.mangaTitle, chapterName: event.chapterName, thumbnailUrl: event.thumbnailUrl, lastPageRead: event.lastPageRead, pageCount: event.pageCount, readAt: event.readAt, isRead: event.isRead ?? false, isHidden: event.isHidden, authoritative: mockMode || server.isError || heads.data?.some((head) => head.chapter.chapterId === event.chapterId && head.chapter.mangaId === event.mangaId && head.chapter.mangaTitle === event.mangaTitle && head.chapter.chapterName === event.chapterName && head.sequence > head.acknowledgedSequence) }));
+    const saved = (local.data ?? []).filter((event) => !event.hideMangaBefore && (event.isDemo ?? event.mangaTitle.startsWith("[Demo]")) === mockMode && titles.get(event.mangaId) === event.mangaTitle && (event.isHidden || event.readAt > (cutoffs.get(historyTitleKey(event.mangaId, event.mangaTitle))?.localBefore ?? 0))).map((event) => ({ chapterId: event.chapterId, mangaId: event.mangaId, title: event.mangaTitle, chapterName: event.chapterName, thumbnailUrl: event.thumbnailUrl || covers.get(event.mangaId), lastPageRead: event.lastPageRead, pageCount: event.pageCount, readAt: event.readAt, isRead: event.isRead ?? false, isHidden: event.isHidden, authoritative: mockMode || server.isError || heads.data?.some((head) => head.chapter.chapterId === event.chapterId && head.chapter.mangaId === event.mangaId && head.chapter.mangaTitle === event.mangaTitle && head.chapter.chapterName === event.chapterName && head.sequence > head.acknowledgedSequence) }));
     const ids = new Set(titles.keys());
     return { latest: recentReading(remote, saved, ids, true), unfinished: recentReading(remote, saved, ids) };
   }, [books, local.data, heads.data, mockMode, server.data, server.isError]);

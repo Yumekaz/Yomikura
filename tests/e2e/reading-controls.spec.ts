@@ -64,6 +64,18 @@ test("search icons leave room for typed text on discovery screens", async ({ pag
   }
 });
 
+test("source names remain readable at desktop and narrow widths", async ({ page }) => {
+  for (const width of [1280, 360]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/browse/sources");
+    const name = page.getByRole("link", { name: "Browse Yomikura Playground", exact: true }).first().locator("strong");
+    await expect(name).toBeVisible();
+    const overflow = await name.evaluate((element) => ({ horizontal: element.scrollWidth - element.clientWidth, vertical: element.scrollHeight - element.clientHeight }));
+    expect(overflow.horizontal).toBeLessThanOrEqual(1);
+    expect(overflow.vertical).toBeLessThanOrEqual(1);
+  }
+});
+
 test("dropdowns support typeahead, Escape, focus return and the empty collection choice", async ({ page }) => {
   await page.goto("/library");
   const sort = page.getByRole("combobox", { name: "Sort library", exact: true });

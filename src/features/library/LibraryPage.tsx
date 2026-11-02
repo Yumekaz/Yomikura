@@ -326,7 +326,7 @@ export default function LibraryPage() {
         </div>
         <div className="yomi-library-header-actions"><label className="yomi-search"><Search aria-hidden="true" /><input type="search" aria-label="Search library" placeholder="Search library..." value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label><Link className="yomi-button yomi-button-primary" to="/browse/sources"><Plus aria-hidden="true" />Add books</Link></div>
       </header>
-      {!isSelectMode && !searchQuery && activeCategoryId === null && <ContinueReading books={isOfflineMode ? [...new Map(cachedChapters.map((chapter) => [Number(chapter.mangaId), { id: Number(chapter.mangaId), title: chapter.mangaTitle }])).values()] : (libData?.mangas.nodes ?? []).map((manga) => ({ id: Number(manga.id), title: manga.title }))} />}
+      {!isSelectMode && !searchQuery && activeCategoryId === null && <ContinueReading books={isOfflineMode ? [...new Map(cachedChapters.map((chapter) => [Number(chapter.mangaId), { id: Number(chapter.mangaId), title: chapter.mangaTitle }])).values()] : (libData?.mangas.nodes ?? []).map((manga) => ({ id: Number(manga.id), title: manga.title, thumbnailUrl: manga.thumbnailUrl }))} />}
       {/* Filters Bar */}
       <LibraryFilters
         filterChoices={filterChoices}

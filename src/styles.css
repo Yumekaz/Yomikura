@@ -900,7 +900,7 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
 .yomi-sidebar-companion figcaption { position: relative; margin: 6px 22px 0; color: var(--text); font-family: var(--font-display); font-size: 14px; line-height: 1.5; font-style: italic; }
 .yomi-reading-spirit { display: block; object-fit: contain; user-select: none; pointer-events: none; }
 .yomi-empty-spirit { width: 148px; height: 120px; margin: 0 auto 22px; }
-.yomi-library-header h1, .yomi-page-header h1, .yomi-workspace-head h1, .yomi-manga-detail h1 { font-family: var(--font-display); font-size: 36px; font-weight: 550; line-height: 1.17; letter-spacing: -.035em; }
+.yomi-library-header h1, .yomi-page-header h1, .yomi-workspace-head h1, .yomi-workspace-title, .yomi-manga-detail h1 { font-family: var(--font-display); font-size: 36px; font-weight: 550; line-height: 1.17; letter-spacing: -.035em; }
 .yomi-section-heading h2, .yomi-route-empty h2, .yomi-empty-state h1 { font-family: var(--font-display); font-weight: 550; letter-spacing: -.025em; }
 .yomi-section-heading h2 { font-size: 18px; }
 .yomi-route-empty h2 { font-size: 23px; }
@@ -997,7 +997,7 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
 .yomi-storage-options > button:not(:first-child) > span { display: none; }
 @media (max-width: 1280px) { .yomi-palette-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width: 640px) {
-  .yomi-library-header h1, .yomi-page-header h1, .yomi-workspace-head h1 { font-size: 32px; }
+  .yomi-library-header h1, .yomi-page-header h1, .yomi-workspace-head h1, .yomi-workspace-title { font-size: 32px; }
   .yomi-appearance { padding: 18px 14px; }
   .yomi-palette-grid { gap: 10px; }
   .yomi-palette-art { min-height: 85px; padding: 12px 10px; gap: 5px; }

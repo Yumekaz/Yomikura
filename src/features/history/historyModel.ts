@@ -37,6 +37,12 @@ export function historyCutoffs(events: ReadingHistoryEvent[], mockMode: boolean)
 /** Merge chapter state first, then project one most-recent activity per comic. */
 export function mergeReadingHistory(server: ServerHistoryChapter[], local: ReadingHistoryEvent[], mockMode: boolean): HistoryItem[] {
   const scoped = local.filter((event) => shouldShowReadingEvent(event, mockMode));
+  const serverCovers = new Map<string, string>();
+  for (const chapter of server) {
+    if (chapter.manga.thumbnailUrl && shouldShowReadingEvent({ mangaTitle: chapter.manga.title }, mockMode)) {
+      serverCovers.set(historyTitleKey(chapter.mangaId, chapter.manga.title), chapter.manga.thumbnailUrl);
+    }
+  }
   const chapterKey = (id: string | number, mangaId: number, title: string) => JSON.stringify([id, mangaId, title]);
   const hidden = new Set(scoped.filter((event) => event.isHidden && !event.hideMangaBefore).map((event) => chapterKey(event.chapterId, event.mangaId, event.mangaTitle)));
   const chapters = new Map<string, HistoryItem>();
@@ -62,7 +68,7 @@ export function mergeReadingHistory(server: ServerHistoryChapter[], local: Readi
       id: String(event.chapterId), name: event.chapterName, chapterNumber: event.chapterNumber,
       lastPageRead: event.lastPageRead, pageCount: event.pageCount, isRead: event.isRead,
       readAt: event.readAt, mangaId: event.mangaId, isLocal: true,
-      manga: { id: event.mangaId, title: event.mangaTitle, thumbnailUrl: event.thumbnailUrl },
+      manga: { id: event.mangaId, title: event.mangaTitle, thumbnailUrl: event.thumbnailUrl || previous?.manga.thumbnailUrl || serverCovers.get(historyTitleKey(event.mangaId, event.mangaTitle)) },
     });
   }
   const titles = new Map<number, HistoryItem>();

@@ -13,7 +13,11 @@ export function ChapterRowFrame({ name, selected, selecting, read, bookmarked, b
     document.addEventListener("pointerdown", outside); return () => document.removeEventListener("pointerdown", outside);
   }, [open]);
   useEffect(() => {
-    if (open && menuPosition) menu.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+    if (!open || !menuPosition) return;
+    // Pointer activation can restore focus to the trigger after React effects
+    // run. Move focus after that activation completes, before the next paint.
+    const frame = window.requestAnimationFrame(() => menu.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true }));
+    return () => window.cancelAnimationFrame(frame);
   }, [open, menuPosition !== null]);
   useLayoutEffect(() => {
     if (!open || selecting) return;
