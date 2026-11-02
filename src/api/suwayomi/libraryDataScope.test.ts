@@ -1,7 +1,7 @@
 import { IDBFactory } from "fake-indexeddb";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { rememberLibrary } from "./librarySession";
-import { deleteCachedChapter, getCachedChapter, getCachedChapters, saveCachedChapter, saveDownloadJob, getDownloadJobs, recordReadingActivity, getReadingHistory, type CachedChapter } from "./offlineCache";
+import { clearBackendCache, deleteCachedChapter, getCachedChapter, getCachedChapters, saveCachedChapter, saveDownloadJob, getDownloadJobs, recordReadingActivity, getReadingHistory, type CachedChapter } from "./offlineCache";
 import { progressBackend } from "./backendIdentity";
 import { bookNoteScope, getBookNoteDraft, saveBookNoteDraft } from "../../features/manga/bookNoteStorage";
 import { enqueueProgress, getEarlierProgress, getProgressOperations } from "./progressStorage";
@@ -9,7 +9,7 @@ const server = "http://library.example", first = "11111111-1111-4111-8111-111111
 beforeEach(() => {
   vi.stubGlobal("indexedDB", new IDBFactory());
   const values = new Map<string, string>(); vi.stubGlobal("localStorage", { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value) });
-  vi.stubGlobal("caches", { open: async () => ({ delete: async () => true }) });
+  vi.stubGlobal("caches", { open: async () => ({ delete: async () => true, keys: async () => [] }) });
 });
 afterEach(() => vi.unstubAllGlobals());
 const chapter = (libraryId?: string): CachedChapter => ({ cacheKey: "fixture", serverBaseUrl: server, libraryId, id: 12, name: "Chapter 1", chapterNumber: 1, mangaId: 42, mangaTitle: "Same title", sourceOrder: 1, pageCount: 1, pages: ["/page"], cachedUrls: [], totalSizeBytes: 1, cachedAt: Date.now() });
@@ -53,4 +53,21 @@ it("retains progress at an earlier address for deliberate recovery rather than s
   expect(await getEarlierProgress(moved)).toHaveLength(1);
   expect(await getProgressOperations(progressBackend(moved))).toEqual([]);
   expect(await getProgressOperations(backend)).toHaveLength(1);
+});
+it("a late deletion uses the captured library rather than the current one", async () => {
+  rememberLibrary(server, { marker: first }); await saveCachedChapter(chapter(first));
+  rememberLibrary(server, { marker: second }); await saveCachedChapter(chapter(second));
+  await deleteCachedChapter(server, 12, false, first);
+  expect((await getCachedChapter(server, 12))?.libraryId).toBe(second);
+  expect(await getCachedChapter(server, 12, false, first)).toBeNull();
+});
+it("a late clear keeps a replacement library's cached chapters and queued downloads", async () => {
+  rememberLibrary(server, { marker: first }); await saveCachedChapter(chapter(first));
+  await saveDownloadJob({ serverBaseUrl: server, chapterId: 12, status: "queued", progress: 0, total: 1, attempts: 0, updatedAt: 1 });
+  rememberLibrary(server, { marker: second }); await saveCachedChapter(chapter(second));
+  await saveDownloadJob({ serverBaseUrl: server, chapterId: 12, status: "queued", progress: 0, total: 1, attempts: 0, updatedAt: 2 });
+  await clearBackendCache(server, false, first);
+  expect((await getCachedChapter(server, 12))?.libraryId).toBe(second);
+  expect((await getDownloadJobs(server))[0]?.libraryId).toBe(second);
+  expect(await getDownloadJobs(server, false, first)).toEqual([]);
 });

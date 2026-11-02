@@ -9,7 +9,7 @@ import { ThemedSelect } from "../ui/ThemedSelect";
 export function CleanupSettingsPanel() {
   const store = useSettingsStore(), preferences = store.experience.downloads;
   const backend = useMemo(() => progressBackend(store.serverBaseUrl, store.mockMode), [store.serverBaseUrl, store.mockMode]);
-  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live"), [backend]);
+  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live"), [backend]);
   const categories = useQuery({ queryKey: ["categories", store.serverBaseUrl, store.mockMode], queryFn: () => sdk.GetCategories(), retry: false });
   const jobs = useQuery({ queryKey: ["download-cleanup", backend.key], queryFn: () => getCleanupJobs(backend), retry: false });
   const excluded = preferences.excludedCategories[backend.key] ?? [];

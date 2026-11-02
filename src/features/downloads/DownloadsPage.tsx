@@ -11,7 +11,7 @@ import type { CachedChapter } from "../../api/suwayomi/offlineCache";
 import { progressBackend, type ProgressBackend } from "../../api/suwayomi/backendIdentity";
 import { ReadingSpirit } from "../../components/Brand";
 
-const downloadClient = (backend: ProgressBackend) => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live");
+const downloadClient = (backend: ProgressBackend) => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live");
 
 interface DownloadItem {
   position: number;
@@ -43,7 +43,7 @@ export default function DownloadsPage() {
   // Fetch Download Queue and Downloader state
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["downloads", target.key],
-    queryFn: ({ signal }) => createGraphqlClient(`${target.serverBaseUrl}/api/graphql`, { signal }, target.isDemo ? "demo" : "live").GetDownloadStatus(),
+    queryFn: ({ signal }) => createGraphqlClient(`${target.serverBaseUrl}/api/graphql`, { signal, libraryId: target.libraryId ?? null }, target.isDemo ? "demo" : "live").GetDownloadStatus(),
     enabled: !!serverBaseUrl && !isUnconnected,
     refetchInterval: isUnconnected ? undefined : 3000, // Poll every 3 seconds while active
   });

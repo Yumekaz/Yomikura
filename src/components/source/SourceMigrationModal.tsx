@@ -22,7 +22,7 @@ type Phase = "search" | "results" | "preparing" | "review" | "executing" | "done
 export function SourceMigrationModal({ isOpen, onClose, mangaId, mangaTitle, sourceName, initialTarget }: SourceMigrationModalProps) {
   const { serverBaseUrl, mockMode } = useSettingsStore();
   const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
-  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live"), [backend]);
+  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live"), [backend]);
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState<Phase>("search");
   const [sourceId, setSourceId] = useState("");

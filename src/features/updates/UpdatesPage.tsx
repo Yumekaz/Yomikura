@@ -24,7 +24,7 @@ export default function UpdatesPage() {
   const feed = useInfiniteQuery({
     queryKey: ["updates", backend.key, mode], initialPageParam: { after: undefined, seen: [] } as UpdateCursor, enabled: !!serverBaseUrl,
     queryFn: async ({ pageParam, signal }) => {
-      const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { signal }, backend.isDemo ? "demo" : "live");
+      const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { signal, libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live");
       const connection = (await sdk.GetUpdates({ filter: { inLibrary: { equalTo: true } }, order: [{ by: mode === "discovered" ? ChapterOrderBy.FetchedAt : ChapterOrderBy.UploadDate, byType: SortOrder.Desc }, { by: ChapterOrderBy.Id, byType: SortOrder.Desc }], first: 100, after: pageParam.after })).chapters;
       return { ...connection, next: nextUpdatePage(connection.pageInfo, pageParam) };
     },

@@ -31,7 +31,7 @@ async function currentHead(job: CleanupJob) {
 async function drain(backend: ProgressBackend) {
   const lease = { ...backend, key: `${backend.key}:download-cleanup` }, owner = crypto.randomUUID();
   if (!await acquireProgressLease(lease, owner)) return;
-  const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live");
+  const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live");
   const lists = new Map<number, Awaited<ReturnType<typeof fetchReadingChapters>>>();
   try {
     for (const job of await getCleanupJobs(backend)) {
@@ -46,22 +46,22 @@ async function drain(backend: ProgressBackend) {
         const context = (await sdk.GetCleanupChapterContext({ id: job.chapter.chapterId }, undefined, AbortSignal.timeout(15_000))).chapter;
         const identity = { chapterId: context.id, chapterName: context.name, chapterNumber: context.chapterNumber, sourceOrder: context.sourceOrder, pageCount: context.pageCount, mangaId: context.mangaId, mangaTitle: context.manga?.title ?? "" };
         if (!chapterIdentityMatches(job.chapter, identity)) { await removeCleanupJob(job); continue; }
-        const cached = await getCachedChapter(backend.serverBaseUrl, context.id, backend.isDemo), head = await currentHead(job);
+        const cached = await getCachedChapter(backend.serverBaseUrl, context.id, backend.isDemo, backend.libraryId ?? ""), head = await currentHead(job);
         if (!head || cached && !chapterIdentityMatches(job.chapter, { chapterId: cached.id, chapterName: cached.name, chapterNumber: cached.chapterNumber, mangaId: cached.mangaId, mangaTitle: cached.mangaTitle, sourceOrder: cached.sourceOrder, pageCount: cached.pageCount }) || cleanupProtection(policy, backend, { isRead: backend.isDemo ? head.patch.isRead : context.isRead, isBookmarked: context.isBookmarked, categoryIds: context.manga?.categories?.nodes.map((category) => category.id) }, cached?.isBookmarked || head.patch.isBookmarked)) { await removeCleanupJob(job); continue; }
         if (policy.keepRecentChapters > 0 && job.kind === "automatic") {
           let chapters = lists.get(context.mangaId); if (!chapters) { chapters = await fetchReadingChapters(sdk, context.mangaId, AbortSignal.timeout(15_000)); lists.set(context.mangaId, chapters); }
           const later = new Set(chapters.filter((chapter) => chapter.isRead && (chapter.chapterNumber >= 0 && context.chapterNumber >= 0 ? chapter.chapterNumber > context.chapterNumber : chapter.sourceOrder > context.sourceOrder)).map((chapter) => chapter.chapterNumber >= 0 ? `number:${chapter.chapterNumber}` : `id:${chapter.id}`));
           if (later.size < policy.keepRecentChapters) continue;
         }
-        const lastHead = await currentHead(job), lastCopy = await getCachedChapter(backend.serverBaseUrl, context.id, backend.isDemo);
+        const lastHead = await currentHead(job), lastCopy = await getCachedChapter(backend.serverBaseUrl, context.id, backend.isDemo, backend.libraryId ?? "");
         if (!selected(backend) || !lastHead || !await isCurrentCleanupJob(job) || !await acquireProgressLease(lease, owner)) continue;
         if (!enabled(job)) { await removeCleanupJob(job); continue; }
         if (preferences() !== policy) continue;
         if (cleanupProtection(policy, backend, { isRead: backend.isDemo ? lastHead.patch.isRead : context.isRead, isBookmarked: context.isBookmarked, categoryIds: context.manga?.categories?.nodes.map((category) => category.id) }, lastCopy?.isBookmarked || lastHead.patch.isBookmarked)) { await removeCleanupJob(job); continue; }
         if (context.isDownloaded) await sdk.DeleteDownloadedChapter({ input: { id: context.id } }, undefined, AbortSignal.timeout(15_000));
         // A reset while server removal was in flight keeps the independent device copy.
-        const after = await currentHead(job), copy = await getCachedChapter(backend.serverBaseUrl, context.id, backend.isDemo);
-        if (selected(backend) && enabled(job) && after && await isCurrentCleanupJob(job) && preferences() === policy && !cleanupProtection(policy, backend, { isRead: true, isBookmarked: context.isBookmarked, categoryIds: context.manga?.categories?.nodes.map((category) => category.id) }, copy?.isBookmarked || after.patch.isBookmarked)) await deleteCachedChapter(backend.serverBaseUrl, context.id, backend.isDemo);
+        const after = await currentHead(job), copy = await getCachedChapter(backend.serverBaseUrl, context.id, backend.isDemo, backend.libraryId ?? "");
+        if (selected(backend) && enabled(job) && after && await isCurrentCleanupJob(job) && preferences() === policy && !cleanupProtection(policy, backend, { isRead: true, isBookmarked: context.isBookmarked, categoryIds: context.manga?.categories?.nodes.map((category) => category.id) }, copy?.isBookmarked || after.patch.isBookmarked)) await deleteCachedChapter(backend.serverBaseUrl, context.id, backend.isDemo, backend.libraryId ?? "");
         await removeCleanupJob(job); changed();
       } catch { /* Retain files and the durable job until metadata/storage can be checked again. */ }
     }

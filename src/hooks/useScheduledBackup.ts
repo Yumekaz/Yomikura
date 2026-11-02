@@ -43,7 +43,7 @@ export function useScheduledBackup() {
           return;
         }
         setScheduledBackupResult("running", "", savedAt);
-        const backup = await createLibraryBackup(createGraphqlClient(`${server}/api/graphql`), server, "scheduled");
+        const backup = await createLibraryBackup(createGraphqlClient(`${server}/api/graphql`, { libraryId: identity.marker }, "live"), server, "scheduled");
         if (isCurrent()) setScheduledBackupResult("success", "", backup.createdAt);
       } catch (error) {
         if (isCurrent()) setScheduledBackupResult("error", backupErrorMessage(error));

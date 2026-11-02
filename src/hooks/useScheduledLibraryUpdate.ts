@@ -25,7 +25,7 @@ export function useScheduledLibraryUpdate() {
       try {
         if (!await acquireProgressLease(lease, owner) || !isSelectedLibrary(backend)) return;
         recordLibraryUpdateRequest(backend, "running");
-        const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, "live");
+        const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, "live");
         const status = await sdk.GetLibraryUpdateStatus(undefined, undefined, AbortSignal.timeout(15000));
         if (!isSelectedLibrary(backend)) return;
         if (!status.libraryUpdateStatus.jobsInfo.isRunning) {

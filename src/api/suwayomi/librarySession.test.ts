@@ -38,3 +38,18 @@ it("a client created before verification cannot silently adopt a later library f
   await expect(client.request("mutation SaveProgress { updateChapter { id } }")).rejects.toThrow("Reconnect");
   expect(send).not.toHaveBeenCalled();
 });
+it("recreating a background client preserves its captured marker after a reconnect", async () => {
+  rememberLibrary("http://localhost:4567", { marker: second });
+  vi.mocked(readLibraryIdentity).mockResolvedValue({ marker: second });
+  const client = new LibraryGraphqlTransport("http://localhost:4567/api/graphql", { libraryId: first });
+  const send = vi.fn(); vi.stubGlobal("fetch", send);
+  await expect(client.request("mutation SaveProgress { updateChapter { id } }")).rejects.toThrow("different library");
+  expect(send).not.toHaveBeenCalled();
+});
+it("an explicitly unverified background client cannot adopt the current marker", async () => {
+  rememberLibrary("http://localhost:4567", { marker: second });
+  const client = new LibraryGraphqlTransport("http://localhost:4567/api/graphql", { libraryId: null });
+  const send = vi.fn(); vi.stubGlobal("fetch", send);
+  await expect(client.request("mutation SaveProgress { updateChapter { id } }")).rejects.toThrow("Reconnect");
+  expect(send).not.toHaveBeenCalled();
+});

@@ -15,7 +15,7 @@ export default function InsightsPage() {
   return backend ? <LibraryInsights key={`${backend.key}:${calendar}`} backend={backend} calendar={calendar} /> : <div className="yomi-workspace"><h1>{calendar ? "Upcoming" : "Reading statistics"}</h1><p>Connect your library to see its reading activity.</p></div>;
 }
 function LibraryInsights({ backend, calendar }: { backend: Backend; calendar: boolean }) {
-  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live"), [backend]);
+  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live"), [backend]);
   const library = useQuery({ queryKey: ["library-insights", backend.key], queryFn: ({ signal }) => collectLibraryPages(async (after) => (await sdk.GetLibraryInsights({ after }, undefined, AbortSignal.any([signal, AbortSignal.timeout(20000)]))).mangas), staleTime: 60000, retry: false });
   return <div className="yomi-workspace">
     <div className="yomi-workspace-head"><div><h1>{calendar ? "Upcoming" : "Your reading, in perspective."}</h1><p>{calendar ? "A little something to look forward to." : "A quiet look at the stories in your library."}</p></div><button type="button" className="yomi-icon-button" disabled={library.isFetching} aria-label="Refresh library insights" onClick={() => void library.refetch()}><RefreshCw className={library.isFetching ? "animate-spin" : ""} /></button></div>

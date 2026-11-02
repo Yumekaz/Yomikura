@@ -110,8 +110,8 @@ export async function getProgressHead(backend: ProgressBackend, chapterId: numbe
 }
 
 export async function getProgressHeads(backend: ProgressBackend, includeEarlier = false) {
+  const marker = backend.isDemo ? undefined : Object.prototype.hasOwnProperty.call(backend, "libraryId") ? backend.libraryId : rememberedLibrary(backend.serverBaseUrl)?.marker;
   const heads = await transaction(["heads"], "readonly", (tx) => read<ProgressHead[]>(tx.objectStore("heads").index("backend").getAll(backend.key)));
-  const marker = backend.isDemo ? undefined : rememberedLibrary(backend.serverBaseUrl)?.marker;
   return includeEarlier ? heads : heads.filter((head) => (head.libraryId ?? undefined) === marker);
 }
 export async function getEarlierProgress(currentServer?: string) {

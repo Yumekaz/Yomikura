@@ -5,10 +5,11 @@ const root = path.resolve("dist");
 const limits = {
   // Original palette-aware branding and self-hosted display type ship offline.
   // Identity verification and device-only recovery add bounded scripts.
-  // Allow 32 KiB total headroom and 24 KiB scripts over the pre-identity build.
+  // Allow 32 KiB total/script headroom over the pre-identity limits, including
+  // captured-marker checks for late background clients and cleanup callbacks.
   totalBytes: 3 * 1024 * 1024 + 32 * 1024,
   identityBytes: 768 * 1024,
-  javascriptBytes: 1024 * 1024 + 24 * 1024,
+  javascriptBytes: 1024 * 1024 + 32 * 1024,
   largestJavaScriptBytes: 350 * 1024,
 };
 

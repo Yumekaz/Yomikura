@@ -12,7 +12,7 @@ import { groupReadingSources, type SourceSummary } from "./sourceGroups";
 export default function SourcesPage() {
   const { serverBaseUrl, mockMode, savedSearches, deleteSavedSearch, experience, toggleSourcePin, showNsfw } = useSettingsStore();
   const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
-  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live"), [backend]);
+  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live"), [backend]);
   const sourcesQuery = useQuery({ queryKey: ["sources", backend.key], queryFn: ({ signal }) => fetchAllSources(sdk, signal) });
   const sources = (sourcesQuery.data?.sources.nodes ?? []).filter((source) => source.extension?.isInstalled !== false && (!experience.applyContentFilterToInstalled || showNsfw || !source.isNsfw));
   const pins = experience.sourcePins[backend.key] ?? [];

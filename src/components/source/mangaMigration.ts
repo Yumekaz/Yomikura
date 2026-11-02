@@ -18,7 +18,7 @@ function assertBackend(backend: ProgressBackend) {
   const settings = useSettingsStore.getState();
   if (progressBackend(settings.serverBaseUrl, settings.mockMode).key !== backend.key) throw new MigrationError("The selected server changed. Reopen the migration review on the intended server.");
 }
-const sdkFor = (backend: ProgressBackend) => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live");
+const sdkFor = (backend: ProgressBackend) => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live");
 
 async function loadTitle(backend: ProgressBackend, id: number, includePending = true): Promise<MigrationTitle> {
   assertBackend(backend);

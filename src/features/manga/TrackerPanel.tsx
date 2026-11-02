@@ -14,7 +14,7 @@ import { TrackerEditForm } from "./TrackerEditForm";
 export function TrackerPanel({ mangaId, mangaTitle }: { mangaId: number; mangaTitle: string }) {
   const { serverBaseUrl, mockMode } = useSettingsStore();
   const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
-  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live"), [backend]);
+  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live"), [backend]);
   const client = useQueryClient();
   const { notify } = useFeedback();
   const [editing, setEditing] = useState<BoundTrackerRecord>();

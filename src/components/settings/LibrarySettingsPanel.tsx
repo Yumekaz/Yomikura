@@ -17,7 +17,7 @@ export function LibrarySettingsPanel() {
   return backend ? <LibraryPolicyEditor key={backend.key} backend={backend} /> : <p className="text-sm text-slate-400">Connect a library in <Link className="yomi-text-link" to="/settings/connection">Connection settings</Link> to manage its collections and updates.</p>;
 }
 function LibraryPolicyEditor({ backend }: { backend: ProgressBackend }) {
-  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live"), [backend]);
+  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live"), [backend]);
   const client = useQueryClient(), store = useSettingsStore(), [message, setMessage] = useState("");
   const query = useQuery({ queryKey: ["library-policy", backend.key], queryFn: ({ signal }) => sdk.GetLibraryPolicy(undefined, undefined, signal), retry: false });
   const policy = useMutation({ mutationFn: async (patch: PolicyPatch) => {

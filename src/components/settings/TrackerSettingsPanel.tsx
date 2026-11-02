@@ -12,7 +12,7 @@ export function TrackerSettingsPanel() {
   return backend ? <TrackerAccounts key={backend.key} backend={backend} /> : <p>Connect a library to manage tracker accounts.</p>;
 }
 function TrackerAccounts({ backend }: { backend: ProgressBackend }) {
-  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live"), [backend]);
+  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live"), [backend]);
   const client = useQueryClient(), { confirm } = useFeedback(), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const query = useQuery({ queryKey: ["global-trackers", backend.key], queryFn: ({ signal }) => sdk.GetTrackers(undefined, undefined, AbortSignal.any([signal, AbortSignal.timeout(15000)])), retry: false });
   const signOut = async (id: number, name: string) => {

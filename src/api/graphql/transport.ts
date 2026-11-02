@@ -1,4 +1,4 @@
-export type GraphqlOptions = Omit<RequestInit, "body" | "method">;
+export type GraphqlOptions = Omit<RequestInit, "body" | "method"> & { libraryId?: string | null };
 import { assertLibrarySession, rememberedLibrary } from "../suwayomi/librarySession";
 type Request = { document: string; variables?: unknown; requestHeaders?: HeadersInit; signal?: AbortSignal | null };
 export class GraphqlError extends Error {
@@ -11,9 +11,13 @@ export class GraphqlError extends Error {
 export const gql = (parts: TemplateStringsArray, ...values: string[]) => parts.reduce((text, part, index) => text + part + (values[index] ?? ""), "");
 export class LibraryGraphqlTransport {
   private libraryMarker?: string;
-  constructor(private endpoint: string, private options: GraphqlOptions = {}) {
+  private options: Omit<GraphqlOptions, "libraryId">;
+  constructor(private endpoint: string, options: GraphqlOptions = {}) {
+    const { libraryId, ...requestOptions } = options;
+    this.options = requestOptions;
     // Preserve the library observed when this client was made across profile/reconnect changes.
-    if (/\/api\/graphql\/?$/i.test(endpoint)) this.libraryMarker = rememberedLibrary(endpoint.replace(/\/api\/graphql\/?$/i, ""))?.marker;
+    if (Object.prototype.hasOwnProperty.call(options, "libraryId")) this.libraryMarker = libraryId ?? undefined;
+    else if (/\/api\/graphql\/?$/i.test(endpoint)) this.libraryMarker = rememberedLibrary(endpoint.replace(/\/api\/graphql\/?$/i, ""))?.marker;
   }
   async request<T>(request: Request | string, variables?: unknown): Promise<T> {
     const value = typeof request === "string" ? { document: request, variables } : request;

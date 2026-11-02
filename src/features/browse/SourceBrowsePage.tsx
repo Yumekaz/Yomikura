@@ -30,7 +30,7 @@ export default function SourceBrowsePage() {
   const query = readSourceBrowseQuery(params); const rawFilters = params.get("filters");
   const { serverBaseUrl, mockMode, savedSearches, addSavedSearch, experience, updateExperience, recordSourceVisit } = useSettingsStore();
   const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
-  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live"), [backend]);
+  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live"), [backend]);
   const { notify, requestText } = useFeedback();
   const [input, setInput] = useState(query);
   const listing = params.get("listing") === "latest" ? "latest" : "popular";
@@ -74,7 +74,7 @@ export default function SourceBrowsePage() {
   const catalog = useQuery({
     queryKey: ["source-browse", scope, page], enabled: ready, retry: false,
     queryFn: async ({ signal }) => {
-      const requestSdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { signal }, backend.isDemo ? "demo" : "live");
+      const requestSdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { signal, libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live");
       let filters;
       if (hasEnvelope) {
         const checked = await requestSdk.GetSourceFilters({ id: sourceId });

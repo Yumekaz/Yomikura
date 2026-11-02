@@ -38,8 +38,8 @@ export function downloadNoteExport(text: string, filename = "yomikura-notes.json
 }
 export async function importNoteExport(text: string, backend: ProgressBackend) {
   const exported = parseNoteExport(text), drafts = []; let unmatched = 0;
-  const selected = () => { const settings = useSettingsStore.getState(); if (progressBackend(settings.serverBaseUrl, settings.mockMode).key !== backend.key) throw new Error("The selected library changed. Open the note import again."); };
-  const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live");
+  const selected = () => { const settings = useSettingsStore.getState(), current = progressBackend(settings.serverBaseUrl, settings.mockMode); if (current.key !== backend.key || current.libraryId !== backend.libraryId) throw new Error("The selected library changed. Open the note import again."); };
+  const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live");
   for (const note of exported.notes) {
     selected();
     let manga;

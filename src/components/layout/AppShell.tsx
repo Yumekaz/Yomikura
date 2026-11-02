@@ -807,7 +807,7 @@ function LibrarySessionBoundary() {
   useEffect(() => {
     const changed = (event?: Event) => {
       const server = (event as CustomEvent<string> | undefined)?.detail;
-      if (typeof server === "string" && normalizeCacheServerUrl(useSettingsStore.getState().serverBaseUrl) !== server) return;
+      if (typeof server === "string" && (useSettingsStore.getState().mockMode || normalizeCacheServerUrl(useSettingsStore.getState().serverBaseUrl) !== server)) return;
       useDownloadStore.getState().pauseForShutdown(); client.clear(); setRevision((value) => value + 1);
     };
     window.addEventListener(LIBRARY_SESSION_EVENT, changed);

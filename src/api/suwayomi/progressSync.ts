@@ -27,19 +27,19 @@ export function cachedIdentity(chapter: CachedChapter): ChapterProgressIdentity 
 }
 
 function client(backend: ProgressBackend) {
-  return createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { signal: AbortSignal.timeout(15_000) }, backend.isDemo ? "demo" : "live");
+  return createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { signal: AbortSignal.timeout(15_000), libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live");
 }
 
 async function mirrorProgress(head: ProgressHead) {
   const { backend, chapter, patch } = head;
-  const cached = await getCachedChapter(backend.serverBaseUrl, chapter.chapterId, backend.isDemo);
+  const cached = await getCachedChapter(backend.serverBaseUrl, chapter.chapterId, backend.isDemo, head.libraryId ?? "");
   const fields = head.dirtyFields ?? ["isRead", "lastPageRead"];
   if (cached && chapterIdentityMatches(chapter, cachedIdentity(cached))) await saveCachedChapter({ ...cached, isDemo: backend.isDemo,
     ...(fields.includes("lastPageRead") ? { lastPageRead: patch.lastPageRead } : {}), ...(fields.includes("isRead") ? { isRead: patch.isRead } : {}),
     ...(fields.includes("isBookmarked") ? { isBookmarked: patch.isBookmarked } : {}) });
   // Cached chapters have mode-specific keys; legacy history still shares URL/ID keys.
   if (backend.isDemo || !fields.includes("isRead") && !fields.includes("lastPageRead")) return;
-  const existing = (await getReadingHistory(backend.serverBaseUrl)).find((item) => item.chapterId === chapter.chapterId && !!item.isDemo === backend.isDemo);
+  const existing = (await getReadingHistory(backend.serverBaseUrl, head.libraryId ?? "")).find((item) => item.chapterId === chapter.chapterId && !!item.isDemo === backend.isDemo);
   if (!head.hasActivity && !existing) return;
   const event = { libraryId: head.libraryId ?? undefined, chapterId: chapter.chapterId, chapterName: chapter.chapterName, chapterNumber: chapter.chapterNumber, mangaId: chapter.mangaId, mangaTitle: chapter.mangaTitle, lastPageRead: patch.lastPageRead, pageCount: chapter.pageCount, isRead: patch.isRead, isDemo: backend.isDemo, readAt: head.activityAt ?? existing?.readAt, isHidden: head.hideHistory };
   if (head.hideHistory) await hideReadingHistoryItem(event, backend.serverBaseUrl);
@@ -181,7 +181,7 @@ export function synchronizeProgress(backend: ProgressBackend): Promise<void> {
 export async function writeChapterProgress(backend: ProgressBackend, chapterId: number, patch: Partial<ProgressPatch>, options: { requireAcknowledgment?: boolean; hideHistory?: boolean; fallback?: ChapterProgressIdentity } = {}) {
   let chapter: ChapterProgressIdentity;
   let baseline: ProgressIntent["baseline"];
-  const cached = await getCachedChapter(backend.serverBaseUrl, chapterId, backend.isDemo);
+  const cached = await getCachedChapter(backend.serverBaseUrl, chapterId, backend.isDemo, backend.libraryId ?? "");
   const candidateHead = await getProgressHead(backend, chapterId);
   const existingHead = candidateHead && (candidateHead.libraryId ?? undefined) === (backend.libraryId ?? rememberedLibrary(backend.serverBaseUrl)?.marker) ? candidateHead : undefined;
   const known = options.fallback ?? (cached ? cachedIdentity(cached) : existingHead?.chapter);
@@ -193,7 +193,7 @@ export async function writeChapterProgress(backend: ProgressBackend, chapterId: 
     chapter = progressChapterIdentity(remote);
     baseline = { isRead: remote.isRead, lastPageRead: remote.lastPageRead };
   } catch {
-    const cached = await getCachedChapter(backend.serverBaseUrl, chapterId, backend.isDemo);
+    const cached = await getCachedChapter(backend.serverBaseUrl, chapterId, backend.isDemo, backend.libraryId ?? "");
     const head = await getProgressHead(backend, chapterId);
     const fallback = cached ? cachedIdentity(cached) : options.fallback ?? head?.chapter;
     if (!fallback) throw new Error("The chapter could not be identified. Open or save it before changing progress offline.");
@@ -214,6 +214,11 @@ export async function getPendingHistory(backend: ProgressBackend) {
 }
 
 export async function resolveProgressConflict(backend: ProgressBackend, chapterId: number, useSaved: boolean, expectedSequence?: number) {
+  const settings = useSettingsStore.getState(), current = progressBackend(settings.serverBaseUrl, settings.mockMode);
+  if (current.key !== backend.key) throw new Error("The selected library changed. Reopen this progress review for the intended library.");
+  // This is the user's explicit review of earlier data against the current library.
+  backend = current;
+  if (!backend.isDemo) await assertLibrarySession(backend.serverBaseUrl, backend.libraryId);
   const head = await getProgressHead(backend, chapterId);
   if (!head || head.sequence <= head.acknowledgedSequence) return;
   if (expectedSequence !== undefined && head.sequence !== expectedSequence) throw new Error("Progress changed while you were reviewing it. Review the current change and try again.");
@@ -229,7 +234,7 @@ export async function resolveProgressConflict(backend: ProgressBackend, chapterI
 }
 
 export async function readProgressHistory(backend: ProgressBackend) {
-  const events = await getReadingHistory(backend.serverBaseUrl);
+  const events = await getReadingHistory(backend.serverBaseUrl, backend.libraryId ?? "");
   const heads = await getProgressHeads(backend);
   for (const head of heads) {
     if (!backend.isDemo && rememberedLibrary(backend.serverBaseUrl) && head.libraryId !== rememberedLibrary(backend.serverBaseUrl)?.marker) continue;

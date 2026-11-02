@@ -161,11 +161,11 @@ export async function saveDownloadJob(job: Omit<DownloadJob, "jobKey" | "serverB
   });
 }
 
-export async function getDownloadJobs(serverBaseUrl?: string, isDemo = false): Promise<DownloadJob[]> {
+export async function getDownloadJobs(serverBaseUrl?: string, isDemo = false, libraryId = isDemo || !serverBaseUrl ? undefined : rememberedLibrary(serverBaseUrl)?.marker): Promise<DownloadJob[]> {
   const jobs = await offlineTransaction([DOWNLOAD_JOB_STORE_NAME], "readonly", (tx) => offlineRead<DownloadJob[]>(tx.objectStore(DOWNLOAD_JOB_STORE_NAME).getAll()));
   const byIdentity = new Map<string, DownloadJob>();
   for (const job of jobs) {
-    if (serverBaseUrl && (normalizeCacheServerUrl(job.serverBaseUrl) !== normalizeCacheServerUrl(serverBaseUrl) || isDemoCacheRecord(job) !== isDemo || !belongsToLibrary(job, serverBaseUrl, isDemo))) continue;
+    if (serverBaseUrl && (normalizeCacheServerUrl(job.serverBaseUrl) !== normalizeCacheServerUrl(serverBaseUrl) || isDemoCacheRecord(job) !== isDemo || (job.libraryId ?? "") !== (libraryId ?? ""))) continue;
     const key = storedKey(job.serverBaseUrl, job.chapterId, isDemoCacheRecord(job), job.libraryId);
     const older = byIdentity.get(key);
     if (!older || job.updatedAt > older.updatedAt || job.updatedAt === older.updatedAt && job.jobKey === key) byIdentity.set(key, { ...job, libraryId: job.libraryId });
@@ -209,7 +209,7 @@ async function saveReadingHistoryEvent(event: ReadingHistoryEvent): Promise<void
   });
 }
 
-export async function getReadingHistory(serverBaseUrl?: string): Promise<ReadingHistoryEvent[]> {
+export async function getReadingHistory(serverBaseUrl?: string, libraryId = serverBaseUrl ? rememberedLibrary(serverBaseUrl)?.marker : undefined): Promise<ReadingHistoryEvent[]> {
   try {
     const db = await openDB();
     return new Promise((resolve, reject) => {
@@ -220,7 +220,7 @@ export async function getReadingHistory(serverBaseUrl?: string): Promise<Reading
         const normalizedServer = serverBaseUrl ? normalizeCacheServerUrl(serverBaseUrl) : undefined;
         resolve(
           events
-            .filter((event) => !normalizedServer || normalizeCacheServerUrl(event.serverBaseUrl) === normalizedServer && belongsToLibrary(event, normalizedServer, event.isDemo))
+            .filter((event) => !normalizedServer || normalizeCacheServerUrl(event.serverBaseUrl) === normalizedServer && (event.libraryId ?? "") === (isDemoCacheRecord(event) ? "" : libraryId ?? ""))
             .sort((a, b) => b.readAt - a.readAt)
         );
       };
@@ -231,14 +231,14 @@ export async function getReadingHistory(serverBaseUrl?: string): Promise<Reading
   }
 }
 
-export async function deleteReadingHistoryItem(serverBaseUrl: string, chapterId: number): Promise<void> {
+export async function deleteReadingHistoryItem(serverBaseUrl: string, chapterId: number, libraryId = rememberedLibrary(serverBaseUrl)?.marker): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(HISTORY_STORE_NAME, "readwrite");
     const store = transaction.objectStore(HISTORY_STORE_NAME);
     const request = store.getAll();
     request.onsuccess = () => {
-      for (const event of request.result as ReadingHistoryEvent[]) if (event.chapterId === chapterId && normalizeCacheServerUrl(event.serverBaseUrl) === normalizeCacheServerUrl(serverBaseUrl) && belongsToLibrary(event, serverBaseUrl, event.isDemo)) store.delete(event.historyKey);
+      for (const event of request.result as ReadingHistoryEvent[]) if (event.chapterId === chapterId && normalizeCacheServerUrl(event.serverBaseUrl) === normalizeCacheServerUrl(serverBaseUrl) && (event.libraryId ?? "") === (isDemoCacheRecord(event) ? "" : libraryId ?? "")) store.delete(event.historyKey);
     };
     transaction.onerror = transaction.onabort = () => { db.close(); reject(transaction.error); };
     transaction.oncomplete = () => { db.close(); resolve(); };
@@ -264,20 +264,20 @@ export async function hideMangaReadingHistory(serverBaseUrl: string, event: Omit
   });
 }
 
-export async function getCachedChapter(serverBaseUrl: string, id: number, isDemo = false): Promise<CachedChapter | null> {
+export async function getCachedChapter(serverBaseUrl: string, id: number, isDemo = false, libraryId = isDemo ? undefined : rememberedLibrary(serverBaseUrl)?.marker): Promise<CachedChapter | null> {
   try {
-    const direct = await offlineTransaction([STORE_NAME], "readonly", (tx) => offlineRead<CachedChapter | undefined>(tx.objectStore(STORE_NAME).get(getChapterCacheKey(serverBaseUrl, id, isDemo))));
-    if (direct && direct.id === id && normalizeCacheServerUrl(direct.serverBaseUrl) === normalizeCacheServerUrl(serverBaseUrl) && isDemoCacheRecord(direct) === isDemo && belongsToLibrary(direct, serverBaseUrl, isDemo)) return { ...direct, libraryId: direct.libraryId };
+    const direct = await offlineTransaction([STORE_NAME], "readonly", (tx) => offlineRead<CachedChapter | undefined>(tx.objectStore(STORE_NAME).get(storedKey(serverBaseUrl, id, isDemo, libraryId))));
+    if (direct && direct.id === id && normalizeCacheServerUrl(direct.serverBaseUrl) === normalizeCacheServerUrl(serverBaseUrl) && isDemoCacheRecord(direct) === isDemo && (direct.libraryId ?? "") === (libraryId ?? "")) return { ...direct, libraryId: direct.libraryId };
   } catch { /* Retain legacy lookup/error handling below. */ }
-  return (await getCachedChapters(serverBaseUrl, isDemo)).find((chapter) => chapter.id === id) ?? null;
+  return (await getCachedChapters(serverBaseUrl, isDemo, libraryId ?? "")).find((chapter) => chapter.id === id) ?? null;
 }
 
-export async function getCachedChapters(serverBaseUrl?: string, isDemo = false): Promise<CachedChapter[]> {
+export async function getCachedChapters(serverBaseUrl?: string, isDemo = false, libraryId = isDemo || !serverBaseUrl ? undefined : rememberedLibrary(serverBaseUrl)?.marker): Promise<CachedChapter[]> {
   try {
     const chapters = await offlineTransaction([STORE_NAME], "readonly", (tx) => offlineRead<CachedChapter[]>(tx.objectStore(STORE_NAME).getAll()));
     const byIdentity = new Map<string, CachedChapter>();
     for (const chapter of chapters) {
-      if (serverBaseUrl && (normalizeCacheServerUrl(chapter.serverBaseUrl) !== normalizeCacheServerUrl(serverBaseUrl) || isDemoCacheRecord(chapter) !== isDemo || !belongsToLibrary(chapter, serverBaseUrl, isDemo))) continue;
+      if (serverBaseUrl && (normalizeCacheServerUrl(chapter.serverBaseUrl) !== normalizeCacheServerUrl(serverBaseUrl) || isDemoCacheRecord(chapter) !== isDemo || (chapter.libraryId ?? "") !== (libraryId ?? ""))) continue;
       const key = storedKey(chapter.serverBaseUrl, chapter.id, isDemoCacheRecord(chapter), chapter.libraryId);
       const older = byIdentity.get(key);
       if (!older || (chapter.cachedAt ?? 0) > (older.cachedAt ?? 0) || chapter.cachedAt === older.cachedAt && chapter.cacheKey === key) byIdentity.set(key, { ...chapter, libraryId: chapter.libraryId });
@@ -286,8 +286,8 @@ export async function getCachedChapters(serverBaseUrl?: string, isDemo = false):
   } catch (error) { console.error("IndexedDB error in getCachedChapters:", error); return []; }
 }
 
-export async function getCachedChaptersForManga(serverBaseUrl: string, mangaId: number, isDemo = false): Promise<CachedChapter[]> {
-  return (await getCachedChapters(serverBaseUrl, isDemo)).filter((chapter) => chapter.mangaId === mangaId);
+export async function getCachedChaptersForManga(serverBaseUrl: string, mangaId: number, isDemo = false, libraryId = isDemo ? undefined : rememberedLibrary(serverBaseUrl)?.marker): Promise<CachedChapter[]> {
+  return (await getCachedChapters(serverBaseUrl, isDemo, libraryId ?? "")).filter((chapter) => chapter.mangaId === mangaId);
 }
 
 export async function saveCachedChapter(chapter: CachedChapter, signal?: AbortSignal): Promise<void> {
@@ -307,16 +307,16 @@ export async function saveCachedChapter(chapter: CachedChapter, signal?: AbortSi
   if (changed) invalidatePageIndexes(serverBaseUrl);
 }
 
-export async function updateCachedChapterProgress(serverBaseUrl: string, chapterId: number, lastPageRead: number, isRead: boolean, isDemo = false): Promise<void> {
-  const chapter = await getCachedChapter(serverBaseUrl, chapterId, isDemo); if (!chapter) return;
+export async function updateCachedChapterProgress(serverBaseUrl: string, chapterId: number, lastPageRead: number, isRead: boolean, isDemo = false, libraryId = isDemo ? undefined : rememberedLibrary(serverBaseUrl)?.marker): Promise<void> {
+  const chapter = await getCachedChapter(serverBaseUrl, chapterId, isDemo, libraryId ?? ""); if (!chapter) return;
   await saveCachedChapter({ ...chapter, lastPageRead, isRead });
 }
 
-export async function deleteCachedChapter(serverBaseUrl: string, chapterId: number, isDemo = false): Promise<void> {
+export async function deleteCachedChapter(serverBaseUrl: string, chapterId: number, isDemo = false, libraryId = isDemo ? undefined : rememberedLibrary(serverBaseUrl)?.marker): Promise<void> {
   const urls = await offlineTransaction([STORE_NAME], "readwrite", async (tx) => {
     const store = tx.objectStore(STORE_NAME); const removed: string[] = [];
     for (const chapter of await offlineRead<CachedChapter[]>(store.getAll())) {
-      if (chapter.id === chapterId && normalizeCacheServerUrl(chapter.serverBaseUrl) === normalizeCacheServerUrl(serverBaseUrl) && isDemoCacheRecord(chapter) === isDemo && belongsToLibrary(chapter, serverBaseUrl, isDemo)) { removed.push(...cachedPageUrls(chapter)); store.delete(chapter.cacheKey); }
+      if (chapter.id === chapterId && normalizeCacheServerUrl(chapter.serverBaseUrl) === normalizeCacheServerUrl(serverBaseUrl) && isDemoCacheRecord(chapter) === isDemo && (chapter.libraryId ?? "") === (libraryId ?? "")) { removed.push(...cachedPageUrls(chapter)); store.delete(chapter.cacheKey); }
     }
     return removed;
   });
@@ -330,10 +330,10 @@ export async function clearAllCache(): Promise<void> {
   await caches.delete("yomikura-page-cache");
 }
 
-export async function clearBackendCache(serverBaseUrl: string, isDemo = false): Promise<void> {
-  const chapters = await getCachedChapters(serverBaseUrl, isDemo);
-  for (const chapter of chapters) await deleteCachedChapter(serverBaseUrl, chapter.id, isDemo);
-  for (const job of await getDownloadJobs(serverBaseUrl, isDemo)) await deleteDownloadJob(serverBaseUrl, job.chapterId, isDemo);
+export async function clearBackendCache(serverBaseUrl: string, isDemo = false, libraryId = isDemo ? undefined : rememberedLibrary(serverBaseUrl)?.marker): Promise<void> {
+  const chapters = await getCachedChapters(serverBaseUrl, isDemo, libraryId ?? "");
+  for (const chapter of chapters) await deleteCachedChapter(serverBaseUrl, chapter.id, isDemo, libraryId ?? "");
+  for (const job of await getDownloadJobs(serverBaseUrl, isDemo, libraryId ?? "")) await deleteDownloadJob(serverBaseUrl, job.chapterId, isDemo, libraryId ?? "");
   const owner = JSON.stringify([isDemo ? "demo" : "live", normalizeCacheServerUrl(serverBaseUrl)]);
   const cache = await caches.open("yomikura-page-cache");
   const orphaned = (await cache.keys()).filter((request) => new URL(request.url).searchParams.get("__yomi_cache_owner") === owner).map((request) => request.url);
