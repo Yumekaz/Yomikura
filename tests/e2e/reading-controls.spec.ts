@@ -43,6 +43,7 @@ test("chapter actions remain inside the viewport and restore keyboard focus", as
   expect(rect!.y).toBeGreaterThanOrEqual(0);
   expect(rect!.x + rect!.width).toBeLessThanOrEqual(1280);
   expect(rect!.y + rect!.height).toBeLessThanOrEqual(640);
+  await expect(menu.getByRole("menuitem", { name: "Mark read", exact: true })).toBeFocused();
   await expect(menu.getByRole("menuitem", { name: "Bookmark", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);

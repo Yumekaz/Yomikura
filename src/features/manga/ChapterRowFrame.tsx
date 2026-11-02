@@ -9,10 +9,12 @@ export function ChapterRowFrame({ name, selected, selecting, read, bookmarked, b
   const suppressClick = useRef(0);
   useEffect(() => {
     if (!open) return;
-    menu.current?.querySelector<HTMLButtonElement>("button")?.focus();
     const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node) && !menu.current?.contains(event.target as Node)) setOpen(false); };
     document.addEventListener("pointerdown", outside); return () => document.removeEventListener("pointerdown", outside);
   }, [open]);
+  useEffect(() => {
+    if (open && menuPosition) menu.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+  }, [open, menuPosition !== null]);
   useLayoutEffect(() => {
     if (!open || selecting) return;
     const position = () => {

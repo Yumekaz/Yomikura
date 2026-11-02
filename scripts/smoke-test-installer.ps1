@@ -189,6 +189,20 @@ if (-not $appPath -or -not (Test-Path -LiteralPath $appPath)) {
 }
 if (-not (Test-Path -LiteralPath $appPath)) { throw "Installed executable was not found (InstallLocation: $($entry.InstallLocation))" }
 
+# Verify the shortcut a reader actually uses, as well as the executable's icon.
+$desktopShortcut = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'Yomikura.lnk'
+if (-not (Test-Path -LiteralPath $desktopShortcut -PathType Leaf)) { throw 'Desktop shortcut was not created' }
+$shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($desktopShortcut)
+if (-not (Test-Path -LiteralPath $shortcut.TargetPath -PathType Leaf)) { throw "Desktop shortcut target does not exist: $($shortcut.TargetPath)" }
+if (-not [string]::Equals([IO.Path]::GetFullPath($shortcut.TargetPath), [IO.Path]::GetFullPath($appPath), [StringComparison]::OrdinalIgnoreCase)) { throw 'Desktop shortcut targets a different executable' }
+$shortcutIconPath = [Environment]::ExpandEnvironmentVariables(($shortcut.IconLocation -replace ',\s*-?\d+$', '').Trim('"'))
+if ($shortcutIconPath -and -not (Test-Path -LiteralPath $shortcutIconPath -PathType Leaf)) { throw "Desktop shortcut icon source does not exist: $shortcutIconPath" }
+Add-Type -AssemblyName System.Drawing
+$installedIcon = [System.Drawing.Icon]::ExtractAssociatedIcon($appPath)
+if (-not $installedIcon) { throw 'Installed executable does not expose an icon' }
+$installedIcon.Dispose()
+Write-Host 'Desktop shortcut targets the installed executable and its icon is available'
+
 Write-Host "Launching $appPath"
 $app = $null
 $ownedProcessIds = @()
