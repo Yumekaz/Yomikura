@@ -8,6 +8,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { render, waitForRender } from "../../test/render";
 import AppShell from "./AppShell";
 import { FeedbackProvider } from "../ui/FeedbackProvider";
+import { LIBRARY_SESSION_EVENT } from "../../api/suwayomi/librarySession";
 
 vi.mock("../../api/suwayomi/offlineCache", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../api/suwayomi/offlineCache")>(),
@@ -66,6 +67,16 @@ afterEach(async () => {
 });
 
 describe("offline shell access", () => {
+  it("keeps onboarding mounted while a first connection establishes its library marker", async () => {
+    vi.mocked(getCachedChapters).mockResolvedValue([]);
+    await open("/library");
+    await waitForRender(() => expect(view!.container.querySelector(".yomi-connect-details")).not.toBeNull());
+    const details = view!.container.querySelector<HTMLDetailsElement>(".yomi-connect-details")!;
+    details.open = true;
+    await act(async () => window.dispatchEvent(new Event(LIBRARY_SESSION_EVENT)));
+    expect(view!.container.querySelector(".yomi-connect-details")).toBe(details);
+    expect(details.open).toBe(true);
+  });
   it("takes a new reader from the demo to library setup instead of technical settings", async () => {
     vi.mocked(getCachedChapters).mockResolvedValue([]);
     useSettingsStore.setState({ mockMode: true, connectionStatus: "disconnected" });

@@ -31,3 +31,10 @@ it("a client made for an earlier library cannot mutate a replacement after recon
   await expect(client.request("mutation SaveProgress { updateChapter { id } }")).rejects.toThrow("different library");
   expect(send).not.toHaveBeenCalled();
 });
+it("a client created before verification cannot silently adopt a later library for mutations", async () => {
+  const client = new LibraryGraphqlTransport("http://localhost:4567/api/graphql");
+  rememberLibrary("http://localhost:4567", { marker: second });
+  const send = vi.fn(); vi.stubGlobal("fetch", send);
+  await expect(client.request("mutation SaveProgress { updateChapter { id } }")).rejects.toThrow("Reconnect");
+  expect(send).not.toHaveBeenCalled();
+});

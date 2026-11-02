@@ -22,8 +22,8 @@ import { ReadingModeNotice } from "../ReadingModeNotice";
 import { BrandLogo, SidebarCompanion, SanctuaryArt } from "../Brand";
 import { applyPalette } from "../../theme/palettes";
 import { DesktopDownloadLink } from "../onboarding/DesktopDownloadLink";
-import { DEFAULT_SERVER_BASE_URL, validateServerBaseUrl } from "../../config/server";
-import { LIBRARY_SESSION_EVENT, rememberedLibrary } from "../../api/suwayomi/librarySession";
+import { DEFAULT_SERVER_BASE_URL } from "../../config/server";
+import { LIBRARY_SESSION_EVENT } from "../../api/suwayomi/librarySession";
 
 function ProfileSwitcher() {
   const { profiles, activeProfileId, setActiveProfileId } = useSettingsStore();
@@ -85,7 +85,7 @@ function BackendHealthBadge() {
   );
 }
 
-function AppShell() {
+function AppShell({ libraryRevision = 0 }: { libraryRevision?: number }) {
   useEffect(() => () => {
     useDownloadStore.getState().pauseForShutdown();
   }, []);
@@ -180,7 +180,7 @@ function AppShell() {
   useEffect(() => {
     if (!hasHydrated || (!mockMode && connectionStatus !== "connected")) return;
     void useDownloadStore.getState().restoreDownloadJobs();
-  }, [connectionStatus, hasHydrated, mockMode, serverBaseUrl]);
+  }, [connectionStatus, hasHydrated, mockMode, serverBaseUrl, libraryRevision]);
 
   // Effect to apply dynamic theme and accent color variables
   useEffect(() => {
@@ -245,7 +245,7 @@ function AppShell() {
   }
 
   if (location.pathname.startsWith("/reader/")) {
-    return <main id="main-content" className="min-h-screen bg-black" tabIndex={-1}><ErrorBoundary key={`${serverBaseUrl}::${mockMode}`}><Outlet /></ErrorBoundary></main>;
+    return <main id="main-content" className="min-h-screen bg-black" tabIndex={-1}><ErrorBoundary key={`${serverBaseUrl}::${mockMode}::${libraryRevision}`}><Outlet /></ErrorBoundary></main>;
   }
 
   return (
@@ -291,7 +291,7 @@ function AppShell() {
             <button type="button" className="yomi-button yomi-button-secondary" disabled={connectionStatus === "testing"} onClick={() => void testConnection()}>{connectionStatus === "testing" ? "Reconnecting…" : "Reconnect"}</button>
           </div>
         )}
-        <ErrorBoundary key={`${serverBaseUrl}::${mockMode}`}>
+        <ErrorBoundary key={`${serverBaseUrl}::${mockMode}::${libraryRevision}`}>
           <Outlet />
         </ErrorBoundary>
       </main>
@@ -795,7 +795,6 @@ function MobileNav() {
 
 function LibrarySessionBoundary() {
   const client = useQueryClient();
-  const { serverBaseUrl, mockMode } = useSettingsStore();
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     const changed = () => { useDownloadStore.getState().pauseForShutdown(); client.clear(); setRevision((value) => value + 1); };
@@ -804,7 +803,7 @@ function LibrarySessionBoundary() {
     window.addEventListener("storage", storageChanged);
     return () => { window.removeEventListener(LIBRARY_SESSION_EVENT, changed); window.removeEventListener("storage", storageChanged); };
   }, [client]);
-  const marker = mockMode ? "demo" : (validateServerBaseUrl(serverBaseUrl).valid ? rememberedLibrary(serverBaseUrl)?.marker : undefined) ?? "unverified";
-  return <AppShell key={`${marker}:${revision}`} />;
+  // Keep onboarding/engine ownership mounted; only route content must restart.
+  return <AppShell libraryRevision={revision} />;
 }
 export default LibrarySessionBoundary;

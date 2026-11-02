@@ -5,12 +5,15 @@ import { backupErrorMessage, listLibraryBackups, readLibraryBackup } from "../ap
 import { createLibraryBackup } from "../api/suwayomi/libraryBackups";
 import { normalizeCacheServerUrl } from "../api/suwayomi/offlineCache";
 import { establishLibraryIdentity, verifyLibraryIdentity } from "../api/suwayomi/libraryIdentity";
+import { rememberedLibrary } from "../api/suwayomi/librarySession";
 
 const MINUTE = 60_000;
 
 export function useScheduledBackup() {
   const running = useRef(new Map<string, Promise<void>>());
   const { backupIntervalHours, connectionStatus, mockMode, serverBaseUrl, setScheduledBackupResult } = useSettingsStore();
+  let libraryId: string | undefined;
+  try { libraryId = serverBaseUrl.trim() ? rememberedLibrary(serverBaseUrl)?.marker : undefined; } catch { /* Invalid connection input remains editable. */ }
 
   useEffect(() => {
     const server = normalizeCacheServerUrl(serverBaseUrl);
@@ -59,5 +62,5 @@ export function useScheduledBackup() {
     void runIfDue();
     const timer = backupIntervalHours ? window.setInterval(() => void runIfDue(), Math.min(intervalMs, 15 * MINUTE)) : undefined;
     return () => { active = false; window.clearInterval(timer); };
-  }, [backupIntervalHours, connectionStatus, mockMode, serverBaseUrl, setScheduledBackupResult]);
+  }, [backupIntervalHours, connectionStatus, mockMode, serverBaseUrl, setScheduledBackupResult, libraryId]);
 }

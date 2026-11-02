@@ -18,8 +18,10 @@ export class LibraryGraphqlTransport {
   async request<T>(request: Request | string, variables?: unknown): Promise<T> {
     const value = typeof request === "string" ? { document: request, variables } : request;
     if (typeof value.document !== "string") throw new Error("The library request document is invalid.");
-    if (!this.libraryMarker && /\/api\/graphql\/?$/i.test(this.endpoint)) this.libraryMarker = rememberedLibrary(this.endpoint.replace(/\/api\/graphql\/?$/i, ""))?.marker;
-    if (/\bmutation\b/.test(value.document) && this.libraryMarker) await assertLibrarySession(this.endpoint.replace(/\/api\/graphql\/?$/i, ""), this.libraryMarker);
+    if (/\bmutation\b/.test(value.document) && /\/api\/graphql\/?$/i.test(this.endpoint)) {
+      if (!this.libraryMarker) throw new Error("Reconnect before changing this library. Its identity has not been verified.");
+      await assertLibrarySession(this.endpoint.replace(/\/api\/graphql\/?$/i, ""), this.libraryMarker);
+    }
     const headers = new Headers(this.options.headers);
     new Headers(value.requestHeaders).forEach((value, key) => headers.set(key, value));
     headers.set("Content-Type", "application/json"); headers.set("Accept", "application/graphql-response+json, application/json");
