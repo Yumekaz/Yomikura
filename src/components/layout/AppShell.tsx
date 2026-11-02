@@ -280,7 +280,7 @@ function AppShell() {
         {mockMode && !location.pathname.startsWith("/reader/") && (
           <div className="yomi-demo-notice">
             <span><Sparkles aria-hidden="true" />Demo library <span className="yomi-demo-description">· Explore with original sample books. Your library stays separate.</span></span>
-            <button type="button" onClick={() => { setMockMode(false); navigate("/settings/connection"); }}>Connect your library <ArrowRight aria-hidden="true" /></button>
+            <button type="button" onClick={() => { setMockMode(false); navigate("/library"); }}>Connect your library <ArrowRight aria-hidden="true" /></button>
           </div>
         )}
         {showOfflineBanner && (
