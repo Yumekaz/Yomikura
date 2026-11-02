@@ -112,7 +112,7 @@ test("leaving demo mode never presents its cached queue as a pending live respon
   });
   try {
     await page.getByRole("button", { name: "Connect your library", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/\/library$/);
     await page.getByRole("link", { name: "Downloads", exact: true }).click();
     await expect.poll(() => requested).toBe(true);
     await expect(page.getByText("Loading the server queue…", { exact: true })).toBeVisible();

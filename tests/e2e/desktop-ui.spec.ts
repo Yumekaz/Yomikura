@@ -58,8 +58,8 @@ test("demo mode explains its boundary and exits directly into server setup", asy
   await enterDemo(page);
   await expect(page.locator(".yomi-demo-notice")).toBeVisible();
   await page.getByRole("button", { name: "Connect your library" }).click();
-  await expect(page).toHaveURL(/\/settings\/connection$/);
-  await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/library$/);
+  await expect(page.getByRole("heading", { name: "Your next story starts here.", exact: true })).toBeVisible();
   await expect(page.locator(".yomi-demo-notice")).toHaveCount(0);
 });
 
