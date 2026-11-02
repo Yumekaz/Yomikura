@@ -90,6 +90,7 @@ describe("scheduled backup confirmation", () => {
   it("uses a verified recent copy without creating another export", async () => {
     const backup = saved();
     vi.mocked(listLibraryBackups).mockResolvedValue([backup]);
+    vi.mocked(readLibraryBackup).mockResolvedValue({ backup, bytes: new Uint8Array([1]) });
     view = await render(<Harness />);
     await waitForRender(() => expect(useSettingsStore.getState().lastScheduledBackupAt).toBe(backup.createdAt));
     expect(readLibraryBackup).toHaveBeenCalledWith(serverA, backup.id);

@@ -53,7 +53,7 @@ export function SavedBackupsPanel({ busy, onRestore }: { busy: boolean; onRestor
     <ul className="space-y-3">
       {backups.data?.map((backup) => <li key={backup.id} className="rounded-lg border border-white/10 p-3">
         <p className="break-all text-sm font-medium text-slate-200">{backup.fileName}</p>
-        <p className="mt-1 text-xs text-slate-400">{!backup.libraryId ? "Earlier copy · library origin unverified" : !identity.data ? "Library origin not checked" : identity.data.marker === backup.libraryId ? "Matches connected library" : "From another library · kept for recovery"}</p>
+        <p className="mt-1 text-xs text-slate-400">{!backup.libraryId ? "Earlier copy · library origin unverified" : connectionStatus !== "connected" || !identity.data ? "Library origin not checked" : identity.data.marker === backup.libraryId ? "Matches connected library" : "From another library · kept for recovery"}</p>
         <p className="mt-1 text-xs text-slate-400">{backup.purpose === "safety" ? "Safety copy" : backup.purpose === "scheduled" ? "Automatic" : "Manual"} · {new Date(backup.createdAt).toLocaleString()} · {Math.ceil(backup.size / 1024)} KB</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" className="yomi-button yomi-button-secondary" disabled={busy || working} onClick={() => void run(() => exportLibraryBackup(server, backup.id))}>Export</button>

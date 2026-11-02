@@ -137,6 +137,21 @@ jobs:
           # verified 166 MB backend JAR. Keep the wait bounded, but allow a
           # realistic clean-install margin before declaring startup broken.
           ./scripts/smoke-test-installer.ps1 -InstallerPath $installer -PreservedStoragePath $userStorage -PreseedRuntime -JavaHomePath $env:JAVA_HOME -BackendJarCachePath $backendJarCache -StartupTimeoutSeconds 240
+      - name: Verify identity across two isolated local libraries
+        shell: pwsh
+        run: |
+          $backendJar = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.3.2243.jar"
+          $javaBinary = Join-Path $env:JAVA_HOME "bin\java.exe"
+          node scripts/verify-library-identity.mjs "--jar=$backendJar" "--java=$javaBinary"
+      - name: Preserve live identity evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: library-identity-live-evidence
+          path: .cache/library-identity-live/**/*.log
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
