@@ -55,7 +55,7 @@ async function fixture(page: Page, options: { allRead?: boolean; marathon?: bool
 test("book details distinguish author and artist when both are supplied", async ({ page }) => {
   await fixture(page);
   await page.goto("/manga/10002");
-  await expect(page.getByText("By Story creator", { exact: true })).toBeVisible();
+  await expect(page.getByText("Story creator", { exact: true })).toBeVisible();
   await expect(page.getByText("Art: Art creator", { exact: true })).toBeVisible();
 });
 
