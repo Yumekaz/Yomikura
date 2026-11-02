@@ -196,7 +196,10 @@ function SettingsPage() {
       if (useSettingsStore.getState().mockMode) throw new LibraryBackupError("Connect to Suwayomi before restoring a backup.");
       return restoreWithSafetyBackup(
         () => createLibraryBackup(client, server, "safety"),
-        async () => {
+        async (safetyBackup) => {
+          if (!safetyBackup.libraryId) throw new LibraryBackupError("The safety copy has no verified library identity. Restore stopped.");
+          const { verifyLibraryIdentity } = await import("../api/suwayomi/libraryIdentity");
+          await verifyLibraryIdentity(server, { marker: safetyBackup.libraryId });
           if (normalizeCacheServerUrl(useSettingsStore.getState().serverBaseUrl) === normalizeCacheServerUrl(server)) {
             setBackupMessage({ kind: "info", text: "Safety backup saved and verified. Restoring the selected file…" });
           }

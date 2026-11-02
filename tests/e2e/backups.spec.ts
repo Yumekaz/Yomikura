@@ -9,7 +9,7 @@ const backend = "http://127.0.0.1:45679";
 const archive = gzipSync("Synthetic library backup fixture");
 
 async function connectFixture(context: BrowserContext, options: { offline?: boolean; failStorage?: boolean; restoreFails?: boolean } = {}) {
-  const state = { restores: 0, safetyVerifiedBeforeRestore: false, exports: 0 };
+  const state = { restores: 0, safetyVerifiedBeforeRestore: false, exports: 0, marker: "11111111-1111-4111-8111-111111111111" };
   await context.addInitScript(({ backend, failStorage }) => {
     if (!localStorage.getItem("yomikura-settings")) {
       localStorage.setItem("yomikura-settings", JSON.stringify({ state: { serverBaseUrl: backend, mockMode: false, connectionStatus: "connected", backupIntervalHours: 0 }, version: 0 }));
@@ -48,7 +48,9 @@ async function connectFixture(context: BrowserContext, options: { offline?: bool
     const { query, variables = {}, operationName } = route.request().postDataJSON();
     const name = operationName || /\b(?:query|mutation)\s+(\w+)/.exec(query)?.[1] || "ConnectionTest";
     let data: unknown;
-    if (name === "CreateBackup") {
+    if (name === "YomikuraLibraryIdentity") {
+      data = { metas: { nodes: [{ key: "yomikura.library.identity.v1", value: state.marker }] } };
+    } else if (name === "CreateBackup") {
       state.exports += 1;
       data = { createBackup: { url: `/export/temporary-${state.exports}.tachibk` } };
     } else if (name === "GetRestoreStatus") {
@@ -62,6 +64,21 @@ async function connectFixture(context: BrowserContext, options: { offline?: bool
   });
   return state;
 }
+
+test("backups from two libraries at the same address retain distinct origins", async ({ context, page }) => {
+  const state = await connectFixture(context);
+  await page.goto("/settings/backup");
+  await page.getByRole("button", { name: "Create & Download Backup", exact: true }).click();
+  const saved = page.getByRole("region", { name: "Saved backups" });
+  await expect(saved.getByRole("listitem")).toHaveCount(1);
+  await expect(saved.getByText("Matches connected library", { exact: true })).toHaveCount(1);
+  state.marker = "22222222-2222-4222-8222-222222222222";
+  await page.getByRole("button", { name: "Create & Download Backup", exact: true }).click();
+  await expect(saved.getByRole("listitem")).toHaveCount(2);
+  await expect(saved.getByText("From another library · kept for recovery", { exact: true })).toHaveCount(1);
+  await expect(saved.getByText("Matches connected library", { exact: true })).toHaveCount(1);
+  expect(state.exports).toBe(2);
+});
 
 test("a retained backup survives Chrome restart and exports with the server unavailable", async ({ baseURL }, info) => {
   test.setTimeout(60_000);

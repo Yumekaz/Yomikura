@@ -7,9 +7,10 @@ import { isTauri, useSettingsStore } from "../../stores/useSettingsStore";
 import { useFeedback } from "../ui/FeedbackProvider";
 import { downloadNoteExport, importNoteExport } from "../../features/manga/notePortability";
 import { progressBackend } from "../../api/suwayomi/backendIdentity";
+import { readLibraryIdentity } from "../../api/suwayomi/libraryIdentity";
 
 export function SavedBackupsPanel({ busy, onRestore }: { busy: boolean; onRestore: (file: File) => Promise<void> }) {
-  const { serverBaseUrl, mockMode } = useSettingsStore();
+  const { serverBaseUrl, mockMode, connectionStatus } = useSettingsStore();
   const server = normalizeCacheServerUrl(serverBaseUrl);
   const client = useQueryClient();
   const { confirm, notify } = useFeedback();
@@ -17,10 +18,11 @@ export function SavedBackupsPanel({ busy, onRestore }: { busy: boolean; onRestor
   const [message, setMessage] = useState("");
   const queryKey = ["library-backups", server];
   const backups = useQuery({ queryKey, queryFn: () => listLibraryBackups(server), enabled: !!server && !mockMode });
+  const identity = useQuery({ queryKey: ["backup-library-identity", server], queryFn: () => readLibraryIdentity(server), enabled: !!server && !mockMode && connectionStatus === "connected", retry: false, refetchInterval: 30000 });
 
   useEffect(() => {
     setMessage("");
-    const refresh = () => { void client.invalidateQueries({ queryKey: ["library-backups", server] }); };
+    const refresh = () => { void client.invalidateQueries({ queryKey: ["library-backups", server] }); void client.invalidateQueries({ queryKey: ["backup-library-identity", server] }); };
     window.addEventListener(BACKUPS_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(BACKUPS_CHANGED_EVENT, refresh);
   }, [client, server]);
@@ -42,14 +44,16 @@ export function SavedBackupsPanel({ busy, onRestore }: { busy: boolean; onRestor
     <h3 className="font-semibold text-slate-200">Saved backups</h3>
     <p className="text-xs leading-5 text-slate-400">
       {isTauri() ? "Copies are retained in this app’s backup folder." : "Copies are retained in this browser. Export a copy to keep it if browser data is cleared."}
-      {" "}Backups are grouped by server address. If a different library has used the same address, check which library a backup came from before restoring it. New backups retain a separate snapshot of device notes. Downloaded pages and Yomikura settings are not included.
+      {" "}Copies from earlier libraries are kept for recovery. Check the origin shown on each copy before restoring it. Device notes are a separate snapshot; review them before adding them to this library. Downloaded pages and Yomikura settings are not included.
     </p>
     {isTauri() && <button type="button" className="yomi-button yomi-button-secondary" disabled={busy || working} onClick={() => void run(openLibraryBackupFolder)}>Open backup folder</button>}
     {(message || backups.error) && <p role="alert" className="text-sm text-red-400">{message || backupErrorMessage(backups.error)}</p>}
+    {identity.isError && <p role="status" className="text-sm text-slate-400">Backup origins could not be checked. You can still export your retained copies.</p>}
     {backups.isPending && !mockMode ? <p className="text-sm text-slate-400">Loading saved backups…</p> : !backups.data?.length && <p className="text-sm text-slate-400">No saved backups for this server.</p>}
     <ul className="space-y-3">
       {backups.data?.map((backup) => <li key={backup.id} className="rounded-lg border border-white/10 p-3">
         <p className="break-all text-sm font-medium text-slate-200">{backup.fileName}</p>
+        <p className="mt-1 text-xs text-slate-400">{!backup.libraryId ? "Earlier copy · library origin unverified" : !identity.data ? "Library origin not checked" : identity.data.marker === backup.libraryId ? "Matches connected library" : "From another library · kept for recovery"}</p>
         <p className="mt-1 text-xs text-slate-400">{backup.purpose === "safety" ? "Safety copy" : backup.purpose === "scheduled" ? "Automatic" : "Manual"} · {new Date(backup.createdAt).toLocaleString()} · {Math.ceil(backup.size / 1024)} KB</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" className="yomi-button yomi-button-secondary" disabled={busy || working} onClick={() => void run(() => exportLibraryBackup(server, backup.id))}>Export</button>

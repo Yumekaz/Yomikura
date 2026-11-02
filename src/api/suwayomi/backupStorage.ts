@@ -2,6 +2,7 @@ import { isTauri } from "../../stores/useSettingsStore";
 import { normalizeCacheServerUrl } from "./offlineCache";
 import { progressBackend } from "./backendIdentity";
 import { captureNoteExport, parseNoteExport } from "../../features/manga/notePortability";
+import { validLibraryMarker } from "./libraryIdentity";
 
 export const MAX_LIBRARY_BACKUP_BYTES = 512 * 1024 * 1024;
 export const BACKUPS_CHANGED_EVENT = "yomikura-library-backups-changed";
@@ -19,6 +20,8 @@ export type LibraryBackup = {
   size: number;
   sha256: string | null;
   storage: "browser" | "native";
+  /** Verified server marker at export time; absent on older, address-only copies. */
+  libraryId?: string;
   /** Device drafts travel beside the server archive, without changing its format. */
   notesSnapshot?: string;
 };
@@ -91,6 +94,7 @@ function validateRecord(value: unknown): LibraryBackup {
     throw new LibraryBackupError("Saved backup information could not be read.");
   }
   if (record.notesSnapshot !== undefined) parseNoteExport(record.notesSnapshot);
+  if (record.libraryId !== undefined && !validLibraryMarker(record.libraryId)) throw new LibraryBackupError("Saved backup library identity could not be read.");
   return record;
 }
 
@@ -98,7 +102,7 @@ function metadata(record: LibraryBackup): LibraryBackup {
   return {
     id: record.id, serverBaseUrl: record.serverBaseUrl, fileName: record.fileName,
     purpose: record.purpose, createdAt: record.createdAt, size: record.size,
-    sha256: record.sha256, storage: record.storage, notesSnapshot: record.notesSnapshot,
+    sha256: record.sha256, storage: record.storage, notesSnapshot: record.notesSnapshot, libraryId: record.libraryId,
   };
 }
 
@@ -143,10 +147,11 @@ async function nativeFS() {
   return { fs, options: { baseDir: fs.BaseDirectory.AppLocalData } };
 }
 
-export async function saveLibraryBackup(serverBaseUrl: string, bytes: Uint8Array, purpose: BackupPurpose): Promise<LibraryBackup> {
+export async function saveLibraryBackup(serverBaseUrl: string, bytes: Uint8Array, purpose: BackupPurpose, libraryId?: string): Promise<LibraryBackup> {
   await verifyLibraryBackupArchive(bytes);
   const server = normalizeCacheServerUrl(serverBaseUrl);
   if (!server) throw new LibraryBackupError("Choose a server before saving a backup.");
+  if (libraryId !== undefined && !validLibraryMarker(libraryId)) throw new LibraryBackupError("The backup library identity is invalid.");
   const createdAt = Date.now();
   const suffix = globalThis.crypto?.randomUUID?.() ?? `${createdAt.toString(36)}-${Math.random().toString(36).slice(2)}`;
   const id = `backup-${suffix}`;
@@ -157,7 +162,7 @@ export async function saveLibraryBackup(serverBaseUrl: string, bytes: Uint8Array
     id, serverBaseUrl: server, purpose, createdAt, size: bytes.length,
     fileName: `yomikura-${purpose}-${new Date(createdAt).toISOString().replace(/[:.]/g, "-")}-${suffix.slice(-8)}.tachibk`,
     sha256: await checksum(bytes), storage: isTauri() ? "native" : "browser",
-    notesSnapshot,
+    notesSnapshot, libraryId,
   };
   try {
     if (record.storage === "native") {

@@ -4,6 +4,7 @@ import { useSettingsStore } from "../stores/useSettingsStore";
 import { backupErrorMessage, listLibraryBackups, readLibraryBackup } from "../api/suwayomi/backupStorage";
 import { createLibraryBackup } from "../api/suwayomi/libraryBackups";
 import { normalizeCacheServerUrl } from "../api/suwayomi/offlineCache";
+import { establishLibraryIdentity, verifyLibraryIdentity } from "../api/suwayomi/libraryIdentity";
 
 const MINUTE = 60_000;
 
@@ -21,17 +22,19 @@ export function useScheduledBackup() {
 
     const perform = async () => {
       try {
-        const latest = (await listLibraryBackups(server)).find((backup) => backup.purpose === "scheduled");
+        if (!backupIntervalHours || connectionStatus !== "connected") return;
+        const identity = await establishLibraryIdentity(server);
+        const latest = (await listLibraryBackups(server)).find((backup) => backup.purpose === "scheduled" && backup.libraryId === identity.marker);
         let savedAt = 0;
         if (latest) {
-          try { await readLibraryBackup(server, latest.id); savedAt = latest.createdAt; }
+          try {
+            const retained = await readLibraryBackup(server, latest.id);
+            await verifyLibraryIdentity(server, identity);
+            if (retained.backup.libraryId === identity.marker) savedAt = retained.backup.createdAt;
+          }
           catch { /* An unreadable file must not postpone a replacement recovery copy. */ }
         }
         if (!isCurrent()) return;
-        if (!backupIntervalHours || connectionStatus !== "connected") {
-          setScheduledBackupResult("idle", "", savedAt);
-          return;
-        }
         if (Date.now() - savedAt < intervalMs) {
           setScheduledBackupResult("success", "", savedAt);
           return;
