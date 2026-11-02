@@ -25,6 +25,9 @@ function tracksFor(mangaId: number) {
 }
 
 const mockImpl: any = {
+  async YomikuraLibraryIdentity() {
+    return { metas: { nodes: [{ key: "yomikura.library.identity.v1", value: "11111111-1111-4111-8111-111111111111" }] } };
+  },
   async ConnectionTest() {
     return { __typename: "Query" };
   },

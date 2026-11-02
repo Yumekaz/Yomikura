@@ -9,7 +9,7 @@ import { synchronizeTracking } from "../api/suwayomi/trackingSync";
 function ConflictActions({ operation }: { operation: ProgressOperation }) {
   const { confirm, notify } = useFeedback();
   const resolve = async (saved: boolean) => {
-    if (!await confirm({ title: "Resolve reading progress?", detail: saved ? `Use this device’s saved position for “${operation.chapter.chapterName}”? This replaces its current server progress.` : `Keep Suwayomi’s position for “${operation.chapter.chapterName}”? This replaces the pending change saved on this device.`, confirmLabel: saved ? "Use saved progress" : "Keep server progress" })) return;
+    if (!await confirm({ title: "Resolve reading progress?", detail: saved ? `Check that “${operation.chapter.mangaTitle}” and “${operation.chapter.chapterName}” belong to the library you want. An address may have been used by another library. Apply this device’s saved position to the currently connected library? This replaces its current progress.` : `Keep the currently connected library’s position for “${operation.chapter.chapterName}”? This replaces the pending change saved on this device.`, confirmLabel: saved ? "Use saved progress" : "Keep server progress" })) return;
     try {
       await resolveProgressConflict(operation.backend, operation.chapter.chapterId, saved, operation.sequence);
       if (window.location.pathname.startsWith("/reader/")) window.location.reload();

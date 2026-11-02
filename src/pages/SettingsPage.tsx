@@ -23,6 +23,7 @@ import { useTranslation } from "../hooks/useTranslation";
 import { AboutSettingsPanel } from "../components/settings/AboutSettingsPanel";
 import { SettingsStatusPanel } from "../components/settings/SettingsStatusPanel";
 import { OfflineSettingsPanel } from "../components/settings/OfflineSettingsPanel";
+import { EarlierLibraryData } from "../components/settings/EarlierLibraryData";
 import { BackupSettingsPanel, type BackupMessage } from "../components/settings/BackupSettingsPanel";
 import { useFeedback } from "../components/ui/FeedbackProvider";
 import { useNavigate, useParams } from "react-router-dom";
@@ -662,7 +663,7 @@ function SettingsPage() {
               clearAll={() => clearAll(progressBackend(serverBaseUrl, mockMode)).catch((error) => { notify(error instanceof Error ? error.message : "Saved chapters could not be cleared.", "error"); })}
               deleteChapter={(id) => deleteChapter(id, progressBackend(serverBaseUrl, mockMode)).catch((error) => { notify(error instanceof Error ? error.message : "Saved chapter could not be removed.", "error"); })}
               confirm={confirm}
-              /></>
+              /><EarlierLibraryData /></>
           )}
 
           {activeTab === "advanced" && <AdvancedSettingsPanel />}

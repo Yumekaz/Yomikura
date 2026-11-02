@@ -3,6 +3,7 @@ import { progressBackend, type ProgressBackend } from "../../api/suwayomi/backen
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { GraphqlError } from "../../api/graphql/transport";
 import { addMissingBookNotes, bookNoteScope, getBookNoteDrafts } from "./bookNoteStorage";
+import { rememberedLibrary } from "../../api/suwayomi/librarySession";
 
 export type NoteExport = { format: "yomikura-notes"; version: 1; createdAt: string; notes: { mangaId: number; title: string; value: string }[] };
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -23,6 +24,7 @@ export async function captureNoteExport(backend: ProgressBackend): Promise<strin
   for (const draft of await getBookNoteDrafts()) {
     let parts: unknown; try { parts = JSON.parse(draft.key); } catch { continue; }
     if (!Array.isArray(parts) || parts[0] !== backend.key) continue;
+    if (parts[3] !== (backend.isDemo ? undefined : backend.libraryId ?? rememberedLibrary(backend.serverBaseUrl)?.marker)) continue;
     notes.push({ mangaId: parts[1], title: parts[2], value: draft.value });
   }
   const text = JSON.stringify({ format: "yomikura-notes", version: 1, createdAt: new Date().toISOString(), notes });

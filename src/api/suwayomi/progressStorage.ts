@@ -1,9 +1,13 @@
 import { chapterIdentityMatches, type ChapterProgressIdentity, type ProgressBackend } from "./backendIdentity";
+import { rememberedLibrary } from "./librarySession";
 
 export const PROGRESS_CHANGED_EVENT = "yomikura-progress-changed";
 const DATABASE = "yomikura-progress";
 export type ProgressPatch = { isRead: boolean; lastPageRead: number; isBookmarked?: boolean };
 export type ProgressIntent = {
+  libraryId?: string | null;
+  /** Only explicit, confirmed conflict review may replace an older library's pending change. */
+  reviewedLibrary?: boolean;
   kind: "reading" | "explicit";
   chapter: ChapterProgressIdentity;
   patch: Partial<ProgressPatch>;
@@ -16,6 +20,7 @@ export type ProgressIntent = {
   duplicateOf?: { chapterId: number; epoch: number; sequence: number };
 };
 export interface ProgressHead {
+  libraryId?: string | null;
   entityKey: string;
   backend: ProgressBackend;
   chapter: ChapterProgressIdentity;
@@ -104,8 +109,14 @@ export async function getProgressHead(backend: ProgressBackend, chapterId: numbe
   return transaction(["heads"], "readonly", (tx) => read<ProgressHead | undefined>(tx.objectStore("heads").get(entityKey(backend, chapterId))));
 }
 
-export async function getProgressHeads(backend: ProgressBackend) {
-  return transaction(["heads"], "readonly", (tx) => read<ProgressHead[]>(tx.objectStore("heads").index("backend").getAll(backend.key)));
+export async function getProgressHeads(backend: ProgressBackend, includeEarlier = false) {
+  const heads = await transaction(["heads"], "readonly", (tx) => read<ProgressHead[]>(tx.objectStore("heads").index("backend").getAll(backend.key)));
+  const marker = backend.isDemo ? undefined : rememberedLibrary(backend.serverBaseUrl)?.marker;
+  return includeEarlier ? heads : heads.filter((head) => (head.libraryId ?? undefined) === marker);
+}
+export async function getEarlierProgress() {
+  const heads = await transaction(["heads"], "readonly", (tx) => read<ProgressHead[]>(tx.objectStore("heads").getAll()));
+  return heads.filter((head) => !head.backend.isDemo && (head.backend.key.startsWith("earlier:") || head.libraryId !== rememberedLibrary(head.backend.serverBaseUrl)?.marker));
 }
 
 export function progressHeadVersion(head: ProgressHead | undefined) {
@@ -117,6 +128,7 @@ export async function observeChapterProgress(backend: ProgressBackend, chapter: 
   return transaction(["heads"], "readwrite", async (tx) => {
     const store = tx.objectStore("heads");
     const head = await read<ProgressHead | undefined>(store.get(entityKey(backend, chapter.chapterId)));
+    if (head && !backend.isDemo && head.libraryId !== rememberedLibrary(backend.serverBaseUrl)?.marker) return { head, stale: false };
     if (expectedVersion !== undefined && progressHeadVersion(head) !== expectedVersion) return { head, stale: true };
     if (!head || head.sequence > head.acknowledgedSequence) return { head, stale: false };
     const identityChanged = !chapterIdentityMatches(head.chapter, chapter);
@@ -150,17 +162,23 @@ export async function getProgressOperations(backend: ProgressBackend) {
 }
 
 export async function enqueueProgress(backend: ProgressBackend, intent: ProgressIntent) {
+  const libraryId = backend.isDemo ? undefined : Object.prototype.hasOwnProperty.call(intent, "libraryId") ? intent.libraryId : rememberedLibrary(backend.serverBaseUrl)?.marker;
   const result = await transaction(["heads", "operations"], "readwrite", async (tx) => {
     const heads = tx.objectStore("heads");
     const operations = tx.objectStore("operations");
     const key = entityKey(backend, intent.chapter.chapterId);
     const previous = await read<ProgressHead | undefined>(heads.get(key));
+    if (previous && previous.sequence > previous.acknowledgedSequence && (previous.libraryId ?? null) !== (libraryId ?? null) && !(intent.kind === "explicit" && intent.reviewedLibrary)) return { head: previous, accepted: false, reason: "identity" };
+    if (previous && (previous.libraryId ?? null) !== (libraryId ?? null)) {
+      const archivedKey = JSON.stringify(["earlier", previous.entityKey, previous.libraryId ?? "unverified", previous.sequence]);
+      heads.put({ ...previous, entityKey: archivedKey, backend: { ...previous.backend, key: `earlier:${previous.backend.key}` } });
+    }
     if (intent.duplicateOf) {
       const origin = await read<ProgressHead | undefined>(heads.get(entityKey(backend, intent.duplicateOf.chapterId)));
       if (!origin || !origin.patch.isRead || origin.epoch !== intent.duplicateOf.epoch || origin.chapter.mangaId !== intent.chapter.mangaId || origin.chapter.mangaTitle !== intent.chapter.mangaTitle || origin.chapter.chapterNumber !== intent.chapter.chapterNumber) return { head: previous!, accepted: false, reason: "origin" };
     }
     if (intent.expectedSequence !== undefined && (previous?.sequence ?? 0) !== intent.expectedSequence) return { head: previous!, accepted: false, reason: "changed" };
-    const sameChapter = previous && chapterIdentityMatches(previous.chapter, intent.chapter);
+    const sameChapter = previous && (previous.libraryId ?? null) === (libraryId ?? null) && chapterIdentityMatches(previous.chapter, intent.chapter);
     const previousPending = !!previous && previous.sequence > previous.acknowledgedSequence;
     const identityTransition = !!previous && !sameChapter && !previousPending;
     // A late callback from a reader opened before reset/unread is obsolete.
@@ -191,10 +209,10 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
     const bookmarkOnly = intent.kind === "explicit" && !resetsReader && intent.patch.isBookmarked !== undefined;
     const trackCompletion = intent.trackCompletion || bookmarkOnly && patch.isRead && older.some((item) => item.epoch === epoch && (item.kind === "reading" && !item.duplicateOf || item.trackCompletion) && item.patch.isRead);
     const duplicateOf = intent.duplicateOf ?? (bookmarkOnly ? older.find((item) => item.epoch === epoch && item.duplicateOf)?.duplicateOf : undefined);
-    const operation = { ...intent, duplicateOf, trackCompletion, backend, entityKey: key, patch, epoch, createdAt, status: "pending", deleteAfterAck, fields };
+    const operation = { ...intent, libraryId, duplicateOf, trackCompletion, backend, entityKey: key, patch, epoch, createdAt, status: "pending", deleteAfterAck, fields };
     const sequence = Number(await read(operations.add(operation)));
     const head: ProgressHead = {
-      entityKey: key, backend, chapter: intent.chapter, epoch, sequence,
+      entityKey: key, backend, libraryId, chapter: intent.chapter, epoch, sequence,
       acknowledgedSequence: previous?.acknowledgedSequence ?? 0, patch,
       baseline: sameChapter && pending ? previous.baseline : baseline,
       ...(sameChapter ? { lastAcknowledged: previous.lastAcknowledged } : {}),
@@ -295,7 +313,7 @@ export async function releaseTrackingLease(backend: ProgressBackend, owner: stri
   });
 }
 export async function getPendingTracking(backend: ProgressBackend) {
-  return (await getProgressHeads(backend)).filter((head) => (head.trackingDueSequence ?? 0) > (head.trackingAcknowledgedSequence ?? 0));
+  return (await getProgressHeads(backend, true)).filter((head) => (head.trackingDueSequence ?? 0) > (head.trackingAcknowledgedSequence ?? 0));
 }
 export async function recordTrackingResult(backend: ProgressBackend, requests: ProgressHead[], owner: string, error?: string) {
   await transaction(["heads", "leases"], "readwrite", async (tx) => {

@@ -9,6 +9,7 @@ import { DEFAULT_DOWNLOAD_EXPERIENCE } from "./downloadExperience";
 import { allowDeviceDownload, connectionInformation, waitForDownloadNetwork } from "../api/suwayomi/networkPolicy";
 import { validatePageBlob } from "../api/suwayomi/validatePageBlob";
 import { splitTallImage } from "../api/suwayomi/tallImageTiles";
+import { assertLibrarySession, rememberedLibrary } from "../api/suwayomi/librarySession";
 
 export interface DownloadProgress { progress: number; total: number; status: "queued" | "downloading" | "error" | "success"; attempts?: number; error?: string; waitingForNetwork?: boolean }
 interface DownloadState {
@@ -26,7 +27,8 @@ interface DownloadState {
 type Entry = { key: string; token: string; backend: ProgressBackend; chapterId: number; mangaTitle?: string; native: boolean; controller: AbortController;
   progress: DownloadProgress; running: boolean; reason?: "cancel" | "pause"; persist: Promise<void>; done: Promise<void>; settle: () => void; stopping?: Promise<void> };
 const targetFor = (target?: ProgressBackend) => {
-  const settings = useSettingsStore.getState(); return progressBackend(target?.serverBaseUrl ?? settings.serverBaseUrl, target?.isDemo ?? settings.mockMode);
+  if (target) return target;
+  const settings = useSettingsStore.getState(); return progressBackend(settings.serverBaseUrl, settings.mockMode);
 };
 const currentKey = () => { try { return targetFor().key; } catch { return ""; } };
 const jobKey = (target: ProgressBackend, id: number) => JSON.stringify([target.key, id]);
@@ -61,11 +63,11 @@ export function createDownloadStore() {
     };
     const update = (entry: Entry, patch: Partial<DownloadProgress>) => { if (entries.get(entry.key) === entry) { entry.progress = { ...entry.progress, ...patch }; publish(); } };
     const persist = (entry: Entry, status: "queued" | "downloading" | "failed") => {
-      const job = { serverBaseUrl: entry.backend.serverBaseUrl, isDemo: entry.backend.isDemo, chapterId: entry.chapterId, mangaTitle: entry.mangaTitle, status, progress: entry.progress.progress, total: entry.progress.total, attempts: entry.progress.attempts ?? 0, error: entry.progress.error, updatedAt: Date.now() };
+      const job = { serverBaseUrl: entry.backend.serverBaseUrl, isDemo: entry.backend.isDemo, libraryId: entry.backend.libraryId, chapterId: entry.chapterId, mangaTitle: entry.mangaTitle, status, progress: entry.progress.progress, total: entry.progress.total, attempts: entry.progress.attempts ?? 0, error: entry.progress.error, updatedAt: Date.now() };
       const saved = entry.persist.catch(() => undefined).then(() => saveDownloadJob(job)); entry.persist = saved; return saved;
     };
     const remove = (entry: Entry) => { if (entries.get(entry.key) === entry) entries.delete(entry.key); publish(); };
-    const check = (entry: Entry) => { if (entry.controller.signal.aborted || entries.get(entry.key) !== entry) throw new DOMException("Download cancelled", "AbortError"); };
+    const check = (entry: Entry) => { if (entry.controller.signal.aborted || entries.get(entry.key) !== entry || !entry.backend.isDemo && entry.backend.libraryId !== rememberedLibrary(entry.backend.serverBaseUrl)?.marker) throw new DOMException("Download cancelled", "AbortError"); };
     const run = async (entry: Entry) => {
       entry.running = true; const created: string[] = [], tileCreated: string[] = [], pageTiles: CachedPageTiles[] = [];
       try {
@@ -122,17 +124,18 @@ export function createDownloadStore() {
         if (completed !== pages.length || created.filter(Boolean).length !== pages.length) throw new Error("Not every page was saved. Retry this chapter.");
         await entry.persist;
         check(entry);
+        if (!entry.backend.isDemo) await assertLibrarySession(entry.backend.serverBaseUrl, entry.backend.libraryId);
         const mangaTitle = details.manga?.title || entry.mangaTitle || "Unknown Manga";
         const identity = { chapterId: details.id, chapterName: details.name, chapterNumber: details.chapterNumber, mangaId: details.mangaId, mangaTitle, sourceOrder: details.sourceOrder, pageCount: pages.length };
         const head = await getProgressHead(entry.backend, entry.chapterId).catch(() => undefined);
-        const progress = head && chapterIdentityMatches(head.chapter, identity) ? head.patch : details;
+        const progress = head && (head.libraryId ?? undefined) === entry.backend.libraryId && chapterIdentityMatches(head.chapter, identity) ? head.patch : details;
         const previous = await getCachedChapter(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo); check(entry);
-        await saveCachedChapter({ cacheKey: getChapterCacheKey(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo), serverBaseUrl: entry.backend.serverBaseUrl, isDemo: entry.backend.isDemo,
+        await saveCachedChapter({ cacheKey: getChapterCacheKey(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo), serverBaseUrl: entry.backend.serverBaseUrl, isDemo: entry.backend.isDemo, libraryId: entry.backend.libraryId,
           id: details.id, name: details.name, chapterNumber: details.chapterNumber, mangaId: details.mangaId, mangaTitle, sourceOrder: details.sourceOrder,
           isBookmarked: progress.isBookmarked ?? details.isBookmarked, scanlator: details.scanlator, uploadDate: String(details.uploadDate ?? ""),
           pageCount: pages.length, pages, networkUrls, cachedUrls: created, pageTiles: pageTiles.sort((a, b) => a.index - b.index), totalSizeBytes, cachedAt: Date.now(), isRead: progress.isRead, lastPageRead: Math.max(0, Math.min(progress.lastPageRead, pages.length - 1)),
         }, entry.controller.signal);
-        await deleteDownloadJob(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo);
+        await deleteDownloadJob(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo, entry.backend.libraryId ?? "");
         if (previous) await cleanupUnreferencedCachedPages(cachedPageUrls(previous)).catch(() => undefined);
         if (!entry.reason) remove(entry);
         await get().loadCachedChapters();
@@ -162,7 +165,7 @@ export function createDownloadStore() {
       entry.reason = reason; entry.controller.abort(); const index = queue.indexOf(entry); if (index >= 0) queue.splice(index, 1); publish();
       const stopping = (async () => {
         await entry.persist.catch(() => undefined); if (!entry.running) entry.settle(); await entry.done;
-        if (reason === "pause") await persist(entry, "queued"); else await deleteDownloadJob(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo);
+        if (reason === "pause") await persist(entry, "queued"); else await deleteDownloadJob(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo, entry.backend.libraryId ?? "");
         remove(entry);
       })();
       entry.stopping = stopping;

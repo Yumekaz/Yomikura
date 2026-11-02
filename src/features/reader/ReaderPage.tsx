@@ -243,7 +243,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
       const atEnd = progress.canComplete !== false && progress.pageCount > 0 && progress.pageIndex >= progress.pageCount - 1;
       const result = await saveProgressIntent(backend, {
         kind: "reading", chapter: { chapterId: progress.chapterId, chapterName: progress.chapterName, chapterNumber: progress.chapterNumber, mangaId: progress.mangaId, mangaTitle: progress.mangaTitle, pageCount: progress.pageCount, sourceOrder: progress.sourceOrder },
-        epoch: progress.progressEpoch, baseline: progress.baseline,
+        epoch: progress.progressEpoch, baseline: progress.baseline, libraryId: progress.libraryId,
         patch: { lastPageRead: progress.pageIndex, isRead: progress.wasRead || atEnd },
         deleteAfterAck: autoDeleteReadChapters && atEnd,
       });

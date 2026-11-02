@@ -18,10 +18,10 @@ async function fixture(page: Page, options: { saved?: number; single?: boolean; 
   const metadataFetches: number[] = [];
   let allowNext = !options.failNext;
   let online = !options.offline;
-  await page.addInitScript(({ backend }) => localStorage.setItem("yomikura-settings", JSON.stringify({ state: {
+  await page.addInitScript(({ backend }) => { localStorage.setItem("yomikura-library-sessions-v1", JSON.stringify({ [backend]: { marker: "11111111-1111-4111-8111-111111111111" } })); localStorage.setItem("yomikura-settings", JSON.stringify({ state: {
     serverBaseUrl: backend, mockMode: false, connectionStatus: "connected", readerMode: "WEBTOON", autoDownloadCount: 0,
     autoDeleteReadChapters: false, infiniteChapterReading: true, pageTransition: "none",
-  }, version: 0 })), { backend });
+  }, version: 0 })); }, { backend });
   await page.route("**/api/graphql", async (route) => {
     if (new URL(route.request().url()).origin !== backend || !online) return route.abort("connectionrefused");
     const { query, variables = {}, operationName } = route.request().postDataJSON();
@@ -80,7 +80,7 @@ async function fixture(page: Page, options: { saved?: number; single?: boolean; 
           for (let i = 0; i < chapter.pages.length; i += 1) await cache.put(chapter.pages[i], new Response(chapter.images[i], { headers: { "content-type": "image/svg+xml" } }));
           await new Promise<void>((resolve, reject) => {
             const tx = db.transaction("chapters", "readwrite"); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
-            tx.objectStore("chapters").put({ cacheKey: `${backend}::${chapter.id}`, serverBaseUrl: backend, id: chapter.id, name: chapter.name, chapterNumber: chapter.number, mangaId: 42, mangaTitle: title, sourceOrder: chapter.number, pages: chapter.pages, cachedUrls: chapter.pages, pageCount: chapter.pages.length, cachedAt: Date.now(), totalSizeBytes: 1, lastPageRead: chapter.page, isRead: false });
+            tx.objectStore("chapters").put({ cacheKey: `${backend}::${chapter.id}`, libraryId: "11111111-1111-4111-8111-111111111111", serverBaseUrl: backend, id: chapter.id, name: chapter.name, chapterNumber: chapter.number, mangaId: 42, mangaTitle: title, sourceOrder: chapter.number, pages: chapter.pages, cachedUrls: chapter.pages, pageCount: chapter.pages.length, cachedAt: Date.now(), totalSizeBytes: 1, lastPageRead: chapter.page, isRead: false });
           });
         }
       } finally { db.close(); }

@@ -6,6 +6,7 @@ import { chapterIdentityMatches, progressBackend, type ChapterProgressIdentity, 
 import { acquireProgressLease, getProgressHead, releaseProgressLease } from "./progressStorage";
 import { deleteCachedChapter, getCachedChapter } from "./offlineCache";
 import { CLEANUP_CHANGED, cleanupJobKey, getCleanupJobs, isCurrentCleanupJob, removeCleanupJob, saveCleanupJob, type CleanupJob } from "./cleanupStorage";
+import { rememberedLibrary, assertLibrarySession } from "./librarySession";
 export { CLEANUP_CHANGED } from "./cleanupStorage";
 const inFlight = new Map<string, Promise<void>>();
 const changed = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event(CLEANUP_CHANGED)); };
@@ -35,11 +36,13 @@ async function drain(backend: ProgressBackend) {
   try {
     for (const job of await getCleanupJobs(backend)) {
       if (!selected(backend)) return;
+      if (!backend.isDemo && (!job.backend.libraryId || job.backend.libraryId !== rememberedLibrary(backend.serverBaseUrl)?.marker)) continue;
       const policy = preferences();
       if (!enabled(job)) { await removeCleanupJob(job); continue; }
       if (!await currentHead(job)) { await removeCleanupJob(job); continue; }
       if (Date.now() < job.completedAt + policy.cleanupDelayHours * 3600000) continue;
       try {
+        if (!backend.isDemo) await assertLibrarySession(backend.serverBaseUrl, job.backend.libraryId);
         const context = (await sdk.GetCleanupChapterContext({ id: job.chapter.chapterId }, undefined, AbortSignal.timeout(15_000))).chapter;
         const identity = { chapterId: context.id, chapterName: context.name, chapterNumber: context.chapterNumber, sourceOrder: context.sourceOrder, pageCount: context.pageCount, mangaId: context.mangaId, mangaTitle: context.manga?.title ?? "" };
         if (!chapterIdentityMatches(job.chapter, identity)) { await removeCleanupJob(job); continue; }

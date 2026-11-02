@@ -23,6 +23,7 @@ import { BrandLogo, SidebarCompanion, SanctuaryArt } from "../Brand";
 import { applyPalette } from "../../theme/palettes";
 import { DesktopDownloadLink } from "../onboarding/DesktopDownloadLink";
 import { DEFAULT_SERVER_BASE_URL } from "../../config/server";
+import { LIBRARY_SESSION_EVENT, rememberedLibrary } from "../../api/suwayomi/librarySession";
 
 function ProfileSwitcher() {
   const { profiles, activeProfileId, setActiveProfileId } = useSettingsStore();
@@ -792,4 +793,18 @@ function MobileNav() {
   );
 }
 
-export default AppShell;
+function LibrarySessionBoundary() {
+  const client = useQueryClient();
+  const { serverBaseUrl, mockMode } = useSettingsStore();
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    const changed = () => { useDownloadStore.getState().pauseForShutdown(); client.clear(); setRevision((value) => value + 1); };
+    window.addEventListener(LIBRARY_SESSION_EVENT, changed);
+    const storageChanged = (event: StorageEvent) => { if (event.key === "yomikura-library-sessions-v1") changed(); };
+    window.addEventListener("storage", storageChanged);
+    return () => { window.removeEventListener(LIBRARY_SESSION_EVENT, changed); window.removeEventListener("storage", storageChanged); };
+  }, [client]);
+  const marker = mockMode ? "demo" : (serverBaseUrl.trim() ? rememberedLibrary(serverBaseUrl)?.marker : undefined) ?? "unverified";
+  return <AppShell key={`${marker}:${revision}`} />;
+}
+export default LibrarySessionBoundary;

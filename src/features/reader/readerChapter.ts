@@ -8,6 +8,7 @@ import { getProgressHead, progressHeadVersion } from "../../api/suwayomi/progres
 type ChapterDetails = Awaited<ReturnType<SuwayomiSdk["GetChapter"]>>["chapter"];
 export type ReaderChapterDetails = Awaited<ReturnType<typeof loadReaderChapterDetails>>;
 export type ReaderChapter = {
+  progressLibraryId?: string | null;
   id: number; name: string; chapterNumber: number; mangaId: number; mangaTitle: string;
   sourceOrder: number; pages: string[]; isRead: boolean; lastPageRead: number;
   progressEpoch: number; progressBaseline: { isRead: boolean; lastPageRead: number };
@@ -50,7 +51,7 @@ export function readerChapter(details: ReaderChapterDetails, pages: string[]): R
   return { id: details.id, name: details.name, chapterNumber: details.chapterNumber, mangaId: details.mangaId,
     mangaTitle: details.manga?.title ?? "Unknown Manga", sourceOrder: details.sourceOrder, pages,
     isRead: details.isRead, lastPageRead: Math.max(0, Math.min(details.lastPageRead, pages.length - 1)),
-    progressEpoch: details.progressEpoch, progressBaseline: details.progressBaseline,
+    progressEpoch: details.progressEpoch, progressBaseline: details.progressBaseline, progressLibraryId: details.progressLibraryId,
   };
 }
 
