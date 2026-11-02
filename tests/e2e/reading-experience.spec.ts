@@ -10,6 +10,7 @@ async function fixture(page: Page, options: { allRead?: boolean; marathon?: bool
   const writes: { id: number; patch: unknown }[] = [];
   const seenCursors: unknown[] = [];
   await page.addInitScript((backend) => {
+    localStorage.setItem("yomikura-library-sessions-v1", JSON.stringify({ [backend]: { marker: "11111111-1111-4111-8111-111111111111" } }));
     if (!localStorage.getItem("yomikura-settings")) localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: backend, mockMode: false, connectionStatus: "connected", readerMode: "LTR", pageSpread: "SINGLE", autoDownloadCount: 0, infiniteChapterReading: false } }));
   }, backend);
   const history = options.marathon ? Array.from({ length: 500 }, (_, index) => ({ ...chapters[0], id: index + 1, name: `Past chapter ${index + 1}`, chapterNumber: index + 1, lastReadAt: String(now + index), manga: { id: 10002, title: "Fixture comic", thumbnailUrl: null } })) : chapters.filter((chapter) => chapter.isRead).map((chapter) => ({ ...chapter, lastReadAt: String(now + chapter.id), manga: { id: 10002, title: "Fixture comic", thumbnailUrl: null } }));

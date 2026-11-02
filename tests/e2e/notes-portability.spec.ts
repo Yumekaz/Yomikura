@@ -4,6 +4,7 @@ import { gzipSync } from "node:zlib";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
 const backend = "http://127.0.0.1:45679";
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript((backend) => localStorage.setItem("yomikura-library-sessions-v1", JSON.stringify({ [backend]: { marker: "11111111-1111-4111-8111-111111111111" } })), backend);
   await page.addInitScript((backend) => { if (!localStorage.getItem("yomikura-settings")) localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: backend, mockMode: false, connectionStatus: "connected" } })); }, backend);
   await page.route(`${backend}/api/graphql`, async (route) => {
     const { query, operationName, variables = {} } = route.request().postDataJSON(), name = operationName || /\b(?:query|mutation)\s+(\w+)/.exec(query)?.[1];

@@ -22,8 +22,10 @@ import { ReadingModeNotice } from "../ReadingModeNotice";
 import { BrandLogo, SidebarCompanion, SanctuaryArt } from "../Brand";
 import { applyPalette } from "../../theme/palettes";
 import { DesktopDownloadLink } from "../onboarding/DesktopDownloadLink";
-import { DEFAULT_SERVER_BASE_URL } from "../../config/server";
+import { DEFAULT_SERVER_BASE_URL, validateServerBaseUrl } from "../../config/server";
 import { LIBRARY_SESSION_EVENT } from "../../api/suwayomi/librarySession";
+import { pendingLibraryRestore, LIBRARY_RESTORE_EVENT } from "../../api/suwayomi/restoreIdentity";
+import { RestoreRecoveryPanel } from "../settings/RestoreRecoveryPanel";
 
 function ProfileSwitcher() {
   const { profiles, activeProfileId, setActiveProfileId } = useSettingsStore();
@@ -85,7 +87,7 @@ function BackendHealthBadge() {
   );
 }
 
-function AppShell({ libraryRevision = 0 }: { libraryRevision?: number }) {
+function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRevision?: number }) {
   useEffect(() => () => {
     useDownloadStore.getState().pauseForShutdown();
   }, []);
@@ -223,7 +225,8 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number }) {
   const checkingOfflineCache = checkOfflineCache && offlineChapters.isFetching && !canOpenOffline;
   const ownsLocalProfile = isTauri() && !!serverDataPath && managedLibraryProfileId === activeProfileId;
   const shouldStartManaged = ownsLocalProfile && isUnconnected && !managedStartupDismissed;
-  const showOnboarding = !mockMode && !isSettingsRoute && (setupActive || shouldStartManaged || isUnconnected && !canOpenOffline);
+  const restoringLibrary = validateServerBaseUrl(serverBaseUrl).valid && !!pendingLibraryRestore(serverBaseUrl);
+  const showOnboarding = !restoringLibrary && !mockMode && !isSettingsRoute && (setupActive || shouldStartManaged || isUnconnected && !canOpenOffline);
 
   if (!hasHydrated || checkingOfflineCache) {
     return <div className="yomi-route-loading" role="status" aria-label={checkingOfflineCache ? "Loading saved chapters" : "Loading saved settings"}><span className="yomi-skeleton h-8 w-40" /><span className="yomi-skeleton h-24 w-full" /></div>;
@@ -291,6 +294,7 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number }) {
             <button type="button" className="yomi-button yomi-button-secondary" disabled={connectionStatus === "testing"} onClick={() => void testConnection()}>{connectionStatus === "testing" ? "Reconnecting…" : "Reconnect"}</button>
           </div>
         )}
+        <RestoreRecoveryPanel />
         <ErrorBoundary key={`${serverBaseUrl}::${mockMode}::${libraryRevision}`}>
           <Outlet />
         </ErrorBoundary>
@@ -796,14 +800,17 @@ function MobileNav() {
 function LibrarySessionBoundary() {
   const client = useQueryClient();
   const [revision, setRevision] = useState(0);
+  const [restoreRevision, setRestoreRevision] = useState(0);
   useEffect(() => {
     const changed = () => { useDownloadStore.getState().pauseForShutdown(); client.clear(); setRevision((value) => value + 1); };
     window.addEventListener(LIBRARY_SESSION_EVENT, changed);
+    const restoreChanged = () => { useDownloadStore.getState().pauseForShutdown(); setRestoreRevision((value) => value + 1); };
+    window.addEventListener(LIBRARY_RESTORE_EVENT, restoreChanged);
     const storageChanged = (event: StorageEvent) => { if (event.key === "yomikura-library-sessions-v1") changed(); };
     window.addEventListener("storage", storageChanged);
-    return () => { window.removeEventListener(LIBRARY_SESSION_EVENT, changed); window.removeEventListener("storage", storageChanged); };
+    return () => { window.removeEventListener(LIBRARY_SESSION_EVENT, changed); window.removeEventListener(LIBRARY_RESTORE_EVENT, restoreChanged); window.removeEventListener("storage", storageChanged); };
   }, [client]);
   // Keep onboarding/engine ownership mounted; only route content must restart.
-  return <AppShell libraryRevision={revision} />;
+  return <AppShell libraryRevision={revision} restoreRevision={restoreRevision} />;
 }
 export default LibrarySessionBoundary;

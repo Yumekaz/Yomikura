@@ -11,6 +11,7 @@ const archive = gzipSync("Synthetic library backup fixture");
 async function connectFixture(context: BrowserContext, options: { offline?: boolean; failStorage?: boolean; restoreFails?: boolean } = {}) {
   const state = { restores: 0, safetyVerifiedBeforeRestore: false, exports: 0, marker: "11111111-1111-4111-8111-111111111111" };
   await context.addInitScript(({ backend, failStorage }) => {
+    if (!localStorage.getItem("yomikura-library-sessions-v1")) localStorage.setItem("yomikura-library-sessions-v1", JSON.stringify({ [backend]: { marker: "11111111-1111-4111-8111-111111111111" } }));
     if (!localStorage.getItem("yomikura-settings")) {
       localStorage.setItem("yomikura-settings", JSON.stringify({ state: { serverBaseUrl: backend, mockMode: false, connectionStatus: "connected", backupIntervalHours: 0 }, version: 0 }));
     }
@@ -50,6 +51,9 @@ async function connectFixture(context: BrowserContext, options: { offline?: bool
     let data: unknown;
     if (name === "YomikuraLibraryIdentity") {
       data = { metas: { nodes: [{ key: "yomikura.library.identity.v1", value: state.marker }] } };
+    } else if (name === "YomikuraCreateLibraryIdentity") {
+      state.marker = variables.value;
+      data = { setGlobalMeta: { meta: { key: "yomikura.library.identity.v1", value: state.marker } } };
     } else if (name === "CreateBackup") {
       state.exports += 1;
       data = { createBackup: { url: `/export/temporary-${state.exports}.tachibk` } };
@@ -73,6 +77,8 @@ test("backups from two libraries at the same address retain distinct origins", a
   await expect(saved.getByRole("listitem")).toHaveCount(1);
   await expect(saved.getByText("Matches connected library", { exact: true })).toHaveCount(1);
   state.marker = "22222222-2222-4222-8222-222222222222";
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("yomikura-library-sessions-v1")!)["http://127.0.0.1:45679"].marker)).toBe(state.marker);
   await page.getByRole("button", { name: "Create & Download Backup", exact: true }).click();
   await expect(saved.getByRole("listitem")).toHaveCount(2);
   await expect(saved.getByText("From another library · kept for recovery", { exact: true })).toHaveCount(1);

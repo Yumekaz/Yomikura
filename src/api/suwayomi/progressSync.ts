@@ -8,7 +8,7 @@ import { duplicateOriginValid, queueDuplicateReads } from "./duplicateRead";
 import { assertLibrarySession, rememberedLibrary } from "./librarySession";
 
 type RemoteChapter = { id: number; name: string; chapterNumber: number; mangaId: number; sourceOrder: number; pageCount: number; isRead: boolean; lastPageRead: number; manga?: { title: string } | null };
-const inFlight = new Map<string, { promise: Promise<void>; rerun: boolean }>();
+const inFlight = new Map<string, { promise: Promise<void>; rerun: boolean; libraryId?: string }>();
 
 export function isCurrentProgressBackend(backend: ProgressBackend) {
   try {
@@ -162,8 +162,9 @@ async function drain(backend: ProgressBackend, exclusiveBrowserLock = false) {
 
 export function synchronizeProgress(backend: ProgressBackend): Promise<void> {
   const running = inFlight.get(backend.key);
+  if (running && running.libraryId !== backend.libraryId) return running.promise.catch(() => undefined).then(() => isCurrentProgressBackend(backend) ? synchronizeProgress(backend) : undefined);
   if (running) { running.rerun = true; return running.promise; }
-  const task = { promise: Promise.resolve(), rerun: false };
+  const task = { promise: Promise.resolve(), rerun: false, libraryId: backend.libraryId };
   const job = (async () => {
     do {
       task.rerun = false;

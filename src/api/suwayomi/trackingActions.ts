@@ -22,7 +22,9 @@ export function trackingErrorMessage(error: unknown) {
 }
 export function assertTrackingBackend(backend: ProgressBackend) {
   const settings = useSettingsStore.getState();
-  if (progressBackend(settings.serverBaseUrl, settings.mockMode).key !== backend.key) throw new TrackingActionError("The selected server changed. Reopen tracking on the intended server.");
+  const current = progressBackend(settings.serverBaseUrl, settings.mockMode);
+  if (current.key !== backend.key) throw new TrackingActionError("The selected server changed. Reopen tracking on the intended server.");
+  if (current.libraryId !== backend.libraryId) throw new TrackingActionError("The selected library changed. Reopen tracking on the intended library.");
 }
 const sdkFor = (backend: ProgressBackend) => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live");
 export function trackerExternalUrl(value: string | null | undefined, base?: string) {

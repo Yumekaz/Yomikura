@@ -64,7 +64,7 @@ test("bookmark and mark-unread refresh the source chapter list and saved copy", 
     const db = await new Promise<IDBDatabase>((resolve) => { open.onsuccess = () => resolve(open.result); });
     try {
       return await new Promise<{ isRead: boolean; lastPageRead: number }>((resolve, reject) => {
-        const request = db.transaction("chapters", "readonly").objectStore("chapters").get(`${backend}::20002`);
+        const request = db.transaction("chapters", "readonly").objectStore("chapters").get(`${backend}::20002::library:11111111-1111-4111-8111-111111111111`);
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });
