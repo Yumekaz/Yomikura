@@ -1,5 +1,7 @@
 # Library identity work
 
+Final implementation: `19a75b0842fe54dfa6219a586b1d0ecb541e49d4`. All three jobs in [GitHub Actions run 41482802780](https://github.com/Yumekaz/Yomikura/actions/runs/41482802780) passed. Its GitHub-built Windows installer was installed normally over the existing test installation and checked against the real local Suwayomi library. The final verification section below supersedes the outstanding gates recorded at earlier checkpoints.
+
 ## Backup lifecycle
 
 New exports establish a marker using Suwayomi's authenticated global metadata API, record it beside the retained backup, and verify it after downloading and after writing the archive. Restore rechecks the safety copy's marker immediately before uploading. Scheduled backups require a matching marker and a readable retained file before trusting its timestamp. Address-only older copies cannot postpone a fresh scheduled export. Older archives and their notes remain exportable; no archive or old manifest is migrated or deleted.
@@ -27,3 +29,38 @@ Restore pauses local server mutations after its safety copy is verified. A persi
 The first data-scope checkpoint passed typechecking and 473 unit tests. Build output measured 3,145,066 bytes, including 1,063,546 bytes of scripts. Verification and device-only recovery are budgeted explicitly with 32 KiB total headroom over 3 MiB and 32 KiB script headroom over 1 MiB, including the late-client and captured-cleanup checks; the artwork and largest-chunk caps are unchanged. These are feature-size allowances, not evidence that runtime checks pass.
 
 The supported boundary is client metadata continuity plus explicit separation and restore renewal, rather than an independently attested physical server identity. Overlapping records at one endpoint, unavailable identity, retained legacy data, stale callbacks, explicit conflict review, address changes and restore checkpoint failures have targeted coverage. The CI live probe is extended to exercise the production progress outbox, safety archive storage, actual Suwayomi restore and post-restore quarantine. Browser tests cover device-only recovery; installed native checks must confirm that the tested app artifact behaves the same. No result here establishes atomic cross-client writes, automatic detection of indistinguishable copies, or crash-durable upstream metadata.
+
+## Final verification
+
+### Automated checks on GitHub
+
+The final implementation run passed 488 unit tests across 72 files, 227 browser tests plus the focused chapter-menu check, typechecking, production dependency audit, production build and bundle budgets. Both Windows jobs passed: compilation, Rust formatting, Clippy, installer lifecycle, shortcut/icon checks, local-engine readiness, shutdown/uninstall and preserved-storage checks.
+
+The live database probe used production progress, backup and restore services against two disposable real Suwayomi databases at one endpoint with overlapping comic/chapter IDs. It rejected stale-origin mutations, quarantined earlier queued progress, exercised explicit review while retaining the earlier record, verified a safety archive before an actual multipart restore, renewed the restored marker, and confirmed pre-restore work stayed blocked. Copied-marker separation and reopening the original database after an idle interval also passed.
+
+Browser coverage includes same-address replacement, earlier saved tiles, missing saved bytes without source fetching, note separation, captured asynchronous cleanup, download-job isolation, stale clients, address changes and durable restore checkpoints. The pending-progress review now appears in the main workspace rather than below the sidebar's scroll area; its viewport regression passed. The reader retains its compact presentation.
+
+Final build output: 119 files, 3,156,480 total bytes, 1,074,960 JavaScript bytes, 737,260 identity-artwork bytes. Largest JavaScript chunk: 320,205 bytes. The explicit identity/recovery allowances are 32 KiB above the former 3 MiB total and 1 MiB script caps. Artwork and largest-chunk caps are unchanged.
+
+### Normal Windows installation
+
+The tested installer is `Yomikura_1.0.25-beta.1_x64-setup.exe`, produced by the final run above. Its downloaded artifact ZIP matched GitHub's artifact digest before extraction. Installer SHA-256:
+
+```text
+342ae8afb2520d49a739581aadef100e0d2e389c04c8b8f1d8e1bb631b2230dc
+```
+
+Before updating, the normal app and engine were closed and the app-data directory was copied outside the repository and sync folder. Original/copy counts and size agreed. This was a safety copy, not a file-by-file cryptographic verification or a profile-restore rehearsal.
+
+Installed results:
+
+- The branded desktop shortcut launches the normal per-user installation, with the title-bar icon present. The existing test library, source extension and reading position survive the update.
+- An earlier unverified progress update requires explicit review. The approved server position remains and the earlier record stays recoverable. Its progress export parses as the expected versioned JSON format.
+- A new native backup is retained and exported. Its size and SHA-256 match its manifest, its gzip payload expands, and the downloaded copy is identical. Its marker still matches the connected library after the final update and restart. The final installed UI shows “Matches connected library.”
+- Chapter 2 advances to page 4 and Suwayomi reports the corresponding zero-based position. After closing both app and engine, shortcut relaunch shows Chapter 2 / Page 4 in Continue reading; opening it renders page 4 of 15.
+- Saving the chapter produces a device download. It remains listed after another full app/engine restart and opens at page 4. Library counts show one on-device download and zero on-server downloads.
+- Appearance and retained-backup settings were checked in light mode, then returned to the original dark appearance. The app was left on Library.
+
+These native checks were performed online. They do not establish disconnected laptop reading or a destructive restore/replacement of the user's normal library. Actual restore and replacement ran against disposable CI databases. Earlier saved-page recovery was verified in browser tests; this normal native profile had no earlier page record for that specific recovery-reader check. No heavy local build or public release was performed.
+
+Earlier failed fixture, setup ownership, stale callback and catalog-refresh attempts remain preserved privately. The final pass does not erase the immediate-termination failure described above or establish crash-durable upstream metadata. Identical clones, atomic cross-client writes, signed-in providers, other operating systems and arbitrary remote Suwayomi versions remain outside this verification.
