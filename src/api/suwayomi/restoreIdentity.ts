@@ -1,4 +1,4 @@
-import { establishLibraryIdentity, replaceLibraryIdentity, verifyLibraryIdentity } from "./libraryIdentity";
+import { establishLibraryIdentity, replaceLibraryIdentity, verifyLibraryIdentity, validLibraryMarker } from "./libraryIdentity";
 import { rememberLibrary } from "./librarySession";
 const KEY = "yomikura-library-restores-v1";
 type Restore = { token: string; id?: string; completedMarker?: string };
@@ -6,7 +6,10 @@ export const LIBRARY_RESTORE_EVENT = "yomikura-library-restore-changed";
 const changed = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event(LIBRARY_RESTORE_EVENT)); };
 function records(): Record<string, Restore> {
   const value = JSON.parse(localStorage.getItem(KEY) ?? "{}");
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Restore recovery information could not be read. Writes remain paused.");
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.values(value).some((entry) => {
+    const record = entry as Restore;
+    return !record || !validLibraryMarker(record.token) || record.id !== undefined && (typeof record.id !== "string" || !record.id || record.id.length > 2048) || record.completedMarker !== undefined && !validLibraryMarker(record.completedMarker);
+  })) throw new Error("Restore recovery information could not be read. Writes remain paused.");
   return value;
 }
 const address = (server: string) => new URL(server).toString().replace(/\/+$/, "");

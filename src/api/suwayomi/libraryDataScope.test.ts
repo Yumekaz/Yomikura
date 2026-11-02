@@ -37,3 +37,11 @@ it("keeps the earlier device note without presenting it as the replacement libra
   expect(await getBookNoteDraft(current)).toBeUndefined();
   expect((await getBookNoteDraft(earlier))?.value).toBe("Earlier thought");
 });
+it("does not reassign a legacy record when an older callback writes after verification", async () => {
+  await saveCachedChapter(chapter());
+  const earlier = await getCachedChapter(server, 12);
+  rememberLibrary(server, { marker: second });
+  await saveCachedChapter({ ...earlier!, lastPageRead: 0 });
+  expect(await getCachedChapter(server, 12)).toBeNull();
+  expect((await getCachedChapters())[0].libraryId).toBeUndefined();
+});

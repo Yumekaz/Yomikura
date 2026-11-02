@@ -222,7 +222,10 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
   });
   const hasSavedPages = isOfflineRoute && offlineChapters.data === true;
   const canOpenOffline = hasSavedPages || isHistoryRoute;
-  const checkingOfflineCache = checkOfflineCache && offlineChapters.isFetching && !canOpenOffline;
+  const cacheDecisionServer = useRef<string>();
+  if (checkOfflineCache && !offlineChapters.isFetching && (offlineChapters.isSuccess || offlineChapters.isError)) cacheDecisionServer.current = serverBaseUrl;
+  // A refresh must not tear down an open setup form or its native engine owner.
+  const checkingOfflineCache = checkOfflineCache && offlineChapters.isFetching && !canOpenOffline && cacheDecisionServer.current !== serverBaseUrl;
   const ownsLocalProfile = isTauri() && !!serverDataPath && managedLibraryProfileId === activeProfileId;
   const shouldStartManaged = ownsLocalProfile && isUnconnected && !managedStartupDismissed;
   const restoringLibrary = validateServerBaseUrl(serverBaseUrl).valid && !!pendingLibraryRestore(serverBaseUrl);
@@ -806,7 +809,7 @@ function LibrarySessionBoundary() {
     window.addEventListener(LIBRARY_SESSION_EVENT, changed);
     const restoreChanged = () => { useDownloadStore.getState().pauseForShutdown(); setRestoreRevision((value) => value + 1); };
     window.addEventListener(LIBRARY_RESTORE_EVENT, restoreChanged);
-    const storageChanged = (event: StorageEvent) => { if (event.key === "yomikura-library-sessions-v1") changed(); };
+    const storageChanged = (event: StorageEvent) => { if (event.key === "yomikura-library-sessions-v1") changed(); if (event.key === "yomikura-library-restores-v1") restoreChanged(); };
     window.addEventListener("storage", storageChanged);
     return () => { window.removeEventListener(LIBRARY_SESSION_EVENT, changed); window.removeEventListener(LIBRARY_RESTORE_EVENT, restoreChanged); window.removeEventListener("storage", storageChanged); };
   }, [client]);

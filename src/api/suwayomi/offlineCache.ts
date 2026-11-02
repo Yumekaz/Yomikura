@@ -168,7 +168,7 @@ export async function getDownloadJobs(serverBaseUrl?: string, isDemo = false): P
     if (serverBaseUrl && (normalizeCacheServerUrl(job.serverBaseUrl) !== normalizeCacheServerUrl(serverBaseUrl) || isDemoCacheRecord(job) !== isDemo || !belongsToLibrary(job, serverBaseUrl, isDemo))) continue;
     const key = storedKey(job.serverBaseUrl, job.chapterId, isDemoCacheRecord(job), job.libraryId);
     const older = byIdentity.get(key);
-    if (!older || job.updatedAt > older.updatedAt || job.updatedAt === older.updatedAt && job.jobKey === key) byIdentity.set(key, job);
+    if (!older || job.updatedAt > older.updatedAt || job.updatedAt === older.updatedAt && job.jobKey === key) byIdentity.set(key, { ...job, libraryId: job.libraryId });
   }
   return [...byIdentity.values()].sort((a, b) => a.updatedAt - b.updatedAt);
 }
@@ -267,7 +267,7 @@ export async function hideMangaReadingHistory(serverBaseUrl: string, event: Omit
 export async function getCachedChapter(serverBaseUrl: string, id: number, isDemo = false): Promise<CachedChapter | null> {
   try {
     const direct = await offlineTransaction([STORE_NAME], "readonly", (tx) => offlineRead<CachedChapter | undefined>(tx.objectStore(STORE_NAME).get(getChapterCacheKey(serverBaseUrl, id, isDemo))));
-    if (direct && direct.id === id && normalizeCacheServerUrl(direct.serverBaseUrl) === normalizeCacheServerUrl(serverBaseUrl) && isDemoCacheRecord(direct) === isDemo && belongsToLibrary(direct, serverBaseUrl, isDemo)) return direct;
+    if (direct && direct.id === id && normalizeCacheServerUrl(direct.serverBaseUrl) === normalizeCacheServerUrl(serverBaseUrl) && isDemoCacheRecord(direct) === isDemo && belongsToLibrary(direct, serverBaseUrl, isDemo)) return { ...direct, libraryId: direct.libraryId };
   } catch { /* Retain legacy lookup/error handling below. */ }
   return (await getCachedChapters(serverBaseUrl, isDemo)).find((chapter) => chapter.id === id) ?? null;
 }
@@ -280,7 +280,7 @@ export async function getCachedChapters(serverBaseUrl?: string, isDemo = false):
       if (serverBaseUrl && (normalizeCacheServerUrl(chapter.serverBaseUrl) !== normalizeCacheServerUrl(serverBaseUrl) || isDemoCacheRecord(chapter) !== isDemo || !belongsToLibrary(chapter, serverBaseUrl, isDemo))) continue;
       const key = storedKey(chapter.serverBaseUrl, chapter.id, isDemoCacheRecord(chapter), chapter.libraryId);
       const older = byIdentity.get(key);
-      if (!older || (chapter.cachedAt ?? 0) > (older.cachedAt ?? 0) || chapter.cachedAt === older.cachedAt && chapter.cacheKey === key) byIdentity.set(key, chapter);
+      if (!older || (chapter.cachedAt ?? 0) > (older.cachedAt ?? 0) || chapter.cachedAt === older.cachedAt && chapter.cacheKey === key) byIdentity.set(key, { ...chapter, libraryId: chapter.libraryId });
     }
     return [...byIdentity.values()];
   } catch (error) { console.error("IndexedDB error in getCachedChapters:", error); return []; }

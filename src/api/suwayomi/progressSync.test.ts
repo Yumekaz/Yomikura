@@ -55,6 +55,7 @@ describe("progress replay and acknowledgement", () => {
     expect(mocks.update).not.toHaveBeenCalled();
     expect((await getProgressOperations(first))[0]).toMatchObject({ status: "blocked", libraryId: "11111111-1111-4111-8111-111111111111" });
     expect((await saveProgressIntent(first, reading(1))).accepted).toBe(false);
+    expect((await saveProgressIntent(first, { ...reading(1), kind: "explicit", patch: { isRead: false } })).accepted).toBe(false);
   });
   it("keeps an unverified older update for review without sending it", async () => {
     await saveProgressIntent(first, { ...reading(2), libraryId: null });

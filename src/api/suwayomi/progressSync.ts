@@ -49,7 +49,7 @@ async function mirrorProgress(head: ProgressHead) {
 /** The outbox/head transaction is authoritative; legacy caches are derived views. */
 export async function saveProgressIntent(backend: ProgressBackend, intent: ProgressIntent) {
   if (intent.kind === "reading" && useSettingsStore.getState().experience?.incognito) return { accepted: false as const, reason: "incognito" };
-  if (intent.kind === "reading" && backend.libraryId !== rememberedLibrary(backend.serverBaseUrl)?.marker && !backend.isDemo) return { accepted: false as const, reason: "identity" };
+  if (!intent.reviewedLibrary && backend.libraryId !== rememberedLibrary(backend.serverBaseUrl)?.marker && !backend.isDemo) return { accepted: false as const, reason: "identity" };
   const result = await enqueueProgress(backend, intent);
   if (result.accepted) {
     await mirrorProgress(result.head).catch((error) => console.warn("Progress is retained; its cached view could not be refreshed.", error));
@@ -62,7 +62,7 @@ export async function projectChapterProgress<T extends RemoteChapter>(backend: P
   const observation = options.offline || backend.isDemo ? { head: await getProgressHead(backend, chapter.id).catch(() => undefined), stale: false }
     : await observeChapterProgress(backend, progressChapterIdentity(chapter), { isRead: chapter.isRead, lastPageRead: chapter.lastPageRead }, options.observedVersion).catch(() => ({ head: undefined, stale: false }));
   const head = observation.head;
-  const libraryId = backend.isDemo ? undefined : rememberedLibrary(backend.serverBaseUrl)?.marker ?? null;
+  const libraryId = backend.isDemo ? undefined : backend.libraryId ?? null;
   const matches = head && (head.libraryId ?? null) === (libraryId ?? null) && chapterIdentityMatches(head.chapter, progressChapterIdentity(chapter));
   if (observation.stale && head && !matches) throw new Error("The chapter changed while loading. Retry the reader.");
   const pending = head && (backend.isDemo || options.offline || observation.stale || head.sequence > head.acknowledgedSequence) && matches;
