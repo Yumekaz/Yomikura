@@ -1,5 +1,6 @@
 import { chooseOption } from "./fixtures/themedSelect";
 import { expect, test, type Page } from "@playwright/test";
+import { mkdir } from "node:fs/promises";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
 import { chapterConnection } from "./fixtures/chapterConnection";
 
@@ -59,6 +60,8 @@ test("title controls retain their own values across backend switches, reload and
   const switchSize = await remembered(page).boundingBox();
   expect(switchSize!.width).toBeGreaterThanOrEqual(38);
   expect(switchSize!.height).toBeGreaterThanOrEqual(24);
+  await mkdir(".cache/beta-ui-review", { recursive: true });
+  await page.screenshot({ path: ".cache/beta-ui-review/reader-settings.png" });
   await remembered(page).click();
   await page.getByRole("button", { name: "RTL", exact: true }).click();
   await chooseOption(page.getByRole("combobox", { name: "Page transition", exact: true }), "fade");

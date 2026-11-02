@@ -1,6 +1,12 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { mkdir } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
 import { chooseOption } from "./fixtures/themedSelect";
+
+async function captureBetaReview(page: Page, name: string) {
+  await mkdir(".cache/beta-ui-review", { recursive: true });
+  await page.screenshot({ path: `.cache/beta-ui-review/${name}.png` });
+}
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -58,13 +64,14 @@ test("chapter actions remain inside the viewport and restore keyboard focus", as
   }
   await expect(menu.locator("xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' yomi-privacy-content ')]")).toHaveCount(1);
   await expect(menu.getByRole("menuitem", { name: "Bookmark", exact: true })).toBeVisible();
+  await captureBetaReview(page, "chapter-menu");
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
   await expect(trigger).toBeFocused();
 });
 
 test("search icons leave room for typed text on discovery screens", async ({ page }) => {
-  for (const [path, label] of [["/browse/search", "Search manga title globally"], ["/browse/mock-source", "Search manga in source"], ["/browse/extensions", "Search extensions"]]) {
+  for (const [path, label, capture] of [["/browse/search", "Search manga title globally", "global-search"], ["/browse/mock-source", "Search manga in source", "source-search"], ["/browse/extensions", "Search extensions", "extension-search"]]) {
     await page.goto(path);
     const input = page.getByRole("textbox", { name: label, exact: true });
     await expect(input).toBeVisible();
@@ -74,6 +81,7 @@ test("search icons leave room for typed text on discovery screens", async ({ pag
     const padding = await input.evaluate((element) => parseFloat(getComputedStyle(element).paddingLeft));
     expect(field!.x + padding).toBeGreaterThanOrEqual(icon!.x + icon!.width + 4);
     await expect(input).toHaveValue("Test query");
+    await captureBetaReview(page, capture);
   }
 });
 
@@ -86,6 +94,7 @@ test("source names remain readable at desktop and narrow widths", async ({ page 
     const overflow = await name.evaluate((element) => ({ horizontal: element.scrollWidth - element.clientWidth, vertical: element.scrollHeight - element.clientHeight }));
     expect(overflow.horizontal).toBeLessThanOrEqual(1);
     expect(overflow.vertical).toBeLessThanOrEqual(1);
+    if (width === 1280) await captureBetaReview(page, "source-cards");
   }
 });
 
