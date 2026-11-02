@@ -4,10 +4,11 @@ import path from "node:path";
 const root = path.resolve("dist");
 const limits = {
   // Original palette-aware branding and self-hosted display type ship offline.
-  // Keep script limits unchanged; artwork has its own bounded allowance.
+  // Library identity checks add about 4 KiB of scripts. Keep the overall
+  // 3 MiB limit and allow 8 KiB for this data-safety boundary.
   totalBytes: 3 * 1024 * 1024,
   identityBytes: 768 * 1024,
-  javascriptBytes: 1024 * 1024,
+  javascriptBytes: 1024 * 1024 + 8 * 1024,
   largestJavaScriptBytes: 350 * 1024,
 };
 

@@ -10,6 +10,8 @@ Evidence in the pinned Suwayomi source: `graphql/queries/MetaQuery.kt` (`metas`)
 
 ## Remaining boundary work
 
+Initial remote verification: commit `b6a8096` passed typechecking but failed a timestamp-inconsistent test fixture; commit `34cc2ee` corrected it and passed all 464 unit tests and the production build. The resulting scripts measured 1,052,148 bytes, 3,572 bytes over the former 1 MiB script budget; total output was 3,133,557 bytes, below the unchanged 3 MiB total cap. The explicit script allowance was increased by 8 KiB for these identity checks. Browser and live-database validation remain separate gates, and failed logs are retained privately.
+
 Progress, tracking queues, device notes, offline chapters and download jobs still use endpoint-based scopes, with record-specific guards in several paths. This backup batch does not fix or certify them. In particular, device note snapshots retain the existing note scope and are not proof of origin; review their content before importing them into a replacement library.
 
 A complete solution must retain legacy offline reading, quarantine pending actions rather than replay them under an unproven identity, account for simultaneous clients, distinguish a managed storage generation from copied server metadata, and give users an explicit path for a moved, restored or cloned library. Tests still needed include overlapping IDs and titles in two live libraries at one address, address changes, interrupted migration, real restore, and installed native checks. Do not report this larger task as complete based only on backup tests.
