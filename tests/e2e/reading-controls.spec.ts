@@ -43,7 +43,18 @@ test("chapter actions remain inside the viewport and restore keyboard focus", as
   expect(rect!.y).toBeGreaterThanOrEqual(0);
   expect(rect!.x + rect!.width).toBeLessThanOrEqual(1280);
   expect(rect!.y + rect!.height).toBeLessThanOrEqual(640);
-  await expect(menu.getByRole("menuitem", { name: "Mark read", exact: true })).toBeFocused();
+  try {
+    await expect(menu.getByRole("menuitem", { name: "Mark read", exact: true })).toBeFocused();
+  } catch (error) {
+    const diagnostics = await menu.evaluate((element) => {
+      const active = document.activeElement as HTMLElement | null;
+      const item = element.querySelector<HTMLElement>('[role="menuitem"]');
+      return { active: active?.outerHTML.slice(0, 500), item: item?.outerHTML, visibility: item && getComputedStyle(item).visibility, inert: item?.closest("[inert]")?.outerHTML.slice(0, 300) };
+    });
+    console.log("Chapter menu focus diagnostics:", JSON.stringify(diagnostics));
+    throw error;
+  }
+  await expect(menu.locator("xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' yomi-privacy-content ')]")).toHaveCount(1);
   await expect(menu.getByRole("menuitem", { name: "Bookmark", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);

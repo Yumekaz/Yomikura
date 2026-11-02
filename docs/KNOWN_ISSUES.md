@@ -20,6 +20,10 @@ Managed Yomikura storage also disables Suwayomi's fallback browser auto-open. Ex
 
 Windows receives the automated install, local-engine readiness, shutdown, uninstall, and storage-preservation test. macOS and Linux are compiled and packaged in CI, but their installed packages do not yet receive the same native lifecycle automation.
 
+## Reusing a server address for a different library
+
+Some client data, including saved-backup lists, is scoped by server address rather than a verified server-instance identity. If a different Suwayomi library later uses the same address, old backups can appear alongside the new library's backups. The same address-based boundary is used by other local reading stores and needs a broader identity audit. Check a backup's origin before restoring it; avoid replacing a library behind an existing address until its client data has been reviewed.
+
 ## Local-source Date search sorting in Suwayomi v2.3.2243
 
 This server version advertises a Date choice in Local-source search but applies title sorting regardless of that choice. Title ascending/descending works. Yomikura detects the affected source/version and marks Date unavailable instead of sending a known-ignored selection. Other sources retain their supplied sort choices. The backend behavior and the exact shipped bytecode were verified; see [catalog filter evidence](RELIABILITY_BATCH_7_2026-10-24.md).

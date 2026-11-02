@@ -28,6 +28,6 @@ Optional tray mode keeps the desktop library engine running after the window clo
 
 Uninstalling the desktop application removes the application but preserves a user-selected storage folder. Users can remove cached chapters or explicitly wipe managed local data from Settings. Yomikura does not receive a remote copy that must be deleted from a project server.
 
-Clearing the selected server's offline cache removes that endpoint/mode's saved chapters and local download jobs. Other profiles' saved chapters, retained library backups, preferences and pending reading progress are separate stores and are not removed by this action. A Suwayomi library backup does not contain those independent client stores or downloaded page bytes.
+Clearing the selected server's offline cache removes that endpoint/mode's saved chapters and local download jobs. Retained library backups, preferences and pending reading progress are separate stores and are not removed by this action. Client data is scoped by server address; different libraries reusing the same address are not guaranteed to be distinguished. A Suwayomi library backup does not contain those independent client stores or downloaded page bytes.
 
 Do not include passwords, access tokens, private server addresses, or personal files in bug reports.
