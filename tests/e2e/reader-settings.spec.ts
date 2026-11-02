@@ -100,6 +100,23 @@ test("title controls retain their own values across backend switches, reload and
   await page.screenshot({ path: info.outputPath("reader-settings-profile-isolation.png") });
 });
 
+test("reader layout controls remain usable in light mode", async ({ page }) => {
+  await fixture(page);
+  await page.goto("/settings/appearance");
+  await page.getByRole("button", { name: "Light", exact: true }).click();
+  await openReader(page, "First");
+  await expect(page.locator("html")).toHaveClass(/light-theme/);
+  const control = remembered(page);
+  const rect = await control.boundingBox();
+  expect(rect!.width).toBeGreaterThanOrEqual(38);
+  expect(rect!.height).toBeGreaterThanOrEqual(24);
+  await expect(control).toHaveAttribute("aria-pressed", "false");
+  await control.click();
+  await expect(control).toHaveAttribute("aria-pressed", "true");
+  await mkdir(".cache/beta-ui-review", { recursive: true });
+  await page.screenshot({ path: ".cache/beta-ui-review/reader-settings-light.png" });
+});
+
 test("earlier unowned settings wait for a confirmed server choice and remain recoverable", async ({ page }) => {
   await fixture(page, true); await openReader(page, "First");
   await expect(remembered(page)).toHaveAttribute("aria-pressed", "false");
