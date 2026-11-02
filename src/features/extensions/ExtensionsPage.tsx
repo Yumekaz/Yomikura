@@ -397,7 +397,7 @@ export default function ExtensionsPage() {
             <p>No extensions match your filters.</p>
             {!showNsfw && extensionCounts.hiddenByNsfw > 0 && (
               <p className="text-sm">
-                {extensionCounts.hiddenByNsfw.toLocaleString()} extensions are hidden by the 18+ filter.
+                {extensionCounts.hiddenByNsfw.toLocaleString()} {extensionCounts.hiddenByNsfw === 1 ? "extension in the catalog is" : "extensions in the catalog are"} hidden by the 18+ filter.
               </p>
             )}
           </div>

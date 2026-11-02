@@ -183,7 +183,7 @@ export function ReaderOverlay({
                   </>
                 )}
 
-                <div className="flex items-center justify-between border-t border-white/5 pt-3">
+                <div className="yomi-reader-setting-row border-t border-white/5 pt-3">
                   <span className="text-xs font-semibold text-slate-300">Page transition</span>
                   <ThemedSelect
                     aria-label="Page transition"
@@ -197,7 +197,7 @@ export function ReaderOverlay({
                   </ThemedSelect>
                 </div>
 
-                <div className="flex items-center justify-between">
+                <div className="yomi-reader-setting-row">
                   <span className="text-xs font-semibold text-slate-300">Auto-download ahead</span>
                   <ThemedSelect
                     aria-label="Auto-download ahead"

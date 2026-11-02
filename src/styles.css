@@ -839,6 +839,8 @@ html.reduce-motion .yomi-book-cover { transform: none !important; }
 .yomi-reader-page-tools .yomi-context-menu > :is(button,a) { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 9px 12px; border-radius: 6px; font-size: 12px; color: var(--text); }
 .yomi-reader-page-tools .yomi-context-menu > a:hover { background: rgba(var(--yomi-signature), .1); }
 .yomi-reader-page-tools svg { width: 16px; height: 16px; }
+.yomi-reader-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.yomi-reader-setting-row .yomi-select-trigger { width: auto; min-width: 144px; max-width: 55%; }
 .yomi-reader-menu-label { display: block; padding: 7px 12px; font-size: 10px; color: var(--text-muted); }
 .yomi-reader-vertical-nav { position: fixed; z-index: 55; right: max(8px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; width: 36px; padding: 10px 5px; border-radius: 10px; background: #000b; color: #fff; font-size: 10px; font-variant-numeric: tabular-nums; }
 .yomi-reader-vertical-nav.on-left { right: auto; left: max(8px, env(safe-area-inset-left)); }

@@ -60,6 +60,8 @@ test("title controls retain their own values across backend switches, reload and
   const switchSize = await remembered(page).boundingBox();
   expect(switchSize!.width).toBeGreaterThanOrEqual(38);
   expect(switchSize!.height).toBeGreaterThanOrEqual(24);
+  const transitionLabel = await page.getByText("Page transition", { exact: true }).boundingBox();
+  expect(transitionLabel!.height).toBeLessThan(20);
   await mkdir(".cache/beta-ui-review", { recursive: true });
   await page.screenshot({ path: ".cache/beta-ui-review/reader-settings.png" });
   await remembered(page).click();
