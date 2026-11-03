@@ -771,7 +771,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
 
   if (!activeChapter && (chapterLoading || pagesLoading || !!rootPages.length)) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-black">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-ink-950">
         <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
         <span className="mt-4 text-sm text-slate-400">Loading chapter...</span>
       </div>
@@ -780,7 +780,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
 
   if (!activeChapter && (chapterError || pagesError || !chapter)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black px-6 py-10 text-slate-300">
+      <div className="flex min-h-screen items-center justify-center bg-ink-950 px-6 py-10 text-slate-300">
         <SourceRecoveryPanel
           problem={pageProblem}
           title={pageProblem?.title || "Failed to load pages."}
@@ -795,7 +795,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
 
   if (!activeChapter || pages.length === 0) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black px-6 py-10 text-slate-300">
+      <div className="flex min-h-screen items-center justify-center bg-ink-950 px-6 py-10 text-slate-300">
         <SourceRecoveryPanel
           title="No pages returned."
           detail="Suwayomi returned the chapter, but the source did not provide any page URLs. Try another source for this title."

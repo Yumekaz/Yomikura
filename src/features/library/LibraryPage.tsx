@@ -26,7 +26,7 @@ export default function LibraryPage() {
   const { notify } = useFeedback();
   const { serverBaseUrl, testConnection, mockMode, libraryViewMode, setLibraryViewMode, librarySortMode, setLibrarySortMode, librarySortDescending, setLibrarySortDescending, experience, updateExperience } = useSettingsStore();
   const backendKey = useMemo(() => progressBackend(serverBaseUrl, mockMode).key, [serverBaseUrl, mockMode]);
-  const { cachedChapters, loadCachedChapters, downloadChapter } = useDownloadStore();
+  const { cachedChapters, cachedChapterIds, loadCachedChapters, downloadChapter } = useDownloadStore();
   const queryClient = useQueryClient();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -326,7 +326,7 @@ export default function LibraryPage() {
         </div>
         <div className="yomi-library-header-actions"><label className="yomi-search"><Search aria-hidden="true" /><input type="search" aria-label="Search library" placeholder="Search library..." value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label><Link className="yomi-button yomi-button-primary" to="/browse/sources"><Plus aria-hidden="true" />Add books</Link></div>
       </header>
-      {!isSelectMode && !searchQuery && activeCategoryId === null && <ContinueReading books={isOfflineMode ? [...new Map(cachedChapters.map((chapter) => [Number(chapter.mangaId), { id: Number(chapter.mangaId), title: chapter.mangaTitle }])).values()] : (libData?.mangas.nodes ?? []).map((manga) => ({ id: Number(manga.id), title: manga.title, thumbnailUrl: manga.thumbnailUrl }))} />}
+      {!isSelectMode && !searchQuery && activeCategoryId === null && <ContinueReading offline={isOfflineMode} cachedChapterIds={cachedChapterIds} books={isOfflineMode ? [...new Map(cachedChapters.map((chapter) => [Number(chapter.mangaId), { id: Number(chapter.mangaId), title: chapter.mangaTitle }])).values()] : (libData?.mangas.nodes ?? []).map((manga) => ({ id: Number(manga.id), title: manga.title, thumbnailUrl: manga.thumbnailUrl }))} />}
       {/* Filters Bar */}
       <LibraryFilters
         filterChoices={filterChoices}

@@ -120,8 +120,8 @@ export function classifySourceProblem(error: unknown): SourceProblem {
 
   if (lower.includes("failed to fetch") || lower.includes("networkerror") || lower.includes("cors")) {
     return {
-      title: "Browser could not reach Suwayomi",
-      detail: "Check the server URL, CORS, and whether Suwayomi is still running.",
+      title: "Your library couldn’t be reached",
+      detail: "Your saved chapters and progress are still on this device. Reconnect your library, then try again.",
       owner: "app",
       kind: "app-network",
     };
@@ -197,8 +197,8 @@ export function getSourceRecoveryHints(problem?: SourceProblem | null): string[]
       ];
     case "app-network":
       return [
-        "Check the configured Suwayomi URL and whether the server is still running.",
-        "Use http://127.0.0.1:4567 when testing locally.",
+        "Reconnect your library in Connection settings.",
+        "Read a saved chapter while your library is unavailable.",
       ];
     default:
       return [

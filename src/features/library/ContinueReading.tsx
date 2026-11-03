@@ -32,7 +32,7 @@ function timestamp(value: unknown) {
   return Number.isFinite(number) ? (number < 30_000_000_000 ? number * 1000 : number) : Date.parse(String(value)) || 0;
 }
 
-export function ContinueReading({ books }: { books: { id: number; title: string; thumbnailUrl?: string | null }[] }) {
+export function ContinueReading({ books, offline = false, cachedChapterIds }: { books: { id: number; title: string; thumbnailUrl?: string | null }[]; offline?: boolean; cachedChapterIds?: ReadonlySet<number> }) {
   const { serverBaseUrl, mockMode, chapterPolicies, experience } = useSettingsStore();
   const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
   const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`, undefined, mockMode ? "demo" : "live"), [serverBaseUrl, mockMode]);
@@ -67,14 +67,15 @@ export function ContinueReading({ books }: { books: { id: number; title: string;
     lastPageRead: nextUnread.data.lastPageRead ?? 0, pageCount: nextUnread.data.pageCount, isRead: false,
   } : experience.downloadedOnly ? undefined : candidates.unfinished : latest;
   if (!item) return null;
+  const needsConnection = offline && !cachedChapterIds?.has(item.chapterId);
   const cover = item.thumbnailUrl ? (item.thumbnailUrl.startsWith("http") || item.thumbnailUrl.startsWith("blob:") ? item.thumbnailUrl : `${serverBaseUrl.replace(/\/$/, "")}${item.thumbnailUrl}`) : "/placeholder-cover.svg";
   const page = Math.max(1, item.lastPageRead + 1);
   return <section className="yomi-continue" aria-label="Continue reading">
-    <div className="yomi-section-heading"><h2>Continue reading</h2><Link to="/history">View history<ChevronRight aria-hidden="true" /></Link></div>
+    <div className="yomi-section-heading"><h2>{needsConnection ? "Last read" : "Continue reading"}</h2><Link to="/history">View history<ChevronRight aria-hidden="true" /></Link></div>
     <div className="yomi-continue-card">
-      <Link to={`/reader/${item.chapterId}`} className="yomi-continue-cover" aria-label={`Resume ${item.title}`}><img src={cover} alt="" onError={(event) => { if (!event.currentTarget.src.endsWith("/placeholder-cover.svg")) event.currentTarget.src = "/placeholder-cover.svg"; }} /></Link>
-      <div className="yomi-continue-copy"><Link to={`/manga/${item.mangaId}`}>{item.title.replace(/^\[Demo\]\s*/, "")}</Link><p>{item.chapterName}</p><span>Page {page}{item.pageCount && item.pageCount >= page ? ` of ${item.pageCount}` : ""}</span>{!!item.pageCount && item.pageCount >= page && <div className="yomi-progress-line" aria-hidden="true"><span style={{ width: `${Math.min(100, page / item.pageCount * 100)}%` }} /></div>}</div>
-      <Link className="yomi-button yomi-button-primary" to={`/reader/${item.chapterId}`}>Continue reading<ArrowRight aria-hidden="true" /></Link>
+      <Link to={needsConnection ? `/manga/${item.mangaId}` : `/reader/${item.chapterId}`} className="yomi-continue-cover" aria-label={`${needsConnection ? "View" : "Resume"} ${item.title}`}><img src={cover} alt="" onError={(event) => { if (!event.currentTarget.src.endsWith("/placeholder-cover.svg")) event.currentTarget.src = "/placeholder-cover.svg"; }} /></Link>
+      <div className="yomi-continue-copy"><Link to={`/manga/${item.mangaId}`}>{item.title.replace(/^\[Demo\]\s*/, "")}</Link><p>{item.chapterName}</p><span>Page {page}{item.pageCount && item.pageCount >= page ? ` of ${item.pageCount}` : ""}</span>{!!item.pageCount && item.pageCount >= page && <div className="yomi-progress-line" aria-hidden="true"><span style={{ width: `${Math.min(100, page / item.pageCount * 100)}%` }} /></div>}{needsConnection && <p>This chapter isn’t saved on this device. Reconnect to continue here.</p>}</div>
+      <Link className="yomi-button yomi-button-primary" to={needsConnection ? "/downloads" : `/reader/${item.chapterId}`}>{needsConnection ? "Read saved chapters" : "Continue reading"}<ArrowRight aria-hidden="true" /></Link>
     </div>
   </section>;
 }
