@@ -27,11 +27,33 @@ The real Asura pass rendered The Greatest Estate Developer, SSS-Class Suicide Hu
 
 Failed device-download records remain retained. After switching into an unavailable profile, their job projection waits for connection verification; saved chapters remain readable throughout. This is not a claim of automatic retry before reconnection.
 
-Tag-triggered draft packaging and verification of the final uploaded assets are separate release gates. The release notes must link their completed run and identify whether the final draft installer received an additional native smoke check. No public publication or merge is part of this verification.
+## Final draft packages and installed smoke check
+
+The immutable `v1.0.25-beta.3` tag identifies source commit `9e86fb1a330be25b4add2aa0bef96ab53dd73ad6`. Application, native and shipped-asset source are unchanged from the verified implementation above. [Tag build 41612801828](https://github.com/Yumekaz/Yomikura/actions/runs/41612801828) passed release preflight, the Windows installer smoke test, and all three platform packaging jobs. Its checksum finalizer failed; the overall original run is not reported as green.
+
+[Artifact-only recovery 41620229453](https://github.com/Yumekaz/Yomikura/actions/runs/41620229453), verification commit `ba8ea0ea78c1a3b72b2c632f94545e7682f63a85`, completed successfully without rebuilding or replacing application packages. It checked the original run's repository, tag, commit and five successful build gates, and required the existing release to remain a draft. The finalizer then passed:
+
+- 15 release-artifact regression tests.
+- All 11 uploaded distributable/signature files matched their original platform build digests.
+- All five updater payload signatures verified with Minisign against the application's configured public key.
+- All eight updater target mappings matched the release version, filenames and repository URLs.
+- All three platform checksum manifests were attached after verification succeeded.
+
+The macOS archive's architecture-qualified uploaded name is reconciled through its original digest. Internal Debian `control.tar.gz` and `data.tar.gz` staging files are excluded from distributable manifests; the actual Linux packages and signatures remain verified. Earlier finalizer failures (package-manager cache setup, unpublished-draft lookup, and staging-archive enumeration) are preserved privately. They were resolved in verification tooling without rewriting the tag or changing the packaged application.
+
+The exact Windows installer downloaded from that draft was independently checked against the attached original-build manifest. `Yomikura_1.0.25-beta.3_x64-setup.exe` is 6,386,522 bytes with SHA-256:
+
+```text
+fbb5923f4d0372739a50fad9b061a9de81ba3180ee8e1fc9b739545564347364
+```
+
+That exact package received an additional normal Windows installation: **Add/Reinstall components** was selected for the existing same-version installation, with the original destination retained. Setup completed, launched the normal installed process, and About confirmed `1.0.25-beta.3`. The retained library showed one book and one device download. Continue reading opened The Greatest Estate Developer, Chapter 2 at page 4 of 15, with images rendered. Closing the app and launching its normal desktop shortcut again restored the same library and Chapter 2 / Page 4. Light Moonstone remained selected. No heavy local build was run.
+
+The release remains an unpublished draft/prerelease for owner review. Neither public publication nor a merge is part of this verification.
 
 ## Baseline beta.2 candidate and evidence
 
-Version `1.0.25-beta.2` is synchronized in the frontend and all native manifests. It does not reuse the published `v1.0.25-beta.1` tag.
+The baseline candidate used version `1.0.25-beta.2` consistently in the frontend and all native manifests. It did not reuse the published `v1.0.25-beta.1` tag and was superseded by beta.3 before publication.
 
 The implementation was verified in [run 41589044345](https://github.com/Yumekaz/Yomikura/actions/runs/41589044345), commit `d3256c209969f045721d9cbd487abcd9c88fabb0`. All three jobs passed:
 
@@ -99,7 +121,7 @@ The controlled connection delay was test infrastructure in a private local folde
 - Explain that application update checks follow stable releases; previews use manual installer downloads.
 - Prepare draft releases, flatten downloadable checksum names, reconcile architecture-renamed assets using the original build digest, verify updater routing and verify payload signatures with Minisign in the release workflow.
 
-The release-artifact workflow is exercised by the tag-triggered draft build separately from branch verification. A passing branch run does not prove every uploaded multi-platform release asset has passed that final gate.
+The tag-triggered builds and final artifact recovery above establish the uploaded packages' provenance separately from branch verification. Signature and checksum verification establish package identity; they do not establish interactive macOS/Linux behavior or Windows publisher trust.
 
 ## Limits and preserved failures
 
