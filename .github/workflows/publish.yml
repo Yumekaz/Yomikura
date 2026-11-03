@@ -94,7 +94,7 @@ jobs:
 
             Yomikura is an independent open-source project applying to the SignPath Foundation for free Windows code signing. Until approval and workflow confirmation, installers are unsigned.
 
-            See the [release readiness checklist](https://github.com/Yumekaz/Yomikura/blob/main/docs/RELEASE_READINESS.md) for validation boundaries.
+            See the [release readiness checklist](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/docs/RELEASE_READINESS.md) for validation boundaries.
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           args: ${{ matrix.platform == 'windows-latest' && '--bundles nsis' || '' }}
