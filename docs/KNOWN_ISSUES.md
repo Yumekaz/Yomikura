@@ -32,6 +32,6 @@ This server version advertises a Date choice in Local-source search but applies 
 
 ## Local reliability verification
 
-The [current reliability handoff](RELIABILITY_STATUS_2026-10-24.md) and [completion report](RELIABILITY_COMPLETION_2026-10-24.md) distinguish implemented behavior from verification limits. Fully offline production deep links and real Windows Tauri/WebView2 download/profile, import, persistence and restart paths are now checked. Native checks use a separate debug test variant; installed public-release packaging and macOS/Linux runtime were not recertified. Signed-in provider behavior and spoken screen-reader output remain unverified.
+The [reliability handoff](RELIABILITY_STATUS_2026-10-24.md), [completion report](RELIABILITY_COMPLETION_2026-10-24.md) and [installed beta.2 verification](BETA_VERIFICATION_2026-11-03.md) distinguish implemented behavior from verification limits. Windows installer upgrades, saved reading across an unavailable backend and app restart, progress replay, interrupted downloads and recovery have direct installed-app evidence. Fully offline web/PWA deep links have browser coverage. macOS/Linux interactive use, signed-in provider behavior and spoken screen-reader output remain unverified.
 
 The crop control is a fixed page magnification/clipping option, not automatic border detection. Remote/web import requires copying supported archives on the server; direct import is limited to a proven owned native Local directory.

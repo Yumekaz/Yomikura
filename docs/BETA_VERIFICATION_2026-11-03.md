@@ -1,0 +1,85 @@
+# Windows beta.2 verification
+
+## Candidate and evidence
+
+Version `1.0.25-beta.2` is synchronized in the frontend and all native manifests. It does not reuse the published `v1.0.25-beta.1` tag.
+
+The implementation was verified in [run 41589044345](https://github.com/Yumekaz/Yomikura/actions/runs/41589044345), commit `d3256c209969f045721d9cbd487abcd9c88fabb0`. All three jobs passed:
+
+- 489 unit tests in 72 files.
+- 229 browser interaction tests and the separate chapter-menu check.
+- 25 native Rust unit tests on Windows.
+- 9 release-artifact, manifest-routing and checksum reconciliation tests.
+- Typechecking, production dependency audit, production build and bundle limits.
+- Production-pinned Java archive download, SHA-256 verification and private Java 21 launch without system Java on the child process's PATH.
+- Windows installer lifecycle and the real Suwayomi database replacement/restore checks.
+
+No application compilation or native build ran on the test laptop. The installed candidate came from [passing run 41584201971](https://github.com/Yumekaz/Yomikura/actions/runs/41584201971), commit `fc8125a2df1554253b0d79423e195cd45ab5d60c`. Application, native, dependency and shipped-asset source are identical between that commit and the final verified implementation; later commits add verification scripts and CI gates.
+
+GitHub artifact ZIP SHA-256:
+
+```text
+f26516c36f7d6ce10dc017e2ff8f9dad2aeb2a18ae86cc89cfeae8ba4c91fa35
+```
+
+Installed `Yomikura_1.0.25-beta.2_x64-setup.exe` SHA-256:
+
+```text
+07956af51650fed838fed39790dfa054288793a835f28458a0ce5d84211e169c
+```
+
+The artifact ZIP matched GitHub's recorded digest before extraction. Windows publisher signature status is unsigned. The normal Explorer installer completed an in-place upgrade; the installed About screen confirms beta.2. Existing library data, profiles and saved chapters were retained.
+
+## Installed offline and recovery results
+
+Tests used a separate real Suwayomi database with original Yomikura demo artwork. The user's normal library remained separate. The laptop's internet connection stayed available; only the disposable library server was stopped.
+
+| Journey | Observed result |
+| --- | --- |
+| Save and read online | Device chapter saved; server recorded page 2. |
+| Backend outage | Saved reader advanced to page 5 and retained pending device progress. |
+| App restart during outage | Normal shortcut relaunch opened the offline library; saved images, thumbnails and page 5 survived. Reading continued to page 6. |
+| Backend recovery | Automatic replay cleared the pending update; a read-only server query confirmed page 6. |
+| Cancel an active download | A delayed loopback connection kept a fresh test job active. Cancel restored its Save action; the cancelled title and job were absent from Saved chapters. |
+| Interrupt a transfer | Stopping the disposable backend after two of eight pages retained a failed job with Retry. Previously saved chapters stayed readable. |
+| Restart with the failed job | The same failed attempt reappeared after closing/reopening Yomikura. |
+| Retry after recovery | Retry completed all eight pages and produced the fourth saved chapter. The cancelled job did not return. |
+| Upgrade to beta.2 | Existing normal library, source extension, profiles, test downloads and reading positions remained. |
+| Beta.2 cold offline reading | A saved chapter opened after a full restart with its backend unavailable. Images and thumbnails rendered; uncached continuation was unavailable. |
+| Beta.2 reconnect in the reader | The offline continuation notice cleared, the current page stayed at page 3, pending progress synchronized to page 3, and Next became available for the uncached second chapter. |
+| Continue after beta.2 recovery | Next opened that uncached second chapter and rendered its images. |
+| Scoped saved-size summary | The updated test-library header showed four saved chapters / 18.9 MB, instead of the old all-profile estimate. |
+| Beta.2 interrupted-download label | Failure after two of eight pages showed the comic title and “Chapter 2,” with Retry; the internal chapter ID was absent from the main label. |
+
+## Reader and visual checks
+
+The normal Windows shortcut and title-bar icon remained branded. The installed About screen reported beta.2 and explained stable update checks. A real stable-feed request completed successfully before the upgrade; no downgrade or automatic installation was attempted.
+
+The original library reopened after test-profile switching with its one saved book, one device download and Chapter 2 / Page 4 unchanged. The Asura catalogue loaded real titles, SSS-Class Suicide Hunter's details and chapter list opened, and two chapters rendered. Thumbnail and keyboard navigation advanced reading; a server query confirmed page 4 of its first chapter without completion. The Greatest Estate Developer's saved progress remained separate from the disposable fixture.
+
+Window sizing was exercised at 912×714 and maximized 1280×752. At the compact width, Statistics was originally inaccessible and light Moonstone's active navigation had poor contrast. Beta.2 exposes all seven navigation destinations and uses a readable palette accent. Browser coverage additionally clicks Statistics and checks overflow/accessibility at 430 pixels in light Moonstone and dark Ink & Ember. This browser viewport is not physical phone testing.
+
+The controlled connection delay was test infrastructure in a private local folder. It was not added to the product or shipped with the installer. Forced process interruption was limited to a verified disposable-server PID and start time; the normal database was not replaced or restored.
+
+## Fixes from the beta pass
+
+- Refresh the reader's fallback chapter sequence after reconnection, keeping the active page and restoring uncached continuation.
+- Persist comic/chapter names in queued and failed device-download jobs, including restart/retry. Older jobs without a name remain usable without exposing an internal ID as the main label.
+- Display saved byte totals for the selected library, rather than all app profiles.
+- Keep Statistics reachable below the desktop-sidebar breakpoint and make active bottom navigation readable in light palettes.
+- Explain that application update checks follow stable releases; previews use manual installer downloads.
+- Prepare draft releases, flatten downloadable checksum names, reconcile architecture-renamed assets using the original build digest, verify updater routing and verify payload signatures with Minisign in the release workflow.
+
+The release-artifact workflow is exercised by the tag-triggered draft build separately from branch verification. A passing branch run does not prove every uploaded multi-platform release asset has passed that final gate.
+
+## Limits and preserved failures
+
+The first isolated startup failed under the restricted execution environment because Java's preferences migration could not access its normal registry location. Retrying with normal runtime permissions succeeded. Those raw logs remain private.
+
+The new updater-target validator initially rejected `x86_64`; its pattern was corrected. One new storage-summary fixture initially waited less than the existing retry interval. An existing preferences fixture could remount during initial identity discovery; it now represents a consistently verified connection. All affected assertions remain, and the full suite passed afterward. Earlier failing logs, browser screenshots and traces are retained privately.
+
+Native coverage is Windows on one laptop, supplemented by disposable Windows/Linux GitHub runners. It is not independent human feedback, signed-in provider testing, a spoken screen-reader session or a macOS/Linux interactive certification. The private Java probe verifies download, integrity and launch; it does not exercise every first-run wizard action or interrupted component download. A forward automatic update needs a newer published stable release; the installed stable-feed check alone is not an update-installation rehearsal.
+
+The [library identity limits](LIBRARY_IDENTITY_2026-11-02.md) still apply: identical copied markers cannot be detected automatically, client preflight is not an atomic cross-client transaction, and immediate upstream termination did not establish crash-durable metadata.
+
+Personal Mihon screenshots, library databases, downloaded pages, raw diagnostics and machine-specific paths are excluded from the public source and release notes.
