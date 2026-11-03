@@ -8,7 +8,7 @@ import { render } from "../../test/render";
 vi.mock("./useReaderImageSource", () => ({ useReaderImageSource: (url: string) => ({ url, reload: () => {} }) }));
 let view: Awaited<ReturnType<typeof render>> | undefined;
 function Fixture() {
-  const root = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLDivElement | null>(null);
   const zoom = useReaderZoom(root, true, false);
   return <ReaderZoomContext.Provider value={zoom}><div ref={(node) => { root.current = node; zoom.onSurfaceRef(node); }}>
     <button onClick={() => zoom.change(.5)}>Zoom out</button><button onClick={() => zoom.change(2)}>Zoom in</button>
