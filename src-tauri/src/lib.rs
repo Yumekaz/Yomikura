@@ -9,6 +9,7 @@ use tauri::WindowEvent;
 use tauri::{Manager, State};
 mod desktop_lock;
 mod desktop_preferences;
+mod external_links;
 mod local_import;
 #[cfg(target_os = "windows")]
 mod native_folders;
@@ -1003,6 +1004,7 @@ pub fn run() {
             desktop_preferences::set_desktop_preferences,
             desktop_preferences::unlock_reading_room,
             reader_platform::set_reader_keep_awake,
+            external_links::open_source_website,
             reader_exports::get_reader_export_directory,
             reader_exports::select_reader_export_directory,
             reader_exports::save_reader_export,

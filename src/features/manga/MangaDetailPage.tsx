@@ -3,7 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LibraryGraphqlTransport, gql } from "../../api/graphql/transport";
 import { ArrowLeft, Copy, ExternalLink, Loader2, Play, RefreshCw } from "lucide-react";
-import { useSettingsStore } from "../../stores/useSettingsStore";
+import { isTauri, useSettingsStore } from "../../stores/useSettingsStore";
 import { applyCoverAccentFromImage, useCoverAccentEnabled } from "../../hooks/useCoverAccent";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { SourceRecoveryPanel } from "../../components/source/SourceRecoveryPanel";
@@ -17,7 +17,7 @@ import { progressBackend } from "../../api/suwayomi/backendIdentity";
 import { mangaReaderSettingsKey } from "../../stores/mangaReaderSettings";
 import { getProgressHeads } from "../../api/suwayomi/progressStorage";
 import { BookNotes } from "./BookNotes";
-import { safeSourceUrl } from "./bookActions";
+import { openSourceInDesktop, refreshBookFromSource, safeSourceUrl } from "./bookActions";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { AddToLibraryDialog } from "../../components/library/AddToLibraryDialog";
 import { LibraryCover } from "../../components/library/LibraryCover";
@@ -73,6 +73,7 @@ export default function MangaDetailPage() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const { notify } = useFeedback();
   const [synopsisOpen, setSynopsisOpen] = useState(false), [stickyResume, setStickyResume] = useState(false), [refreshing, setRefreshing] = useState(false);
+  const [openingSource, setOpeningSource] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
   useEffect(() => { setIsCategoryModalOpen(false); setIsMigrationOpen(false); setIsAddOpen(false); }, [mangaId]);
 
@@ -243,9 +244,19 @@ export default function MangaDetailPage() {
   const sourceUrl = safeSourceUrl(data?.manga?.realUrl);
   const refreshBook = async () => {
     setRefreshing(true);
-    try { await sdk.RefreshMigrationTarget({ input: { id: parsedMangaId, fetchManga: true, fetchChapters: true } }); await Promise.all([queryClient.invalidateQueries({ queryKey: ["manga", mangaId, serverBaseUrl, mockMode] }), queryClient.invalidateQueries({ queryKey: ["manga-chapters", mangaId, serverBaseUrl, mockMode] }), queryClient.invalidateQueries({ queryKey: ["library"] })]); notify("Book details and chapters refreshed.", "success"); }
+    try { await refreshBookFromSource(sdk, parsedMangaId); await Promise.all([queryClient.invalidateQueries({ queryKey: ["manga", mangaId, serverBaseUrl, mockMode] }), queryClient.invalidateQueries({ queryKey: ["manga-chapters", mangaId, serverBaseUrl, mockMode] }), queryClient.invalidateQueries({ queryKey: ["library"] })]); notify("Book details and chapters refreshed.", "success"); }
     catch { notify("The source couldn’t refresh this book. Your saved progress is kept.", "error"); }
     finally { setRefreshing(false); }
+  };
+
+  const openSource = async (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!isTauri()) return;
+    event.preventDefault();
+    if (!sourceUrl || openingSource) return;
+    setOpeningSource(true);
+    try { await openSourceInDesktop(sourceUrl); }
+    catch { notify("The source website couldn’t open. Copy the book link and open it in your browser.", "error"); }
+    finally { setOpeningSource(false); }
   };
 
   if (isLoading) {
@@ -277,7 +288,18 @@ export default function MangaDetailPage() {
 
   return (
     <div className="yomi-manga-detail min-h-screen overflow-x-clip pb-20 lg:pb-0">
-      <div className="yomi-book-toolbar"><Link to="/library" className="yomi-icon-button" aria-label="Back to library"><ArrowLeft /></Link><span className={stickyResume ? "" : "is-quiet"}>{manga.title}</span><div className="ml-auto flex shrink-0 items-center gap-2">{stickyResume && (firstUnreadChapter || continuation.first) && <Link to={`/reader/${(firstUnreadChapter || continuation.first)!.id}`} aria-label={`Resume ${manga.title}`} className="yomi-button yomi-button-primary"><Play />{firstUnreadChapter ? "Resume" : "Read again"}</Link>}<button className="yomi-icon-button" aria-label="Refresh book and chapters" disabled={refreshing || isOfflineMode} onClick={() => void refreshBook()}><RefreshCw className={refreshing ? "animate-spin" : ""} /></button>{sourceUrl && <><a className="yomi-icon-button" aria-label="Open book on source website" href={sourceUrl} target="_blank" rel="noopener noreferrer"><ExternalLink /></a><button className="yomi-icon-button" aria-label="Copy book link" onClick={async () => { try { await navigator.clipboard.writeText(sourceUrl); notify("Book link copied.", "success"); } catch { notify("The link couldn’t be copied. Open the source website to share its address.", "error"); } }}><Copy /></button></>}</div></div>
+      <div className="yomi-book-toolbar">
+        <Link to="/library" className="yomi-icon-button" aria-label="Back to library" title="Back to library"><ArrowLeft /></Link>
+        <span className={stickyResume ? "" : "is-quiet"}>{manga.title}</span>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {stickyResume && (firstUnreadChapter || continuation.first) && <Link to={`/reader/${(firstUnreadChapter || continuation.first)!.id}`} aria-label={`Resume ${manga.title}`} className="yomi-button yomi-button-primary"><Play />{firstUnreadChapter ? "Resume" : "Read again"}</Link>}
+          <button type="button" className="yomi-icon-button" aria-label="Refresh book and chapters" title={isOfflineMode ? "Reconnect to refresh this book and its chapters" : "Refresh book and chapters"} disabled={refreshing || isOfflineMode} onClick={() => void refreshBook()}><RefreshCw className={refreshing ? "animate-spin" : ""} /></button>
+          {sourceUrl && <>
+            <a className="yomi-icon-button" aria-label="Open book on source website" title="Open book on source website" href={sourceUrl} target="_blank" rel="noopener noreferrer" aria-busy={openingSource} aria-disabled={openingSource || undefined} onClick={(event) => void openSource(event)}>{openingSource ? <Loader2 className="animate-spin" /> : <ExternalLink />}</a>
+            <button type="button" className="yomi-icon-button" aria-label="Copy book link" title="Copy book link" onClick={async () => { try { await navigator.clipboard.writeText(sourceUrl); notify("Book link copied.", "success"); } catch { notify("The link couldn’t be copied. Open the source website to share its address.", "error"); } }}><Copy /></button>
+          </>}
+        </div>
+      </div>
       {/* Top Banner & Metadata Area */}
       <div className="relative">
         {/* Blurred background */}
@@ -295,8 +317,8 @@ export default function MangaDetailPage() {
             </div>
 
             {/* Manga Info */}
-            <div className="flex flex-col justify-end">
-              <h1 className="max-w-3xl text-3xl font-semibold tracking-[-0.035em] text-white lg:text-4xl">
+            <div className="min-w-0 flex-1 flex flex-col justify-end">
+              <h1 className="max-w-3xl [overflow-wrap:anywhere] text-3xl font-semibold tracking-[-0.035em] text-white lg:text-4xl">
                 {manga.title}
               </h1>
 

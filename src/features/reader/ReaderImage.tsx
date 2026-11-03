@@ -215,7 +215,7 @@ export function ReaderImage({
           </Link>
         </div>
       )}
-      <div className="yomi-reader-image-viewport w-full" style={layout ? { position: "relative", width: layout.viewportWidth, height: layout.viewportHeight, flexShrink: 0, overflow: "hidden" } : undefined}>
+      <div className="yomi-reader-image-viewport w-full" style={layout ? { position: "relative", width: layout.viewportWidth, height: mode === "webtoon" ? layout.viewportHeight * geometry.zoom : layout.viewportHeight, flexShrink: 0, overflow: "hidden" } : undefined}>
       <div style={layout ? { position: "absolute", left: "50%", top: "50%", width: layout.cropWidth, height: layout.cropHeight, overflow: "hidden", transform: `translate(-50%, -50%) translate(${geometry.pan.x}px, ${geometry.pan.y}px) scale(${geometry.zoom}) rotate(${layout.rotation}deg)`, transition: geometry.dragging || reducedMotion ? "none" : `transform ${experience.reader.zoomAnimationMs}ms ease-out`, willChange: geometry.dragging ? "transform" : undefined } : undefined}>
       {usingTiles ? <div role="img" aria-label={`Page ${pageNumber + 1}`} data-reader-tile-layout={layout ? "ready" : undefined} data-tile-count={tiles!.tiles.length} style={layout && geometry.natural ? { position: "absolute", width: geometry.natural.width * layout.scale, height: geometry.natural.height * layout.scale, left: -layout.visible.x * layout.scale, top: -layout.visible.y * layout.scale } : undefined}>{tiles!.tiles.map((tile) => <img key={tile.url} src={tile.url} alt="" aria-hidden="true" loading="lazy" decoding="async" draggable={false} width={tiles!.width} height={tile.height} style={{ display: "block", width: "100%", height: layout ? tile.height * layout.scale : "auto", filter: filterStyle }} onLoad={() => setTileLoaded((previous) => ({ source: displayUrl, urls: new Set([...(previous?.source === displayUrl ? previous.urls : []), tile.url]) }))} onError={() => { setFailedTiles(displayUrl); setLoadedUrl(""); }} />)}</div> : <img ref={imageRef}
         src={displayUrl || undefined}
@@ -230,7 +230,7 @@ export function ReaderImage({
         onError={handleError}
       />}
       </div></div>
-      {geometry.zoom !== 1 && <button type="button" className="yomi-reader-reset-zoom" onClick={(event) => { event.stopPropagation(); geometry.reset(); }}>Fit page</button>}
+      {geometry.zoom !== 1 && (!geometry.shared || mode === "single") && <button type="button" className="yomi-reader-reset-zoom" onClick={(event) => { event.stopPropagation(); geometry.reset(); }}>Fit page</button>}
     </div>
   );
 }

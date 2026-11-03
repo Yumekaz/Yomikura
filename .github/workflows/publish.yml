@@ -102,7 +102,7 @@ jobs:
           releaseBody: |
             See the assets below to download and install this version of Yomikura.
 
-            ${{ contains(github.ref_name, '-') && 'This is a public beta prerelease. Back up your library before testing and report reproducible feedback through Settings → About → Beta feedback.' || 'This is a stable release.' }}
+            ${{ contains(github.ref_name, '-') && 'This beta prerelease is prepared as a draft for review. Back up your library before testing and report reproducible feedback through Settings → About → Beta feedback.' || 'This release is prepared as a draft for review.' }}
 
             Yomikura is an independent open-source project applying to the SignPath Foundation for free Windows code signing. Until approval and workflow confirmation, installers are unsigned.
 

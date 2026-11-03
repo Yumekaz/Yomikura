@@ -8,13 +8,16 @@ import { ProgressSyncStatus } from "../../components/ProgressSyncStatus";
 
 function ReaderThumbnail({ url, number }: { url: string; number: number }) {
   const { url: resolvedUrl } = useReaderImageSource(url);
-  return <img src={resolvedUrl || undefined} alt={`Page ${number}`} className="h-full w-full object-cover" loading="lazy" />;
+  const [failedUrl, setFailedUrl] = useState<string>();
+  if (failedUrl && failedUrl === resolvedUrl) return <span role="img" aria-label={`Page ${number} preview unavailable`} className="grid h-full w-full place-items-center bg-ink-900 text-xs text-slate-400">{number}</span>;
+  return <img src={resolvedUrl || undefined} alt={`Page ${number}`} className="h-full w-full object-cover" loading="lazy" draggable={false} onError={() => setFailedUrl(resolvedUrl)} />;
 }
 
 interface ReaderOverlayProps {
   fullscreen?: boolean;
   onToggleFullscreen?: () => void;
   pageTools?: ReactNode;
+  zoomControls?: ReactNode;
   show: boolean;
   mangaId: number | undefined;
   chapterName: string;
@@ -50,6 +53,7 @@ export function ReaderOverlay({
   fullscreen,
   onToggleFullscreen,
   pageTools,
+  zoomControls,
   show,
   mangaId,
   chapterName,
@@ -111,6 +115,7 @@ export function ReaderOverlay({
 
       {/* Bottom Nav */}
       <div className="yomi-reader-bottom pointer-events-auto flex flex-col gap-3 p-4 pb-safe">
+        {zoomControls}
         
         {/* Sub-tab panels */}
         {activeSubTab !== "none" && (

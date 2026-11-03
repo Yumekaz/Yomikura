@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { FitMode } from "../../stores/useSettingsStore";
 import type { ReaderExperience } from "../../stores/readerExperience";
 import { blankBorderBounds, clampPan, fullImageBounds, imageFrame, splitImageBounds, type CropBounds } from "./imageGeometry";
+import { ReaderZoomContext, boundedReaderZoom } from "./useReaderZoom";
 const cropCache = new Map<string, CropBounds>();
 function findImageBorders(image: HTMLImageElement): CropBounds {
   const scale = Math.min(1, 256 / Math.max(image.naturalWidth, image.naturalHeight));
@@ -19,14 +20,19 @@ export function useImageLayout({ url, container, image, mode, fit, crop, prefere
   const [boundsRecord, setBounds] = useState<{ url: string; value: CropBounds }>();
   const bounds = boundsRecord?.url === url ? boundsRecord.value : undefined;
   const [area, setArea] = useState({ width: window.innerWidth, height: window.innerHeight });
-  const [zoom, setZoom] = useState(1), [pan, setPan] = useState({ x: 0, y: 0 }), [dragging, setDragging] = useState(false);
+  const shared = useContext(ReaderZoomContext);
+  const [localZoom, setLocalZoom] = useState(1), [pan, setPan] = useState({ x: 0, y: 0 }), [dragging, setDragging] = useState(false);
+  const zoom = shared?.scale ?? localZoom;
+  const setZoom = useCallback((value: number | ((current: number) => number)) => {
+    const next = typeof value === "function" ? value(zoom) : value;
+    if (shared) shared.change(next); else setLocalZoom(boundedReaderZoom(next, preferences.disableZoomOut));
+  }, [shared, zoom, preferences.disableZoomOut]);
   const pointer = useRef<{ x: number; y: number; px: number; py: number; id: number }>();
   const suppressed = useRef(0);
   const [cropState, setCropState] = useState<"off" | "checked" | "unavailable">("off");
   // A cached image can load before passive effects run. Associate dimensions
   // with the URL instead of clearing a newer onLoad result in this effect.
-  useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); }, [url]);
-  useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); }, [half, preferences.rotation, preferences.widePages]);
+  useEffect(() => { if (!shared) setLocalZoom(1); setPan({ x: 0, y: 0 }); }, [url, half, preferences.rotation, preferences.widePages]);
   useEffect(() => {
     const root = container.current; if (!root) return;
     const measure = () => setArea({ width: root.clientWidth || window.innerWidth, height: window.innerHeight });
@@ -68,24 +74,24 @@ export function useImageLayout({ url, container, image, mode, fit, crop, prefere
   useEffect(() => { setPan((current) => clamp(current.x, current.y, zoom)); }, [clamp, zoom]);
   const automaticKey = useRef("");
   useEffect(() => {
-    if (!layout || !natural || !preferences.autoZoomWide || !layout.wide || half !== undefined || automaticKey.current === url) return;
+    if (!layout || !natural || !preferences.autoZoomWide || !layout.wide || half !== undefined || automaticKey.current === url || shared?.vertical) return;
     automaticKey.current = url;
     const nextZoom = Math.max(1, Math.min(3, area.height / layout.height)); setZoom(nextZoom);
     const start = preferences.zoomStart === "automatic" ? rtl ? "right" : "left" : preferences.zoomStart;
     setPan(clamp(start === "right" ? -100000 : start === "left" ? 100000 : 0, 0, nextZoom));
   }, [layout, natural, preferences.autoZoomWide, preferences.zoomStart, half, rtl, clamp, area.height, url]);
   useEffect(() => {
-    const root = container.current; if (!root) return;
+    const root = container.current; if (!root || shared) return;
     const wheel = (event: WheelEvent) => { if (!event.ctrlKey) return; event.preventDefault(); setZoom((current) => Math.max(preferences.disableZoomOut ? 1 : .5, Math.min(4, current * (event.deltaY < 0 ? 1.15 : 1 / 1.15)))); };
     root.addEventListener("wheel", wheel, { passive: false }); return () => root.removeEventListener("wheel", wheel);
-  }, [container, preferences.disableZoomOut]);
-  const reset = () => { setZoom(1); setPan(clamp(0, 0, 1)); };
+  }, [container, preferences.disableZoomOut, !!shared]);
+  const reset = () => { if (shared) shared.reset(); else setZoom(1); setPan(clamp(0, 0, 1)); };
   const dimensions = useCallback((width: number, height: number) => { if (width && height) setNatural((previous) => previous?.url === url && previous.width === width && previous.height === height ? previous : { url, width, height }); }, [url]);
-  return { natural, layout, zoom, pan, dragging, cropState, dimensions, loaded: (node: HTMLImageElement) => { dimensions(node.naturalWidth, node.naturalHeight); }, reset,
-    doubleClick: (event: React.MouseEvent) => { if (!preferences.doubleTapZoom || (event.target as Element).closest("button,a")) return; event.preventDefault(); event.stopPropagation(); if (zoom !== 1) reset(); else { const box = container.current!.getBoundingClientRect(); setZoom(2); setPan(clamp((box.width / 2 - (event.clientX - box.left)) * 2, (box.height / 2 - (event.clientY - box.top)) * 2, 2)); } },
-    pointerDown: (event: React.PointerEvent) => { if (!layout || (!preferences.panWidePages && layout.wide) || (zoom === 1 && layout.width <= layout.viewportWidth) || (event.target as Element).closest("button,a")) return; event.preventDefault(); event.stopPropagation(); pointer.current = { x: event.clientX, y: event.clientY, px: pan.x, py: pan.y, id: event.pointerId }; setDragging(true); event.currentTarget.setPointerCapture(event.pointerId); },
-    pointerMove: (event: React.PointerEvent) => { const initial = pointer.current; if (!initial || event.pointerId !== initial.id) return; const x = event.clientX - initial.x, y = event.clientY - initial.y; if (Math.abs(x) + Math.abs(y) > 4) suppressed.current = Date.now() + 400; setPan(clamp(initial.px + x, initial.py + y, zoom)); },
+  return { natural, layout, zoom, shared: !!shared, pan: mode === "webtoon" && shared ? { x: layout ? clampPan(shared.panX, layout.viewportWidth, layout.width, zoom) : 0, y: 0 } : pan, dragging, cropState, dimensions, loaded: (node: HTMLImageElement) => { dimensions(node.naturalWidth, node.naturalHeight); }, reset,
+    doubleClick: (event: React.MouseEvent) => { if (!preferences.doubleTapZoom || Date.now() < (shared?.touchDoubleUntil.current ?? 0) || (event.target as Element).closest("button,a")) return; event.preventDefault(); event.stopPropagation(); if (zoom !== 1) reset(); else { const box = container.current!.getBoundingClientRect(); setZoom(2); setPan(clamp((box.width / 2 - (event.clientX - box.left)) * 2, (box.height / 2 - (event.clientY - box.top)) * 2, 2)); } },
+    pointerDown: (event: React.PointerEvent) => { if (!layout || (!preferences.panWidePages && layout.wide) || (zoom <= 1 && layout.width <= layout.viewportWidth) || (event.target as Element).closest("button,a")) return; event.preventDefault(); event.stopPropagation(); pointer.current = { x: event.clientX, y: event.clientY, px: mode === "webtoon" && shared ? shared.panX : pan.x, py: pan.y, id: event.pointerId }; setDragging(true); event.currentTarget.setPointerCapture(event.pointerId); },
+    pointerMove: (event: React.PointerEvent) => { const initial = pointer.current; if (!initial || event.pointerId !== initial.id) return; const x = event.clientX - initial.x, y = event.clientY - initial.y; if (Math.abs(x) + Math.abs(y) > 4) suppressed.current = Date.now() + 400; if (mode === "webtoon" && shared && layout) { shared.setPanX(clampPan(initial.px + x, layout.viewportWidth, layout.width, zoom)); window.scrollBy({ top: -y, behavior: "instant" }); initial.y = event.clientY; } else setPan(clamp(initial.px + x, initial.py + y, zoom)); },
     pointerUp: () => { pointer.current = undefined; setDragging(false); },
-    captureClick: (event: React.MouseEvent) => { if (Date.now() < suppressed.current) { event.preventDefault(); event.stopPropagation(); } },
+    captureClick: (event: React.MouseEvent) => { if (Date.now() < Math.max(suppressed.current, shared?.suppressUntil.current ?? 0)) { event.preventDefault(); event.stopPropagation(); } },
   };
 }

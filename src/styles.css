@@ -57,6 +57,8 @@ html {
   min-width: 320px;
   background: var(--ink-950);
   transition: background-color 0.2s ease;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
 }
 
 body {
@@ -65,6 +67,8 @@ body {
   min-height: 100vh;
   background: var(--ink-950);
   transition: background 0.2s ease, color 0.2s ease;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
 }
 
 .light-theme body {
@@ -269,6 +273,8 @@ html.reduce-motion *::after {
 /* Desktop product system -------------------------------------------------- */
 .yomi-app-shell {
   min-height: 100vh;
+  max-width: 100%;
+  overflow-x: clip;
   background: var(--ink-950);
 }
 
@@ -286,6 +292,8 @@ html.reduce-motion *::after {
 
 .yomi-main {
   min-height: 100vh;
+  min-width: 0;
+  max-width: 100%;
   padding-bottom: 96px;
 }
 
@@ -370,7 +378,7 @@ html.reduce-motion *::after {
 .yomi-route-loading { display: grid; gap: 24px; width: min(100%, 1120px); margin: 0 auto; padding: 44px clamp(24px, 4vw, 56px); }
 @keyframes yomi-skeleton { to { background-position: -200% 0; } }
 
-.yomi-manga-detail { background: var(--ink-950); }
+.yomi-manga-detail { background: var(--ink-950); min-width: 0; max-width: 100%; touch-action: pan-y; overscroll-behavior-x: none; }
 .yomi-manga-backdrop { opacity: .13; filter: saturate(.72) blur(32px); transform: scale(1.04); mask-image: linear-gradient(to bottom, black 12%, transparent 88%); }
 .yomi-manga-cover { border: 1px solid var(--line-strong); border-radius: 18px; box-shadow: 0 24px 64px rgba(0,0,0,.42), 0 2px 8px rgba(0,0,0,.34); }
 .yomi-content-surface { border: 1px solid var(--line); background: var(--ink-900); box-shadow: 0 18px 45px rgba(0,0,0,.2); }
@@ -1032,3 +1040,10 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
 .yomi-privacy-curtain h1 { font: 32px/1.2 'Playfair Display Variable', serif; }
 .yomi-privacy-curtain p { color: var(--text-muted); font-size: 13px; }
 a.yomi-text-link { text-decoration: underline; text-underline-offset: 3px; }
+.yomi-reader-zoom { display: flex; align-items: center; align-self: center; gap: 2px; border: 1px solid var(--line-strong); border-radius: 10px; padding: 2px; color: var(--text-strong); background: var(--ink-900); }
+.yomi-reader-zoom button { display: grid; place-items: center; min-width: 38px; min-height: 34px; padding: 5px 9px; border-radius: 7px; font-size: 15px; font-weight: 600; touch-action: manipulation; }
+.yomi-reader-zoom button:nth-child(2) { min-width: 62px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.yomi-reader-zoom button:focus-visible { outline: 2px solid rgb(var(--yomi-signature)); outline-offset: 2px; }
+.yomi-reader-zoom button:disabled { opacity: .4; }
+@media (hover: hover) and (pointer: fine) { .yomi-reader-zoom button:hover:enabled { background: var(--ink-800); } }
+@media (max-width: 640px) { .yomi-reader-zoom button { min-height: 40px; min-width: 40px; } }

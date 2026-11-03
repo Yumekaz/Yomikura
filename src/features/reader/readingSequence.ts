@@ -2,7 +2,7 @@ import { createGraphqlClient } from "../../api/graphql/client";
 import type { ProgressBackend } from "../../api/suwayomi/backendIdentity";
 import { getCachedChaptersForManga } from "../../api/suwayomi/offlineCache";
 import { getProgressHeads } from "../../api/suwayomi/progressStorage";
-import { type ChapterPolicy, type PolicyChapter } from "../manga/chapterPolicy";
+import { readingPolicy, selectChapters, type ChapterPolicy, type PolicyChapter } from "../manga/chapterPolicy";
 import { DEFAULT_SEQUENCE_CHOICES, selectReaderSequence, type ReaderSequenceChoices } from "./readerSequencePolicy";
 import { fetchReadingChapters } from "../../api/library/fetchReadingChapters";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -30,6 +30,10 @@ export async function loadReadingSequence(backend: ProgressBackend, mangaId: num
       ...(head.patch.isBookmarked !== undefined ? { isBookmarked: head.patch.isBookmarked } : {}) } : chapter;
   });
   const cachedIds = new Set(cached.map((chapter) => chapter.id));
+  // Retain the complete confirmed forward order separately from eligible
+  // continuation. Download/unread/scanlator filters must not imply "no next".
+  const knownChapters = selectChapters(desired, readingPolicy({ ...policy, filter: "all", scanlator: "all" }), cachedIds).map((chapter) => ({ ...chapter, id: Number(chapter.id), availableOffline: chapter.isDownloaded || cachedIds.has(Number(chapter.id)) }));
+  const knownChapterIds = knownChapters.map((chapter) => chapter.id);
   return { chapters: selectReaderSequence(desired, policy, cachedIds, anchorId, choices).map((chapter) => ({ ...chapter, id: Number(chapter.id), availableOffline: chapter.isDownloaded || cachedIds.has(Number(chapter.id)) })),
-    downloadChapters: selectReaderSequence(desired, { ...policy, filter: "all" }, cachedIds, anchorId, { ...choices, skipRead: false }).map((chapter) => ({ ...chapter, id: Number(chapter.id) })), offline };
+    downloadChapters: selectReaderSequence(desired, { ...policy, filter: "all" }, cachedIds, anchorId, { ...choices, skipRead: false }).map((chapter) => ({ ...chapter, id: Number(chapter.id) })), knownChapters, knownChapterIds, offline };
 }
