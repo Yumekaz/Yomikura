@@ -213,8 +213,12 @@ test("reconnecting restores uncached chapter continuation without resetting the 
 test("moving backward after completion stays read when synchronization becomes unavailable", async ({ page }) => {
   const data = await fixture(page, { saved: 3 });
   await expect(fullPage(page, 12, 3)).toHaveCSS("opacity", "1");
+  await expect(page.getByRole("region", { name: "Reading surface", exact: true })).toHaveAttribute("aria-busy", "false");
   // A restored position at the top of the last image is not its completion.
-  await page.mouse.move(640, 400); await page.mouse.wheel(0, 220);
+  expect(data.records.get(12)!.read).toBe(false);
+  // Read past the actual footer, rather than treating obscured pixels as read.
+  const distance = await fullPage(page, 12, 3).evaluate((image) => Math.max(0, image.getBoundingClientRect().bottom - document.querySelector(".yomi-reader-bottom")!.getBoundingClientRect().top + 24));
+  await page.mouse.move(640, 400); await page.mouse.wheel(0, distance);
   await expect.poll(() => data.records.get(12)!.read).toBe(true);
   await expect(page.getByRole("status", { name: "Progress synchronization" })).toHaveCount(0);
   data.setOnline(false);
