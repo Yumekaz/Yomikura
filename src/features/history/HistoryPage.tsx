@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, ChevronRight, Clock3, History, Loader2, RotateCcw, Search, SkipForward, Trash2 } from "lucide-react";
+import { BookOpen, ChevronRight, Clock3, Heart, History, Loader2, RotateCcw, Search, SkipForward, Trash2 } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
@@ -16,6 +16,10 @@ import { normalizeChapterPolicy } from "../manga/chapterPolicy";
 import { mangaReaderSettingsKey } from "../../stores/mangaReaderSettings";
 import { ReadingSpirit } from "../../components/Brand";
 import { mergeReadingHistory, type HistoryItem } from "./historyModel";
+import { AddToLibraryDialog } from "../../components/library/AddToLibraryDialog";
+import { libraryInventoryKey, loadLibraryInventory } from "../../components/library/libraryEntry";
+import { LibraryCover } from "../../components/library/LibraryCover";
+import { useProgressBackend } from "../../hooks/useProgressSynchronization";
 export { parseHistoryTimestamp, shouldShowReadingEvent } from "./historyModel";
 
 export function localDateKey(timestamp: number): string {
@@ -41,9 +45,13 @@ export default function HistoryPage() {
   const [openingNextId, setOpeningNextId] = useState<string | null>(null);
   const [pageBudget, setPageBudget] = useState(5);
   const [titleTarget, setTitleTarget] = useState(20);
-  const { serverBaseUrl, mockMode, chapterPolicies } = useSettingsStore();
+  const [adding, setAdding] = useState<{ mangaId: number; title: string }>();
+  const { serverBaseUrl, mockMode, chapterPolicies, connectionStatus } = useSettingsStore();
   const queryClient = useQueryClient();
   const sdk = useMemo(() => createGraphqlClient(`${serverBaseUrl.replace(/\/$/, "")}/api/graphql`, undefined, mockMode ? "demo" : "live"), [serverBaseUrl, mockMode]);
+  const backend = useProgressBackend();
+  const membership = useQuery({ queryKey: backend ? libraryInventoryKey(backend) : ["library-add-inventory", "unconfigured"], queryFn: ({ signal }) => loadLibraryInventory(backend!, signal), enabled: !!backend && (mockMode || connectionStatus === "connected"), retry: false });
+  const libraryIds = useMemo(() => new Set(membership.data?.map((entry) => entry.id)), [membership.data]);
 
   const serverHistory = useInfiniteQuery({
     queryKey: ["history", "server", serverBaseUrl, mockMode],
@@ -167,7 +175,7 @@ export default function HistoryPage() {
                 const percentage = item.isRead ? 100 : item.pageCount && item.pageCount > 0 ? Math.min(100, Math.round(((item.lastPageRead + 1) / item.pageCount) * 100)) : undefined;
                 return (
                   <article key={item.mangaId} className="yomi-history-row">
-                    {item.isRead ? <button type="button" className="yomi-history-cover" disabled={openingNextId === item.id} onClick={() => void openNextChapter(item, true)} aria-label={`Continue ${item.manga.title}`}><img src={cover} alt="" /><span><BookOpen /></span></button> : <Link to={`/reader/${item.id}`} className="yomi-history-cover" aria-label={`Continue ${item.manga.title}`}><img src={cover} alt="" /><span><BookOpen /></span></Link>}
+                    {item.isRead ? <button type="button" className="yomi-history-cover" disabled={openingNextId === item.id} onClick={() => void openNextChapter(item, true)} aria-label={`Continue ${item.manga.title}`}><LibraryCover src={cover} alt="" /><span><BookOpen /></span></button> : <Link to={`/reader/${item.id}`} className="yomi-history-cover" aria-label={`Continue ${item.manga.title}`}><LibraryCover src={cover} alt="" /><span><BookOpen /></span></Link>}
                     <div className="yomi-history-copy">
                       <div className="yomi-history-meta"><time dateTime={new Date(item.readAt).toISOString()}>{new Date(item.readAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>{item.isLocal && <span>saved locally</span>}</div>
                       <Link to={`/manga/${item.manga.id}`} className="yomi-history-title">{item.manga.title}</Link>
@@ -176,6 +184,7 @@ export default function HistoryPage() {
                       <small>{item.isRead ? "Chapter read" : percentage !== undefined ? `${percentage}% read` : `Last page ${item.lastPageRead + 1}`}</small>
                     </div>
                     <div className="yomi-history-actions">
+                      {(mockMode || connectionStatus === "connected") && membership.isSuccess && !libraryIds.has(item.mangaId) && <button type="button" className="yomi-icon-button" title="Add to library" aria-label={`Add ${item.manga.title} to library`} onClick={() => setAdding({ mangaId: item.mangaId, title: item.manga.title })}><Heart /></button>}
                       {item.isRead ? <button type="button" className="yomi-icon-button" title="Continue reading" disabled={openingNextId === item.id} aria-label={`Continue ${item.manga.title}`} onClick={() => void openNextChapter(item, true)}>{openingNextId === item.id ? <Loader2 className="animate-spin" /> : <ChevronRight />}</button> : <Link to={`/reader/${item.id}`} className="yomi-icon-button" title="Continue reading" aria-label={`Continue ${item.manga.title}`}><ChevronRight /></Link>}
                       <button className="yomi-icon-button" title="Open next chapter" aria-label={`Open next chapter after ${item.name}`} disabled={openingNextId === item.id} onClick={() => void openNextChapter(item)}><SkipForward /></button>
                       <button className="yomi-icon-button danger" title="Remove from history" aria-label={`Remove ${item.manga.title} from history`} onClick={async () => { if (await confirm({ title: "Remove from history?", detail: `Remove “${item.manga.title}” from recent activity on this device. Your reading progress will be kept.`, confirmLabel: "Remove", danger: true })) hideHistory.mutate(item); }}><Trash2 /></button>
@@ -189,6 +198,7 @@ export default function HistoryPage() {
         ))}
       </div>
       {serverHistory.hasNextPage && <button className="yomi-button yomi-button-secondary mx-auto" disabled={serverHistory.isFetchingNextPage} onClick={() => { setPageBudget((value) => value + 5); setTitleTarget((value) => value + 20); void serverHistory.fetchNextPage(); }}>{serverHistory.isFetchingNextPage ? <Loader2 className="animate-spin" /> : null} Load older activity</button>}
+      {adding && <AddToLibraryDialog mangaId={adding.mangaId} mangaTitle={adding.title} onClose={() => setAdding(undefined)} />}
     </section>
   );
 }

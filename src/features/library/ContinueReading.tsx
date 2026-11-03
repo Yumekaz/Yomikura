@@ -1,3 +1,4 @@
+import { LibraryCover } from "../../components/library/LibraryCover";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -73,7 +74,7 @@ export function ContinueReading({ books, offline = false, cachedChapterIds }: { 
   return <section className="yomi-continue" aria-label="Continue reading">
     <div className="yomi-section-heading"><h2>{needsConnection ? "Last read" : "Continue reading"}</h2><Link to="/history">View history<ChevronRight aria-hidden="true" /></Link></div>
     <div className="yomi-continue-card">
-      <Link to={needsConnection ? `/manga/${item.mangaId}` : `/reader/${item.chapterId}`} className="yomi-continue-cover" aria-label={`${needsConnection ? "View" : "Resume"} ${item.title}`}><img src={cover} alt="" onError={(event) => { if (!event.currentTarget.src.endsWith("/placeholder-cover.svg")) event.currentTarget.src = "/placeholder-cover.svg"; }} /></Link>
+      <Link to={needsConnection ? `/manga/${item.mangaId}` : `/reader/${item.chapterId}`} className="yomi-continue-cover" aria-label={`${needsConnection ? "View" : "Resume"} ${item.title}`}><LibraryCover src={cover} alt="" /></Link>
       <div className="yomi-continue-copy"><Link to={`/manga/${item.mangaId}`}>{item.title.replace(/^\[Demo\]\s*/, "")}</Link><p>{item.chapterName}</p><span>Page {page}{item.pageCount && item.pageCount >= page ? ` of ${item.pageCount}` : ""}</span>{!!item.pageCount && item.pageCount >= page && <div className="yomi-progress-line" aria-hidden="true"><span style={{ width: `${Math.min(100, page / item.pageCount * 100)}%` }} /></div>}{needsConnection && <p className="yomi-continue-availability">This chapter isn’t saved on this device. Reconnect to continue here.</p>}</div>
       <Link className="yomi-button yomi-button-primary" to={needsConnection ? "/downloads" : `/reader/${item.chapterId}`}>{needsConnection ? "Read saved chapters" : "Continue reading"}<ArrowRight aria-hidden="true" /></Link>
     </div>

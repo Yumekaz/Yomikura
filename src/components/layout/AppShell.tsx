@@ -1,7 +1,7 @@
 import { ThemedSelect } from "../ui/ThemedSelect";
 import { useEffect, useRef, useState } from "react";
 import { BookOpen, Server, ShieldCheck, ArrowRight, Loader2, Sparkles, FolderOpen, HardDrive, RefreshCw, AlertTriangle, CloudOff } from "lucide-react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { primaryNav, utilityNav, type NavItem } from "../../app/navigation";
 import { useSettingsStore, isTauri } from "../../stores/useSettingsStore";
@@ -26,6 +26,9 @@ import { DEFAULT_SERVER_BASE_URL, validateServerBaseUrl } from "../../config/ser
 import { LIBRARY_SESSION_EVENT } from "../../api/suwayomi/librarySession";
 import { pendingLibraryRestore, LIBRARY_RESTORE_EVENT } from "../../api/suwayomi/restoreIdentity";
 import { RestoreRecoveryPanel } from "../settings/RestoreRecoveryPanel";
+import { hasLibraryMetadata } from "../../api/suwayomi/libraryMetadata";
+import { rememberedLibrary } from "../../api/suwayomi/librarySession";
+import { ExtensionUpdateNotice, ExtensionUpdatesBadge } from "../../features/extensions/ExtensionUpdateNotice";
 
 function ProfileSwitcher() {
   const { profiles, activeProfileId, setActiveProfileId } = useSettingsStore();
@@ -112,11 +115,11 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
   } = useSettingsStore();
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [showShortcuts, setShowShortcuts] = useState(false);
   const pureBlack = useSettingsStore((state) => state.experience.pureBlack);
   const [setupActive, setSetupActive] = useState(false);
-  const [managedStartupDismissed, setManagedStartupDismissed] = useState(false);
   const [wasOffline, setWasOffline] = useState(connectionStatus === "error");
   useEffect(() => {
     if (connectionStatus === "error") setWasOffline(true);
@@ -202,7 +205,8 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
     return () => systemTheme.removeEventListener("change", applyTheme);
   }, [themeMode, colorPalette, highContrastMode, reducedMotion, pureBlack]);
 
-  const showOfflineBanner = (connectionStatus === "error" || connectionStatus === "testing" && wasOffline) && !location.pathname.startsWith("/reader/") && !mockMode;
+  const isGuideRoute = /^\/setup\/?$/.test(location.pathname);
+  const showOfflineBanner = (connectionStatus === "error" || connectionStatus === "testing" && wasOffline) && !location.pathname.startsWith("/reader/") && !mockMode && !isGuideRoute;
 
   const isUnconnected = connectionStatus !== "connected";
   const isSettingsRoute = /^\/settings(?:\/|$)/.test(location.pathname);
@@ -215,21 +219,21 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
     // Scope availability to the active backend. Never pass an empty URL, which
     // would ask the cache for chapters belonging to every backend.
     queryKey: ["offline-shell-chapters", serverBaseUrl],
-    queryFn: () => getCachedChapters(serverBaseUrl),
-    select: (chapters) => chapters.some((chapter) => chapter.pageCount > 0 && chapter.pages.length > 0),
+    queryFn: async () => ({ chapters: await getCachedChapters(serverBaseUrl), metadata: await hasLibraryMetadata(serverBaseUrl) }),
     enabled: checkOfflineCache,
     retry: false,
   });
-  const hasSavedPages = isOfflineRoute && offlineChapters.data === true;
-  const canOpenOffline = hasSavedPages || isHistoryRoute;
+  const hasSavedPages = isOfflineRoute && !!offlineChapters.data?.chapters.some((chapter) => chapter.pageCount > 0 && chapter.pages.length > 0);
+  let knownLibrary = false;
+  try { knownLibrary = !!rememberedLibrary(serverBaseUrl); } catch { /* Let onboarding repair an invalid address. */ }
+  const canOpenOffline = hasSavedPages || isHistoryRoute || !!offlineChapters.data?.metadata || knownLibrary;
   const cacheDecisionServer = useRef<string>();
   if (checkOfflineCache && !offlineChapters.isFetching && (offlineChapters.isSuccess || offlineChapters.isError)) cacheDecisionServer.current = serverBaseUrl;
   // A refresh must not tear down an open setup form or its native engine owner.
   const checkingOfflineCache = checkOfflineCache && offlineChapters.isFetching && !canOpenOffline && cacheDecisionServer.current !== serverBaseUrl;
-  const ownsLocalProfile = isTauri() && !!serverDataPath && managedLibraryProfileId === activeProfileId;
-  const shouldStartManaged = ownsLocalProfile && isUnconnected && !managedStartupDismissed;
+  const ownsLocalProfile = isTauri() && !!serverDataPath && (managedLibraryProfileId === activeProfileId || !managedLibraryProfileId && activeProfileId === "default" && /^https?:\/\/(?:127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(serverBaseUrl));
   const restoringLibrary = validateServerBaseUrl(serverBaseUrl).valid && !!pendingLibraryRestore(serverBaseUrl);
-  const showOnboarding = !restoringLibrary && !mockMode && !isSettingsRoute && (setupActive || shouldStartManaged || isUnconnected && !canOpenOffline);
+  const showOnboarding = !restoringLibrary && !mockMode && !isSettingsRoute && !isGuideRoute && (setupActive || isUnconnected && !canOpenOffline && !ownsLocalProfile);
 
   if (!hasHydrated || checkingOfflineCache) {
     return <div className="yomi-route-loading" role="status" aria-label={checkingOfflineCache ? "Loading saved chapters" : "Loading saved settings"}><span className="yomi-skeleton h-8 w-40" /><span className="yomi-skeleton h-24 w-full" /></div>;
@@ -244,18 +248,21 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
         errorMessage={errorMessage}
         setMockMode={setMockMode}
         onBeginSetup={() => setSetupActive(true)}
-        onConnected={() => { setSetupActive(false); setManagedStartupDismissed(false); }}
-        onReadOffline={canOpenOffline ? () => { setManagedStartupDismissed(true); setSetupActive(false); } : undefined}
+        onConnected={() => setSetupActive(false)}
       />
     );
   }
 
+  const backgroundStartup = ownsLocalProfile && !mockMode && !setupActive && !restoringLibrary
+    ? <WelcomeOnboarding key={`${activeProfileId}:${serverDataPath}`} background serverBaseUrl={serverBaseUrl} setServerBaseUrl={setServerBaseUrl} testConnection={testConnection} errorMessage={errorMessage} setMockMode={setMockMode} onBeginSetup={() => {}} onConnected={() => { void queryClient.invalidateQueries(); }} />
+    : null;
+
   if (location.pathname.startsWith("/reader/")) {
-    return <main id="main-content" className="min-h-screen bg-black" tabIndex={-1}><ErrorBoundary key={`${serverBaseUrl}::${mockMode}::${libraryRevision}`}><Outlet /></ErrorBoundary></main>;
+    return <>{backgroundStartup}<main id="main-content" className="min-h-screen bg-ink-950" tabIndex={-1}><ErrorBoundary key={`${serverBaseUrl}::${mockMode}::${libraryRevision}`}><Outlet /></ErrorBoundary></main></>;
   }
 
   return (
-    <div className="yomi-app-shell text-slate-100">
+    <>{backgroundStartup}<div className="yomi-app-shell text-slate-100">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-ink-950">Skip to content</a>
       <aside className="yomi-sidebar">
         <BrandLockup />
@@ -279,6 +286,7 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
       <main id="main-content" className="yomi-main" tabIndex={-1}>
         <div className="px-4 pt-2 lg:px-0">
           <UpdateNotificationBanner />
+          {!isGuideRoute && <ExtensionUpdateNotice />}
         </div>
         <PwaUpdateNotice />
         <LibraryUpdateNotice />
@@ -297,7 +305,7 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
             <button type="button" className="yomi-button yomi-button-secondary" disabled={connectionStatus === "testing"} onClick={() => void testConnection()}>{connectionStatus === "testing" ? "Reconnecting…" : "Reconnect"}</button>
           </div>
         )}
-        <RestoreRecoveryPanel />
+        {!isGuideRoute && <RestoreRecoveryPanel />}
         <ErrorBoundary key={`${serverBaseUrl}::${mockMode}::${libraryRevision}`}>
           <Outlet />
         </ErrorBoundary>
@@ -377,7 +385,7 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
           </div>
         </div>
       )}
-    </div>
+    </div></>
   );
 }
 
@@ -403,7 +411,7 @@ export function WelcomeOnboarding({
   setMockMode,
   onBeginSetup,
   onConnected,
-  onReadOffline,
+  background = false,
 }: {
   serverBaseUrl: string;
   setServerBaseUrl: (url: string) => void;
@@ -412,7 +420,7 @@ export function WelcomeOnboarding({
   setMockMode: (mock: boolean) => void;
   onBeginSetup: () => void;
   onConnected: () => void;
-  onReadOffline?: () => void;
+  background?: boolean;
 }) {
   const { serverDataPath, setServerDataPath, setPortableMode, managedLibraryProfileId, activeProfileId } = useSettingsStore();
   const [currentStep, setCurrentStep] = useState<"storage" | "backend" | "ready">(isTauri() ? "storage" : "ready");
@@ -680,6 +688,15 @@ export function WelcomeOnboarding({
     }
   };
 
+  if (background) {
+    if (serverStatus === "running") return null;
+    const failed = javaStatus === "missing" || serverStatus === "error";
+    return <div className="fixed bottom-24 right-4 z-40 max-w-sm rounded-xl border border-white/10 bg-ink-900 p-4 text-sm text-slate-300 shadow-lg lg:bottom-5" role="status">
+      <p className="font-medium text-slate-100">{failed ? "Your saved library is still available." : "Opening your library in the background…"}</p>
+      {failed && <><p className="mt-1 text-slate-400">The local reading service couldn’t start. Downloaded chapters stay readable.</p><div className="mt-3 flex gap-2"><button type="button" className="yomi-button yomi-button-secondary" onClick={() => void triggerRetry()}>Retry connection</button><Link to="/settings/connection" className="yomi-button yomi-button-quiet">Connection settings</Link></div></>}
+    </div>;
+  }
+
   return (
     <div className="yomi-onboarding">
       <div className="yomi-welcome-art" aria-hidden="true"><SanctuaryArt /><div><span>YOMIKURA</span><p>Stories feel brighter here.</p></div></div>
@@ -714,6 +731,7 @@ export function WelcomeOnboarding({
               </form>
               {testStatus === "error" && localError && <details className="yomi-error-details"><summary>Technical details</summary><pre>{localError}</pre></details>}
             </details>
+            <Link to="/setup" className="yomi-button yomi-button-secondary">Read the browser setup guide<ArrowRight aria-hidden="true" /></Link>
             <div className="yomi-demo-choice"><span>Just looking around?</span><button type="button" onClick={() => setMockMode(true)}>Explore Demo Library<ArrowRight aria-hidden="true" /></button></div>
           </div>
         )}
@@ -731,7 +749,6 @@ export function WelcomeOnboarding({
               <details className="yomi-error-details"><summary>Help with setup</summary><p>Retry when your connection is available. For a managed or work computer, a different folder may help.</p><button type="button" className="yomi-button yomi-button-secondary" onClick={() => void openDiagnosticLogs()}>Open setup logs</button><pre>{localError}</pre><a href="https://adoptium.net/temurin/releases/?version=21&package=jre" target="_blank" rel="noreferrer">Manual runtime download</a></details>
               <button type="button" className="yomi-quiet-button" onClick={() => setMockMode(true)}>Explore the demo while you wait</button>
             </>}
-            {onReadOffline && <button type="button" className="yomi-button yomi-button-secondary" onClick={onReadOffline}>Continue offline</button>}
           </div>
         )}
 
@@ -762,6 +779,7 @@ function ShellNavLink({ item }: { item: NavItem }) {
         <>
           <Icon className="h-[18px] w-[18px]" />
           <span>{label}</span>
+          {item.path === "/browse/sources" && <ExtensionUpdatesBadge />}
         </>
       )}
     </NavLink>

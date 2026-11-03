@@ -21,6 +21,7 @@ import { EMPTY_LIBRARY_FILTERS, normalizeLibraryFilters, type LibraryFilterSet }
 import { activeLibraryFilterCount, compareLibraryBooks, librarySortScope, libraryTraits, matchesLibraryPreferences, validLibrarySort } from "./libraryPreferences";
 import { fetchBookmarkMembership } from "../../api/library/fetchBookmarkMembership";
 import { parseHistoryTimestamp } from "../history/historyModel";
+import { isMetadataSnapshot, markMetadataSnapshot } from "../../api/suwayomi/libraryMetadata";
 
 export default function LibraryPage() {
   const { notify } = useFeedback();
@@ -76,12 +77,14 @@ export default function LibraryPage() {
     refetch: refetchLibrary,
   } = useQuery({
     queryKey: ["library", serverBaseUrl, mockMode],
+    structuralSharing: false,
     retry: (attempt) => cachedChapters.length === 0 && attempt < 2,
     queryFn: async () => {
       const nodes = await fetchAllLibrary(sdk, {
         inLibrary: { equalTo: true },
       });
-      return { mangas: { nodes } };
+      const value = { mangas: { nodes } };
+      return isMetadataSnapshot(nodes) ? markMetadataSnapshot(value) : value;
     },
     enabled: !!serverBaseUrl,
   });
@@ -105,16 +108,17 @@ export default function LibraryPage() {
     }));
   }, [catData]);
 
-  const isOfflineMode = !!(libError && cachedChapters && cachedChapters.length > 0);
+  const isOfflineMode = isMetadataSnapshot(libData) || !!(libError && cachedChapters.length > 0);
+  const downloadedFallback = isOfflineMode && !libData;
   const bookmarks = useQuery({ queryKey: ["library-bookmarks", backendKey], queryFn: ({ signal }) => fetchBookmarkMembership(sdk, signal), enabled: filterChoices.bookmarked !== "any" && !isOfflineMode, retry: false });
   const localDownloadCounts = useMemo(() => deviceChapterCounts(cachedChapters), [cachedChapters]);
-  const downloadCounts = useMemo(() => ({ ...availabilityCounts(isOfflineMode
+  const downloadCounts = useMemo(() => ({ ...availabilityCounts(downloadedFallback
     ? [...new Set(cachedChapters.map((chapter) => chapter.mangaId))].map((id) => ({ id, downloadCount: 0 }))
-    : (libData?.mangas.nodes ?? []).filter((manga): manga is NonNullable<typeof manga> => !!manga), localDownloadCounts), ...(isOfflineMode ? { "smart:on_server": undefined } : {}) }), [isOfflineMode, cachedChapters, libData, localDownloadCounts]);
+    : (libData?.mangas.nodes ?? []).filter((manga): manga is NonNullable<typeof manga> => !!manga), localDownloadCounts), ...(isOfflineMode ? { "smart:on_server": undefined } : {}) }), [isOfflineMode, downloadedFallback, cachedChapters, libData, localDownloadCounts]);
 
   // Extract and filter mangas
   const mangas: LibraryManga[] = useMemo(() => {
-    if (isOfflineMode) {
+    if (downloadedFallback) {
       const uniqueMangaMap = new Map<number | string, { id: number | string; title: string }>();
       for (const ch of cachedChapters) {
         if (!uniqueMangaMap.has(ch.mangaId)) {
@@ -191,7 +195,7 @@ export default function LibraryPage() {
       latestUpdateAt: parseHistoryTimestamp(m.latestUploadedChapter?.uploadDate),
       addedAt: parseHistoryTimestamp(m.inLibraryAt),
     }));
-  }, [libData, searchQuery, isOfflineMode, cachedChapters, activeCategoryId, localDownloadCounts, bookmarks.data, JSON.stringify(filterChoices)]);
+  }, [libData, searchQuery, downloadedFallback, cachedChapters, activeCategoryId, localDownloadCounts, bookmarks.data, JSON.stringify(filterChoices)]);
 
   const displayMangas = useMemo(() => {
     return [...mangas].sort((a, b) => compareLibraryBooks(a, b, sortMode, sortDescending));
@@ -322,11 +326,11 @@ export default function LibraryPage() {
       <header className="yomi-library-header">
         <div>
           <h1>Library</h1>
-          <p>{isOfflineMode && activeCategoryId === "smart:on_server" ? "Reconnect to check server availability. Select On this device to read saved copies." : `${displayMangas.length} book${displayMangas.length === 1 ? "" : "s"}${searchQuery.trim() || activeCategoryId !== null || activeFilterCount > 0 ? " shown" : isOfflineMode ? " saved on this device" : " in your collection"}`}</p>
+          <p>{isOfflineMode && activeCategoryId === "smart:on_server" ? "Reconnect to check server availability. Select On this device to read saved copies." : `${displayMangas.length} book${displayMangas.length === 1 ? "" : "s"}${searchQuery.trim() || activeCategoryId !== null || activeFilterCount > 0 ? " shown" : downloadedFallback ? " saved on this device" : " in your collection"}`}</p>
         </div>
         <div className="yomi-library-header-actions"><label className="yomi-search"><Search aria-hidden="true" /><input type="search" aria-label="Search library" placeholder="Search library..." value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label><Link className="yomi-button yomi-button-primary" to="/browse/sources"><Plus aria-hidden="true" />Add books</Link></div>
       </header>
-      {!isSelectMode && !searchQuery && activeCategoryId === null && <ContinueReading offline={isOfflineMode} cachedChapterIds={cachedChapterIds} books={isOfflineMode ? [...new Map(cachedChapters.map((chapter) => [Number(chapter.mangaId), { id: Number(chapter.mangaId), title: chapter.mangaTitle }])).values()] : (libData?.mangas.nodes ?? []).map((manga) => ({ id: Number(manga.id), title: manga.title, thumbnailUrl: manga.thumbnailUrl }))} />}
+      {!isSelectMode && !searchQuery && activeCategoryId === null && <ContinueReading offline={isOfflineMode} cachedChapterIds={cachedChapterIds} books={downloadedFallback ? [...new Map(cachedChapters.map((chapter) => [Number(chapter.mangaId), { id: Number(chapter.mangaId), title: chapter.mangaTitle }])).values()] : (libData?.mangas.nodes ?? []).map((manga) => ({ id: Number(manga.id), title: manga.title, thumbnailUrl: manga.thumbnailUrl }))} />}
       {/* Filters Bar */}
       <LibraryFilters
         filterChoices={filterChoices}
@@ -338,7 +342,7 @@ export default function LibraryPage() {
         categories={categories}
         activeCategoryId={activeCategoryId}
         onCategorySelect={setActiveCategoryId}
-        onManageCategories={() => setIsCategoryDialogOpen(true)}
+        onManageCategories={() => isOfflineMode ? notify("Reconnect to change your collections. Your saved collections remain available.", "info") : setIsCategoryDialogOpen(true)}
         isSelectMode={isSelectMode}
         selectedCount={selectedMangaIds.size}
         onSelectAll={handleSelectAll}
@@ -356,7 +360,7 @@ export default function LibraryPage() {
       <div className="flex-1 overflow-visible">
         {isOfflineMode && (
           <div className="yomi-saved-library-notice">
-            <span>Showing the chapters saved on this device.</span>
+            <span>{downloadedFallback ? "Showing the chapters saved on this device." : "Your saved library is here. Downloaded chapters can be read without a connection."}</span>
             <button
               onClick={async () => {
                 await testConnection();

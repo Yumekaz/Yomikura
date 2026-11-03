@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LibraryGraphqlTransport, gql } from "../../api/graphql/transport";
 import { ArrowLeft, Copy, ExternalLink, Loader2, Play, RefreshCw } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
@@ -19,6 +19,9 @@ import { getProgressHeads } from "../../api/suwayomi/progressStorage";
 import { BookNotes } from "./BookNotes";
 import { safeSourceUrl } from "./bookActions";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
+import { AddToLibraryDialog } from "../../components/library/AddToLibraryDialog";
+import { LibraryCover } from "../../components/library/LibraryCover";
+import { isMetadataSnapshot } from "../../api/suwayomi/libraryMetadata";
 
 
 const FETCH_CHAPTERS_DOCUMENT = gql`
@@ -63,13 +66,15 @@ type FetchChaptersResponse = {
 
 export default function MangaDetailPage() {
   const { mangaId } = useParams<{ mangaId: string }>();
-  const { serverBaseUrl, mockMode, chapterPolicies, experience } = useSettingsStore();
+  const { serverBaseUrl, mockMode, chapterPolicies, experience, connectionStatus } = useSettingsStore();
   const coverAccentEnabled = useCoverAccentEnabled();
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isMigrationOpen, setIsMigrationOpen] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false);
   const { notify } = useFeedback();
   const [synopsisOpen, setSynopsisOpen] = useState(false), [stickyResume, setStickyResume] = useState(false), [refreshing, setRefreshing] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { setIsCategoryModalOpen(false); setIsMigrationOpen(false); setIsAddOpen(false); }, [mangaId]);
 
   const { loadCachedChapters, cachedChapters, cachedChapterIds } = useDownloadStore();
 
@@ -92,14 +97,16 @@ export default function MangaDetailPage() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["manga", mangaId, serverBaseUrl, mockMode],
+    structuralSharing: false,
     retry: (attempt) => !cachedChapters.some((chapter) => String(chapter.mangaId) === mangaId) && attempt < 2,
     queryFn: () => sdk.GetMangaDetails({ id: parseInt(mangaId!) }),
     enabled: !!serverBaseUrl && !!mangaId,
   });
+  const isOfflineMode = !mockMode && (connectionStatus !== "connected" || isMetadataSnapshot(data) || isError);
 
   const { isFetching: loadingDetails, isError: detailsFailed, refetch: retryDetails } = useQuery({
     queryKey: ["manga-initialization", mangaId, serverBaseUrl],
-    enabled: !mockMode && !isError && data?.manga?.initialized === false,
+    enabled: !mockMode && !isOfflineMode && !isError && data?.manga?.initialized === false,
     retry: false,
     refetchOnWindowFocus: false,
     staleTime: Infinity,
@@ -122,10 +129,8 @@ export default function MangaDetailPage() {
     return cachedChapters.filter((ch) => ch.mangaId === parsedMangaId);
   }, [cachedChapters, parsedMangaId]);
 
-  const isOfflineMode = (isError || !data?.manga) && offlineChapters.length > 0;
-
   const manga = useMemo(() => {
-    if (isOfflineMode) {
+    if (!data?.manga && offlineChapters.length > 0) {
       const firstCached = offlineChapters[0];
       return {
         id: parsedMangaId,
@@ -160,21 +165,6 @@ export default function MangaDetailPage() {
     staleTime: 60_000,
   });
 
-  const { mutate: toggleLibrary, isPending: togglingLibrary } = useMutation({
-    mutationFn: () => sdk.ToggleMangaLibrary({
-      input: {
-        patch: {
-          inLibrary: !manga?.inLibrary
-        },
-        id: parseInt(mangaId!)
-      }
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["manga"] });
-      queryClient.invalidateQueries({ queryKey: ["library"] });
-    }
-  });
-
   const currentCategoryIds = useMemo(() => {
     if (!manga?.categories?.nodes) return [];
     return manga.categories.nodes
@@ -184,7 +174,7 @@ export default function MangaDetailPage() {
   }, [manga]);
 
   const chapters: Chapter[] = useMemo(() => {
-    if (isOfflineMode) {
+    if (!data?.manga && offlineChapters.length > 0) {
       return offlineChapters.map((c) => ({
         id: c.id,
         name: c.name,
@@ -218,7 +208,7 @@ export default function MangaDetailPage() {
         scanlator: c.scanlator,
         lastPageRead: c.lastPageRead, pageCount: c.pageCount,
       }));
-  }, [fetchedChaptersData, manga, isOfflineMode, offlineChapters]);
+  }, [fetchedChaptersData, manga, isOfflineMode, offlineChapters, data]);
 
   const isChaptersLoading = isOfflineMode ? false : chaptersLoading;
 
@@ -281,7 +271,7 @@ export default function MangaDetailPage() {
     if (manga.inLibrary) {
       setIsCategoryModalOpen(true);
     } else {
-      toggleLibrary();
+      setIsAddOpen(true);
     }
   };
 
@@ -301,7 +291,7 @@ export default function MangaDetailPage() {
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
             {/* Cover Image */}
             <div className="yomi-manga-cover relative mx-auto w-44 aspect-[2/3] shrink-0 overflow-hidden sm:mx-0 sm:w-48 md:w-52">
-              <img src={imageUrl} alt={manga.title} className="absolute inset-0 h-full w-full object-cover" />
+              <LibraryCover src={imageUrl} alt={manga.title} className="absolute inset-0 h-full w-full object-cover" />
             </div>
 
             {/* Manga Info */}
@@ -353,14 +343,15 @@ export default function MangaDetailPage() {
                 )}
                 <button 
                   onClick={handleLibraryClick}
-                  disabled={togglingLibrary}
+                  disabled={isOfflineMode}
+                  title={isOfflineMode ? "Reconnect to change library membership or categories" : undefined}
                   className={`yomi-button flex-1 sm:flex-none ${
                     manga.inLibrary
                       ? "yomi-button-secondary"
                       : "yomi-button-secondary text-yomi-jade"
                   }`}
                 >
-                  {togglingLibrary ? <Loader2 className="h-5 w-5 animate-spin" /> : manga.inLibrary ? "In Library" : "Add to Library"}
+                  {manga.inLibrary ? "In Library" : "Add to Library"}
                 </button>
                 {manga.inLibrary && !isOfflineMode && (
                   <button
@@ -432,6 +423,7 @@ export default function MangaDetailPage() {
         mangaId={manga.id}
         currentCategoryIds={currentCategoryIds}
       />
+      {isAddOpen && !isOfflineMode && <AddToLibraryDialog mangaId={manga.id} mangaTitle={manga.title} onClose={() => setIsAddOpen(false)} />}
 
       {/* Migration Modal */}
       <SourceMigrationModal

@@ -5,6 +5,8 @@ import { createGraphqlClient } from "../../api/graphql/client";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { getErrorMessage } from "../../api/suwayomi/errors";
 import { useModalFocus } from "../../hooks/useModalFocus";
+import { useProgressBackend } from "../../hooks/useProgressSynchronization";
+import { assertLibraryEntryBackend, libraryInventoryKey } from "../../components/library/libraryEntry";
 
 interface MangaCategoryModalProps {
   isOpen: boolean;
@@ -20,21 +22,22 @@ export function MangaCategoryModal({
   currentCategoryIds,
 }: MangaCategoryModalProps) {
   const modal = useModalFocus(isOpen, onClose);
-  const { serverBaseUrl } = useSettingsStore();
+  const { serverBaseUrl, mockMode, connectionStatus } = useSettingsStore();
+  const backend = useProgressBackend()!;
+  const connected = mockMode || connectionStatus === "connected";
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
 
   const sdk = useMemo(() => {
-    const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-    return createGraphqlClient(`${cleanUrl}/api/graphql`);
-  }, [serverBaseUrl]);
+    return createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live");
+  }, [backend]);
 
   // Fetch all categories
   const { data: catData, isLoading: loadingCats } = useQuery({
-    queryKey: ["categories", serverBaseUrl],
+    queryKey: ["categories", serverBaseUrl, mockMode, backend.libraryId],
     queryFn: () => sdk.GetCategories(),
-    enabled: isOpen && !!serverBaseUrl,
+    enabled: isOpen && !!serverBaseUrl && connected,
   });
 
   const categories = useMemo(() => {
@@ -57,8 +60,9 @@ export function MangaCategoryModal({
 
   // Mutation: Update categories assignment
   const { mutate: saveCategories, isPending: saving } = useMutation({
-    mutationFn: () =>
-      sdk.UpdateMangaCategories({
+    mutationFn: async () => {
+      assertLibraryEntryBackend(backend);
+      const saved = await sdk.UpdateMangaCategories({
         input: {
           id: mangaId,
           patch: {
@@ -66,10 +70,14 @@ export function MangaCategoryModal({
             addToCategories: selectedIds,
           },
         },
-      }),
+      });
+      assertLibraryEntryBackend(backend);
+      return saved;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["manga", String(mangaId)] });
       queryClient.invalidateQueries({ queryKey: ["library"] });
+      queryClient.invalidateQueries({ queryKey: libraryInventoryKey(backend) });
       onClose();
     },
     onError: (err) => {
@@ -79,18 +87,23 @@ export function MangaCategoryModal({
 
   // Mutation: Remove from library
   const { mutate: removeFromLibrary, isPending: removing } = useMutation({
-    mutationFn: () =>
-      sdk.ToggleMangaLibrary({
+    mutationFn: async () => {
+      assertLibraryEntryBackend(backend);
+      const removed = await sdk.ToggleMangaLibrary({
         input: {
           id: mangaId,
           patch: {
             inLibrary: false,
           },
         },
-      }),
+      });
+      assertLibraryEntryBackend(backend);
+      return removed;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["manga", String(mangaId)] });
       queryClient.invalidateQueries({ queryKey: ["library"] });
+      queryClient.invalidateQueries({ queryKey: libraryInventoryKey(backend) });
       onClose();
     },
     onError: (err) => {
@@ -123,6 +136,7 @@ export function MangaCategoryModal({
 
         {/* Error */}
         {errorMsg && <p className="mt-3 text-sm text-red-400">{errorMsg}</p>}
+        {!connected && <p role="status" className="mt-3 text-sm text-slate-300">Reconnect to change this comic’s categories.</p>}
 
         {/* List */}
         {loadingCats ? (
@@ -156,7 +170,7 @@ export function MangaCategoryModal({
         <div className="mt-6 flex items-center justify-between gap-3 border-t border-white/5 pt-4">
           <button
             onClick={() => removeFromLibrary()}
-            disabled={removing || saving}
+            disabled={removing || saving || !connected}
             className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/20 transition disabled:opacity-50"
           >
             {removing ? "Removing..." : "Remove"}
@@ -171,7 +185,7 @@ export function MangaCategoryModal({
             </button>
             <button
               onClick={() => saveCategories()}
-              disabled={saving || removing || loadingCats}
+              disabled={saving || removing || loadingCats || !connected}
               className="flex items-center gap-1.5 rounded-lg bg-yomi-jade px-4 py-2 text-sm font-semibold text-ink-950 hover:bg-yomi-jade/90 disabled:opacity-50 transition"
             >
               {saving ? (

@@ -9,17 +9,18 @@ import { progressBackend } from "../../api/suwayomi/backendIdentity";
 import { invalidateChapterState } from "../../api/suwayomi/chapterState";
 import { getErrorMessage } from "../../api/suwayomi/errors";
 import { useSettingsStore } from "../../stores/useSettingsStore";
-import { canReplaceMigration, executeMangaMigration, MigrationError, prepareMangaMigration, type MigrationResult, type MigrationReview } from "./mangaMigration";
+import { canReplaceMigration, DEFAULT_MIGRATION_DATA, executeMangaMigration, MigrationError, prepareMangaMigration, type MigrationData, type MigrationResult, type MigrationReview } from "./mangaMigration";
 import { MigrationReviewPanel } from "./MigrationReviewPanel";
 
 type Target = { id: number; title: string };
 interface SourceMigrationModalProps {
   isOpen: boolean; onClose: () => void; mangaId: number; mangaTitle: string; sourceName: string;
   initialTarget?: Target;
+  initialMode?: "copy" | "replace";
 }
 type Phase = "search" | "results" | "preparing" | "review" | "executing" | "done" | "error";
 
-export function SourceMigrationModal({ isOpen, onClose, mangaId, mangaTitle, sourceName, initialTarget }: SourceMigrationModalProps) {
+export function SourceMigrationModal({ isOpen, onClose, mangaId, mangaTitle, sourceName, initialTarget, initialMode = "copy" }: SourceMigrationModalProps) {
   const { serverBaseUrl, mockMode } = useSettingsStore();
   const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
   const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live"), [backend]);
@@ -33,6 +34,7 @@ export function SourceMigrationModal({ isOpen, onClose, mangaId, mangaTitle, sou
   const [review, setReview] = useState<MigrationReview>();
   const [selected, setSelected] = useState(new Set<number>());
   const [replace, setReplace] = useState(false);
+  const [data, setData] = useState<MigrationData>(DEFAULT_MIGRATION_DATA);
   const [result, setResult] = useState<MigrationResult>();
   const [failure, setFailure] = useState({ message: "", original: "unchanged" as "unchanged" | "unknown" });
   const generation = useRef(0);
@@ -52,16 +54,18 @@ export function SourceMigrationModal({ isOpen, onClose, mangaId, mangaTitle, sou
       const next = await prepareMangaMigration(backend, mangaId, destination.id, { expectedSourceTitle: mangaTitle, expectedTargetSource: expectedSource });
       if (request !== generation.current) return;
       setReview(next);
-      setSelected(new Set(next.rows.filter((row) => row.status === "matched").map((row) => Number(row.source.id))));
+      const matched = new Set(next.rows.filter((row) => row.status === "matched").map((row) => Number(row.source.id)));
+      setSelected(matched);
+      setReplace(initialMode === "replace" && canReplaceMigration(next, matched));
       setPhase("review");
     } catch (error) {
       if (request === generation.current) { setFailure({ message: error instanceof MigrationError ? error.message : getErrorMessage(error), original: "unchanged" }); setPhase("error"); }
     }
-  }, [backend, mangaId, mangaTitle]);
+  }, [backend, mangaId, mangaTitle, initialMode]);
   useEffect(() => {
     if (!isOpen) return;
     generation.current += 1;
-    setPhase("search"); setSourceId(""); setQuery(mangaTitle); setReview(undefined); setResult(undefined); setReplace(false); setSearching(false); setResults([]);
+    setPhase("search"); setSourceId(""); setQuery(mangaTitle); setReview(undefined); setResult(undefined); setReplace(false); setData(DEFAULT_MIGRATION_DATA); setSearching(false); setResults([]);
     if (initialTarget) void prepare(initialTarget);
     return () => { generation.current += 1; };
   }, [isOpen, mangaTitle, initialTarget?.id, prepare]);
@@ -85,17 +89,19 @@ export function SourceMigrationModal({ isOpen, onClose, mangaId, mangaTitle, sou
     if (!review || busy) return;
     setPhase("executing");
     try {
-      const completed = await executeMangaMigration(review, selected, replace ? "replace" : "copy");
+      const completed = await executeMangaMigration(review, selected, replace ? "replace" : "copy", data);
       setResult(completed); setPhase("done");
     } catch (error) {
       setFailure({ message: error instanceof MigrationError ? error.message : getErrorMessage(error), original: error instanceof MigrationError ? error.original : "unchanged" }); setPhase("error");
     } finally {
       void invalidateChapterState(queryClient);
       void queryClient.invalidateQueries({ queryKey: ["library-duplicates"] });
+      void queryClient.invalidateQueries({ queryKey: ["library-add-inventory"] });
+      void queryClient.invalidateQueries({ queryKey: ["library-entry-review"] });
     }
   };
   if (!isOpen) return null;
-  const canReplace = !!review && canReplaceMigration(review, selected);
+  const canReplace = !!review && (data.chapters || data.categories) && canReplaceMigration(review, selected, data);
 
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
     <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={detailId} tabIndex={-1}
@@ -134,7 +140,7 @@ export function SourceMigrationModal({ isOpen, onClose, mangaId, mangaTitle, sou
           {!results.length && <p className="p-6 text-center text-sm text-slate-400">No matching titles found. Refine the search query.</p>}
         </div>}
         {(phase === "preparing" || phase === "executing") && <div role="status" className="flex flex-col items-center gap-3 py-10 text-center text-sm text-slate-300"><Loader2 className="h-8 w-8 animate-spin text-yomi-jade" /><p>{phase === "preparing" ? "Refreshing destination chapters and preparing the review…" : "Copying and verifying selected progress and categories…"}</p><p className="max-w-md text-xs text-slate-400">The original stays in the library unless replacement was selected and every required transfer is confirmed.</p></div>}
-        {phase === "review" && review && <MigrationReviewPanel review={review} selected={selected} onSelected={(next) => { setSelected(next); setReplace(false); }} replace={replace} onReplace={setReplace} canReplace={canReplace}
+        {phase === "review" && review && <MigrationReviewPanel review={review} selected={selected} onSelected={(next) => { setSelected(next); setReplace(false); }} replace={replace} onReplace={setReplace} canReplace={canReplace} data={data} onData={(next) => { setData(next); setReplace(false); }} onShowEntry={close}
           onExecute={() => void execute()} onRefresh={() => void prepare({ id: review.target.id, title: review.target.title }, initialTarget ? undefined : sourceId)} onSearch={() => setPhase("search")} />}
         {phase === "done" && result && <div className="space-y-4 py-6 text-center"><CheckCircle className="mx-auto h-10 w-10 text-yomi-jade" /><h3 className="text-base font-semibold text-white">Selected progress and categories verified</h3><p className="text-sm text-slate-300">{result.mode === "copy" ? "The original is kept in your library." : "The destination is in your library and the original has left the library. Its source entry and downloads were retained."}</p><button type="button" onClick={close} className="yomi-button yomi-button-primary">Close</button></div>}
         {phase === "error" && <div role="alert" className="space-y-4 py-6 text-center"><AlertTriangle className="mx-auto h-9 w-9 text-amber-300" /><h3 className="text-base font-semibold text-white">Migration needs attention</h3><p className="text-sm text-slate-300">{failure.message}</p><p className="text-xs text-slate-400">{failure.original === "unknown" ? "The original's library membership could not be confirmed. Reconnect and check both entries before retrying." : "This migration stopped before removing the original. Confirmed copies remain available."}</p><div className="flex flex-wrap justify-center gap-3">{target && <button type="button" onClick={() => void prepare(target, initialTarget ? undefined : sourceId || undefined)} className="yomi-button yomi-button-secondary">Refresh mapping</button>}<button type="button" onClick={() => setPhase("search")} className="yomi-button yomi-button-secondary">Change search</button></div></div>}
