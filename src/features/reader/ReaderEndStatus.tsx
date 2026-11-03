@@ -15,12 +15,12 @@ interface ReaderEndStatusProps {
 }
 
 const messages: Record<ReaderEndState, { title: string; detail: string }> = {
-  "caught-up": { title: "There’s no next chapter.", detail: "You’ve reached the last chapter currently listed in your library. Check the chapter list again after new chapters arrive." },
+  "caught-up": { title: "There’s no next chapter.", detail: "This is the last chapter currently listed. Check again when new chapters arrive." },
   filtered: { title: "No next chapter in this reading list.", detail: "Other known chapters are excluded by your current reading filters. Review the comic’s chapter list to choose another." },
   offline: { title: "No further saved chapters.", detail: "Reconnect your library to check for the next chapter. This saved list cannot confirm the source’s latest release." },
   unknown: { title: "The next chapter couldn’t be confirmed.", detail: "Your current chapter remains available. Retry the chapter list when your library can be reached." },
   checking: { title: "Checking the next chapter…", detail: "The chapter list is still loading." },
-  next: { title: "Next chapter", detail: "Continue when you’re ready, or return to this comic’s chapter list. Unsaved pages need a connection to your library and source." },
+  next: { title: "Next chapter", detail: "Continue or view chapters. Unsaved pages need your library and source connection." },
 };
 
 /** Only describes reading state. Progress and completion remain owned by ReaderSession. */

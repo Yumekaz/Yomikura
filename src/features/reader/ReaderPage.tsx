@@ -7,7 +7,6 @@ import { useDownloadStore } from "../../stores/useDownloadStore";
 import { classifySourceProblem, getErrorMessage } from "../../api/suwayomi/errors";
 import { buildSuwayomiPageUrl, resolveBackendUrl } from "../../api/suwayomi/pageUrls";
 import { SourceRecoveryPanel } from "../../components/source/SourceRecoveryPanel";
-import { useTranslation } from "../../hooks/useTranslation";
 import { ReaderImage } from "./ReaderImage";
 import { ReaderOverlay } from "./ReaderOverlay";
 import { createProgressSnapshot, type ProgressSnapshot } from "./readerProgress";
@@ -51,7 +50,6 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
   const { chapterId: routeChapterId } = useParams<{ chapterId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
-  const { t } = useTranslation();
   
   // Settings store global values & setters
   const { 
