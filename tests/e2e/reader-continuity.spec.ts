@@ -89,7 +89,7 @@ async function fixture(page: Page, options: { saved?: number; single?: boolean; 
     })) });
   }
   await page.goto("/reader/12");
-  await expect(page.getByText("First chapter", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(".yomi-reader-top").getByText("First chapter", { exact: true })).toBeVisible({ timeout: 15_000 });
   return { records, writes, pageFetches, metadataFetches, allowNext: () => { allowNext = true; }, setOnline: (value: boolean) => { online = value; } };
 }
 

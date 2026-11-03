@@ -116,7 +116,7 @@ test("extension setup explains the first source step", async ({ page }) => {
 test("reader opens a demo chapter and exposes a usable page", async ({ page }) => {
   await enterDemo(page);
   await page.goto("/reader/20002");
-  await expect(page.getByText("Chapter 1: The Journey Begins", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(".yomi-reader-top").getByText("Chapter 1: The Journey Begins", { exact: true })).toBeVisible({ timeout: 15_000 });
   const firstPage = page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 1", exact: true }).first();
   await expect(firstPage).toBeVisible({ timeout: 15_000 });
   await expect.poll(() => firstPage.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);

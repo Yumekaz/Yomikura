@@ -54,7 +54,7 @@ async function fixture(page: Page, options: { read?: boolean; pages?: number; sp
     await route.fulfill({ contentType: "image/svg+xml", body: image });
   });
   await page.goto("/reader/12");
-  await expect(page.getByText("Reader correctness fixture", { exact: true })).toBeVisible();
+  await expect(page.locator(".yomi-reader-top").getByText("Reader correctness fixture", { exact: true })).toBeVisible();
   return { patches, deleted, release };
 }
 

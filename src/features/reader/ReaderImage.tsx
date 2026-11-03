@@ -174,7 +174,7 @@ export function ReaderImage({
       ref={containerRef}
       id={`reader-page-${instanceId}`}
       className={containerClass}
-      style={{ backgroundColor: "var(--reader-background, #000)", minHeight: mode === "webtoon" && layout ? 0 : undefined, touchAction: geometry.zoom !== 1 ? "none" : "pan-y" }}
+      style={{ backgroundColor: "var(--reader-background, #000)", minHeight: mode === "webtoon" && layout ? 0 : undefined, touchAction: geometry.zoom > 1 ? "none" : "pan-y" }}
       data-border-crop={geometry.cropState}
       data-image-zoom={geometry.zoom.toFixed(2)}
       data-reader-half={splitHalf === undefined ? "full" : String(splitHalf)}

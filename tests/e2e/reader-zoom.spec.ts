@@ -22,7 +22,7 @@ async function prepare(page: Page, mode: string) {
   return chapter;
 }
 const pages = (page: Page) => page.locator('[id^="reader-page-"]');
-async function allAt(page: Page, value: string) { await expect.poll(() => pages(page).evaluateAll((nodes) => nodes.length > 0 && nodes.every((node) => node.getAttribute("data-image-zoom") === value))).toBe(true); }
+async function allAt(page: Page, value: string) { await expect.poll(() => pages(page).evaluateAll((nodes, expected) => nodes.length > 0 && nodes.every((node) => node.getAttribute("data-image-zoom") === expected), value)).toBe(true); }
 
 test("webtoon zoom applies to the strip, preserves its cursor and resets both magnification directions", async ({ page }) => {
   const chapter = await prepare(page, "WEBTOON");

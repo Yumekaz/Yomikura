@@ -44,7 +44,7 @@ test("updates show partial progress and truthful server availability", async ({ 
 test("category order has keyboard accessible controls and confirmed backend positions", async ({ page }) => {
   const data = await fixture(page); await page.goto("/library"); await page.getByRole("button", { name: "Manage Categories", exact: true }).click();
   const manager = page.getByRole("dialog", { name: "Manage Categories" }); await expect(manager.getByRole("button", { name: "Move Reading up", exact: true })).toBeDisabled();
-  await manager.getByRole("button", { name: "Move Favorites up", exact: true }).click(); await expect(manager.getByRole("button", { name: "Move Favorites up", exact: true })).toBeDisabled(); expect(data.moves).toEqual([{ id: 2, position: 1 }]);
+  await manager.getByRole("button", { name: "Move Favorites up", exact: true }).click(); await expect.poll(() => data.moves).toEqual([{ id: 2, position: 1 }]); await expect(manager.getByRole("button", { name: "Move Favorites up", exact: true })).toBeDisabled();
   await expect(manager.getByRole("button", { name: "Delete category Default", exact: true })).toHaveCount(0);
 });
 test("a rejected category reorder leaves the saved order intact", async ({ page }) => {

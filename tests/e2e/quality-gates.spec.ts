@@ -72,7 +72,7 @@ test("reader journey survives search, offline save, history, and reload", async 
   await expect(page.getByRole("button", { name: "Remove offline download of Chapter 1: The Journey Begins" })).toBeVisible({ timeout: 15_000 });
 
   await page.getByRole("link", { name: /Chapter 1: The Journey Begins/ }).click();
-  await expect(page.getByText("Chapter 1: The Journey Begins", { exact: true })).toBeVisible();
+  await expect(page.locator(".yomi-reader-top").getByText("Chapter 1: The Journey Begins", { exact: true })).toBeVisible();
   await page.keyboard.press("ArrowRight");
 
   await page.goto("/history");
@@ -81,9 +81,9 @@ test("reader journey survives search, offline save, history, and reload", async 
   await page.goto("/downloads");
   await expect(page.getByText("[Demo] Moonlit Courier", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Read", exact: true }).click();
-  await expect(page.getByText("Chapter 1: The Journey Begins", { exact: true })).toBeVisible();
+  await expect(page.locator(".yomi-reader-top").getByText("Chapter 1: The Journey Begins", { exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByText("Chapter 1: The Journey Begins", { exact: true })).toBeVisible();
+  await expect(page.locator(".yomi-reader-top").getByText("Chapter 1: The Journey Begins", { exact: true })).toBeVisible();
 });
 
 test("desktop shell and long-reader interaction stay within regression baselines", async ({ page }) => {

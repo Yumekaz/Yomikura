@@ -30,7 +30,7 @@ import { ReaderRefreshFlash } from "./ReaderRefreshFlash";
 import { ChapterEndBoundary } from "./ChapterEndBoundary";
 import { allowDeviceDownload, allowedPreloadPages } from "../../api/suwayomi/networkPolicy";
 import { useConnectionInformation } from "../../hooks/useConnectionInformation";
-import { ReaderZoomContext, useReaderZoom } from "./useReaderZoom";
+import { ReaderZoomContext, useReaderZoom, type ReaderZoom } from "./useReaderZoom";
 import { ReaderEndStatus } from "./ReaderEndStatus";
 import { deriveReaderEndState } from "./readerEndState";
 
@@ -113,6 +113,8 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
   const readyPagesRef = useRef(new Set<string>());
   const failedPagesRef = useRef(new Set<string>());
   const [readyPageVersion, setReadyPageVersion] = useState(0);
+  const zoomProgressFence = useRef<ReaderZoom | null>(null);
+  const zoomSettledTimer = useRef<ReturnType<typeof setTimeout>>();
   const pageIdentity = useCallback((id: number, index: number) => `${serverBaseUrl}::${id}::${index}`, [serverBaseUrl]);
   const [streamChapters, setStreamChapters] = useState<StreamChapter[]>([]);
   const [activeChapterId, setActiveChapterId] = useState<number | null>(null);
@@ -375,6 +377,8 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
 
   // Commit immediately. Only network synchronization is debounced by the app shell.
   const saveProgress = useCallback((streamChapter: StreamChapter, pageIndex: number, canComplete = true) => {
+    const gesture = zoomProgressFence.current;
+    if (gesture?.pinching.current || Date.now() < (gesture?.suppressUntil.current ?? 0)) return;
     if (!readyPagesRef.current.has(pageIdentity(streamChapter.id, pageIndex))) return;
     const complete = canComplete && ![...completionParts.current].some(([part, ready]) => part.startsWith(`${pageIdentity(streamChapter.id, pageIndex)}:`) && !ready);
     const savedKey = `${pageIndex}:${complete}`;
@@ -397,11 +401,18 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
       lastWrittenCursor.current = key;
       navigate(`/reader/${cursor.chapterId}`, { replace: true, preventScrollReset: true, state: { readerSession: sessionToken, readerPage: cursor.pageIndex } });
     }
-    if (ready) saveProgress(owner, cursor.pageIndex, endVisible);
+    const gesture = zoomProgressFence.current;
+    if (ready && !gesture?.pinching.current && Date.now() >= (gesture?.suppressUntil.current ?? 0)) saveProgress(owner, cursor.pageIndex, endVisible);
   }, [navigate, saveProgress, sessionToken]);
   const webtoon = useWebtoonNavigation(readerMode === "WEBTOON", publishCursor);
   const readingSurface = useRef<HTMLDivElement>(null);
   const zoom = useReaderZoom(readingSurface, readerMode === "WEBTOON", readerPreferences.disableZoomOut, () => { webtoon.cancel(); clearTimeout(pointerClickTimer.current); }, readerPreferences.doubleTapZoom);
+  zoomProgressFence.current = zoom;
+  const reselectAfterZoom = useCallback(() => {
+    clearTimeout(zoomSettledTimer.current);
+    zoomSettledTimer.current = setTimeout(() => { webtoon.onLayout(); setReadyPageVersion((value) => value + 1); }, 400);
+  }, [webtoon.onLayout]);
+  useEffect(() => { reselectAfterZoom(); return () => clearTimeout(zoomSettledTimer.current); }, [zoom.scale, zoom.panX, reselectAfterZoom]);
 
   useLayoutEffect(() => {
     if (initialized.current || !chapter || !rootPages.length) return;
@@ -926,6 +937,8 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
         aria-describedby="reader-keyboard-help"
         tabIndex={0}
         onClick={handlePageClick}
+        onPointerUp={reselectAfterZoom}
+        onTouchEnd={reselectAfterZoom}
         onKeyDown={(event) => { if (!(event.target as Element).closest("button,a,input,textarea,select") && ["+", "=", "-", "0"].includes(event.key)) { event.preventDefault(); event.stopPropagation(); if (event.key === "0") zoom.reset(); else zoom.change(zoom.scale * (event.key === "-" ? 1 / 1.2 : 1.2)); return; } if (readerPreferences.pageActions && (event.key === "ContextMenu" || event.shiftKey && event.key === "F10")) { event.preventDefault(); event.stopPropagation(); setPageToolsTarget({ url: buildPageUrl(currentPage), title: activeChapter.mangaTitle, page: currentPage + 1, chapter: activeChapter, backend: progressTarget }); setShowOverlay(true); setPageToolsOpen(true); } }}
       >
         <p id="reader-keyboard-help" className="sr-only">Reader shortcuts work here. Use Tab and Shift+Tab to reach the controls.</p>
@@ -966,6 +979,8 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
                   </WebtoonPage>
                 ))}
                 <ChapterEndBoundary readiness={readyPageVersion} onReached={() => {
+                  const gesture = zoomProgressFence.current;
+                  if (gesture?.pinching.current || Date.now() < (gesture?.suppressUntil.current ?? 0)) return;
                   const lastKey = pageIdentity(streamCh.id, streamCh.pages.length - 1);
                   const failed = streamCh.pages.some((_, index) => failedPagesRef.current.has(pageIdentity(streamCh.id, index)));
                   const lastReady = readyPagesRef.current.has(lastKey) && ![...completionParts.current].some(([key, ready]) => key.startsWith(`${lastKey}:`) && !ready);
