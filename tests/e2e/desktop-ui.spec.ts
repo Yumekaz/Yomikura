@@ -120,6 +120,17 @@ test("reader opens a demo chapter and exposes a usable page", async ({ page }) =
   const firstPage = page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 1", exact: true }).first();
   await expect(firstPage).toBeVisible({ timeout: 15_000 });
   await expect.poll(() => firstPage.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+  await expect(firstPage).toHaveCSS("opacity", "1");
+  await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Reset reader zoom", exact: true })).toHaveText("120%");
+  await page.screenshot({ path: ".cache/reader-release-review/reader-demo-zoom.png" });
+  await page.getByRole("button", { name: "Reset reader zoom", exact: true }).click();
+  await page.getByRole("button", { name: "Go to page 2", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Reading surface", exact: true })).toHaveAttribute("aria-busy", "false");
+  await page.mouse.move(640, 350); await page.mouse.wheel(0, 100000);
+  const ending = page.getByRole("region", { name: "Chapter end", exact: true });
+  await expect(ending.getByText("There’s no next chapter.", { exact: true })).toBeInViewport();
+  await page.screenshot({ path: ".cache/reader-release-review/reader-demo-end.png" });
 });
 
 test("manga details renders valid dates without horizontal overflow", async ({ page }) => {

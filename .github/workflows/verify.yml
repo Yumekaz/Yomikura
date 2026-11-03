@@ -60,6 +60,7 @@ jobs:
           path: |
             .cache/beta-ui-review/*.png
             .cache/browser-setup-guide/*.png
+            .cache/reader-release-review/*.png
             .cache/visual-upgrade-2026-10-24/screens/library-0-1440.png
           include-hidden-files: true
           if-no-files-found: ignore
@@ -139,6 +140,9 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Verify installer process ownership
+        shell: pwsh
+        run: ./scripts/test-smoke-process-ownership.ps1
       - name: Verify production private runtime
         id: private-runtime
         shell: pwsh

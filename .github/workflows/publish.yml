@@ -43,6 +43,25 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: Run desktop interaction tests
         run: pnpm run test:e2e
+      - name: Preserve current preview screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-visual-review
+          path: |
+            .cache/reader-release-review/*.png
+            .cache/browser-setup-guide/*.png
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Preserve release browser failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-browser-failure-evidence
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
   publish-tauri:
     if: github.event_name == 'push'
@@ -159,6 +178,9 @@ jobs:
       - name: Run native unit tests
         working-directory: src-tauri
         run: cargo test --lib -- --test-threads=1
+      - name: Verify installer process ownership
+        shell: pwsh
+        run: ./scripts/test-smoke-process-ownership.ps1
       - name: Verify production private runtime
         id: private-runtime
         shell: pwsh
