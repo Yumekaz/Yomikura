@@ -4,10 +4,21 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing unpublished release tag to verify; no rebuild or publication"
+        required: true
+        type: string
+      source_run_id:
+        description: "Original tag build run containing the platform checksum artifacts"
+        required: true
+        type: string
 
 jobs:
   release-preflight:
     name: Release preflight
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -34,6 +45,7 @@ jobs:
         run: pnpm run test:e2e
 
   publish-tauri:
+    if: github.event_name == 'push'
     needs: [release-preflight, release-installer-windows]
     permissions:
       contents: write
@@ -111,6 +123,7 @@ jobs:
 
   release-installer-windows:
     name: Release installer smoke (Windows)
+    if: github.event_name == 'push'
     needs: release-preflight
     runs-on: windows-latest
     permissions:
@@ -201,15 +214,37 @@ jobs:
 
   release-checksums:
     name: Verify and publish release checksums
+    if: always() && (github.event_name == 'workflow_dispatch' || needs.publish-tauri.result == 'success')
     needs: publish-tauri
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+      SOURCE_RUN_ID: ${{ inputs.source_run_id || github.run_id }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          package-manager-cache: false
+      - name: Verify finalizer regressions
+        run: node --test scripts/release-artifacts.test.mjs
+      - name: Verify the original build and unpublished draft
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { pathToFileURL } = require('node:url');
+            const { inspectReleaseOrigin } = await import(pathToFileURL(`${process.env.GITHUB_WORKSPACE}/scripts/verify-release-origin.mjs`).href);
+            if (!/^\d+$/.test(process.env.SOURCE_RUN_ID)) throw new Error('Provide the original numeric build run ID.');
+            const runId = Number(process.env.SOURCE_RUN_ID);
+            if (!Number.isSafeInteger(runId) || runId < 1) throw new Error('Invalid original build run ID.');
+            const run = (await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: runId })).data;
+            const release = (await github.rest.repos.getReleaseByTag({ ...context.repo, tag: process.env.RELEASE_TAG })).data;
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, { ...context.repo, run_id: runId, filter: 'latest', per_page: 100 });
+            const commit = inspectReleaseOrigin(run, release, jobs, process.env.RELEASE_TAG, `${context.repo.owner}/${context.repo.repo}`);
+            core.info(`Verified unpublished ${release.tag_name}, original build ${runId}, commit ${commit}.`);
       - name: Install signature verifier
         run: sudo apt-get update && sudo apt-get install -y minisign
       - name: Download platform checksums
@@ -218,32 +253,34 @@ jobs:
           pattern: release-checksum-*
           path: checksums
           merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
 
       - name: Upload checksums and verify release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release download "${{ github.ref_name }}" --dir release-downloads
+          gh release download "$RELEASE_TAG" --dir release-downloads
           node scripts/reconcile-artifact-checksums.mjs release-downloads checksums
-          gh release upload "${{ github.ref_name }}" checksums/SHA256SUMS-*.txt --clobber
-          assets="$(gh release view "${{ github.ref_name }}" --json assets --jq '.assets[].name')"
           for checksum in \
             "SHA256SUMS-macos-latest.txt" \
             "SHA256SUMS-ubuntu-22.04.txt" \
             "SHA256SUMS-windows-latest.txt"; do
-            grep -Fx "$checksum" <<< "$assets" > /dev/null || {
-              echo "Missing release checksum asset: $checksum"
+            test -f "checksums/$checksum" || {
+              echo "Missing original build checksum manifest: $checksum"
               exit 1
             }
           done
           for checksum in checksums/SHA256SUMS-*.txt; do
             (cd release-downloads && sha256sum --check "$GITHUB_WORKSPACE/$checksum")
           done
-          node scripts/verify-updater-manifest.mjs release-downloads "${{ github.ref_name }}"
+          node scripts/verify-updater-manifest.mjs release-downloads "$RELEASE_TAG"
+          assets="$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')"
           for pattern in '\.exe$' '\.exe\.sig$' '\.dmg$' '\.app\.tar\.gz$' '\.app\.tar\.gz\.sig$' '\.AppImage$' '\.deb$' '\.rpm$' '^latest\.json$'; do
             grep -E "$pattern" <<< "$assets" > /dev/null || {
               echo "Missing required release asset matching: $pattern"
               exit 1
             }
           done
+          gh release upload "$RELEASE_TAG" checksums/SHA256SUMS-*.txt --clobber

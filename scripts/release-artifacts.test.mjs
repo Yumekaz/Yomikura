@@ -6,6 +6,7 @@ import { mkdir, mkdtemp, readFile, writeFile, access } from "node:fs/promises";
 import path from "node:path";
 import { inspectUpdaterManifest } from "./verify-updater-manifest.mjs";
 import { reconcileChecksums } from "./reconcile-artifact-checksums.mjs";
+import { inspectReleaseOrigin, REQUIRED_RELEASE_BUILDS } from "./verify-release-origin.mjs";
 
 const run = promisify(execFile);
 const script = path.resolve("scripts/write-artifact-checksums.mjs");
@@ -86,4 +87,28 @@ test("missing or ambiguous renamed assets cannot produce a passing release manif
   const digest = "a".repeat(64), text = `${digest}  Yomikura.app.tar.gz\n`;
   assert.throws(() => reconcileChecksums(text, []), /Missing or ambiguous/);
   assert.throws(() => reconcileChecksums(text, [{ name: "first.app.tar.gz", digest }, { name: "second.app.tar.gz", digest }]), /Missing or ambiguous/);
+});
+
+function releaseOrigin() {
+  const commit = "a".repeat(40);
+  return { run: { event: "push", path: ".github/workflows/publish.yml", head_repository: { full_name: repository }, head_sha: commit }, release: { draft: true, tag_name: tag, target_commitish: commit }, jobs: REQUIRED_RELEASE_BUILDS.map((name) => ({ name, conclusion: "success" })) };
+}
+test("draft verification can resume after a finalizer failure without rebuilding the app", () => {
+  const { run, release, jobs } = releaseOrigin();
+  assert.equal(inspectReleaseOrigin(run, release, [...jobs, { name: "Verify and publish release checksums", conclusion: "failure" }], tag, repository), run.head_sha);
+});
+test("published releases and different source commits cannot be finalized", () => {
+  const { run, release, jobs } = releaseOrigin();
+  assert.throws(() => inspectReleaseOrigin(run, { ...release, draft: false }, jobs, tag, repository), /unpublished draft/);
+  assert.throws(() => inspectReleaseOrigin(run, { ...release, target_commitish: "b".repeat(40) }, jobs, tag, repository), /same commit/);
+});
+test("a failed or missing platform build cannot be substituted during finalization", () => {
+  const { run, release, jobs } = releaseOrigin();
+  assert.throws(() => inspectReleaseOrigin(run, release, jobs.slice(0, -1), tag, repository), /build gate did not pass/);
+  assert.throws(() => inspectReleaseOrigin(run, release, jobs.map((job) => ({ ...job, conclusion: "failure" })), tag, repository), /build gate did not pass/);
+});
+test("an unrelated repository or workflow cannot provide the release checksums", () => {
+  const { run, release, jobs } = releaseOrigin();
+  assert.throws(() => inspectReleaseOrigin({ ...run, head_repository: { full_name: "other/project" } }, release, jobs, tag, repository), /this repository/);
+  assert.throws(() => inspectReleaseOrigin({ ...run, path: ".github/workflows/verify.yml" }, release, jobs, tag, repository), /release build workflow/);
 });
