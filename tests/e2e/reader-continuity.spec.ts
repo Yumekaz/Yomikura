@@ -7,7 +7,7 @@ const title = "Reader continuity fixture";
 const fullPage = (page: Page, chapter: number, index: number) => page.locator(`[data-reader-chapter="${chapter}"][data-reader-page="${index}"]`).getByRole("img", { name: `Page ${index + 1}`, exact: true });
 const picture = (chapter: number, index: number, height: number) => `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="${height}"><rect width="600" height="${height}" fill="${chapter === 12 ? "#264653" : "#563d55"}"/><text x="35" y="100" font-size="30" fill="white">Chapter ${chapter} / Page ${index + 1}</text></svg>`;
 
-async function fixture(page: Page, options: { saved?: number; single?: boolean; failNext?: boolean; offline?: boolean; delayed?: boolean } = {}) {
+async function fixture(page: Page, options: { saved?: number; single?: boolean; failNext?: boolean; offline?: boolean; delayed?: boolean; cachedCount?: number } = {}) {
   const records = new Map([
     [12, { name: "First chapter", number: 1, heights: options.single ? [400] : [400, 900, 700, 500], page: options.saved ?? 0, read: false }],
     [13, { name: "Second chapter", number: 2, heights: [500, 1000], page: 0, read: false }],
@@ -84,7 +84,7 @@ async function fixture(page: Page, options: { saved?: number; single?: boolean; 
           });
         }
       } finally { db.close(); }
-    }, { backend, title, chapters: [...records].slice(0, 2).map(([id, value]) => ({ id, ...value,
+    }, { backend, title, chapters: [...records].slice(0, options.cachedCount ?? 2).map(([id, value]) => ({ id, ...value,
       pages: value.heights.map((_height, index) => `${backend}/api/v1/manga/42/chapter/${value.number}/page/${index}`), images: value.heights.map((height, index) => picture(id, index, height)),
     })) });
   }
@@ -188,6 +188,26 @@ test("offline continuation resolves appended chapters from the device cache", as
   await expect(page).toHaveURL(/\/reader\/13$/);
   await expect(page.getByText("1 of 2 pages", { exact: true })).toBeVisible();
   await expect(fullPage(page, 13, 0)).toHaveAttribute("src", /^blob:/);
+});
+
+test("reconnecting restores uncached chapter continuation without resetting the active page", async ({ page }) => {
+  const data = await fixture(page, { offline: true, cachedCount: 1 });
+  await expect(fullPage(page, 12, 0)).toHaveCSS("opacity", "1");
+  await expect(page.getByText("Offline continuation uses saved chapters only.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Next", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Go to page 2", exact: true }).click();
+  await expect(page.getByText("2 of 4 pages", { exact: true })).toBeVisible();
+
+  data.setOnline(true);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByText("Offline continuation uses saved chapters only.", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("2 of 4 pages", { exact: true })).toBeVisible();
+  await expect(fullPage(page, 12, 1)).toBeInViewport({ ratio: 0.2 });
+  await expect(page.getByRole("link", { name: "Next", exact: true })).toHaveAttribute("href", "/reader/13");
+  await page.getByRole("link", { name: "Next", exact: true }).click();
+  await expect(page).toHaveURL(/\/reader\/13$/);
+  await expect(fullPage(page, 13, 0)).toHaveCSS("opacity", "1");
+  expect(data.pageFetches).toContain(13);
 });
 
 test("moving backward after completion stays read when synchronization becomes unavailable", async ({ page }) => {

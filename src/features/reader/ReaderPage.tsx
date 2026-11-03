@@ -54,6 +54,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
   const { 
     serverBaseUrl, 
     mockMode,
+    connectionStatus,
     readerMode: globalReaderMode, 
     setReaderMode: setGlobalReaderMode, 
     fitMode: globalFitMode, 
@@ -279,6 +280,11 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
+  // A cached fallback is only authoritative while the library is unavailable.
+  // Refresh it on recovery without replacing the active chapter or reading cursor.
+  useEffect(() => {
+    if (connectionStatus === "connected" && readingSequence.data?.offline) void readingSequence.refetch();
+  }, [connectionStatus, readingSequence.data?.offline, readingSequence.refetch]);
   const siblingChapters = useMemo(() => {
     return readingSequence.data?.chapters ?? [];
   }, [readingSequence.data]);
