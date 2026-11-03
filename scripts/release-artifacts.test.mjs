@@ -28,6 +28,8 @@ test("checksums verify assets downloaded without the build directory structure",
   const { bundle, output } = await fixture();
   await asset(bundle, "nsis/Yomikura_setup.exe");
   await asset(bundle, "nsis/Yomikura_setup.exe.sig");
+  await asset(bundle, "deb/staging/control.tar.gz");
+  await asset(bundle, "deb/staging/data.tar.gz");
   await asset(bundle, "ignored.txt");
   await run(process.execPath, [script, bundle, output]);
   const lines = (await readFile(output, "utf8")).trim().split("\n").sort();
@@ -111,4 +113,16 @@ test("an unrelated repository or workflow cannot provide the release checksums",
   const { run, release, jobs } = releaseOrigin();
   assert.throws(() => inspectReleaseOrigin({ ...run, head_repository: { full_name: "other/project" } }, release, jobs, tag, repository), /this repository/);
   assert.throws(() => inspectReleaseOrigin({ ...run, path: ".github/workflows/verify.yml" }, release, jobs, tag, repository), /release build workflow/);
+});
+
+test("legacy Debian staging entries do not become downloadable installer checksums", () => {
+  const digest = "a".repeat(64);
+  const manifest = `${digest}  Yomikura.deb\n${"b".repeat(64)}  control.tar.gz\n${"c".repeat(64)}  data.tar.gz\n`;
+  assert.equal(reconcileChecksums(manifest, [{ name: "Yomikura.deb", digest }]), `${digest}  Yomikura.deb\n`);
+});
+
+test("staging-only manifests and accidental staging uploads cannot pass", () => {
+  const digest = "a".repeat(64), manifest = `${digest}  control.tar.gz\n`;
+  assert.throws(() => reconcileChecksums(manifest, []), /No distributable build checksums/);
+  assert.throws(() => reconcileChecksums(manifest, [{ name: "control.tar.gz", digest }]), /staging archive was uploaded/);
 });

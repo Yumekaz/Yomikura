@@ -4,14 +4,16 @@ import path from "node:path";
 
 const [root = "src-tauri/target/release/bundle", output = "SHA256SUMS.txt"] = process.argv.slice(2);
 
-async function collect(directory) {
+async function collect(directory, depth = 0) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
   const artifactPattern = /\.(appimage|deb|dmg|exe|msi|rpm|tar\.gz|zip|sig)$/i;
   for (const entry of entries) {
     const fullPath = path.join(directory, entry.name);
-    if (entry.isDirectory()) files.push(...await collect(fullPath));
-    else if (artifactPattern.test(entry.name)) files.push(fullPath);
+    // Final bundles live directly under their packager directory. Deeper
+    // directories contain Debian staging archives and macOS app contents.
+    if (entry.isDirectory() && depth === 0) files.push(...await collect(fullPath, depth + 1));
+    else if (entry.isFile() && artifactPattern.test(entry.name)) files.push(fullPath);
   }
   return files;
 }

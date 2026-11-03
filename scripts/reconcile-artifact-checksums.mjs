@@ -8,12 +8,18 @@ export function reconcileChecksums(text, assets) {
   const lines = text.trim().split(/\r?\n/);
   assert.ok(text.trim(), "An empty build manifest cannot verify a release");
   const used = new Set();
-  return lines.map((line) => {
+  const reconciled = lines.flatMap((line) => {
     const match = /^([a-f0-9]{64})  (.+)$/.exec(line);
     assert.ok(match, "Invalid build checksum entry");
     const [, digest, original] = match;
     assert.ok(original === path.posix.basename(original) && original === path.win32.basename(original), "Build checksum names must be flat");
     const named = assets.find((asset) => asset.name === original);
+    // The older recursive scanner included these exact Debian staging files.
+    // They are not installer payloads and must never appear as release assets.
+    if (original === "control.tar.gz" || original === "data.tar.gz") {
+      assert.ok(!named, `Internal Debian staging archive was uploaded: ${original}`);
+      return [];
+    }
     if (named) assert.equal(named.digest, digest, `Uploaded bytes differ from the build: ${original}`);
     // Tauri's release action can add architecture suffixes to macOS updater archives.
     // Resolve that rename only through the original build digest, never a guessed name.
@@ -23,7 +29,9 @@ export function reconcileChecksums(text, assets) {
     assert.ok(!used.has(asset.name), `Duplicate uploaded build asset: ${asset.name}`);
     used.add(asset.name);
     return `${digest}  ${asset.name}`;
-  }).join("\n") + "\n";
+  });
+  assert.ok(reconciled.length, "No distributable build checksums remain");
+  return reconciled.join("\n") + "\n";
 }
 
 async function reconcile(directory, manifests) {
