@@ -91,6 +91,14 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
   const { downloadChapter, cachedChapters } = useDownloadStore();
 
   const [showOverlay, setShowOverlay] = useState(true);
+  const [footerInset, setFooterInset] = useState(220);
+  const footerObserver = useRef<ResizeObserver>();
+  const onFooterRef = useCallback((element: HTMLDivElement | null) => {
+    footerObserver.current?.disconnect(); if (!element) return;
+    const measure = () => setFooterInset(Math.ceil(element.getBoundingClientRect().height) + 16);
+    footerObserver.current = new ResizeObserver(measure); footerObserver.current.observe(element); measure();
+  }, []);
+  useEffect(() => () => footerObserver.current?.disconnect(), []);
   const [transitionTarget, setTransitionTarget] = useState<number>();
   const [pageToolsOpen, setPageToolsOpen] = useState(false);
   const [pageToolsTarget, setPageToolsTarget] = useState<{ url: string; title: string; page: number; chapter: ReaderChapter; backend: ProgressBackend }>();
@@ -404,7 +412,8 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
     const gesture = zoomProgressFence.current;
     if (ready && !gesture?.pinching.current && Date.now() >= (gesture?.suppressUntil.current ?? 0)) saveProgress(owner, cursor.pageIndex, endVisible);
   }, [navigate, saveProgress, sessionToken]);
-  const webtoon = useWebtoonNavigation(readerMode === "WEBTOON", publishCursor);
+  const visibleFooterInset = showOverlay ? footerInset : 40;
+  const webtoon = useWebtoonNavigation(readerMode === "WEBTOON", publishCursor, visibleFooterInset);
   const readingSurface = useRef<HTMLDivElement>(null);
   const zoom = useReaderZoom(readingSurface, readerMode === "WEBTOON", readerPreferences.disableZoomOut, () => { webtoon.cancel(); clearTimeout(pointerClickTimer.current); }, readerPreferences.doubleTapZoom);
   zoomProgressFence.current = zoom;
@@ -868,7 +877,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
   }
 
   return (
-    <ReaderZoomContext.Provider value={zoom}><div className="min-h-screen yomi-reader-surface" data-reader-session style={{ "--reader-background": readerPreferences.background === "black" ? "#000" : readerPreferences.background === "paper" ? "#f4ecdc" : readerPreferences.background === "gray" ? "#303030" : "var(--ink-950)" } as CSSProperties}>
+    <ReaderZoomContext.Provider value={zoom}><div className="min-h-screen yomi-reader-surface" data-reader-session style={{ "--reader-background": readerPreferences.background === "black" ? "#000" : readerPreferences.background === "paper" ? "#f4ecdc" : readerPreferences.background === "gray" ? "#303030" : "var(--ink-950)", "--reader-end-height": `max(320px, calc(100dvh - ${webtoon.headerInset}px - ${visibleFooterInset}px))` } as CSSProperties}>
       <ReaderHints mode={readerMode} preferences={readerPreferences} />
       {experience.incognito && showOverlay && <p role="status" className="yomi-reader-capability-note">Incognito · Reading progress, history and automatic tracking are paused.</p>}
       <ReaderRefreshFlash enabled={readerPreferences.eInkFlash} position={`${activeChapter.id}:${currentPage}:${splitHalf}`} />
@@ -914,6 +923,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
         buildPageUrl={buildPageUrl}
         onJumpToPage={handleJumpToPage}
         onHeaderRef={webtoon.onHeaderRef}
+        onFooterRef={onFooterRef}
         isAutoScrolling={isAutoScrolling}
         onToggleAutoScroll={() => setIsAutoScrolling(!isAutoScrolling)}
         fullscreen={display.fullscreen}
@@ -934,6 +944,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
         } ${transitionClass}`}
         role="region"
         aria-label="Reading surface"
+        aria-busy={readerMode === "WEBTOON" && !!webtoon.target}
         aria-describedby="reader-keyboard-help"
         tabIndex={0}
         onClick={handlePageClick}
@@ -943,7 +954,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
       >
         <p id="reader-keyboard-help" className="sr-only">Reader shortcuts work here. Use Tab and Shift+Tab to reach the controls.</p>
         {readerMode === "WEBTOON" ? (
-          <div className="flex flex-col w-full" style={{ paddingTop: webtoon.headerInset, paddingBottom: `calc(100vh - ${webtoon.headerInset}px)`, paddingInline: `${readerPreferences.sidePadding}%` }}>
+          <div className="flex flex-col w-full" style={{ paddingTop: webtoon.headerInset, paddingBottom: visibleFooterInset, paddingInline: `${readerPreferences.sidePadding}%` }}>
             {streamChapters.map((streamCh, ci) => (
               <div key={streamCh.id} className="flex w-full flex-col">
                 {ci > 0 && (
@@ -978,7 +989,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
                     />)}
                   </WebtoonPage>
                 ))}
-                <ChapterEndBoundary readiness={readyPageVersion} onReached={() => {
+                <ChapterEndBoundary readiness={readyPageVersion} bottomInset={visibleFooterInset} onReached={() => {
                   const gesture = zoomProgressFence.current;
                   if (gesture?.pinching.current || Date.now() < (gesture?.suppressUntil.current ?? 0)) return;
                   const lastKey = pageIdentity(streamCh.id, streamCh.pages.length - 1);

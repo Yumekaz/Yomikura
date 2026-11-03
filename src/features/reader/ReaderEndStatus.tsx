@@ -30,7 +30,7 @@ export function ReaderEndStatus({ chapterName, mangaId, state, finished, pagesRe
     : !pagesReady ? { title: "Waiting for the final page…", detail: "This chapter will be finished after its final page has loaded and been read." }
     : messages[state];
   const busy = checking || state === "checking";
-  return <section className="mx-auto w-full max-w-2xl px-6 py-12 text-left" aria-label="Chapter end" onClick={(event) => event.stopPropagation()}>
+  return <section className="mx-auto w-full max-w-2xl px-6 py-12 text-left" style={{ minHeight: "var(--reader-end-height, 320px)" }} aria-label="Chapter end" onClick={(event) => event.stopPropagation()}>
     <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">{finished && pagesReady && !pagesFailed ? "Finished" : "End of chapter"}</p>
     <h2 className="mb-6 break-words font-display text-2xl text-slate-100">{chapterName}</h2>
     <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-ink-900 p-4" role="status">

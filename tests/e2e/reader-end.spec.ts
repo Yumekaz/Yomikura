@@ -51,6 +51,10 @@ async function fixture(page: Page, options: { failLastPage?: boolean; filteredNe
   await page.goto("/reader/12");
   await expect(page.getByText("Chapter 59", { exact: true }).first()).toBeVisible();
   await page.getByRole("button", { name: "Go to page 2", exact: true }).click();
+  if (!options.failLastPage) {
+    await expect(page.getByRole("region", { name: "Reading surface", exact: true })).toHaveAttribute("aria-busy", "false");
+    await expect(page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 2", exact: true })).toHaveCSS("opacity", "1");
+  }
   return { addNext: () => { includeNext = true; }, patches };
 }
 
@@ -60,6 +64,8 @@ test("the confirmed latest chapter has a meaningful ending and can discover a la
   await ending.scrollIntoViewIfNeeded();
   await expect(ending.getByText("Finished", { exact: true })).toBeVisible();
   await expect(ending.getByText("There’s no next chapter.", { exact: true })).toBeVisible();
+  await page.mouse.wheel(0, 100000);
+  await expect(ending.getByText("There’s no next chapter.", { exact: true })).toBeInViewport();
   await expect(ending.getByRole("link", { name: "View chapters", exact: true })).toHaveAttribute("href", "/manga/42");
   await expect.poll(() => data.patches.some((patch) => patch.isRead === true)).toBe(true);
 

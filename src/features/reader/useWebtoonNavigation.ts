@@ -6,13 +6,14 @@ type Anchor = ReaderCursor & { element: HTMLDivElement };
 const key = (chapterId: number, pageIndex: number) => `${chapterId}:${pageIndex}`;
 
 /** Stable wrapper anchors survive image virtualization and retain the owning chapter. */
-export function useWebtoonNavigation(enabled: boolean, onSelect: (cursor: ReaderCursor, ready: boolean, endVisible?: boolean) => void) {
+export function useWebtoonNavigation(enabled: boolean, onSelect: (cursor: ReaderCursor, ready: boolean, endVisible?: boolean) => void, bottomInset = 0) {
   const anchors = useRef(new Map<string, Anchor>());
   const visible = useRef(new Set<string>());
   const states = useRef(new Map<string, LoadState>());
   const observer = useRef<IntersectionObserver>();
   const callback = useRef(onSelect); callback.current = onSelect;
   const enabledRef = useRef(enabled); enabledRef.current = enabled;
+  const footer = useRef(bottomInset); footer.current = bottomInset;
   const active = useRef<ReaderCursor | null>(null);
   const fraction = useRef(0);
   const frame = useRef<number>();
@@ -24,24 +25,25 @@ export function useWebtoonNavigation(enabled: boolean, onSelect: (cursor: Reader
   const inset = useRef(80);
   const headerObserver = useRef<ResizeObserver>();
 
-  const focusLine = () => Math.min(window.innerHeight - 20, inset.current + Math.min(120, Math.max(20, (window.innerHeight - inset.current) / 4)));
+  const focusLine = () => Math.min(window.innerHeight - footer.current - 20, inset.current + Math.min(120, Math.max(20, (window.innerHeight - inset.current - footer.current) / 4)));
   const chooseVisible = useCallback(() => {
     if (!enabledRef.current || pending.current) return;
     const line = focusLine();
     const candidates = [...visible.current].map((id) => anchors.current.get(id)).filter((item): item is Anchor => !!item)
-      .map((item) => ({ ...item, rect: item.element.getBoundingClientRect() })).filter((item) => item.rect.bottom > inset.current && item.rect.top < window.innerHeight);
+      .map((item) => ({ ...item, rect: item.element.getBoundingClientRect() })).filter((item) => item.rect.bottom > inset.current && item.rect.top < window.innerHeight - footer.current);
     const selected = candidates.find((item) => item.rect.top <= line && item.rect.bottom > line)
       ?? candidates.sort((a, b) => Math.abs(a.rect.top - line) - Math.abs(b.rect.top - line))[0];
     if (!selected) return;
     active.current = { chapterId: selected.chapterId, pageIndex: selected.pageIndex };
     fraction.current = Math.max(0, Math.min(1, (line - selected.rect.top) / Math.max(1, selected.rect.height)));
-    callback.current(active.current, states.current.get(key(selected.chapterId, selected.pageIndex)) === "ready", selected.rect.bottom <= window.innerHeight + 2);
+    callback.current(active.current, states.current.get(key(selected.chapterId, selected.pageIndex)) === "ready", selected.rect.bottom <= window.innerHeight - footer.current + 2);
   }, []);
   const onLayout = useCallback(() => {
     layoutVersion.current += 1;
     cancelAnimationFrame(frame.current ?? 0);
     frame.current = requestAnimationFrame(chooseVisible);
   }, [chooseVisible]);
+  useEffect(onLayout, [bottomInset, onLayout]);
   const onAnchor = useCallback((chapterId: number, pageIndex: number, element: HTMLDivElement | null) => {
     const id = key(chapterId, pageIndex);
     const old = anchors.current.get(id);

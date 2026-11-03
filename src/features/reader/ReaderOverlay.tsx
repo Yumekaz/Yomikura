@@ -45,6 +45,7 @@ interface ReaderOverlayProps {
   buildPageUrl: (pageIndex: number) => string;
   onJumpToPage: (pageIndex: number) => void;
   onHeaderRef?: (element: HTMLDivElement | null) => void;
+  onFooterRef?: (element: HTMLDivElement | null) => void;
   isAutoScrolling: boolean;
   onToggleAutoScroll: () => void;
 }
@@ -81,6 +82,7 @@ export function ReaderOverlay({
   buildPageUrl,
   onJumpToPage,
   onHeaderRef,
+  onFooterRef,
   isAutoScrolling,
   onToggleAutoScroll,
 }: ReaderOverlayProps) {
@@ -114,7 +116,7 @@ export function ReaderOverlay({
       </div>
 
       {/* Bottom Nav */}
-      <div className="yomi-reader-bottom pointer-events-auto flex flex-col gap-3 p-4 pb-safe">
+      <div ref={onFooterRef} className="yomi-reader-bottom pointer-events-auto flex flex-col gap-3 p-4 pb-safe">
         {zoomControls}
         
         {/* Sub-tab panels */}
