@@ -1,8 +1,35 @@
 # Windows beta verification
 
-Beta.2 completed the baseline checks below, then a final native edge case found that offline recent reading could link to an unsaved chapter. The error route also had poor light-theme contrast and browser-specific wording. Its unpublished draft workflow was stopped, its tag was retained, and beta.3 adds a saved-reading action plus themed, reader-focused recovery. Beta.3's final verification and installer provenance will be recorded separately below before release review.
+Beta.2 completed the baseline checks below, then a final native edge case found that offline recent reading could link to an unsaved chapter. The error route also had poor light-theme contrast and browser-specific wording. Its unpublished draft workflow was stopped and its tag retained. Beta.3 corrects those paths and passed the implementation and installed-app checks described next.
 
-## Candidate and evidence
+## Final beta.3 implementation and installed checks
+
+Commit `ed9a72664dccef5ca9a6229b2c80d84679762a9e` passed all jobs in [run 41594835988](https://github.com/Yumekaz/Yomikura/actions/runs/41594835988): 490 unit tests, 231 browser tests plus the focused chapter-menu check, 25 Windows Rust tests, 9 release-artifact tests, typechecking, audit, build/budgets, private Java verification, installer lifecycle and real Suwayomi identity/restore checks.
+
+The GitHub-built `Yomikura_1.0.25-beta.3_x64-setup.exe` was verified before running. Artifact ZIP SHA-256: `1224844a87fbce6b166bb5b7a5b91ce733dd9b61c57ea03aa03e336d0a952289`. Installer SHA-256:
+
+```text
+cc38871eb7d8f0bf4ff9d0c23b525745dad4a678b424efd01fdc27014f2f94f5
+```
+
+The normal Windows in-place upgrade completed and About confirmed `1.0.25-beta.3`. The original library reopened with one book, one device download and Chapter 2 / Page 4 unchanged. The current light Moonstone appearance remained selected.
+
+Native beta.3 regression results:
+
+- With the disposable backend stopped, Last read retained the latest chapter and page, explained that the chapter was not saved, and offered Read saved chapters instead of linking to an unavailable reader route.
+- That action opened the four real saved chapter records with the selected-library total of 18.9 MB.
+- Opening the unsaved chapter from retained History showed a themed, readable recovery panel with plain-language connection guidance, Retry reader, Read saved chapters and Connection settings. Browser-only diagnostics and hard-coded development addresses were absent.
+- The recovery tests also passed in dark Ink & Ember and light Moonstone through automated contrast checks. The availability message wraps in compact layouts instead of being truncated.
+
+The first beta.3 upgrade attempt delegated to a non-targetable upgrade uninstaller and did not establish installation success. Its exact setup/helper processes were recorded and cancelled without requesting filesystem removal. The retry explicitly selected Do not uninstall and completed in place. One coordinate action was rejected by automatic approval review; selecting the named safe accessibility control succeeded. These attempts are preserved privately and are not counted as extra successful upgrades.
+
+The real Asura pass rendered The Greatest Estate Developer, SSS-Class Suicide Hunter, Surviving the Game as a Barbarian and Nano Machine across this installed QA sequence. New reading positions for the latter three were independently confirmed on Suwayomi without marking partial chapters complete. History showed one latest SSS-Class entry after two chapters were opened. The normal library was not filled with additional test titles; opening their chapters creates reading history.
+
+Failed device-download records remain retained. After switching into an unavailable profile, their job projection waits for connection verification; saved chapters remain readable throughout. This is not a claim of automatic retry before reconnection.
+
+Tag-triggered draft packaging and verification of the final uploaded assets are separate release gates. The release notes must link their completed run and identify whether the final draft installer received an additional native smoke check. No public publication or merge is part of this verification.
+
+## Baseline beta.2 candidate and evidence
 
 Version `1.0.25-beta.2` is synchronized in the frontend and all native manifests. It does not reuse the published `v1.0.25-beta.1` tag.
 
