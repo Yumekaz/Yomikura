@@ -211,7 +211,9 @@ test("reconnecting restores uncached chapter continuation without resetting the 
 });
 
 test("moving backward after completion stays read when synchronization becomes unavailable", async ({ page }) => {
-  const data = await fixture(page, { saved: 3 });
+  // Earlier images can unmount beyond the preload margin. Keep this chapter
+  // downloaded so moving backward remains readable after the server goes away.
+  const data = await fixture(page, { saved: 3, cachedCount: 1 });
   await expect(fullPage(page, 12, 3)).toHaveCSS("opacity", "1");
   await expect(page.getByRole("region", { name: "Reading surface", exact: true })).toHaveAttribute("aria-busy", "false");
   // A restored position at the top of the last image is not its completion.
@@ -224,6 +226,7 @@ test("moving backward after completion stays read when synchronization becomes u
   data.setOnline(false);
   await page.getByRole("button", { name: "Go to page 2", exact: true }).click();
   await expect(fullPage(page, 12, 1)).toBeInViewport({ ratio: 0.2 });
+  await expect(fullPage(page, 12, 1)).toHaveCSS("opacity", "1");
   await expect.poll(async () => page.evaluate(async () => {
     const open = indexedDB.open("yomikura-progress", 1);
     const db = await new Promise<IDBDatabase>((resolve) => { open.onsuccess = () => resolve(open.result); });

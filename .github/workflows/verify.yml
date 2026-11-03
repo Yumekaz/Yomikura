@@ -50,6 +50,8 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: Check chapter menu focus and positioning
         run: pnpm exec playwright test tests/e2e/reading-controls.spec.ts --grep "chapter actions remain inside the viewport"
+      - name: Check offline reader continuity after completion
+        run: pnpm exec playwright test tests/e2e/reader-continuity.spec.ts --grep "moving backward after completion"
       - name: Desktop interaction tests
         run: pnpm run test:e2e
       - name: Preserve demo visual review screens
