@@ -95,7 +95,7 @@ jobs:
             Yomikura is an independent open-source project applying to the SignPath Foundation for free Windows code signing. Until approval and workflow confirmation, installers are unsigned.
 
             See the [release readiness checklist](https://github.com/Yumekaz/Yomikura/blob/main/docs/RELEASE_READINESS.md) for validation boundaries.
-          releaseDraft: false
+          releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           args: ${{ matrix.platform == 'windows-latest' && '--bundles nsis' || '' }}
 
@@ -207,6 +207,7 @@ jobs:
       - name: Upload checksums and verify release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           gh release upload "${{ github.ref_name }}" checksums/SHA256SUMS-*.txt --clobber
           assets="$(gh release view "${{ github.ref_name }}" --json assets --jq '.assets[].name')"
@@ -219,7 +220,13 @@ jobs:
               exit 1
             }
           done
-          grep -E '\.(exe|dmg|AppImage|deb|rpm)$' <<< "$assets" > /dev/null || {
-            echo "No platform installer artifact was found in the release"
-            exit 1
-          }
+          gh release download "${{ github.ref_name }}" --dir release-downloads
+          for checksum in checksums/SHA256SUMS-*.txt; do
+            (cd release-downloads && sha256sum --check "$GITHUB_WORKSPACE/$checksum")
+          done
+          for pattern in '\.exe$' '\.exe\.sig$' '\.dmg$' '\.app\.tar\.gz$' '\.app\.tar\.gz\.sig$' '\.AppImage$' '\.deb$' '\.rpm$' '^latest\.json$'; do
+            grep -E "$pattern" <<< "$assets" > /dev/null || {
+              echo "Missing required release asset matching: $pattern"
+              exit 1
+            }
+          done

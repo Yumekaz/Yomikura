@@ -27,7 +27,9 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Check release version synchronization
         run: pnpm run check:version
-      - name: Typecheck
+      - name: Verify release artifact manifests
+        run: pnpm run test:release-artifacts
+      - name: Typecheck application
         run: pnpm run typecheck
       - name: Unit tests
         run: pnpm test

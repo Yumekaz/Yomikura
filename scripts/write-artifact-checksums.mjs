@@ -7,7 +7,7 @@ const [root = "src-tauri/target/release/bundle", output = "SHA256SUMS.txt"] = pr
 async function collect(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
-  const artifactPattern = /\.(appimage|deb|dmg|exe|msi|rpm|tar\.gz|zip)$/i;
+  const artifactPattern = /\.(appimage|deb|dmg|exe|msi|rpm|tar\.gz|zip|sig)$/i;
   for (const entry of entries) {
     const fullPath = path.join(directory, entry.name);
     if (entry.isDirectory()) files.push(...await collect(fullPath));
@@ -20,9 +20,14 @@ const files = await collect(path.resolve(root));
 if (!files.length) throw new Error(`No release artifacts found under ${root}`);
 
 const lines = [];
+const names = new Set();
 for (const file of files.sort()) {
+  // GitHub release assets are flat; build directories do not ship with them.
+  const name = path.basename(file);
+  if (names.has(name.toLowerCase())) throw new Error(`Duplicate release asset name: ${name}`);
+  names.add(name.toLowerCase());
   const hash = createHash("sha256").update(await readFile(file)).digest("hex");
-  lines.push(`${hash}  ${path.relative(path.resolve(root), file).replaceAll("\\", "/")}`);
+  lines.push(`${hash}  ${name}`);
 }
 
 await writeFile(output, `${lines.join("\n")}\n`, "utf8");
