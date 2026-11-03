@@ -43,7 +43,7 @@ export function SourceRecoveryPanel({
       <p className="mt-3 text-sm leading-6 text-slate-400">{body}</p>
 
       {(sourceName || searchedTitle) && (
-        <p className="mt-3 text-xs uppercase tracking-wide text-slate-600">
+        <p className="mt-3 text-xs uppercase tracking-wide text-slate-400">
           {sourceName ? `Source: ${sourceName}` : ""}
           {sourceName && searchedTitle ? " | " : ""}
           {searchedTitle ? `Title: ${searchedTitle}` : ""}
@@ -51,7 +51,7 @@ export function SourceRecoveryPanel({
       )}
 
       <div className="mt-5 w-full rounded-md border border-white/10 bg-ink-950/60 p-4 text-left">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Try this next</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Try this next</p>
         <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
           {hints.map((hint) => (
             <li key={hint} className="flex gap-2">
