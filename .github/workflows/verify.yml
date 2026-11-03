@@ -39,6 +39,13 @@ jobs:
         run: pnpm run build
       - name: Check production bundle budget
         run: pnpm run check:bundle
+      - name: Preserve GitHub-built browser preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: yomikura-web-preview
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
       - name: Install browser for interaction tests
         run: pnpm exec playwright install --with-deps chromium
       - name: Check chapter menu focus and positioning
@@ -52,6 +59,7 @@ jobs:
           name: beta-visual-review
           path: |
             .cache/beta-ui-review/*.png
+            .cache/browser-setup-guide/*.png
             .cache/visual-upgrade-2026-10-24/screens/library-0-1440.png
           include-hidden-files: true
           if-no-files-found: ignore
