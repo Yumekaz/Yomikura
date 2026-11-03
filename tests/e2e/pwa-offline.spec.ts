@@ -55,6 +55,9 @@ for (const light of [false, true]) test(`an unsaved latest chapter offers saved 
   await expect(recent.getByRole("heading", { name: "Last read", exact: true })).toBeVisible({ timeout: 15000 });
   await expect(recent).toContainText("Unsaved latest chapter");
   await expect(recent).toContainText("Page 3 of 8");
+  await page.setViewportSize({ width: 430, height: 850 });
+  await expect(recent.locator(".yomi-continue-availability")).toHaveCSS("white-space", "normal");
+  expect(await page.locator("body").evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true);
   await expect(recent.getByRole("link", { name: "Continue reading", exact: true })).toHaveCount(0);
   await recent.getByRole("link", { name: "Read saved chapters", exact: true }).click();
   await expect(page.getByRole("link", { name: "Read", exact: true })).toBeVisible();

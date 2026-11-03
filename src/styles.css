@@ -548,6 +548,7 @@ button:disabled { cursor: not-allowed; }
 .yomi-continue-copy { flex: 1; min-width: 0; }
 .yomi-continue-copy > a { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-strong); font-size: 16px; font-weight: 620; letter-spacing: -.02em; }
 .yomi-continue-copy p { margin-top: 5px; color: var(--text); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yomi-continue-copy p.yomi-continue-availability { color: var(--text-muted); white-space: normal; overflow: visible; line-height: 1.5; }
 .yomi-continue-copy > span { display: block; color: var(--text-muted); font-size: 11px; margin-top: 4px; }
 .yomi-continue-copy .yomi-progress-line { margin-top: 10px; width: min(360px, 90%); }
 .yomi-library-tools { margin-bottom: 22px; border-top: 1px solid var(--line); padding-top: 17px; }

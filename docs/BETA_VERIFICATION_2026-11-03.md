@@ -1,4 +1,6 @@
-# Windows beta.2 verification
+# Windows beta verification
+
+Beta.2 completed the baseline checks below, then a final native edge case found that offline recent reading could link to an unsaved chapter. The error route also had poor light-theme contrast and browser-specific wording. Its unpublished draft workflow was stopped, its tag was retained, and beta.3 adds a saved-reading action plus themed, reader-focused recovery. Beta.3's final verification and installer provenance will be recorded separately below before release review.
 
 ## Candidate and evidence
 
