@@ -241,7 +241,10 @@ jobs:
             const runId = Number(process.env.SOURCE_RUN_ID);
             if (!Number.isSafeInteger(runId) || runId < 1) throw new Error('Invalid original build run ID.');
             const run = (await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: runId })).data;
-            const release = (await github.rest.repos.getReleaseByTag({ ...context.repo, tag: process.env.RELEASE_TAG })).data;
+            const releases = await github.paginate(github.rest.repos.listReleases, { ...context.repo, per_page: 100 });
+            const matches = releases.filter((release) => release.tag_name === process.env.RELEASE_TAG);
+            if (matches.length !== 1) throw new Error('The unpublished release is missing or ambiguous.');
+            const release = matches[0];
             const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, { ...context.repo, run_id: runId, filter: 'latest', per_page: 100 });
             const commit = inspectReleaseOrigin(run, release, jobs, process.env.RELEASE_TAG, `${context.repo.owner}/${context.repo.repo}`);
             core.info(`Verified unpublished ${release.tag_name}, original build ${runId}, commit ${commit}.`);
