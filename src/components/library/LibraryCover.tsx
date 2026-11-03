@@ -34,6 +34,6 @@ export function LibraryCover({ src, onError, ...props }: ImgHTMLAttributes<HTMLI
     })();
     return () => { active = false; abort.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [src, scope, connectionStatus]);
-  const stored = saved?.source === src && saved.scope === scope ? saved.url : undefined;
+  const stored = saved && saved.source === src && saved.scope === scope ? saved.url : undefined;
   return <img {...props} src={(connectionStatus !== "connected" || failed === identity) && stored ? stored : failed === identity ? "/placeholder-cover.svg" : src} onError={(event) => { setFailed(identity); onError?.(event); }} />;
 }
