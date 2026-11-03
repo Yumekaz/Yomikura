@@ -60,6 +60,18 @@ beforeEach(() => {
 afterEach(async () => { releases.forEach((release) => release()); await store.dispose(); vi.unstubAllGlobals(); });
 
 describe("download backend ownership", () => {
+  it("retains verified book and chapter names for failed jobs across restart", async () => {
+    mocks.invoke.mockRejectedValue(new Error("HTTP 503 fixture"));
+    await store.getState().downloadChapter(12, undefined, first);
+    await vi.waitFor(async () => expect((await cache.getDownloadJobs(first.serverBaseUrl))[0]).toMatchObject({ status: "failed", mangaTitle: "First title", chapterName: "Chapter 12" }));
+    const requests = mocks.client.mock.calls.length;
+    const restarted = createDownloadStore();
+    try {
+      await restarted.getState().restoreDownloadJobs();
+      expect(restarted.getState().activeDownloads[12]).toMatchObject({ status: "error", mangaTitle: "First title", chapterName: "Chapter 12" });
+      expect(mocks.client).toHaveBeenCalledTimes(requests);
+    } finally { await restarted.dispose(); }
+  });
   it("keeps a prior library's failed job while a replacement downloads the same chapter ID", async () => {
     const oldMarker = "11111111-1111-4111-8111-111111111111", newMarker = "22222222-2222-4222-8222-222222222222";
     rememberLibrary(first.serverBaseUrl, { marker: oldMarker }); const earlier = progressBackend(first.serverBaseUrl);

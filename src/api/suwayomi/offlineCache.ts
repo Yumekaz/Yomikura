@@ -56,6 +56,7 @@ export interface DownloadJob {
   serverBaseUrl: string;
   chapterId: number;
   mangaTitle?: string;
+  chapterName?: string;
   status: DownloadJobStatus;
   progress: number;
   total: number;

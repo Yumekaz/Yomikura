@@ -12,7 +12,7 @@ import { splitTallImage } from "../api/suwayomi/tallImageTiles";
 import { assertLibrarySession, rememberedLibrary, LIBRARY_SESSION_EVENT } from "../api/suwayomi/librarySession";
 import { normalizeCacheServerUrl } from "../api/suwayomi/offlineCache";
 
-export interface DownloadProgress { progress: number; total: number; status: "queued" | "downloading" | "error" | "success"; attempts?: number; error?: string; waitingForNetwork?: boolean }
+export interface DownloadProgress { progress: number; total: number; status: "queued" | "downloading" | "error" | "success"; mangaTitle?: string; chapterName?: string; attempts?: number; error?: string; waitingForNetwork?: boolean }
 interface DownloadState {
   cachedChapters: CachedChapter[]; cachedChapterIds: Set<number>; activeDownloads: Record<number, DownloadProgress>; downloadControllers: Record<number, AbortController>;
   storageUsage: number; storageQuota: number; recoveryError: string;
@@ -65,7 +65,7 @@ export function createDownloadStore() {
     };
     const update = (entry: Entry, patch: Partial<DownloadProgress>) => { if (entries.get(entry.key) === entry) { entry.progress = { ...entry.progress, ...patch }; publish(); } };
     const persist = (entry: Entry, status: "queued" | "downloading" | "failed") => {
-      const job = { serverBaseUrl: entry.backend.serverBaseUrl, isDemo: entry.backend.isDemo, libraryId: entry.backend.libraryId, chapterId: entry.chapterId, mangaTitle: entry.mangaTitle, status, progress: entry.progress.progress, total: entry.progress.total, attempts: entry.progress.attempts ?? 0, error: entry.progress.error, updatedAt: Date.now() };
+      const job = { serverBaseUrl: entry.backend.serverBaseUrl, isDemo: entry.backend.isDemo, libraryId: entry.backend.libraryId, chapterId: entry.chapterId, mangaTitle: entry.mangaTitle, chapterName: entry.progress.chapterName, status, progress: entry.progress.progress, total: entry.progress.total, attempts: entry.progress.attempts ?? 0, error: entry.progress.error, updatedAt: Date.now() };
       const saved = entry.persist.catch(() => undefined).then(() => saveDownloadJob(job)); entry.persist = saved; return saved;
     };
     const remove = (entry: Entry) => { if (entries.get(entry.key) === entry) entries.delete(entry.key); publish(); };
@@ -77,6 +77,9 @@ export function createDownloadStore() {
         const sdk = createGraphqlClient(`${entry.backend.serverBaseUrl}/api/graphql`, { signal: entry.controller.signal, libraryId: entry.backend.libraryId ?? null }, entry.backend.isDemo ? "demo" : "live");
         const details = (await sdk.GetChapter({ id: entry.chapterId })).chapter; check(entry);
         if (!details || details.id !== entry.chapterId) throw new Error("The requested chapter metadata could not be confirmed.");
+        entry.mangaTitle = details.manga?.title || entry.mangaTitle;
+        update(entry, { mangaTitle: entry.mangaTitle, chapterName: details.name });
+        await persist(entry, "downloading"); check(entry);
         const pages = (await sdk.FetchChapterPages({ input: { chapterId: entry.chapterId } })).fetchChapterPages?.pages ?? []; check(entry);
         if (!pages.length) throw new Error("No pages were returned for this chapter.");
         update(entry, { total: pages.length }); await persist(entry, "downloading"); check(entry);
@@ -174,7 +177,7 @@ export function createDownloadStore() {
       void stopping.catch(() => { entry.stopping = undefined; entry.reason = undefined; update(entry, { status: "error", error: "Download stopped, but its saved queue state could not be updated. Check storage and retry." }); });
       return stopping;
     };
-    const enqueue = async (id: number, title?: string, provided?: ProgressBackend, attempts = 0, expectedLifecycle?: number) => {
+    const enqueue = async (id: number, title?: string, provided?: ProgressBackend, attempts = 0, expectedLifecycle?: number, chapterName?: string) => {
       if (!Number.isSafeInteger(id) || id < 0) throw new Error("Choose a valid chapter to download.");
       const backend = targetFor(provided); const native = isTauri();
       if (!native && !backend.isDemo) {
@@ -189,7 +192,7 @@ export function createDownloadStore() {
       if (expectedLifecycle !== undefined && expectedLifecycle !== lifecycleRevision) return;
       let settle!: () => void; const done = new Promise<void>((resolve) => { settle = resolve; });
       const entry: Entry = { key, token: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`, backend, chapterId: id, mangaTitle: title, native,
-        controller: new AbortController(), progress: { progress: 0, total: 0, status: "queued", attempts }, running: false, persist: Promise.resolve(), done, settle };
+        controller: new AbortController(), progress: { progress: 0, total: 0, status: "queued", attempts, mangaTitle: title, chapterName }, running: false, persist: Promise.resolve(), done, settle };
       entries.set(key, entry); entry.persist = persist(entry, "queued"); publish();
       try { await entry.persist; }
       catch (error) { entry.settle(); update(entry, { status: "error", error: "The download could not be retained on this device. Check storage before retrying." }); throw error; }
@@ -227,8 +230,8 @@ export function createDownloadStore() {
               if (job.status === "failed") {
                 let settle!: () => void; const done = new Promise<void>((resolve) => { settle = resolve; }); settle();
                 entries.set(jobKey(backend, job.chapterId), { key: jobKey(backend, job.chapterId), token: "restored-error", backend, chapterId: job.chapterId, mangaTitle: job.mangaTitle, native: isTauri(), controller: new AbortController(),
-                  progress: { progress: job.progress, total: job.total, attempts: job.attempts, status: "error", error: job.error || "Download was interrupted." }, running: false, persist: Promise.resolve(), done, settle }); publish();
-              } else await enqueue(job.chapterId, job.mangaTitle, backend, job.attempts, lifecycle);
+                  progress: { progress: job.progress, total: job.total, attempts: job.attempts, mangaTitle: job.mangaTitle, chapterName: job.chapterName, status: "error", error: job.error || "Download was interrupted." }, running: false, persist: Promise.resolve(), done, settle }); publish();
+              } else await enqueue(job.chapterId, job.mangaTitle, backend, job.attempts, lifecycle, job.chapterName);
             }
             if (currentKey() === scope && lifecycle === lifecycleRevision && !paused) { restored.add(scope); set({ recoveryError: "" }); }
           } catch { if (currentKey() === scope) set({ recoveryError: "Saved download jobs could not be restored. Check device storage and retry." }); }
@@ -236,7 +239,7 @@ export function createDownloadStore() {
         restoring.set(scope, restore); try { await restore; } finally { if (restoring.get(scope) === restore) restoring.delete(scope); }
       },
       downloadChapter: (id, title, backend) => enqueue(id, title, backend),
-      retryDownload: async (id, title, provided) => { const backend = targetFor(provided); const entry = entries.get(jobKey(backend, id)); const attempts = entry?.progress.attempts ?? 0; if (entry) await stop(entry, "cancel"); await enqueue(id, title, backend, attempts); },
+      retryDownload: async (id, title, provided) => { const backend = targetFor(provided); const entry = entries.get(jobKey(backend, id)); const attempts = entry?.progress.attempts ?? 0; if (entry) await stop(entry, "cancel"); await enqueue(id, title ?? entry?.mangaTitle, backend, attempts, undefined, entry?.progress.chapterName); },
       cancelDownload: (id, provided) => { const backend = targetFor(provided); const entry = entries.get(jobKey(backend, id)); if (entry) void stop(entry, "cancel").catch(() => undefined); else void deleteDownloadJob(backend.serverBaseUrl, id, backend.isDemo, backend.libraryId ?? "").catch(() => undefined); },
       cancelAllDownloads: (provided) => { void stopBackend(targetFor(provided)).catch(() => undefined); },
       pauseForShutdown: () => { paused = true; lifecycleRevision += 1; restored.clear(); for (const entry of entries.values()) if (entry.progress.status !== "error") void stop(entry, "pause").catch(() => undefined); },

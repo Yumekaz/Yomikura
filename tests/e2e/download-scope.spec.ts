@@ -98,6 +98,17 @@ test("a failing server queue leaves local saved chapters accessible", async ({ p
   await expect(page.getByRole("link", { name: "Read", exact: true })).toBeVisible();
 });
 
+test("download totals describe only the selected library's saved bytes", async ({ page }) => {
+  await fixture(page, true);
+  await expect(page.getByRole("heading", { name: "Server downloads could not load", exact: true })).toBeVisible();
+  const state = await cacheState(page);
+  for (const [profile, backend] of [["first", first], ["second", second]]) {
+    await chooseOption(page.getByRole("combobox", { name: "Server profile", exact: true }), profile);
+    const bytes = state.chapters.find((chapter) => chapter.serverBaseUrl === backend)!.totalSizeBytes;
+    await expect(page.locator(".yomi-workspace-head .yomi-status-chip")).toHaveText(`1 saved · ${bytes} B`);
+  }
+});
+
 test("leaving demo mode never presents its cached queue as a pending live response", async ({ page }) => {
   await page.addInitScript(({ first }) => localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: first, mockMode: true, connectionStatus: "connected", autoDeleteReadChapters: false, autoDownloadCount: 0 } })), { first });
   await fixture(page);

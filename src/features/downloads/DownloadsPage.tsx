@@ -32,7 +32,8 @@ interface DownloadItem {
 
 export default function DownloadsPage() {
   const { confirm, notify } = useFeedback();
-  const { cachedChapters, activeDownloads, loadCachedChapters, deleteChapter, cancelDownload, retryDownload, restoreDownloadJobs, storageUsage, recoveryError } = useDownloadStore();
+  const { cachedChapters, activeDownloads, loadCachedChapters, deleteChapter, cancelDownload, retryDownload, restoreDownloadJobs, recoveryError } = useDownloadStore();
+  const savedBytes = cachedChapters.reduce((sum, chapter) => sum + chapter.totalSizeBytes, 0);
   const { serverBaseUrl, connectionStatus, mockMode } = useSettingsStore();
   const queryClient = useQueryClient();
   const target = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
@@ -102,7 +103,7 @@ export default function DownloadsPage() {
   if (isUnconnected) {
     return (
       <div className="yomi-workspace space-y-7">
-        <DownloadsHeader savedCount={cachedChapters.length} storageUsage={storageUsage} />
+        <DownloadsHeader savedCount={cachedChapters.length} savedBytes={savedBytes} />
         {saved}
         <div className="yomi-commandbar"><div className="yomi-commandbar-copy"><span className="status is-idle" /><div><strong>Server queue unavailable</strong><span>Reconnect Suwayomi to resume queued downloads. Saved chapters remain readable.</span></div></div></div>
       </div>
@@ -111,13 +112,13 @@ export default function DownloadsPage() {
 
   if (isLoading) {
     return (
-      <div className="yomi-workspace space-y-7"><DownloadsHeader savedCount={cachedChapters.length} storageUsage={storageUsage} />{saved}<div className="flex min-h-[20vh] items-center justify-center" role="status"><Loader2 className="h-8 w-8 animate-spin text-yomi-jade" /><span className="ml-3 text-sm text-slate-400">Loading the server queue…</span></div></div>
+      <div className="yomi-workspace space-y-7"><DownloadsHeader savedCount={cachedChapters.length} savedBytes={savedBytes} />{saved}<div className="flex min-h-[20vh] items-center justify-center" role="status"><Loader2 className="h-8 w-8 animate-spin text-yomi-jade" /><span className="ml-3 text-sm text-slate-400">Loading the server queue…</span></div></div>
     );
   }
 
   if (isError) {
     return (
-      <div className="yomi-workspace space-y-7"><DownloadsHeader savedCount={cachedChapters.length} storageUsage={storageUsage} />{saved}<div className="yomi-route-empty"><div>
+      <div className="yomi-workspace space-y-7"><DownloadsHeader savedCount={cachedChapters.length} savedBytes={savedBytes} />{saved}<div className="yomi-route-empty"><div>
         <Download /><h2>Server downloads could not load</h2><p>{getErrorMessage(error)}</p>
         <button onClick={() => refetch()} className="yomi-button yomi-button-primary mt-5"><RefreshCw />Retry</button>
       </div></div></div>
@@ -249,15 +250,18 @@ export default function DownloadsPage() {
   );
 }
 
-function DownloadsHeader({ savedCount, storageUsage }: { savedCount: number; storageUsage: number }) {
-  return <div className="yomi-workspace-head"><div><span className="yomi-eyebrow">Offline reading</span><h1 className="yomi-workspace-title"><Download />Downloads</h1><p className="yomi-workspace-subtitle">Your saved chapters are ready whenever you are.</p></div><span className="yomi-status-chip">{savedCount} saved · {formatBytes(storageUsage)}</span></div>;
+function DownloadsHeader({ savedCount, savedBytes }: { savedCount: number; savedBytes: number }) {
+  return <div className="yomi-workspace-head"><div><span className="yomi-eyebrow">Offline reading</span><h1 className="yomi-workspace-title"><Download />Downloads</h1><p className="yomi-workspace-subtitle">Your saved chapters are ready whenever you are.</p></div><span className="yomi-status-chip">{savedCount} saved · {formatBytes(savedBytes)}</span></div>;
 }
 
 function SavedDownloads({ chapters, activeDownloads, onCancel, onRetry, onDelete }: { chapters: CachedChapter[]; activeDownloads: ReturnType<typeof useDownloadStore.getState>["activeDownloads"]; onCancel: (id: number) => void; onRetry: (id: number) => Promise<void>; onDelete: (chapter: CachedChapter) => Promise<void> }) {
   const active = Object.entries(activeDownloads);
   return <section className="space-y-3" aria-labelledby="saved-downloads-title">
     <div className="flex items-end justify-between gap-4"><div><span className="yomi-eyebrow">On this device</span><h2 id="saved-downloads-title" className="text-lg font-semibold text-slate-100">Saved chapters</h2></div><span className="text-sm text-slate-400">{chapters.length} available offline</span></div>
-    {active.map(([id, progress]) => <div key={id} className="yomi-commandbar"><div className="yomi-commandbar-copy"><span className={`status ${progress.status === "error" ? "is-error" : progress.status === "queued" ? "is-idle" : ""}`} /><div><strong>{progress.waitingForNetwork ? "Waiting for an unmetered connection ·" : progress.status === "queued" ? "Queued" : progress.status === "error" ? "Download needs attention" : "Saving"} chapter {id}</strong><span>{progress.total ? `${progress.progress} of ${progress.total} pages` : "Preparing pages"}{progress.attempts ? ` · attempt ${progress.attempts}` : ""}{progress.error ? ` · ${progress.error}` : ""}</span></div></div><div className="flex items-center gap-2">{progress.status === "error" && <button className="yomi-button yomi-button-secondary" onClick={() => void onRetry(Number(id))}>Retry</button>}<button className="yomi-icon-button danger" aria-label={`Cancel chapter ${id} download`} onClick={() => onCancel(Number(id))}><X /></button></div></div>)}
+    {active.map(([id, progress]) => {
+      const label = [progress.mangaTitle, progress.chapterName].filter(Boolean).join(" · ") || "Chapter download";
+      return <div key={id} className="yomi-commandbar"><div className="yomi-commandbar-copy"><span className={`status ${progress.status === "error" ? "is-error" : progress.status === "queued" ? "is-idle" : ""}`} /><div><strong>{progress.waitingForNetwork ? "Waiting for an unmetered connection" : progress.status === "queued" ? "Queued" : progress.status === "error" ? "Download needs attention" : "Saving"} · {label}</strong><span>{progress.total ? `${progress.progress} of ${progress.total} pages` : "Preparing pages"}{progress.attempts ? ` · attempt ${progress.attempts}` : ""}{progress.error ? ` · ${progress.error}` : ""}</span></div></div><div className="flex items-center gap-2">{progress.status === "error" && <button className="yomi-button yomi-button-secondary" onClick={() => void onRetry(Number(id))}>Retry</button>}<button className="yomi-icon-button danger" aria-label={`Cancel download · ${label}`} onClick={() => onCancel(Number(id))}><X /></button></div></div>;
+    })}
     {chapters.length === 0 && active.length === 0 ? <div className="yomi-route-empty"><div><ReadingSpirit mood="resting" className="yomi-empty-spirit" /><h2>No saved chapters yet</h2><p>{isTauri() ? "Save chapters from a book’s chapter list to read here, even without a connection." : "Downloads from the website are saved on your connected server. To keep books on this device for offline reading, use Yomikura Desktop."}</p><Link to="/library" className="yomi-button yomi-button-primary mt-5">Choose a book</Link></div></div> : chapters.length > 0 && <div className="yomi-surface">{chapters.map((chapter) => <div className="yomi-surface-row" key={chapter.cacheKey}><div className="yomi-catalog-icon"><BookOpen /></div><div className="yomi-row-copy"><Link className="yomi-row-title" to={`/manga/${chapter.mangaId}`}>{chapter.mangaTitle}</Link><p>{chapter.name} · {chapter.pageCount} pages · {chapter.totalSizeBytes ? formatBytes(chapter.totalSizeBytes) : "size managed by browser"}</p></div><Link className="yomi-button yomi-button-secondary" to={`/reader/${chapter.id}`}>Read</Link><button className="yomi-icon-button danger" aria-label={`Remove offline download ${chapter.name}`} onClick={() => void onDelete(chapter)}><Trash2 /></button></div>)}</div>}
   </section>;
 }
