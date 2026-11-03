@@ -12,7 +12,7 @@ export function inspectUpdaterManifest(manifest, tag, repository) {
   assert.ok(manifest.platforms["windows-x86_64"] && manifest.platforms["linux-x86_64"], "Missing Windows or Linux updater target");
   assert.ok(Object.keys(manifest.platforms).some((target) => /^darwin-(aarch64|x86_64)$/.test(target)), "Missing macOS updater target");
   return Object.entries(manifest.platforms).map(([target, entry]) => {
-    assert.match(target, /^[a-z0-9-]+$/, "Invalid updater target");
+    assert.match(target, /^[a-z0-9_-]+$/, "Invalid updater target");
     const url = new URL(entry.url), prefix = `/${repository}/releases/download/${tag}/`;
     assert.ok(url.protocol === "https:" && url.hostname === "github.com" && !url.port && !url.username && !url.password && !url.search && !url.hash && url.pathname.startsWith(prefix), "Updater URL must belong to this repository and tag");
     const name = decodeURIComponent(url.pathname.slice(prefix.length));
