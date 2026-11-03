@@ -4,12 +4,13 @@ import path from "node:path";
 const root = path.resolve("dist");
 const limits = {
   // Original palette-aware branding and self-hosted display type ship offline.
-  // Identity verification and device-only recovery add bounded scripts.
-  // Allow 32 KiB total/script headroom over the pre-identity limits, including
-  // captured-marker checks for late background clients and cleanup callbacks.
-  totalBytes: 3 * 1024 * 1024 + 32 * 1024,
+  // Beta.4 adds a lazy visual setup route, scoped metadata/covers, duplicate
+  // review and extension discovery without a new runtime dependency. CI measured
+  // 3,211,929 total / 1,118,641 JS bytes. Keep about 12-16 KiB of headroom;
+  // the artwork and largest-chunk limits remain unchanged.
+  totalBytes: 3 * 1024 * 1024 + 80 * 1024,
   identityBytes: 768 * 1024,
-  javascriptBytes: 1024 * 1024 + 32 * 1024,
+  javascriptBytes: 1024 * 1024 + 80 * 1024,
   largestJavaScriptBytes: 350 * 1024,
 };
 
