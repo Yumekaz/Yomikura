@@ -775,8 +775,8 @@ function MobileNav() {
       className="fixed inset-x-0 bottom-0 z-20 border-t border-white/5 bg-ink-900/60 backdrop-blur-xl px-2 py-2 lg:hidden"
       aria-label="Mobile navigation"
     >
-      <div className="grid grid-cols-6 gap-1">
-        {[...primaryNav, ...utilityNav.filter((item) => item.path !== "/statistics")].map((item) => {
+      <div className="grid grid-cols-7 gap-1">
+        {[...primaryNav, ...utilityNav].map((item) => {
           const Icon = item.icon;
           const translationKey = item.label.toLowerCase().replace(" ", "_") as any;
           const label = t(translationKey) === translationKey ? item.label : t(translationKey);
@@ -784,14 +784,15 @@ function MobileNav() {
             <NavLink
               key={item.path}
               className={({ isActive }) =>
-                `group flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-xs font-medium transition-[color,background-color,transform] duration-150 active:scale-[.97] ${
-                  isActive ? "bg-yomi-jade/15 text-yomi-mint scale-[1.03]" : "text-slate-500 hover:text-slate-300"
+                `group flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-md text-[10px] font-medium transition-[color,background-color,transform] duration-150 active:scale-[.97] sm:text-xs ${
+                  isActive ? "bg-yomi-jade/15 text-yomi-jade scale-[1.03]" : "text-slate-500 hover:text-slate-300"
                 }`
               }
               to={item.path}
+              aria-label={label}
             >
               <Icon className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
-              <span>{label}</span>
+              <span className="max-w-full truncate px-0.5">{label}</span>
             </NavLink>
           );
         })}
