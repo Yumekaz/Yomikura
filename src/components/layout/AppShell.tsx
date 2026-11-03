@@ -306,7 +306,7 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
           </div>
         )}
         {!isGuideRoute && <RestoreRecoveryPanel />}
-        <ErrorBoundary key={`${serverBaseUrl}::${mockMode}::${libraryRevision}`}>
+        <ErrorBoundary key={isGuideRoute ? "browser-setup-guide" : `${serverBaseUrl}::${mockMode}::${libraryRevision}`}>
           <Outlet />
         </ErrorBoundary>
       </main>

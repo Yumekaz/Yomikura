@@ -2,14 +2,14 @@ import { expect, test, type Page } from "@playwright/test";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
 
 const backend = "http://127.0.0.1:45678";
-async function fixture(page: Page, duplicate = true) {
+async function fixture(page: Page, duplicate = true, appearance: { themeMode?: "light" | "dark"; colorPalette?: string } = {}) {
   const chapter = (id: number, mangaId: number, number: number) => ({ id, mangaId, name: `Chapter ${number}`, chapterNumber: number, sourceOrder: number, pageCount: 10, lastPageRead: 0, isRead: number === 1, isBookmarked: false, isDownloaded: false });
   const titles = new Map([
     [1, { id: 1, title: duplicate ? "The Shepherd Wizard" : "Another story", inLibrary: true, sourceId: "original", categories: [5], chapters: [chapter(101, 1, 1), chapter(102, 1, 2)] }],
     [2, { id: 2, title: "The Shepherd Wizard", inLibrary: false, sourceId: "alternate", categories: [] as number[], chapters: [chapter(201, 2, 1), chapter(202, 2, 2)] }],
   ]);
   const mutations: string[] = [];
-  await page.addInitScript(({ backend }) => localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: backend, mockMode: false, connectionStatus: "connected", autoDownloadCount: 0 } })), { backend });
+  await page.addInitScript(({ backend, appearance }) => localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: backend, mockMode: false, connectionStatus: "connected", autoDownloadCount: 0, ...appearance } })), { backend, appearance });
   await page.route("**/api/graphql", async (route) => {
     if (new URL(route.request().url()).origin !== backend) return route.abort("connectionrefused");
     const { query, variables = {}, operationName } = route.request().postDataJSON();
@@ -36,14 +36,22 @@ async function fixture(page: Page, duplicate = true) {
   return { titles, mutations };
 }
 
-test("history includes a non-library comic once and its heart opens category assignment", async ({ page }) => {
-  const data = await fixture(page, false);
+test("compact light history includes a non-library comic once and exposes its heart and category assignment", async ({ page }, info) => {
+  await page.setViewportSize({ width: 430, height: 844 });
+  const data = await fixture(page, false, { themeMode: "light", colorPalette: "moonstone" });
   await page.goto("/history");
+  await expect(page.locator("html")).toHaveClass(/light-theme/);
   await expect(page.locator(".yomi-history-row")).toHaveCount(1);
   await expect(page.getByText("Chapter 2", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Add The Shepherd Wizard to library", exact: true }).click();
+  const heart = page.getByRole("button", { name: "Add The Shepherd Wizard to library", exact: true });
+  await expect(heart).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  await heart.click();
   const dialog = page.getByRole("dialog", { name: "Add to library", exact: true });
   await dialog.getByRole("checkbox", { name: "Weekend reading", exact: true }).check();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  expect(await dialog.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(0);
+  await page.screenshot({ path: info.outputPath("history-heart-categories-light-430.png") });
   await dialog.getByRole("button", { name: "Save to library", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Add The Shepherd Wizard to library", exact: true })).toHaveCount(0);

@@ -59,7 +59,7 @@
 .yomi-guide-address-example { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 5px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--ink-850); }
 .yomi-guide-address-example > svg { width: 12px; height: 12px; color: var(--text-muted); }
 .yomi-guide-address-example code { font-size: 11px; }
-.yomi-guide-address-example > span { width: 100%; color: var(--text-muted); text-align: center; font-size: 10px; }
+.yomi-guide-address-example > span { width: 100%; color: var(--text); text-align: center; font-size: 10px; }
 .yomi-guide-connected { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--ink-900); font-size: 12px; }
 .yomi-guide-connected > svg { width: 16px; height: 16px; color: rgb(var(--yomi-signature)); }
 .yomi-guide-connected > button { margin-left: 24px; }
@@ -73,7 +73,7 @@
 .yomi-guide-feedback { margin-top: 14px !important; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--ink-850); color: var(--text-strong); }
 .yomi-guide-source-visual > div { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 8px 12px; width: 100%; padding: 16px 13px; border: 1px solid var(--line); border-radius: 10px; color: var(--text-strong); background: var(--ink-850); font-size: 12px; }
 .yomi-guide-source-visual > div > svg { width: 20px; height: 20px; color: rgb(var(--yomi-signature)); }
-.yomi-guide-source-visual small { grid-column: 2 / -1; color: var(--text-muted); font-size: 10px; }
+.yomi-guide-source-visual small { grid-column: 2 / -1; color: var(--text); font-size: 10px; }
 .yomi-guide-example-label { border: 1px solid var(--line-strong); border-radius: 5px; padding: 5px 7px; color: rgb(var(--yomi-signature)); font-size: 10px; }
 .yomi-guide-shelf-visual { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 20px 0 0; font-size: 11px; color: var(--text-muted); }
 .yomi-guide-shelf-visual > svg { width: 14px; height: 14px; }

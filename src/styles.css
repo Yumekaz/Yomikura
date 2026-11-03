@@ -763,7 +763,8 @@ html.reduce-motion .yomi-book-cover { transform: none !important; }
   .yomi-timeline-date { position: static; padding-top: 0; }
   .yomi-history-row { grid-template-columns: 40px minmax(0,1fr); gap: 12px; }
   .yomi-history-cover { width: 40px; height: 60px; }
-  .yomi-history-actions { grid-column: 2; justify-self: end; }
+  .yomi-history-actions { display: flex; grid-column: 1 / -1; justify-self: end; flex-wrap: wrap; gap: 4px; }
+  .yomi-history-actions .yomi-icon-button { width: 40px; height: 40px; }
   .yomi-discover-guide { flex-wrap: wrap; padding: 16px; gap: 12px; }
   .yomi-discover-guide > .yomi-button { margin-left: 40px; }
   .yomi-onboarding { display: flex; flex-direction: column; }
