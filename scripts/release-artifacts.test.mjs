@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdir, mkdtemp, readFile, writeFile, access } from "node:fs/promises";
 import path from "node:path";
+import { inspectUpdaterManifest } from "./verify-updater-manifest.mjs";
 
 const run = promisify(execFile);
 const script = path.resolve("scripts/write-artifact-checksums.mjs");
@@ -45,4 +46,27 @@ test("an empty bundle cannot produce a successful checksum manifest", async () =
   await asset(bundle, "notes.txt");
   await assert.rejects(run(process.execPath, [script, bundle, output]), /No release artifacts found/);
   await assert.rejects(access(output));
+});
+
+const tag = "v1.0.25-beta.1", repository = "example/Yomikura";
+const updater = () => ({ version: "1.0.25-beta.1", platforms: Object.fromEntries(["windows-x86_64", "linux-x86_64", "darwin-aarch64"].map((target) => [target, { url: `https://github.com/${repository}/releases/download/${tag}/${target}.zip`, signature: "fixture-signature" }])) });
+
+test("updater targets point to assets in the expected repository and release", () => {
+  assert.equal(inspectUpdaterManifest(updater(), tag, repository).length, 3);
+});
+
+test("updater metadata cannot mix versions, repositories or nested asset paths", () => {
+  const stale = updater(); stale.version = "1.0.24";
+  assert.throws(() => inspectUpdaterManifest(stale, tag, repository), /version must match/);
+  for (const url of [`https://github.com/other/project/releases/download/${tag}/app.zip`, `https://github.com/${repository}/releases/download/${tag}/folder%2Fapp.zip`]) {
+    const changed = updater(); changed.platforms["windows-x86_64"].url = url;
+    assert.throws(() => inspectUpdaterManifest(changed, tag, repository));
+  }
+});
+
+test("updater metadata needs platform mappings and nonempty signatures", () => {
+  const missing = updater(); delete missing.platforms["windows-x86_64"];
+  assert.throws(() => inspectUpdaterManifest(missing, tag, repository), /Missing Windows/);
+  const unsigned = updater(); unsigned.platforms["windows-x86_64"].signature = "";
+  assert.throws(() => inspectUpdaterManifest(unsigned, tag, repository), /Missing updater signature/);
 });

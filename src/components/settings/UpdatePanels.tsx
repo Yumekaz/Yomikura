@@ -64,14 +64,14 @@ export function TauriUpdaterRow() {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-slate-200">Application Updates</h3>
-          <p className="text-xs text-slate-500 mt-1">Keep Yomikura native client up to date.</p>
+          <p className="text-xs text-slate-500 mt-1">Automatic checks follow stable releases.{APP_VERSION.includes("-") && <> You’re using a preview. <a className="text-yomi-jade underline" href="https://github.com/Yumekaz/Yomikura/releases" target="_blank" rel="noreferrer">View newer previews</a>.</>}</p>
         </div>
         <button onClick={handleCheckUpdate} disabled={checking || downloading} className="flex items-center gap-1.5 rounded-lg bg-yomi-jade/10 border border-yomi-jade/20 hover:bg-yomi-jade/20 px-3 py-1.5 text-xs font-semibold text-yomi-jade transition disabled:opacity-50">
           {checking ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /><span>Checking...</span></> : <span>Check for Updates</span>}
         </button>
       </div>
       {error && <p className="text-xs text-red-400 leading-normal" role="alert">{error}</p>}
-      {checked && !checking && !updateInfo && !error && <p className="text-xs text-yomi-jade flex items-center gap-1.5 font-semibold" role="status"><CheckCircle2 className="h-4 w-4" />Yomikura is up to date! (v{APP_VERSION})</p>}
+      {checked && !checking && !updateInfo && !error && <p className="text-xs text-yomi-jade flex items-center gap-1.5 font-semibold" role="status"><CheckCircle2 className="h-4 w-4" />No newer stable release is available. Running v{APP_VERSION}.</p>}
       {updateInfo && <div className="rounded-lg bg-white/[0.02] border border-white/5 p-4 space-y-3 animate-fade-in">
         <div className="flex items-center justify-between"><span className="text-xs font-bold text-slate-200">Update Available: v{updateInfo.version}</span></div>
         <button onClick={handleInstallUpdate} disabled={downloading} className="w-full flex items-center justify-center gap-2 rounded-lg bg-yomi-jade py-2 px-4 text-xs font-bold text-ink-950 hover:bg-yomi-jade/90 transition disabled:opacity-50">

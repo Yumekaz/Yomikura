@@ -10,7 +10,7 @@ pnpm run test:e2e
 ```
 
 The release verification command runs TypeScript checks, unit tests, a production build, and a bundle-size budget check. CI additionally runs the production dependency audit and the Windows installer lifecycle test.
-Tag-triggered publishing repeats the release verification and browser interaction suite, and rejects tags that do not match the synchronized application version.
+Tag-triggered builds repeat the release verification and browser interaction suite, and reject tags that do not match the synchronized application version. They create a draft release for review. Publish that draft only after all release jobs succeed, the notes reflect actual platform coverage, and the installed candidate has been checked.
 
 Pushes to `codex/reading-room` also run Verify and upload the Windows installer as the `yomikura-windows-installer` workflow artifact after the installer smoke test. This test build does not create a GitHub release. Verify can also be manually dispatched against the branch. Artifacts expire after seven days.
 
@@ -53,6 +53,8 @@ Record the result and the exact user-facing recovery message. A passing build is
 - Keep the commit SHA and workflow run URL with the release notes.
 - Verify that every release has the expected installer assets before announcing it.
 - The publish workflow creates a SHA-256 checksum file for each platform and attaches it to the GitHub release.
+- Checksum entries use the flat filenames downloaded from GitHub. The final job downloads the attached assets and verifies every checksum before review.
+- The final job checks updater versions and repository/tag URLs, compares embedded and attached signatures, and verifies the payload signatures against the configured public key with Minisign. See the [Tauri updater contract](https://v2.tauri.app/plugin/updater/) and [Minisign verification instructions](https://jedisct1.github.io/minisign/).
 - The security workflow runs CodeQL, dependency review, secret scanning, and produces an SPDX JSON SBOM artifact. Dependabot tracks npm, Cargo, and workflow-action updates.
 - Mark artifacts as unsigned until platform signing and notarization are configured.
 - Keep the version in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, and `src-tauri/tauri.conf.json` synchronized.
@@ -60,3 +62,5 @@ Record the result and the exact user-facing recovery message. A passing build is
 ## Current boundary
 
 Windows and macOS platform trust still depend on external signing credentials. A successful CI build proves compilation and packaging, not SmartScreen or Gatekeeper trust.
+
+The configured updater endpoint follows GitHub's latest stable release. Draft and beta releases do not replace that stable channel. Beta testers should download the newer beta installer manually; an “up to date” result describes the stable channel. Forward automatic installation still requires a newer published stable version to exercise the production endpoint end to end.

@@ -197,6 +197,12 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install signature verifier
+        run: sudo apt-get update && sudo apt-get install -y minisign
       - name: Download platform checksums
         uses: actions/download-artifact@v4
         with:
@@ -224,6 +230,7 @@ jobs:
           for checksum in checksums/SHA256SUMS-*.txt; do
             (cd release-downloads && sha256sum --check "$GITHUB_WORKSPACE/$checksum")
           done
+          node scripts/verify-updater-manifest.mjs release-downloads "${{ github.ref_name }}"
           for pattern in '\.exe$' '\.exe\.sig$' '\.dmg$' '\.app\.tar\.gz$' '\.app\.tar\.gz\.sig$' '\.AppImage$' '\.deb$' '\.rpm$' '^latest\.json$'; do
             grep -E "$pattern" <<< "$assets" > /dev/null || {
               echo "Missing required release asset matching: $pattern"
