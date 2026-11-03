@@ -55,6 +55,7 @@ Record the result and the exact user-facing recovery message. A passing build is
 - Verify that every release has the expected installer assets before announcing it.
 - The publish workflow creates a SHA-256 checksum file for each platform and attaches it to the GitHub release.
 - Checksum entries use the flat filenames downloaded from GitHub. The final job downloads the attached assets and verifies every checksum before review.
+- Architecture suffixes added to updater archives are reconciled by their original build digest. Missing, changed or ambiguous uploaded files fail verification; hashes are not regenerated from unverified uploads.
 - The final job checks updater versions and repository/tag URLs, compares embedded and attached signatures, and verifies the payload signatures against the configured public key with Minisign. See the [Tauri updater contract](https://v2.tauri.app/plugin/updater/) and [Minisign verification instructions](https://jedisct1.github.io/minisign/).
 - The security workflow runs CodeQL, dependency review, secret scanning, and produces an SPDX JSON SBOM artifact. Dependabot tracks npm, Cargo, and workflow-action updates.
 - Mark artifacts as unsigned until platform signing and notarization are configured.

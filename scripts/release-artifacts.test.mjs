@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { mkdir, mkdtemp, readFile, writeFile, access } from "node:fs/promises";
 import path from "node:path";
 import { inspectUpdaterManifest } from "./verify-updater-manifest.mjs";
+import { reconcileChecksums } from "./reconcile-artifact-checksums.mjs";
 
 const run = promisify(execFile);
 const script = path.resolve("scripts/write-artifact-checksums.mjs");
@@ -69,4 +70,20 @@ test("updater metadata needs platform mappings and nonempty signatures", () => {
   assert.throws(() => inspectUpdaterManifest(missing, tag, repository), /Missing Windows/);
   const unsigned = updater(); unsigned.platforms["windows-x86_64"].signature = "";
   assert.throws(() => inspectUpdaterManifest(unsigned, tag, repository), /Missing updater signature/);
+});
+
+test("architecture-renamed updater archives retain the original build checksum", () => {
+  const digest = "a".repeat(64);
+  assert.equal(reconcileChecksums(`${digest}  Yomikura.app.tar.gz\n`, [{ name: "Yomikura_aarch64.app.tar.gz", digest }]), `${digest}  Yomikura_aarch64.app.tar.gz\n`);
+});
+
+test("a same-named altered upload cannot be replaced by a different matching asset", () => {
+  const digest = "a".repeat(64);
+  assert.throws(() => reconcileChecksums(`${digest}  Yomikura.exe\n`, [{ name: "Yomikura.exe", digest: "b".repeat(64) }, { name: "Other.exe", digest }]), /Uploaded bytes differ/);
+});
+
+test("missing or ambiguous renamed assets cannot produce a passing release manifest", () => {
+  const digest = "a".repeat(64), text = `${digest}  Yomikura.app.tar.gz\n`;
+  assert.throws(() => reconcileChecksums(text, []), /Missing or ambiguous/);
+  assert.throws(() => reconcileChecksums(text, [{ name: "first.app.tar.gz", digest }, { name: "second.app.tar.gz", digest }]), /Missing or ambiguous/);
 });

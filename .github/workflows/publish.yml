@@ -224,6 +224,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
+          gh release download "${{ github.ref_name }}" --dir release-downloads
+          node scripts/reconcile-artifact-checksums.mjs release-downloads checksums
           gh release upload "${{ github.ref_name }}" checksums/SHA256SUMS-*.txt --clobber
           assets="$(gh release view "${{ github.ref_name }}" --json assets --jq '.assets[].name')"
           for checksum in \
@@ -235,7 +237,6 @@ jobs:
               exit 1
             }
           done
-          gh release download "${{ github.ref_name }}" --dir release-downloads
           for checksum in checksums/SHA256SUMS-*.txt; do
             (cd release-downloads && sha256sum --check "$GITHUB_WORKSPACE/$checksum")
           done
