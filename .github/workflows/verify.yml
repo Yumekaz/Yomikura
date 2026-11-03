@@ -95,6 +95,9 @@ jobs:
       - name: Run Rust Clippy
         working-directory: src-tauri
         run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Run native unit tests
+        working-directory: src-tauri
+        run: cargo test --lib -- --test-threads=1
 
   desktop-installer-windows:
     name: Desktop installer (Windows)
@@ -128,7 +131,13 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Verify production private runtime
+        id: private-runtime
+        shell: pwsh
+        run: ./scripts/verify-private-runtime.ps1 -Destination (Join-Path $env:RUNNER_TEMP 'yomikura-private-runtime')
       - name: Install, launch, and uninstall smoke test
+        env:
+          YOMIKURA_PRIVATE_JAVA: ${{ steps.private-runtime.outputs.java_home }}
         shell: pwsh
         run: |
           $installer = (Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1).FullName
@@ -138,7 +147,7 @@ jobs:
           # Fresh Windows runners can spend several minutes scanning the
           # verified 166 MB backend JAR. Keep the wait bounded, but allow a
           # realistic clean-install margin before declaring startup broken.
-          ./scripts/smoke-test-installer.ps1 -InstallerPath $installer -PreservedStoragePath $userStorage -PreseedRuntime -JavaHomePath $env:JAVA_HOME -BackendJarCachePath $backendJarCache -StartupTimeoutSeconds 240
+          ./scripts/smoke-test-installer.ps1 -InstallerPath $installer -PreservedStoragePath $userStorage -PreseedRuntime -JavaHomePath $env:YOMIKURA_PRIVATE_JAVA -BackendJarCachePath $backendJarCache -StartupTimeoutSeconds 240
       - name: Verify identity across two isolated local libraries
         shell: pwsh
         run: |

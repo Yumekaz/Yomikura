@@ -28,6 +28,7 @@ On a clean Windows runner, the verification workflow must prove:
 
 The test does not delete arbitrary user folders. It uses a temporary runner folder and an explicit sentinel file.
 The lifecycle gate pre-stages its runtime so a slow third-party download cannot be mistaken for an installer or startup regression. Clean-machine first-run downloads remain part of the manual beta matrix below.
+The runner independently downloads the production-pinned Windows Java archive, verifies its SHA-256, and starts that private launcher with system Java removed from its child environment. The installed-app smoke test then uses that verified private runtime. Native Rust unit tests also run on Windows. This covers the archive and runtime launch; it does not claim a fully automated first-run wizard or interrupted component-download interaction.
 
 ## Manual beta matrix
 

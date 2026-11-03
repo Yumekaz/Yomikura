@@ -143,14 +143,23 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Run native unit tests
+        working-directory: src-tauri
+        run: cargo test --lib -- --test-threads=1
+      - name: Verify production private runtime
+        id: private-runtime
+        shell: pwsh
+        run: ./scripts/verify-private-runtime.ps1 -Destination (Join-Path $env:RUNNER_TEMP 'yomikura-private-runtime')
       - name: Install, launch, and uninstall smoke test
+        env:
+          YOMIKURA_PRIVATE_JAVA: ${{ steps.private-runtime.outputs.java_home }}
         shell: pwsh
         run: |
           $installer = (Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1).FullName
           if (-not $installer) { throw "NSIS installer artifact was not found" }
           $userStorage = Join-Path $env:RUNNER_TEMP "yomikura-release-user-storage"
           $backendJarCache = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.3.2243.jar"
-          ./scripts/smoke-test-installer.ps1 -InstallerPath $installer -PreservedStoragePath $userStorage -PreseedRuntime -JavaHomePath $env:JAVA_HOME -BackendJarCachePath $backendJarCache -StartupTimeoutSeconds 240
+          ./scripts/smoke-test-installer.ps1 -InstallerPath $installer -PreservedStoragePath $userStorage -PreseedRuntime -JavaHomePath $env:YOMIKURA_PRIVATE_JAVA -BackendJarCachePath $backendJarCache -StartupTimeoutSeconds 240
       - name: Collect installer smoke diagnostics
         if: always()
         shell: pwsh
