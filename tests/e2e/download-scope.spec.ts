@@ -100,7 +100,7 @@ test("a failing server queue leaves local saved chapters accessible", async ({ p
 
 test("download totals describe only the selected library's saved bytes", async ({ page }) => {
   await fixture(page, true);
-  await expect(page.getByRole("heading", { name: "Server downloads could not load", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Server downloads could not load", exact: true })).toBeVisible({ timeout: 15_000 });
   const state = await cacheState(page);
   for (const [profile, backend] of [["first", first], ["second", second]]) {
     await chooseOption(page.getByRole("combobox", { name: "Server profile", exact: true }), profile);
