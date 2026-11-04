@@ -1,0 +1,4 @@
+# Public pinned Suwayomi SHA-256 artifact cache keys, verified in this historical
+# commit. Exact fingerprints only; credentials and all other matches still fail.
+dc9c1f03ccaeae05b85ca0b18bbfc5a75f708fea:.github/workflows/publish.yml:generic-api-key:133
+dc9c1f03ccaeae05b85ca0b18bbfc5a75f708fea:.github/workflows/verify.yml:generic-api-key:97
