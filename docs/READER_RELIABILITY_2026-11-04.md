@@ -1,4 +1,4 @@
-# Reader reliability and beta.4 verification
+# Reader reliability and beta verification
 
 This follow-up addresses the reported reader ending, shared zoom, source-site action and sideways comic-content movement. It continues the existing Ink & Ember interface and React/Tauri/Suwayomi architecture. The earlier [reading-workflow report](READING_WORKFLOWS_2026-11-03.md) remains the baseline for automatic offline access, extension notices, history, duplicate review and the browser setup guide; its earlier installer does not establish verification of these subsequent reader changes.
 
@@ -102,7 +102,17 @@ These are branch-candidate observations. They do not substitute for installing a
 
 Current sanitized original-art views: [reader zoom](images/beta.4/reader-zoom.png), [reader ending](images/beta.4/reader-end.png) and [browser setup guide](images/beta.4/browser-setup.png). The updated reader views come from passing run 41771793948. Its isolated contrast-fixture screenshots show [Ember](images/beta.4/reader-end-light-ember.png), [Sakura](images/beta.4/reader-end-light-sakura.png), [Forest](images/beta.4/reader-end-light-forest.png) and [Moonstone](images/beta.4/reader-end-light-moonstone.png). The fixture’s transient pending-progress indicator is captured during test synchronization, not presented as a released library or live source session.
 
-**PENDING:** the exact tag-built Windows installer, attached checksums/updater payload signatures and final installed-package smoke test. Beta.4 must remain an unpublished draft until those concrete artifacts are reviewed and publication is explicitly approved. Stable updater and ordinary website-download routing continue to follow stable releases.
+The beta.4 tag at `9db309259c95c66f8d9733e2cbfb6ea566ad183c` passed release preflight (544 unit, 255 browser and 15 artifact tests) and its Windows installer smoke in [run 41773414567](https://github.com/Yumekaz/Yomikura/actions/runs/41773414567). Platform packaging was deliberately cancelled after additional installed QA found that other external help links shared the original WebView handoff problem and the server-update notice had insufficient light-mode contrast. The original tag is retained; no beta.4 release was published.
+
+## Beta.5 follow-up
+
+All desktop HTTP(S) external links now use one validated browser handoff, covering sources, help, provider links and update releases. Internal routes and already-handled clicks keep their behavior. Pending clicks are deduplicated, keyboard and middle clicks are supported, and launch failures show recovery feedback. Website links keep their normal browser behavior. [Implementation and interaction tests](../src/utils/externalNavigation.ts) are shared by the app shell instead of special-casing only comic details.
+
+The server-update notice now uses the palette's text and surface, stays still rather than pulsing, and explains that Yomikura's managed engine updates through app releases. Readers managing their own server are directed to its release notes and a backup before upgrading. Four light-palette contrast cases cover this actual status, including its release link.
+
+Beta.5 application/test commit `df86c72c944dcba5e86c3c9b38385c46e86158f3` passed all three jobs in [Verify run 41777921993](https://github.com/Yumekaz/Yomikura/actions/runs/41777921993): **555 unit tests, 259 browser tests, 27 native tests and 15 artifact-tooling tests**, including installer lifecycle, verified runtime and real-library replacement/restore checks. The four server-update light-palette contrast cases passed. Production output is 3,224,830 total bytes, 1,130,449 JavaScript bytes and a largest chunk of 334,097 bytes; the existing budgets and artwork size were retained. One earlier beta.5 run exceeded the JavaScript limit by 444 bytes; sharing repeated help-link rendering resolved that without removing any destination or relaxing the limit.
+
+**PENDING:** exact beta.5 tag-built Windows installer, attached checksums/updater payload signatures and installed-package retest. Candidate publication remains a separate owner decision. Stable updater and ordinary website-download routing continue to follow stable releases.
 
 ## Scope and limits
 
