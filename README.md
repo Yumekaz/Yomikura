@@ -16,6 +16,8 @@ Your next chapter has a home. Yomikura is a free, open-source manga and comic re
 
 The homepage labels the current public beta and previous stable release separately, lists the available platform architectures, and links the tested limitations. Windows installers are not yet publisher-signed; interactive macOS/Linux testing has separate coverage limits.
 
+Read [known issues and the security review](docs/KNOWN_ISSUES.md#security-review-and-existing-installers) before installing. Source dependency fixes do not retroactively change published installers.
+
 Yomikura is an independent project inspired by the design and feel of Mihon. Desktop and browser versions share the React/TypeScript reader; Suwayomi owns library data, source execution and server downloads.
 
 > [!IMPORTANT]

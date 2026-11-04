@@ -1,5 +1,13 @@
 # Known issues
 
+## Security review and existing installers
+
+The November 2026 dependency review identified advisories in the `zip` crate used by published native versions, including v1.0.25-beta.5, and in build/development dependencies. An advisory's severity is not evidence of a working exploit against Yomikura; its export code also validates filenames and sizes. These controls do not establish that an affected dependency is safe.
+
+Security fixes in source do not update an installer that was already published or installed. Existing downloads retain their original dependencies until a separately built, tested security release replaces them. Avoid passing untrusted archives to affected native builds while that update is pending. Follow the [security policy](../SECURITY.md) and release notes for updates.
+
+Linux GTK dependencies also include the upstream `glib` VariantStrIter advisory (GHSA-wrw7-89jp-8q8g). Its patched major version cannot be substituted for Tauri's GTK dependency without compatibility work; native Linux coverage remains limited. This is an open upstream/platform constraint, not a dismissed alert.
+
 ## Unsigned installers
 
 Windows installers are not Authenticode-signed and macOS packages are not notarized while project signing applications and credentials are pending. SmartScreen or Gatekeeper can therefore display an unknown-publisher warning. Verify release checksums and download only from the official repository.

@@ -64,12 +64,12 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Audit production and development dependencies
-        run: pnpm audit --audit-level high
       - name: Check public helper boundaries
         run: node --test website/scripts/releases.test.mjs website/scripts/serve.test.mjs
       - run: pnpm run build
       - uses: github/codeql-action/analyze@v3
+      - name: Audit production and development dependencies
+        run: pnpm audit --audit-level high
 
   dependency-review:
     name: Dependency review
