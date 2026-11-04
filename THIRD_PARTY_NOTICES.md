@@ -4,6 +4,8 @@ Yomikura (MIT License) may integrate with or download the following third-party 
 
 Production builds include the installed runtime JavaScript/UI/font packages' full license texts in `licenses/THIRD_PARTY_NPM.txt`, generated from their actual package files. This includes React, React DOM, React Router, TanStack Query, Zustand, GraphQL, Lucide, Radix and their installed runtime dependencies. The public website also serves these [runtime license notices](https://yumekaz.github.io/Yomikura/assets/licenses/THIRD_PARTY_NPM.txt) for its demo. These notices supplement the native and downloaded-component information below; existing older installers do not gain new files retroactively.
 
+`react-remove-scroll-bar@2.3.8` declares MIT in its npm metadata but omits the license file from the npm archive. Its author's upstream [MIT license at pinned commit 8ca9ba5](https://github.com/theKashey/react-remove-scroll-bar/blob/8ca9ba5ea52de03308fe8ced94f7b159a44d28ff/LICENSE) is retained in `public/licenses/react-remove-scroll-bar-MIT.txt` and included as a documented supplement. The historical npm gitHead could not be resolved upstream; this is not represented as a license file extracted from that archive.
+
 ---
 
 ## Suwayomi Server

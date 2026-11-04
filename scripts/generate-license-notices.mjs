@@ -22,6 +22,11 @@ export async function generateLicenseNotices(source, destination) {
     const files = (await readdir(folder, { withFileTypes: true })).filter((entry) => entry.isFile() && /^(licen[cs]e|copying|notice|ofl)([._-]|$)/i.test(entry.name));
     const texts = [];
     for (const file of files.sort((a, b) => a.name.localeCompare(b.name))) texts.push(`--- ${file.name} ---\n${await readFile(path.join(folder, file.name), "utf8")}`);
+    if (!texts.length && pkg.name === "react-remove-scroll-bar" && pkg.version === "2.3.8" && pkg.license === "MIT") {
+      // This npm archive omits LICENSE. Keep the reviewed upstream text pinned
+      // in the repository; do not fetch or invent a license during a build.
+      texts.push(await readFile(new URL("../public/licenses/react-remove-scroll-bar-MIT.txt", import.meta.url), "utf8"));
+    }
     if (!texts.length) missing.push(`${pkg.name}@${pkg.version}`);
     notices.push({ name: `${pkg.name}@${pkg.version}`, text: `${pkg.name}@${pkg.version}\nDeclared license: ${typeof pkg.license === "string" ? pkg.license : "See package license"}\n\n${texts.join("\n\n")}` });
     for (const dependency of Object.keys(pkg.dependencies || {})) await visit(dependency, folder, !pkg.optionalDependencies?.[dependency]);
