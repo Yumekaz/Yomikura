@@ -14,6 +14,10 @@ export default defineConfig({
   }, {
     name: "yomikura-offline-shell", apply: "build",
     generateBundle(_options, bundle) {
+      // Full dependency notices must accompany builds whose minified chunks
+      // omit repeated inline license banners. pnpm build creates this file.
+      const notices = readFileSync(new URL("./public/licenses/THIRD_PARTY_NPM.txt", import.meta.url), "utf8");
+      if (!notices.startsWith("Third-party JavaScript")) throw new Error("Generate runtime license notices before building");
       const template = readFileSync(new URL("./public/sw.js", import.meta.url), "utf8");
       const artwork = [
         ...["moonlit-courier", "paper-garden", "moonlit-courier-page", "paper-garden-page"].map((name) => `/demo/${name}.webp`),
@@ -38,4 +42,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: { entries: ["index.html"] },
+  // Complete notices ship separately; repeating banners in every lazy chunk
+  // needlessly inflates executable assets after the patched Tauri API update.
+  esbuild: { legalComments: "none" },
 });
