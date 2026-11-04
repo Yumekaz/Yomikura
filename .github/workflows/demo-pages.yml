@@ -1,22 +1,29 @@
-name: Deploy public demo (GitHub Pages)
+name: Public homepage and reader (GitHub Pages)
 
 on:
   push:
     branches: [main]
     paths:
-      - "src/**"
-      - "index.html"
-      - "public/**"
+      - "website/**"
+      - ".github/workflows/demo-pages.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "website/**"
       - ".github/workflows/demo-pages.yml"
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Deploy after verification (main branch only)"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: demo-pages
+  group: public-site-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -24,24 +31,88 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Resolve reviewed public download metadata
+        id: release
+        run: node website/scripts/releases.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Check out the exact released reader
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.reader_ref }}
+          path: .reader-source
       - uses: pnpm/action-setup@v4
         with:
           version: 11.1.2
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+          cache-dependency-path: .reader-source/pnpm-lock.yaml
+      - name: Install released reader dependencies
+        working-directory: .reader-source
+        run: pnpm install --frozen-lockfile
+      - name: Check public release and link contracts
+        run: node --test website/scripts/releases.test.mjs
+      - name: Build homepage, scoped demo and downloadable web app
+        run: node --experimental-strip-types website/scripts/build.mjs
+      - name: Install browser for public journeys
+        working-directory: .reader-source
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Verify Pages paths, browser journeys and accessibility
+        run: node website/scripts/verify.mjs
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Cache pinned web-guide server
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/yomikura-site-deps
+          key: public-guide-suwayomi-${{ hashFiles('website/scripts/server-runtimes.json') }}
+      - name: Verify the ordinary web download on real Suwayomi CUSTOM WebUI
+        run: node website/scripts/live-web-guide.mjs
         env:
-          VITE_DEMO_SITE: "true"
+          SUWAYOMI_CACHE: ${{ runner.temp }}/yomikura-site-deps
+      - name: Preserve public preview package
+        if: always() && hashFiles('site-dist/index.html') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: yomikura-public-site
+          path: site-dist/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Preserve visual review and real-server evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-site-verification
+          path: |
+            .cache/homepage-review/
+            .cache/web-guide-live/**/result.json
+            .cache/web-guide-live/**/failure.txt
+            .cache/web-guide-live/**/failed-dom.txt
+            .cache/web-guide-live/**/failed-page.jpg
+            .cache/web-guide-live/**/server.log
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: site-dist
 
   deploy:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy))
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Yomikura — Your reading sanctuary</title>
+  <meta name="description" content="A little space for the stories you love. Read, collect and return to your manga with Yomikura, a free, open-source desktop and browser reader for Suwayomi.">
+  <meta name="theme-color" content="#110f0d"><link rel="canonical" href="https://yumekaz.github.io/Yomikura/">
+  <meta property="og:type" content="website"><meta property="og:title" content="Yomikura — Your next chapter has a home."><meta property="og:description" content="Your books together. Your place remembered. A calmer way to read."><meta property="og:image" content="https://yumekaz.github.io/Yomikura/assets/hero-night.webp">
+  <link rel="icon" href="./assets/identity/logo-ember.webp"><link rel="preload" href="./assets/fonts/playfair.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="./assets/site.css"><script src="./assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+  <symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+  <symbol id="download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M5 15v5h14v-5"/></symbol>
+  <symbol id="book" viewBox="0 0 24 24"><path d="M12 6c-3-3-7-3-10-2v15c4-1 7-1 10 2 3-3 6-3 10-2V4c-3-1-7-1-10 2Zm0 0v15"/></symbol>
+  <symbol id="leaf" viewBox="0 0 24 24"><path d="M5 19C2 8 10 3 21 3c0 12-5 19-16 16Zm0 0L17 7"/></symbol>
+  <symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></symbol>
+  <symbol id="moon" viewBox="0 0 24 24"><path d="M20.5 14A9 9 0 0 1 10 3.5 9 9 0 1 0 20.5 14Z"/></symbol>
+  <symbol id="github" viewBox="0 0 24 24"><path d="M9 19c-4 1-4-2-6-2m12 5v-3.4c0-1 .1-1.5-.5-2.1 3.3-.4 6.5-1.6 6.5-7.2 0-1.6-.5-2.9-1.5-4 .2-.4.6-1.9-.1-3.3 0 0-1.2-.4-3.9 1.5a13.4 13.4 0 0 0-7 0C5.8.6 4.6 1 4.6 1c-.7 1.4-.3 2.9-.1 3.3C3.5 5.4 3 6.7 3 8.3c0 5.6 3.2 6.8 6.5 7.2-.6.6-.6 1.3-.5 2.1V22"/></symbol>
+  <symbol id="spark" viewBox="0 0 24 24"><path d="m12 2 2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2Z"/></symbol>
+  <symbol id="monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></symbol>
+  <symbol id="globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a19 19 0 0 1 0 18 19 19 0 0 1 0-18Z"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+  <symbol id="menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+</defs></svg>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="./" aria-label="Yomikura home"><img src="./assets/identity/logo-ember.webp" alt="" width="44" height="44"><span>Yomikura<small>Your reading sanctuary</small></span></a>
+    <nav class="desktop-nav" aria-label="Main navigation"><a href="#reading-room">The reading room</a><a href="#make-it-yours">Make it yours</a><a href="./setup/">Browser guide</a></nav>
+    <div class="header-actions"><button class="icon-button" data-theme-toggle aria-label="Switch to light appearance"><svg class="icon sun"><use href="#sun"/></svg><svg class="icon moon"><use href="#moon"/></svg></button><a class="header-github" href="https://github.com/Yumekaz/Yomikura" aria-label="Yomikura on GitHub"><svg class="icon"><use href="#github"/></svg></a><a class="button button-small button-outline header-download" href="#get-started">Get Yomikura<svg class="icon"><use href="#arrow"/></svg></a><button class="icon-button mobile-menu-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="mobile-nav" data-menu-toggle><svg class="icon"><use href="#menu"/></svg></button></div>
+  </div>
+  <nav id="mobile-nav" class="mobile-nav" aria-label="Mobile navigation" hidden><a href="#reading-room">The reading room</a><a href="#make-it-yours">Make it yours</a><a href="./setup/">Browser guide</a><a href="#get-started">Get Yomikura</a><a href="https://github.com/Yumekaz/Yomikura">GitHub</a></nav>
+</header>
+
+<main id="main" tabindex="-1">
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="hero-art" aria-hidden="true"><img class="hero-night" src="./assets/hero-night.webp" alt="" fetchpriority="high" width="1672" height="941"><img class="hero-day" src="./assets/hero-day.webp" alt="" width="1672" height="941"><div class="lantern-glow"></div></div>
+    <div class="hero-inner wrap">
+      <div class="hero-copy"><a class="release-note" href="https://github.com/Yumekaz/Yomikura/releases/tag/v1.0.25-beta.5" data-release-link><span class="status-dot"></span><span data-release-kind>Public beta</span><span class="release-version" data-release-version>v1.0.25-beta.5</span><svg class="icon"><use href="#arrow"/></svg></a>
+        <h1 id="hero-title">Your next chapter<br>has a <em>home.</em></h1>
+        <p class="hero-description">Your books together. Your place remembered.<br>A little space to fall in love with reading again.</p>
+        <div class="hero-buttons"><a class="button button-primary" href="https://github.com/Yumekaz/Yomikura/releases/tag/v1.0.25-beta.5" data-download-primary><svg class="icon"><use href="#download"/></svg><span data-download-label>Download Yomikura</span></a><a class="button button-quiet" href="./app/#/library">Step inside the demo<svg class="icon"><use href="#arrow"/></svg></a></div>
+        <p class="hero-fineprint">Free & open source <span>·</span> Windows, macOS & Linux</p>
+        <a class="hero-browser-link" href="./setup/">More of a browser person? Start here<svg class="icon"><use href="#arrow"/></svg></a>
+      </div>
+      <div class="hero-whisper" aria-hidden="true"><span>読むくら</span><p>A small reading spirit.<br>A whole world of stories.</p><span class="whisper-line"></span></div>
+    </div>
+    <div class="hero-bottom wrap"><span><svg class="icon"><use href="#book"/></svg>Made for the moments between everything else.</span><a href="#reading-room" class="scroll-hint">Explore the reading room<span>↓</span></a></div>
+  </section>
+
+  <section class="reading-room section wrap" id="reading-room" aria-labelledby="collection-title">
+    <div class="section-intro" data-reveal><div><p class="eyebrow"><span>01</span> A place for your collection</p><h2 id="collection-title">All your stories.<br><em>One familiar place.</em></h2></div><p>A shelf you can make your own, a history that remembers where you stopped, and a reader that lets the rest of the world disappear.</p></div>
+    <div class="app-showcase" id="reader-gallery" data-reveal>
+      <div class="window-bar"><span class="window-title"><img src="./assets/identity/logo-ember.webp" alt="" width="20" height="20">Yomikura<span class="window-location">/ Library</span></span><span class="window-status"><span></span>Your reading room</span><button class="screenshot-expand" data-enlarge="library" aria-label="Enlarge the library screenshot"><svg class="icon"><use href="#spark"/></svg></button></div>
+      <button class="screenshot-button" data-enlarge="library" aria-label="Take a closer look at Yomikura’s library"><img data-library-preview src="./assets/screens/library-ember.jpg" alt="The actual Yomikura library, showing original illustrated demo books, reading progress and collection controls in the Ink & Ember palette." loading="lazy" width="1440" height="980"></button>
+      <div class="showcase-caption"><span><span class="caption-dot"></span>Actual app. Original demo stories.</span><a href="./app/#/library">Try it for yourself<svg class="icon"><use href="#arrow"/></svg></a></div>
+    </div>
+    <div class="reading-details" data-reveal>
+      <article><span class="detail-icon"><svg class="icon"><use href="#book"/></svg></span><h3>Pick up where you belong.</h3><p>Open your library, find your last read, and keep going. Your place stays with the story.</p></article>
+      <article><span class="detail-icon"><svg class="icon"><use href="#leaf"/></svg></span><h3>Your shelf, your rhythm.</h3><p>Organize with collections, find new chapters, or keep a little reading list for another day.</p></article>
+      <article><span class="detail-icon"><svg class="icon"><use href="#spark"/></svg></span><h3>A quieter kind of company.</h3><p>Your reading spirit brings a little warmth to the library, then steps aside when it’s time to read.</p></article>
+    </div>
+  </section>
+
+  <section class="reader-feature" aria-labelledby="reader-title">
+    <div class="wrap reader-layout"><div class="reader-copy" data-reveal><p class="eyebrow"><span>02</span> Just one more chapter</p><h2 id="reader-title">Less interface.<br><em>More story.</em></h2><p>Settle into long-scroll webtoons or turn one page at a time. Zoom into the details. Let the controls get out of the way.</p><ul class="quiet-list"><li><svg class="icon"><use href="#check"/></svg>Continuous and paged reading</li><li><svg class="icon"><use href="#check"/></svg>Shared zoom with a quick reset</li><li><svg class="icon"><use href="#check"/></svg>Saved desktop chapters, even when your server is away</li></ul><a class="text-link" href="./app/#/reader/20002">Meet the reader<svg class="icon"><use href="#arrow"/></svg></a></div>
+      <div class="reader-picture" data-reveal><div class="reader-picture-glow"></div><button class="screenshot-button reader-screen" data-enlarge="reader" aria-label="Enlarge the reader screenshot"><img src="./assets/screens/reader.jpg" alt="An actual Yomikura reader view with original Moonlit Courier artwork and its page and zoom controls." loading="lazy" width="1200" height="800"></button><span class="reader-picture-note"><svg class="icon"><use href="#leaf"/></svg>A good story deserves your full attention.</span></div>
+    </div>
+  </section>
+
+  <section class="palette-section section wrap" id="make-it-yours" aria-labelledby="palette-title">
+    <div class="palette-heading" data-reveal><p class="eyebrow"><span>03</span> Find your atmosphere</p><h2 id="palette-title">A reading room<br>in <em>your colors.</em></h2><p>Lantern-lit ink. Soft blossom. A little forest calm.<br>Every palette has a light and dark side.</p></div>
+    <div class="palette-selector" role="tablist" aria-label="Preview a Yomikura color palette" data-reveal>
+      <button role="tab" aria-selected="true" aria-controls="palette-story" id="palette-ember" data-palette="ember"><span class="palette-swatch ember"><i></i><i></i><i></i></span><span><strong>Ink & Ember</strong><small>A little autumn, all year.</small></span><svg class="icon"><use href="#check"/></svg></button>
+      <button role="tab" aria-selected="false" aria-controls="palette-story" id="palette-sakura" data-palette="sakura" tabindex="-1"><span class="palette-swatch sakura"><i></i><i></i><i></i></span><span><strong>Sakura</strong><small>Soft paper, quieter mornings.</small></span><svg class="icon"><use href="#check"/></svg></button>
+      <button role="tab" aria-selected="false" aria-controls="palette-story" id="palette-forest" data-palette="forest" tabindex="-1"><span class="palette-swatch forest"><i></i><i></i><i></i></span><span><strong>Forest</strong><small>A breath of something green.</small></span><svg class="icon"><use href="#check"/></svg></button>
+      <button role="tab" aria-selected="false" aria-controls="palette-story" id="palette-moonstone" data-palette="moonstone" tabindex="-1"><span class="palette-swatch moonstone"><i></i><i></i><i></i></span><span><strong>Moonstone</strong><small>For the night owls.</small></span><svg class="icon"><use href="#check"/></svg></button>
+    </div>
+    <div id="palette-story" class="palette-story" role="tabpanel" aria-labelledby="palette-ember" data-reveal><div><span class="palette-story-kicker" data-palette-kicker>INK & EMBER</span><p data-palette-copy>Warm ink, ivory pages and a spark of lantern light. A familiar place to come back to.</p><span class="palette-preview-caption">An actual app preview. Choose a palette above.</span></div><button class="screenshot-button palette-preview-window" data-enlarge="palette" aria-label="Enlarge the selected palette preview"><img data-palette-preview src="./assets/screens/library-ember.jpg" alt="The actual Yomikura library in the Ink & Ember color palette." loading="lazy" width="1440" height="980"></button></div>
+  </section>
+
+  <section class="get-started-section" id="get-started" aria-labelledby="start-title"><div class="wrap">
+    <div class="start-heading" data-reveal><div><p class="eyebrow"><span>04</span> Your next chapter starts here</p><h2 id="start-title">Come in.<br><em>Make yourself at home.</em></h2></div><p>Choose the reading room that fits you.<br>No account to create. No repository to clone.</p></div>
+    <div class="start-paths" data-reveal>
+      <article class="desktop-path"><span class="path-tag">The easiest way</span><div class="path-heading"><svg class="icon"><use href="#monitor"/></svg><h3>Yomikura Desktop</h3></div><p>Install the app. Choose <strong>Set up my library.</strong><br>Yomikura prepares the reading essentials for you.</p><a class="button button-primary" href="https://github.com/Yumekaz/Yomikura/releases/tag/v1.0.25-beta.5" data-download-primary><svg class="icon"><use href="#download"/></svg><span data-download-label>Download Yomikura</span></a><span class="download-version"><span data-release-kind>Public beta</span> <span data-release-version>v1.0.25-beta.5</span><span> · </span><a data-release-link href="https://github.com/Yumekaz/Yomikura/releases/tag/v1.0.25-beta.5">Release notes</a></span>
+        <div class="platform-links" aria-label="Downloads by platform"><a data-platform="windows" href="https://github.com/Yumekaz/Yomikura/releases/tag/v1.0.25-beta.5">Windows <span>x64</span><svg class="icon"><use href="#download"/></svg></a><a data-platform="macos" href="https://github.com/Yumekaz/Yomikura/releases/tag/v1.0.25-beta.5">macOS <span>Apple silicon</span><svg class="icon"><use href="#download"/></svg></a><a data-platform="linux" href="https://github.com/Yumekaz/Yomikura/releases/tag/v1.0.25-beta.5">Linux <span>x86_64</span><svg class="icon"><use href="#download"/></svg></a></div>
+        <p class="download-note">A public beta, growing with care. Windows is tested; macOS and Linux packages are available for testing. Installers are not yet publisher-signed. <a data-stable-link href="https://github.com/Yumekaz/Yomikura/releases/latest">Looking for the previous stable release?</a></p>
+      </article>
+      <article class="browser-path"><span class="path-tag">Your browser, your library</span><div class="path-heading"><svg class="icon"><use href="#globe"/></svg><h3>Prefer a browser?</h3></div><p>Give your Suwayomi library a Yomikura reading room. Our visual guide takes you from the downloads to your first chapter.</p><a class="button button-outline" href="./setup/">Follow the browser guide<svg class="icon"><use href="#arrow"/></svg></a><p class="browser-path-detail">Prebuilt web files. Clear steps. Your own library.</p><div class="demo-invitation"><img src="./assets/identity/spirit-resting.webp" alt="" loading="lazy" width="128" height="128"><div><h4>Just looking around?</h4><p>Two original illustrated stories are waiting.</p><a class="text-link" href="./app/#/library">Explore the demo<svg class="icon"><use href="#arrow"/></svg></a></div></div></article>
+    </div>
+  </div></section>
+
+  <section class="questions-section section wrap" id="questions" aria-labelledby="questions-title"><div class="questions-intro" data-reveal><p class="eyebrow">Before you settle in</p><h2 id="questions-title">A few things<br>you might <em>wonder.</em></h2><img src="./assets/identity/spirit-reading-ember.webp" alt="" loading="lazy" width="160" height="160"></div><div class="questions-list" data-reveal>
+    <details><summary>Is Yomikura free?<span>+</span></summary><p>Yes. Yomikura is free and open source. There’s no Yomikura account or subscription, and you can browse the <a href="https://github.com/Yumekaz/Yomikura">source on GitHub</a>.</p></details>
+    <details><summary>Does it come with comics?<span>+</span></summary><p>The demo includes two original illustrated samples. For your own reading, you choose and configure your sources through Suwayomi. Yomikura is a reader, not a hosted comic catalogue, and includes no third-party extensions.</p></details>
+    <details><summary>Do I need to know how to code?<span>+</span></summary><p>Not for the desktop app. Download the installer, open Yomikura and choose <strong>Set up my library</strong>. It prepares Java and Suwayomi when needed. Browser setup takes a few more steps; the <a href="./setup/">illustrated guide</a> explains each one without asking you to clone the code.</p></details>
+    <details><summary>What is Suwayomi?<span>+</span></summary><p>Suwayomi keeps your library, manages sources and fetches chapters. Yomikura is the interface you use to organize and read them. The desktop app can manage a local Suwayomi library for you; browser users run Suwayomi separately.</p></details>
+    <details><summary>Can I keep reading offline?<span>+</span></summary><p>On desktop, chapters saved on your device remain readable even if your library server is unavailable, and pending progress is retained for reconnection. Server-downloaded chapters can also be read while that server remains reachable. Unsaved pages still need a working connection to their source.</p></details>
+    <details><summary>Where do my books and reading data live?<span>+</span></summary><p>Library data and server downloads live with your Suwayomi server. Yomikura keeps preferences and retained device data locally. Back up your library before changing installations. The <a href="https://github.com/Yumekaz/Yomikura/blob/main/PRIVACY.md">privacy page</a> explains the details.</p></details>
+    <details><summary>What should I know about the beta?<span>+</span></summary><p>The current beta received installed Windows and automated browser checks. Interactive macOS/Linux testing, physical pinch hardware and signed-in tracking providers have separate coverage limits. Platform signing is not yet configured. Read the <a data-release-link href="https://github.com/Yumekaz/Yomikura/releases/tag/v1.0.25-beta.5">release notes</a> before installing.</p></details>
+  </div></section>
+
+  <section class="closing-note wrap" data-reveal><svg class="icon"><use href="#leaf"/></svg><p>Good stories make<br><em>quieter days brighter.</em></p><span>We’ll keep your place.</span><a class="text-link" href="#get-started">Find your next chapter<svg class="icon"><use href="#arrow"/></svg></a></section>
+</main>
+
+<footer class="site-footer wrap"><a class="brand footer-brand" href="./"><img src="./assets/identity/logo-ember.webp" alt="" width="34" height="34"><span>Yomikura<small>Your books. Your reading room.</small></span></a><div><a href="https://github.com/Yumekaz/Yomikura">GitHub</a><a href="./setup/">Browser setup</a><a href="https://github.com/Yumekaz/Yomikura/blob/main/PRIVACY.md">Privacy</a><a href="https://github.com/Yumekaz/Yomikura/blob/main/LICENSE">MIT license</a></div><p>An independent project for Suwayomi libraries.<br>Not affiliated with Mihon or Suwayomi. No third-party comic content hosted.</p></footer>
+
+<dialog class="screenshot-dialog" aria-label="Yomikura screenshot" data-screenshot-dialog><button class="dialog-close icon-button" aria-label="Close screenshot" data-close-dialog><svg class="icon"><use href="#close"/></svg></button><img src="./assets/screens/library-ember.jpg" alt="" data-dialog-image><p>Actual Yomikura interface with original demo artwork.</p></dialog>
+<div class="sr-only" aria-live="polite" data-announcement></div>
+</body>
+</html>
+
