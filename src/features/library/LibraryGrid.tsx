@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Check } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { LibraryEmptyState } from "./LibraryEmptyState";
+import { LibraryCover } from "../../components/library/LibraryCover";
 
 function findScrollParent(element: HTMLElement): HTMLElement | Window {
   let current = element.parentElement;
@@ -87,7 +88,7 @@ export function LibraryGrid({ mangas, serverBaseUrl, isSelectMode = false, selec
           const selected = selectedMangaIds.has(manga.id);
           const body = <>
             <div className={`yomi-book-cover ${selected ? "is-selected" : ""}`}>
-              <img src={imageUrl} alt="" loading="lazy" decoding="async" onError={(event) => { if (!event.currentTarget.src.endsWith("/placeholder-cover.svg")) event.currentTarget.src = "/placeholder-cover.svg"; }} />
+              <LibraryCover src={imageUrl} alt="" loading="lazy" decoding="async" />
               {isSelectMode ? <span className={`yomi-book-selection ${selected ? "is-selected" : ""}`}><Check aria-hidden="true" /></span> : manga.unreadCount > 0 && <span className="yomi-unread-badge" aria-label={`${manga.unreadCount} unread chapters`}>{manga.unreadCount}</span>}
             </div>
             <div className="yomi-book-caption">

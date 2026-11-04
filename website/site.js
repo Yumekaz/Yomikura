@@ -131,7 +131,7 @@
         const label = link.querySelector('[data-download-label]');
         if (label) label.textContent = asset ? windows ? 'Download for Windows' : 'Download for Linux x86_64' : 'Choose your desktop download';
       });
-      all('[data-stable-link]').forEach((link) => { if (data.stable) { link.href = data.stable.url; link.textContent = `Previous stable release · ${data.stable.tag}`; } });
+      all('[data-stable-link]').forEach((link) => { if (data.stable) { link.href = data.stable.url; link.textContent = `${release.prerelease ? 'Previous stable release' : 'Current stable release'} · ${data.stable.tag}`; } });
       all('[data-web-download]').forEach((link) => { if (data.web?.url) link.href = data.web.url; });
       all('[data-web-checksum]').forEach((link) => { if (data.web?.checksumUrl) link.href = data.web.checksumUrl; });
       all('[data-web-version]').forEach((element) => { element.textContent = data.web?.version ? `v${data.web.version.replace(/^v/, '')}` : release.tag; });

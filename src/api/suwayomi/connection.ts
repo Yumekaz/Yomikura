@@ -1,5 +1,8 @@
 import { createGraphqlClient } from "../graphql/client";
 import { validateServerBaseUrl } from "../../config/server";
+import { establishLibraryIdentity } from "./libraryIdentity";
+import { rememberLibrary } from "./librarySession";
+import { pendingLibraryRestore } from "./restoreIdentity";
 
 export class SuwayomiConnectionError extends Error {
   constructor(message: string) {
@@ -25,6 +28,9 @@ export async function testServerConnection(baseUrl: string): Promise<boolean> {
 
     // If it returns successfully and has a __typename of 'Query', the server is good
     if (data && data.__typename) {
+      if (pendingLibraryRestore(cleanUrl)) throw new SuwayomiConnectionError("A restore needs confirmation. Open Backups to check its status; device updates remain paused.");
+      // An explicit connection establishes the current marker. Mutations only verify it.
+      rememberLibrary(cleanUrl, await establishLibraryIdentity(cleanUrl));
       return true;
     }
 

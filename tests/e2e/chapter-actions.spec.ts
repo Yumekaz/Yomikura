@@ -40,7 +40,7 @@ test("bookmark and mark-unread refresh the source chapter list and saved copy", 
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error);
         const saved = { serverBaseUrl: backend, id: 20002, name: "Chapter action fixture", chapterNumber: 1, mangaId: 10002, mangaTitle: "[Demo] Moonlit Courier", sourceOrder: 1, pageCount: 3, pages: ["/0", "/1", "/2"], cachedUrls: [], totalSizeBytes: 0, cachedAt: Date.now(), isRead: true, lastPageRead: 2 };
-        transaction.objectStore("chapters").put({ ...saved, cacheKey: `${backend}::20002`, isDemo: false });
+        transaction.objectStore("chapters").put({ ...saved, cacheKey: `${backend}::20002`, isDemo: false, libraryId: "11111111-1111-4111-8111-111111111111" });
         transaction.objectStore("chapters").put({ ...saved, cacheKey: `demo::${backend}::20002`, isDemo: true });
       });
     } finally { db.close(); }
@@ -64,7 +64,7 @@ test("bookmark and mark-unread refresh the source chapter list and saved copy", 
     const db = await new Promise<IDBDatabase>((resolve) => { open.onsuccess = () => resolve(open.result); });
     try {
       return await new Promise<{ isRead: boolean; lastPageRead: number }>((resolve, reject) => {
-        const request = db.transaction("chapters", "readonly").objectStore("chapters").get(`${backend}::20002`);
+        const request = db.transaction("chapters", "readonly").objectStore("chapters").get(`${backend}::20002::library:11111111-1111-4111-8111-111111111111`);
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });

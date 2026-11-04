@@ -14,7 +14,7 @@ import { TrackerEditForm } from "./TrackerEditForm";
 export function TrackerPanel({ mangaId, mangaTitle }: { mangaId: number; mangaTitle: string }) {
   const { serverBaseUrl, mockMode } = useSettingsStore();
   const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
-  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live"), [backend]);
+  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live"), [backend]);
   const client = useQueryClient();
   const { notify } = useFeedback();
   const [editing, setEditing] = useState<BoundTrackerRecord>();
@@ -53,7 +53,7 @@ export function TrackerPanel({ mangaId, mangaTitle }: { mangaId: number; mangaTi
       const authUrl = trackerExternalUrl(tracker.authUrl, backend.serverBaseUrl);
       const remoteUrl = trackerExternalUrl(record?.remoteUrl, backend.serverBaseUrl);
       return <section key={tracker.id} aria-label={tracker.name} className="flex flex-col rounded-lg border border-white/5 bg-ink-950/40 p-4">
-        <div className="flex items-center justify-between gap-3"><h4 className="flex items-center gap-2 text-sm font-semibold text-slate-200">{tracker.icon ? <img src={trackerExternalUrl(tracker.icon, backend.serverBaseUrl)} alt="" className="h-5 w-5 rounded object-cover" /> : <Link2 className="h-5 w-5" />}{tracker.name}</h4>
+        <div className="flex items-center justify-between gap-3"><h4 className="flex items-center gap-2 text-sm font-semibold text-slate-200"><Link2 aria-hidden="true" className="h-5 w-5 shrink-0 text-slate-400" />{tracker.name}</h4>
           {!loggedIn ? authUrl ? <a href={authUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-yomi-jade underline">{tracker.isTokenExpired ? "Sign in again" : "Login"}<ExternalLink className="ml-1 inline h-3 w-3" /></a> : <Link to="/settings/advanced" className="text-xs text-yomi-jade underline">Tracker settings</Link>
             : record ? <span className="rounded bg-yomi-jade/10 px-2 py-0.5 text-xs font-semibold text-yomi-jade">Linked</span> : <button type="button" aria-label={`Link ${tracker.name}`} disabled={busy} onClick={() => { setSearchingTracker(tracker.id); setEditing(undefined); setErrorMsg(""); }} className="yomi-button yomi-button-primary">Link Track</button>}
         </div>

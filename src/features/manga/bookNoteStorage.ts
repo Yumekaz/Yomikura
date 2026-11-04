@@ -1,7 +1,11 @@
 import type { ProgressBackend } from "../../api/suwayomi/backendIdentity";
+import { rememberedLibrary } from "../../api/suwayomi/librarySession";
 export const BOOK_NOTE_KEY = "yomikura.notes.v1";
 export interface BookNoteDraft { key: string; value: string; base: string | null; revision: string; pending: boolean }
-export const bookNoteScope = (backend: ProgressBackend, mangaId: number, title: string) => JSON.stringify([backend.key, mangaId, title]);
+export const bookNoteScope = (backend: ProgressBackend, mangaId: number, title: string) => {
+  const marker = backend.isDemo ? undefined : backend.libraryId ?? rememberedLibrary(backend.serverBaseUrl)?.marker;
+  return JSON.stringify(marker ? [backend.key, mangaId, title, marker] : [backend.key, mangaId, title]);
+};
 export function remoteNote(meta: { key: string; value: string }[]) { return meta.find((item) => item.key === BOOK_NOTE_KEY)?.value ?? ""; }
 export function noteHasConflict(draft: Pick<BookNoteDraft, "base" | "value">, remote: string) { return remote !== draft.value && (draft.base === null ? remote !== "" : remote !== draft.base); }
 

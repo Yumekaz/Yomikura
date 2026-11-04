@@ -10,15 +10,18 @@ import { copyMigrationNotes, loadMigrationNotes, verifyMigrationSourceNote, type
 export type MigrationTitle = GetMigrationMangaQuery["manga"] & { chapters: GetMigrationChaptersQuery["chapters"]["nodes"] };
 export type MigrationReview = { backend: ProgressBackend; source: MigrationTitle; target: MigrationTitle; rows: ChapterMapping[]; notes: MigrationNotes };
 export type MigrationResult = { mode: "copy" | "replace"; selected: number; targetId: number; originalId: number };
+export type MigrationData = { chapters: boolean; categories: boolean };
+export const DEFAULT_MIGRATION_DATA: MigrationData = { chapters: true, categories: true };
 export class MigrationError extends Error {
   constructor(message: string, public original: "unchanged" | "unknown" = "unchanged") { super(message); this.name = "MigrationError"; }
 }
 
 function assertBackend(backend: ProgressBackend) {
   const settings = useSettingsStore.getState();
-  if (progressBackend(settings.serverBaseUrl, settings.mockMode).key !== backend.key) throw new MigrationError("The selected server changed. Reopen the migration review on the intended server.");
+  const current = progressBackend(settings.serverBaseUrl, settings.mockMode);
+  if (current.key !== backend.key || current.libraryId !== backend.libraryId) throw new MigrationError("The selected server changed or its library was replaced. Reopen the migration review on the intended library.");
 }
-const sdkFor = (backend: ProgressBackend) => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live");
+const sdkFor = (backend: ProgressBackend) => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live");
 
 async function loadTitle(backend: ProgressBackend, id: number, includePending = true): Promise<MigrationTitle> {
   assertBackend(backend);
@@ -80,7 +83,8 @@ export async function prepareMangaMigration(backend: ProgressBackend, sourceId: 
   return { backend, source, target, notes, rows: reviewChapterMigration(source.chapters, target.chapters) };
 }
 
-export function canReplaceMigration(review: MigrationReview, selected: ReadonlySet<number>) {
+export function canReplaceMigration(review: MigrationReview, selected: ReadonlySet<number>, data: MigrationData = DEFAULT_MIGRATION_DATA) {
+  if (!data.chapters) return review.source.inLibrary && !review.source.chapters.some(hasChapterState);
   return review.source.inLibrary && review.rows.length > 0 && review.target.chapters.length > 0
     && review.rows.every((row) => row.status === "matched" && !row.positionSkipped && (!hasChapterState(row.source) || selected.has(Number(row.source.id))));
 }
@@ -92,10 +96,11 @@ function verifySelection(review: MigrationReview, selected: ReadonlySet<number>)
   if (!selected.size) throw new MigrationError("Select at least one matched chapter to copy.");
 }
 
-export async function executeMangaMigration(review: MigrationReview, selected: ReadonlySet<number>, mode: "copy" | "replace"): Promise<MigrationResult> {
+export async function executeMangaMigration(review: MigrationReview, selected: ReadonlySet<number>, mode: "copy" | "replace", data: MigrationData = DEFAULT_MIGRATION_DATA): Promise<MigrationResult> {
   const { backend } = review;
-  verifySelection(review, selected);
-  if (mode === "replace" && !canReplaceMigration(review, selected)) throw new MigrationError("Replacement requires a complete, unambiguous mapping and every saved chapter state selected. Copy while keeping the original instead.");
+  if (!data.chapters && !data.categories) throw new MigrationError("Choose chapters or categories to include in the transfer.");
+  if (data.chapters) verifySelection(review, selected);
+  if (mode === "replace" && !canReplaceMigration(review, selected, data)) throw new MigrationError("Replacement requires a complete, unambiguous mapping and every saved chapter state selected. Copy while keeping the original instead.");
   let removalStarted = false;
   try {
     assertBackend(backend);
@@ -105,8 +110,8 @@ export async function executeMangaMigration(review: MigrationReview, selected: R
     const source = await loadTitle(backend, review.source.id);
     const target = await loadTitle(backend, review.target.id);
     if (snapshot(source) !== snapshot(review.source) || structure(target) !== structure(review.target)) throw new MigrationError("The titles or original progress changed after the review. Refresh the mapping before copying.");
-    const rows = reviewChapterMigration(source.chapters, target.chapters).filter((row) => selected.has(Number(row.source.id)));
-    if (mode === "replace" && !canReplaceMigration({ ...review, source, target, rows: reviewChapterMigration(source.chapters, target.chapters) }, selected)) throw new MigrationError("The complete original state can no longer be transferred. Refresh the review.");
+    const rows = data.chapters ? reviewChapterMigration(source.chapters, target.chapters).filter((row) => selected.has(Number(row.source.id))) : [];
+    if (mode === "replace" && !canReplaceMigration({ ...review, source, target, rows: reviewChapterMigration(source.chapters, target.chapters) }, selected, data)) throw new MigrationError("The complete original state can no longer be transferred. Refresh the review.");
     assertBackend(backend);
     if (!target.inLibrary) {
       const added = await sdk.ToggleMangaLibrary({ input: { id: target.id, patch: { inLibrary: true } } });
@@ -121,7 +126,7 @@ export async function executeMangaMigration(review: MigrationReview, selected: R
       });
       assertBackend(backend);
     }, 2);
-    const categories = source.categories.nodes.map((node) => node.id).filter((id) => id > 0);
+    const categories = data.categories ? source.categories.nodes.map((node) => node.id).filter((id) => id > 0) : [];
     if (categories.length) {
       assertBackend(backend);
       await sdk.UpdateMangaCategories({ input: { id: target.id, patch: { addToCategories: categories } } });

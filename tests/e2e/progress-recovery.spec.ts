@@ -15,6 +15,7 @@ const states = () => ({ [first]: { online: false, page: 0, read: false, title: "
 async function configure(context: BrowserContext, servers: Record<string, ServerState>, failStorage = false) {
   const writes: { server: string; patch: { lastPageRead: number; isRead: boolean } }[] = [];
   await context.addInitScript(({ first, second, failStorage }) => {
+    localStorage.setItem("yomikura-library-sessions-v1", JSON.stringify({ [first]: { marker: "11111111-1111-4111-8111-111111111111" }, [second]: { marker: "11111111-1111-4111-8111-111111111111" } }));
     if (!localStorage.getItem("yomikura-settings")) localStorage.setItem("yomikura-settings", JSON.stringify({ state: {
       serverBaseUrl: first, mockMode: false, connectionStatus: "disconnected", readerMode: "LTR", pageSpread: "SINGLE", pageTransition: "none", autoDownloadCount: 0, autoDeleteReadChapters: false, infiniteChapterReading: false,
       profiles: [{ id: "a", name: "Server A", url: first }, { id: "b", name: "Server B", url: second }], activeProfileId: "a",
@@ -74,7 +75,7 @@ async function seedCache(page: Page) {
         await new Promise<void>((resolve, reject) => {
           const tx = db.transaction("chapters", "readwrite");
           tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
-          tx.objectStore("chapters").put({ cacheKey: `${server}::12`, serverBaseUrl: server, id: 12, name: "Progress chapter", chapterNumber: 1, sourceOrder: 1, mangaId: 42, mangaTitle: title, pageCount: 4, pages, cachedUrls: pages, cachedAt: Date.now(), totalSizeBytes: image.length * 4, lastPageRead: 0, isRead: false });
+          tx.objectStore("chapters").put({ cacheKey: `${server}::12`, libraryId: "11111111-1111-4111-8111-111111111111", serverBaseUrl: server, id: 12, name: "Progress chapter", chapterNumber: 1, sourceOrder: 1, mangaId: 42, mangaTitle: title, pageCount: 4, pages, cachedUrls: pages, cachedAt: Date.now(), totalSizeBytes: image.length * 4, lastPageRead: 0, isRead: false });
         });
       }
     } finally { db.close(); }

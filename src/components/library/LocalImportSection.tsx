@@ -14,7 +14,7 @@ export function LocalImportSection() {
   const [status, setStatus] = useState<"idle" | "importing" | "success" | "error">("idle"); const [message, setMessage] = useState("");
   useEffect(() => { setMangaTitle(""); setSelectedFiles([]); setStatus("idle"); setMessage(""); }, [backend.key]);
   const settings = useQuery({ queryKey: ["import-server-settings", backend.key], enabled: !mockMode,
-    queryFn: ({ signal }) => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { signal }, "live").GetServerSettings() });
+    queryFn: ({ signal }) => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { signal, libraryId: backend.libraryId ?? null }, "live").GetServerSettings() });
   const localSourcePath = settings.data?.settings?.localSourcePath ?? "";
   const destination = useQuery({ queryKey: ["managed-import-target", backend.key, localSourcePath], enabled: isTauri() && !mockMode && settings.isSuccess,
     queryFn: async () => { const { invoke } = await import("@tauri-apps/api/core"); return invoke<string | null>("get_local_import_target", { serverBaseUrl: backend.serverBaseUrl, reportedPath: localSourcePath }); }, retry: false });

@@ -39,7 +39,7 @@ async function fixture(page: Page) {
     const open = indexedDB.open("yomikura-offline", 4);
     const db = await new Promise<IDBDatabase>((resolve, reject) => { open.onsuccess = () => resolve(open.result); open.onerror = () => reject(open.error); });
     try { await new Promise<void>((resolve, reject) => { const tx = db.transaction("chapters", "readwrite"); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
-      for (const id of [42, 44]) tx.objectStore("chapters").put({ cacheKey: `${first}::${id + 100}`, serverBaseUrl: first, isDemo: false, id: id + 100, name: "Saved chapter", chapterNumber: 1, mangaId: id, mangaTitle: id === 42 ? "Device only" : "Both copies", sourceOrder: 1, pageCount: 1, pages: ["/0"], cachedUrls: [], totalSizeBytes: 0, cachedAt: Date.now() });
+      for (const id of [42, 44]) tx.objectStore("chapters").put({ cacheKey: `${first}::${id + 100}`, libraryId: "11111111-1111-4111-8111-111111111111", serverBaseUrl: first, isDemo: false, id: id + 100, name: "Saved chapter", chapterNumber: 1, mangaId: id, mangaTitle: id === 42 ? "Device only" : "Both copies", sourceOrder: 1, pageCount: 1, pages: ["/0"], cachedUrls: [], totalSizeBytes: 0, cachedAt: Date.now() });
     }); } finally { db.close(); }
   }, { first });
   await page.reload(); await expect(page.getByRole("heading", { name: "Library", exact: true })).toBeVisible();
@@ -48,16 +48,16 @@ async function fixture(page: Page) {
 test("library download views cover all four combinations with correct title counts", async ({ page }) => {
   const { mangas } = await fixture(page);
   await page.getByRole("button", { name: "On this device", exact: true }).click();
-  await expect(page.getByText("2 books in your collection", { exact: true })).toBeVisible();
+  await expect(page.getByText("2 books shown", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Device only", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Server only", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "On server", exact: true }).click();
-  await expect(page.getByText("2 books in your collection", { exact: true })).toBeVisible();
+  await expect(page.getByText("2 books shown", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Device only", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Downloaded", exact: true }).click();
-  await expect(page.getByText("3 books in your collection", { exact: true })).toBeVisible(); expect(mangas[0].downloadCount).toBe(0);
+  await expect(page.getByText("3 books shown", { exact: true })).toBeVisible(); expect(mangas[0].downloadCount).toBe(0);
   await chooseOption(page.getByRole("combobox", { name: "Server profile", exact: true }), "second");
-  await page.getByRole("button", { name: "On this device", exact: true }).click(); await expect(page.getByText("0 books in your collection", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "On this device", exact: true }).click(); await expect(page.getByText("0 books shown", { exact: true })).toBeVisible();
 });
 test("scanlator/unread policy is shared by Resume and next/previous and persists on reload", async ({ page }) => {
   const state = await fixture(page); await page.goto("/manga/42");

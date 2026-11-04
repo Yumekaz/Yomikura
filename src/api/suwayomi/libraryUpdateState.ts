@@ -1,7 +1,7 @@
 import { progressBackend, type ProgressBackend } from "./backendIdentity";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 export function isSelectedLibrary(backend: ProgressBackend) {
-  try { const state = useSettingsStore.getState(); return progressBackend(state.serverBaseUrl, state.mockMode).key === backend.key; } catch { return false; }
+  try { const state = useSettingsStore.getState(), current = progressBackend(state.serverBaseUrl, state.mockMode); return current.key === backend.key && current.libraryId === backend.libraryId; } catch { return false; }
 }
 export function recordLibraryUpdateRequest(backend: ProgressBackend, status: "idle" | "running" | "success" | "error", error = "") {
   const state = useSettingsStore.getState();

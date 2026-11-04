@@ -5,6 +5,8 @@ import { getProgressHead, getProgressOperations, type ProgressIntent } from "./p
 import { projectChapterProgress, readProgressHistory, resolveProgressConflict, saveProgressIntent, synchronizeProgress, writeChapterProgress } from "./progressSync";
 import * as storage from "./progressStorage";
 import { getCachedChapter, getReadingHistory, saveCachedChapter } from "./offlineCache";
+import { rememberedLibrary, assertLibrarySession } from "./librarySession";
+vi.mock("./librarySession", () => ({ rememberedLibrary: vi.fn(() => ({ marker: "11111111-1111-4111-8111-111111111111" })), assertLibrarySession: vi.fn() }));
 
 const mocks = vi.hoisted(() => ({
   active: { serverBaseUrl: "http://localhost:4567", mockMode: false, connectionStatus: "connected", errorMessage: "", experience: { incognito: false, duplicateReadLibraries: {} as Record<string, boolean> } },
@@ -28,6 +30,7 @@ let servers: Map<string, ReturnType<typeof remoteChapter>>;
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(rememberedLibrary).mockReturnValue({ marker: "11111111-1111-4111-8111-111111111111" });
   mocks.active.experience.incognito = false;
   mocks.active.experience.duplicateReadLibraries = {};
   mocks.modes.length = 0;
@@ -45,6 +48,28 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("progress replay and acknowledgement", () => {
+  it("quarantines an earlier library's update even when comic and chapter IDs and names match", async () => {
+    await saveProgressIntent(first, reading(2));
+    vi.mocked(rememberedLibrary).mockReturnValue({ marker: "22222222-2222-4222-8222-222222222222" });
+    await synchronizeProgress(progressBackend(first.serverBaseUrl));
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect((await getProgressOperations(first))[0]).toMatchObject({ status: "blocked", libraryId: "11111111-1111-4111-8111-111111111111" });
+    expect((await saveProgressIntent(first, reading(1))).accepted).toBe(false);
+    expect((await saveProgressIntent(first, { ...reading(1), kind: "explicit", patch: { isRead: false } })).accepted).toBe(false);
+  });
+  it("keeps an unverified older update for review without sending it", async () => {
+    await saveProgressIntent(first, { ...reading(2), libraryId: null });
+    await synchronizeProgress(first);
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect((await getProgressOperations(first))[0].status).toBe("blocked");
+  });
+  it("does not send a pending update when the server marker changes before replay", async () => {
+    await saveProgressIntent(first, reading(2));
+    vi.mocked(assertLibrarySession).mockRejectedValueOnce(new Error("Library replaced"));
+    await synchronizeProgress(first);
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(await getProgressOperations(first)).toHaveLength(1);
+  });
   it("persists and replays a bookmark without resetting a live reader or changing its read state", async () => {
     const original = servers.get(first.serverBaseUrl)!; original.isRead = true; original.lastPageRead = 2;
     const result = await writeChapterProgress(first, 12, { isBookmarked: true });

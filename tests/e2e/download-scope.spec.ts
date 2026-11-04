@@ -44,7 +44,7 @@ async function fixture(page: Page, failQueue = false) {
         const label = backend === first ? "FIRST" : "SECOND";
         const image = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="600" height="900" fill="#31574e"/><text x="50" y="100" fill="white">${label}</text></svg>`;
         await cache.put(storage.toString(), new Response(image, { headers: { "content-type": "image/svg+xml" } })); await cache.put(orphan.toString(), new Response("orphan"));
-        await new Promise<void>((resolve, reject) => { const tx = db.transaction("chapters", "readwrite"); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); tx.objectStore("chapters").put({ cacheKey: `${backend}::12`, serverBaseUrl: backend, isDemo: false, id: 12, name: "Shared chapter ID", chapterNumber: 1, mangaId: 42, mangaTitle: backend === first ? "First cached title" : "Second cached title", sourceOrder: 1, pageCount: 1, pages: [original], networkUrls: [original], cachedUrls: [storage.toString()], cachedAt: Date.now(), totalSizeBytes: image.length, isRead: true, lastPageRead: 0 }); });
+        await new Promise<void>((resolve, reject) => { const tx = db.transaction("chapters", "readwrite"); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); tx.objectStore("chapters").put({ cacheKey: `${backend}::12`, libraryId: "11111111-1111-4111-8111-111111111111", serverBaseUrl: backend, isDemo: false, id: 12, name: "Shared chapter ID", chapterNumber: 1, mangaId: 42, mangaTitle: backend === first ? "First cached title" : "Second cached title", sourceOrder: 1, pageCount: 1, pages: [original], networkUrls: [original], cachedUrls: [storage.toString()], cachedAt: Date.now(), totalSizeBytes: image.length, isRead: true, lastPageRead: 0 }); });
       }
     } finally { db.close(); }
   }, { first, second });
@@ -98,6 +98,17 @@ test("a failing server queue leaves local saved chapters accessible", async ({ p
   await expect(page.getByRole("link", { name: "Read", exact: true })).toBeVisible();
 });
 
+test("download totals describe only the selected library's saved bytes", async ({ page }) => {
+  await fixture(page, true);
+  await expect(page.getByRole("heading", { name: "Server downloads could not load", exact: true })).toBeVisible({ timeout: 15_000 });
+  const state = await cacheState(page);
+  for (const [profile, backend] of [["first", first], ["second", second]]) {
+    await chooseOption(page.getByRole("combobox", { name: "Server profile", exact: true }), profile);
+    const bytes = state.chapters.find((chapter) => chapter.serverBaseUrl === backend)!.totalSizeBytes;
+    await expect(page.locator(".yomi-workspace-head .yomi-status-chip")).toHaveText(`1 saved · ${bytes} B`);
+  }
+});
+
 test("leaving demo mode never presents its cached queue as a pending live response", async ({ page }) => {
   await page.addInitScript(({ first }) => localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: first, mockMode: true, connectionStatus: "connected", autoDeleteReadChapters: false, autoDownloadCount: 0 } })), { first });
   await fixture(page);
@@ -112,7 +123,7 @@ test("leaving demo mode never presents its cached queue as a pending live respon
   });
   try {
     await page.getByRole("button", { name: "Connect your library", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/\/library$/);
     await page.getByRole("link", { name: "Downloads", exact: true }).click();
     await expect.poll(() => requested).toBe(true);
     await expect(page.getByText("Loading the server queue…", { exact: true })).toBeVisible();

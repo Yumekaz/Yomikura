@@ -35,12 +35,12 @@ export function DownloadSettingsPanel() {
 function LibraryDownloadSettings() {
   const { serverBaseUrl, mockMode } = useSettingsStore();
   const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
-  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live"), [backend]);
+  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live"), [backend]);
   const client = useQueryClient(); const [message, setMessage] = useState("");
   useEffect(() => setMessage(""), [backend.key]);
   const query = useQuery({ queryKey: ["library-download-preferences", backend.key], queryFn: ({ signal }) => sdk.GetServerDownloadPreferences(undefined, undefined, signal), retry: false });
   const mutation = useMutation({ mutationFn: async ({ backend, patch }: { backend: ProgressBackend; patch: LibraryDownloadPatch }) => {
-    const captured = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live");
+    const captured = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live");
     const result = (await captured.SetServerDownloadPreferences({ input: { settings: patch } })).setSettings.settings;
     if (Object.entries(patch).some(([key, value]) => result[key as keyof typeof result] !== value)) throw new Error("The library did not confirm the change.");
     return result;

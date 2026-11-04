@@ -4,8 +4,13 @@ import { getSdk } from "./generated/graphql";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { validateServerBaseUrl } from "../../config/server";
 import { mockSdk } from "./mockSdk";
+import { metadataRead, metadataScope } from "../suwayomi/libraryMetadata";
+import { assertLibrarySession, rememberedLibrary } from "../suwayomi/librarySession";
 
 type ClientOptions = GraphqlOptions;
+type MetadataContext = { scope?: string; preferSaved: () => boolean; verify: () => Promise<void> };
+const metadataContexts = new WeakMap<object, MetadataContext>();
+export const sdkMetadataContext = (sdk: object) => metadataContexts.get(sdk);
 
 // This is an unauthenticated client since Suwayomi typically relies on network access/CORS configuration
 export function createGraphqlClient(endpoint: string, options?: ClientOptions, mode?: "live" | "demo") {
@@ -41,7 +46,19 @@ export function createGraphqlClient(endpoint: string, options?: ClientOptions, m
 
   // Codegen only calls request({ document, variables, requestHeaders, signal }).
   // Its declared class also has unused administration methods; keep that adapter boundary here.
-  return getSdk(new LibraryGraphqlTransport(endpoint, options) as unknown as GraphQLClient);
+  const sdk = getSdk(new LibraryGraphqlTransport(endpoint, options) as unknown as GraphQLClient);
+  const marker = options && Object.prototype.hasOwnProperty.call(options, "libraryId") ? options.libraryId ?? undefined : rememberedLibrary(validation.normalizedUrl)?.marker;
+  const scope = marker ? metadataScope(validation.normalizedUrl, marker) : undefined;
+  const verify = () => marker ? assertLibrarySession(validation.normalizedUrl, marker) : Promise.resolve();
+  const preferSaved = () => {
+    const settings = useSettingsStore.getState();
+    return settings.connectionStatus === "error" && settings.serverBaseUrl.replace(/\/+$/, "") === validation.normalizedUrl.replace(/\/+$/, "");
+  };
+  const categories = sdk.GetCategories.bind(sdk), details = sdk.GetMangaDetails.bind(sdk);
+  sdk.GetCategories = (...args: Parameters<typeof categories>) => metadataRead(scope, "categories", async () => { const value = await categories(...args); await verify(); return value; }, { preferSaved: preferSaved(), signal: args[2] });
+  sdk.GetMangaDetails = (...args: Parameters<typeof details>) => metadataRead(scope, `manga:${args[0].id}`, async () => { const value = await details(...args); await verify(); return value; }, { preferSaved: preferSaved(), signal: args[2] });
+  metadataContexts.set(sdk, { scope, preferSaved, verify });
+  return sdk;
 }
 
 

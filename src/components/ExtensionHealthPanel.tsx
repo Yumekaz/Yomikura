@@ -1,24 +1,10 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Loader2, Puzzle } from "lucide-react";
-import { createGraphqlClient } from "../api/graphql/client";
 import { useSettingsStore } from "../stores/useSettingsStore";
-import { fetchAllExtensions } from "../api/library/fetchAllExtensions";
+import { useExtensionUpdates } from "../features/extensions/useExtensionUpdates";
 
 export function ExtensionHealthPanel() {
-  const { serverBaseUrl, connectionStatus, mockMode } = useSettingsStore();
-
-  const sdk = useMemo(() => {
-    const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-    return createGraphqlClient(`${cleanUrl}/api/graphql`, undefined, mockMode ? "demo" : "live");
-  }, [serverBaseUrl, mockMode]);
-
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["extension-health", serverBaseUrl, mockMode],
-    queryFn: ({ signal }) => fetchAllExtensions(sdk, signal),
-    enabled: connectionStatus === "connected" && !!serverBaseUrl,
-    staleTime: 60_000,
-  });
+  const { connectionStatus } = useSettingsStore();
+  const { data, isLoading, isError } = useExtensionUpdates();
 
   const extensions = data?.extensions?.nodes ?? [];
   const broken = extensions.filter((e) => e?.isInstalled && e?.isObsolete);

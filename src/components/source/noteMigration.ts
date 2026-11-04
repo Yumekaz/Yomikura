@@ -10,7 +10,7 @@ function effective(snapshot: Snapshot) {
   return `${snapshot.remote}\n\n— Unsynced device version —\n${snapshot.local.value || "(Note cleared on this device)"}`.trim();
 }
 async function load(backend: ProgressBackend, book: Book): Promise<Snapshot> {
-  const key = bookNoteScope(backend, book.id, book.title), sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live");
+  const key = bookNoteScope(backend, book.id, book.title), sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live");
   const [local, { manga }] = await Promise.all([getBookNoteDraft(key), sdk.GetMangaNotes({ id: book.id }, undefined, AbortSignal.timeout(10000))]);
   if (manga.id !== book.id) throw new Error("The book notes could not be verified. Refresh the migration review.");
   return { key, remote: remoteNote(manga.meta), local };
@@ -30,7 +30,7 @@ export async function copyMigrationNotes(backend: ProgressBackend, sourceBook: B
   if (!await saveBookNoteIfUnchanged(draft, reviewed.target.local?.revision)) throw new Error("The destination note was edited. Both notes are kept; refresh the review.");
   check();
   if (draft.value !== current.target.remote) {
-    const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live");
+    const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live");
     const saved = (await sdk.SaveMangaNote({ input: { meta: { mangaId: targetBook.id, key: BOOK_NOTE_KEY, value: draft.value } } }, undefined, AbortSignal.timeout(15000))).setMangaMeta?.meta;
     check();
     if (!saved || saved.mangaId !== targetBook.id || saved.key !== BOOK_NOTE_KEY || saved.value !== draft.value) throw new Error("The library did not confirm the copied note. The original and destination draft are kept.");

@@ -11,6 +11,7 @@ const expectedQueryFields = [
   "downloadStatus",
   "restoreStatus",
   "settings",
+  "metas",
 ];
 
 const expectedMutationFields = [
@@ -26,6 +27,7 @@ const expectedMutationFields = [
   "dequeueChapterDownload",
   "createBackup",
   "restoreBackup",
+  "setGlobalMeta",
 ];
 
 async function introspectFields(typeName) {

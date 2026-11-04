@@ -6,6 +6,8 @@ import { progressBackend } from "../api/suwayomi/backendIdentity";
 import * as cache from "../api/suwayomi/offlineCache";
 import * as progress from "../api/suwayomi/progressStorage";
 import { DEFAULT_DOWNLOAD_EXPERIENCE, type DownloadExperience } from "./downloadExperience";
+import { rememberLibrary } from "../api/suwayomi/librarySession";
+vi.mock("../api/suwayomi/librarySession", async (original) => ({ ...await original<typeof import("../api/suwayomi/librarySession")>(), assertLibrarySession: vi.fn(async () => undefined) }));
 
 const mocks = vi.hoisted(() => ({
   settings: { serverBaseUrl: "http://first.example", mockMode: false, downloadConcurrency: 2 } as { serverBaseUrl: string; mockMode: boolean; downloadConcurrency: number; experience?: { downloads: DownloadExperience } }, native: true,
@@ -37,6 +39,7 @@ function holdNative(target = first) {
 }
 
 beforeEach(() => {
+  localStorage.clear();
   vi.restoreAllMocks(); vi.resetAllMocks(); mocks.listeners.clear(); mocks.native = true; mocks.settings = { serverBaseUrl: first.serverBaseUrl, mockMode: false, downloadConcurrency: 2 };
   vi.stubGlobal("indexedDB", new IDBFactory()); releases = []; objects = new Map();
   mocks.tiles.mockResolvedValue(undefined);
@@ -57,6 +60,32 @@ beforeEach(() => {
 afterEach(async () => { releases.forEach((release) => release()); await store.dispose(); vi.unstubAllGlobals(); });
 
 describe("download backend ownership", () => {
+  it("retains verified book and chapter names for failed jobs across restart", async () => {
+    mocks.invoke.mockRejectedValue(new Error("HTTP 503 fixture"));
+    await store.getState().downloadChapter(12, undefined, first);
+    await vi.waitFor(async () => expect((await cache.getDownloadJobs(first.serverBaseUrl))[0]).toMatchObject({ status: "failed", mangaTitle: "First title", chapterName: "Chapter 12" }));
+    const requests = mocks.client.mock.calls.length;
+    const restarted = createDownloadStore();
+    try {
+      await restarted.getState().restoreDownloadJobs();
+      expect(restarted.getState().activeDownloads[12]).toMatchObject({ status: "error", mangaTitle: "First title", chapterName: "Chapter 12" });
+      expect(mocks.client).toHaveBeenCalledTimes(requests);
+    } finally { await restarted.dispose(); }
+  });
+  it("keeps a prior library's failed job while a replacement downloads the same chapter ID", async () => {
+    const oldMarker = "11111111-1111-4111-8111-111111111111", newMarker = "22222222-2222-4222-8222-222222222222";
+    rememberLibrary(first.serverBaseUrl, { marker: oldMarker }); const earlier = progressBackend(first.serverBaseUrl);
+    mocks.invoke.mockRejectedValue(new Error("Fixture page failure"));
+    await store.getState().downloadChapter(12, "Earlier title", earlier);
+    await vi.waitFor(() => expect(store.getState().activeDownloads[12]?.status).toBe("error"));
+    rememberLibrary(first.serverBaseUrl, { marker: newMarker }); const current = progressBackend(first.serverBaseUrl);
+    mocks.invoke.mockImplementation(async () => png("Replacement page"));
+    await store.getState().downloadChapter(12, "Replacement title", current);
+    await vi.waitFor(async () => expect((await cache.getCachedChapter(first.serverBaseUrl, 12, false, newMarker))?.libraryId).toBe(newMarker));
+    expect(await cache.getDownloadJobs(first.serverBaseUrl, false, oldMarker)).toHaveLength(1);
+    expect(await cache.getDownloadJobs(first.serverBaseUrl, false, newMarker)).toEqual([]);
+    expect(store.getState().activeDownloads[12]?.status).not.toBe("error");
+  });
   it("keeps originals and optional tiles in one owning chapter and deletes both together", async () => {
     mocks.tiles.mockResolvedValue({ width: 400, height: 8000, tiles: [{ blob: new Blob(["first tile"], { type: "image/png" }), height: 4000 }, { blob: new Blob(["second tile"], { type: "image/png" }), height: 4000 }] });
     await store.getState().downloadChapter(12, "First title", first); await vi.waitFor(async () => expect(await saved()).not.toBeNull());
@@ -194,7 +223,7 @@ describe("download persistence and cancellation", () => {
   });
   it("continues delegating live website downloads to the captured Suwayomi endpoint", async () => {
     mocks.native = false; switchTo(second); await store.getState().downloadChapter(12, "First title", first);
-    expect(mocks.client).toHaveBeenCalledWith(`${first.serverBaseUrl}/api/graphql`, undefined, "live"); expect(mocks.invoke).not.toHaveBeenCalled();
+    expect(mocks.client).toHaveBeenCalledWith(`${first.serverBaseUrl}/api/graphql`, { libraryId: null }, "live"); expect(mocks.invoke).not.toHaveBeenCalled();
     expect(await cache.getDownloadJobs(first.serverBaseUrl)).toEqual([]);
   });
 });

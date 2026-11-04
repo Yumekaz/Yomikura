@@ -1,5 +1,6 @@
 import { chooseOption } from "./fixtures/themedSelect";
 import { expect, test, type Page } from "@playwright/test";
+import { mkdir } from "node:fs/promises";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
 import { chapterConnection } from "./fixtures/chapterConnection";
 
@@ -56,6 +57,13 @@ async function saved(page: Page) {
 
 test("title controls retain their own values across backend switches, reload and clear", async ({ page }, info) => {
   await fixture(page); await openReader(page, "First");
+  const switchSize = await remembered(page).boundingBox();
+  expect(switchSize!.width).toBeGreaterThanOrEqual(38);
+  expect(switchSize!.height).toBeGreaterThanOrEqual(24);
+  const transitionLabel = await page.getByText("Page transition", { exact: true }).boundingBox();
+  expect(transitionLabel!.height).toBeLessThan(20);
+  await mkdir(".cache/beta-ui-review", { recursive: true });
+  await page.screenshot({ path: ".cache/beta-ui-review/reader-settings.png" });
   await remembered(page).click();
   await page.getByRole("button", { name: "RTL", exact: true }).click();
   await chooseOption(page.getByRole("combobox", { name: "Page transition", exact: true }), "fade");
@@ -90,6 +98,23 @@ test("title controls retain their own values across backend switches, reload and
   expect(remaining[settingsKey(first)]).toBeUndefined();
   expect(remaining[settingsKey(second)]).toMatchObject({ readerMode: "LTR", imageFilters: { invert: 20 } });
   await page.screenshot({ path: info.outputPath("reader-settings-profile-isolation.png") });
+});
+
+test("reader layout controls remain usable in light mode", async ({ page }) => {
+  await fixture(page);
+  await page.goto("/settings/appearance");
+  await page.getByRole("button", { name: "Light", exact: true }).click();
+  await openReader(page, "First");
+  await expect(page.locator("html")).toHaveClass(/light-theme/);
+  const control = remembered(page);
+  const rect = await control.boundingBox();
+  expect(rect!.width).toBeGreaterThanOrEqual(38);
+  expect(rect!.height).toBeGreaterThanOrEqual(24);
+  await expect(control).toHaveAttribute("aria-pressed", "false");
+  await control.click();
+  await expect(control).toHaveAttribute("aria-pressed", "true");
+  await mkdir(".cache/beta-ui-review", { recursive: true });
+  await page.screenshot({ path: ".cache/beta-ui-review/reader-settings-light.png" });
 });
 
 test("earlier unowned settings wait for a confirmed server choice and remain recoverable", async ({ page }) => {

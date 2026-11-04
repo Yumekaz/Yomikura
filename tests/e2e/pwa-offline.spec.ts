@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { createServer, type Server } from "node:http";
 import { readFile } from "node:fs/promises";
 import { resolve, extname, sep } from "node:path";
+import AxeBuilder from "@axe-core/playwright";
 const backend = "http://127.0.0.1:45679";
 let server: Server, origin: string, revision = "first", failNewAsset = false;
 test.beforeAll(async () => {
@@ -24,8 +25,8 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await new Promise<void>((resolve) => server.close(() => resolve())); });
 test.beforeEach(() => { revision = "first"; failNewAsset = false; });
-async function prepare(page: Page) {
-  await page.addInitScript(({ backend }) => { if (!localStorage.getItem("yomikura-settings")) localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: backend, mockMode: false, connectionStatus: "disconnected", readerMode: "LTR", pageSpread: "SINGLE", autoDownloadCount: 0, autoDeleteReadChapters: false } })); }, { backend });
+async function prepare(page: Page, light = false) {
+  await page.addInitScript(({ backend, light }) => { if (!localStorage.getItem("yomikura-settings")) localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: backend, mockMode: false, connectionStatus: "disconnected", themeMode: light ? "light" : "dark", colorPalette: light ? "moonstone" : "ember", readerMode: "LTR", pageSpread: "SINGLE", autoDownloadCount: 0, autoDeleteReadChapters: false } })); }, { backend, light });
   await page.goto(`${origin}/settings/offline`);
   await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
   await page.evaluate(() => navigator.serviceWorker.ready); await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
@@ -37,6 +38,38 @@ async function prepare(page: Page) {
     try { await new Promise<void>((resolve, reject) => { const tx = db.transaction("chapters", "readwrite"); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); tx.objectStore("chapters").put({ cacheKey: `${backend}::12`, serverBaseUrl: backend, isDemo: false, id: 12, name: "Offline PWA chapter", chapterNumber: 1, mangaId: 42, mangaTitle: "Offline PWA fixture", sourceOrder: 1, pageCount: 1, pages: [url], cachedUrls: [url], totalSizeBytes: image.length, cachedAt: Date.now(), isRead: true, lastPageRead: 0 }); }); } finally { db.close(); }
   }, { backend });
 }
+
+for (const light of [false, true]) test(`an unsaved latest chapter offers saved reading and readable recovery in ${light ? "light" : "dark"} mode`, async ({ page, context }) => {
+  await prepare(page, light);
+  await page.evaluate(async ({ backend }) => {
+    const open = indexedDB.open("yomikura-offline", 4);
+    const db = await new Promise<IDBDatabase>((resolve) => { open.onsuccess = () => resolve(open.result); });
+    try { await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction("reading-history", "readwrite"); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
+      tx.objectStore("reading-history").put({ historyKey: `${backend}::13`, serverBaseUrl: backend, isDemo: false, chapterId: 13, chapterName: "Unsaved latest chapter", chapterNumber: 2, mangaId: 42, mangaTitle: "Offline PWA fixture", pageCount: 8, lastPageRead: 2, isRead: false, readAt: Date.now() });
+    }); } finally { db.close(); }
+  }, { backend });
+  await context.setOffline(true);
+  await page.goto(`${origin}/library`);
+  const recent = page.getByRole("region", { name: "Continue reading", exact: true });
+  await expect(recent.getByRole("heading", { name: "Last read", exact: true })).toBeVisible({ timeout: 15000 });
+  await expect(recent).toContainText("Unsaved latest chapter");
+  await expect(recent).toContainText("Page 3 of 8");
+  await page.setViewportSize({ width: 430, height: 850 });
+  await expect(recent.locator(".yomi-continue-availability")).toHaveCSS("white-space", "normal");
+  expect(await page.locator("body").evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true);
+  await expect(recent.getByRole("link", { name: "Continue reading", exact: true })).toHaveCount(0);
+  await recent.getByRole("link", { name: "Read saved chapters", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Read", exact: true })).toBeVisible();
+
+  await page.goto(`${origin}/reader/13`);
+  const recovery = page.getByRole("alert");
+  await expect(recovery).toContainText("Your library couldn’t be reached", { timeout: 15000 });
+  await expect(recovery.getByRole("link", { name: "Read saved chapters", exact: true })).toHaveAttribute("href", "/downloads");
+  await expect(recovery).not.toContainText("127.0.0.1");
+  await expect(recovery).not.toContainText("CORS");
+  expect((await new AxeBuilder({ page }).include("main").analyze()).violations).toEqual([]);
+});
 test("a never-visited reader deep link and lazy settings route work with all browser networking offline", async ({ page, context }) => {
   await prepare(page); await context.setOffline(true);
   await page.goto(`${origin}/reader/12`);

@@ -58,8 +58,8 @@ test("demo mode explains its boundary and exits directly into server setup", asy
   await enterDemo(page);
   await expect(page.locator(".yomi-demo-notice")).toBeVisible();
   await page.getByRole("button", { name: "Connect your library" }).click();
-  await expect(page).toHaveURL(/\/settings\/connection$/);
-  await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/library$/);
+  await expect(page.getByRole("heading", { name: "Your next story starts here.", exact: true })).toBeVisible();
   await expect(page.locator(".yomi-demo-notice")).toHaveCount(0);
 });
 
@@ -116,10 +116,21 @@ test("extension setup explains the first source step", async ({ page }) => {
 test("reader opens a demo chapter and exposes a usable page", async ({ page }) => {
   await enterDemo(page);
   await page.goto("/reader/20002");
-  await expect(page.getByText("Chapter 1: The Journey Begins", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(".yomi-reader-top").getByText("Chapter 1: The Journey Begins", { exact: true })).toBeVisible({ timeout: 15_000 });
   const firstPage = page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 1", exact: true }).first();
   await expect(firstPage).toBeVisible({ timeout: 15_000 });
   await expect.poll(() => firstPage.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+  await expect(firstPage).toHaveCSS("opacity", "1");
+  await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Reset reader zoom", exact: true })).toHaveText("120%");
+  await page.screenshot({ path: ".cache/reader-release-review/reader-demo-zoom.png" });
+  await page.getByRole("button", { name: "Reset reader zoom", exact: true }).click();
+  await page.getByRole("button", { name: "Go to page 2", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Reading surface", exact: true })).toHaveAttribute("aria-busy", "false");
+  await page.mouse.move(640, 350); await page.mouse.wheel(0, 100000);
+  const ending = page.getByRole("region", { name: "Chapter end", exact: true });
+  await expect(ending.getByText("There’s no next chapter.", { exact: true })).toBeInViewport();
+  await page.screenshot({ path: ".cache/reader-release-review/reader-demo-end.png" });
 });
 
 test("manga details renders valid dates without horizontal overflow", async ({ page }) => {

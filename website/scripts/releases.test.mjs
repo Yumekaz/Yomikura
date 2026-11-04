@@ -42,5 +42,7 @@ test("the assembled no-JavaScript download paths follow the selected release", (
   assert.ok(!updated.includes('href="old"'));
   assert.match(updated, /data-release-version>v2\.0\.0<\/span>/);
   assert.match(updated, /data-release-kind>Stable release<\/span>/);
+  assert.ok(updated.includes("Current stable release"));
+  assert.ok(!updated.includes("Previous stable release"));
   assert.ok(updated.includes('href="/Yomikura/downloads/Yomikura-web-2.0.0.zip"'));
 });

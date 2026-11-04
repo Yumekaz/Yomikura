@@ -23,6 +23,9 @@ import { useTranslation } from "../hooks/useTranslation";
 import { AboutSettingsPanel } from "../components/settings/AboutSettingsPanel";
 import { SettingsStatusPanel } from "../components/settings/SettingsStatusPanel";
 import { OfflineSettingsPanel } from "../components/settings/OfflineSettingsPanel";
+import { EarlierLibraryData } from "../components/settings/EarlierLibraryData";
+import { LibraryIdentityPanel } from "../components/settings/LibraryIdentityPanel";
+import { beginLibraryRestore, recordLibraryRestore, finishLibraryRestore } from "../api/suwayomi/restoreIdentity";
 import { BackupSettingsPanel, type BackupMessage } from "../components/settings/BackupSettingsPanel";
 import { useFeedback } from "../components/ui/FeedbackProvider";
 import { useNavigate, useParams } from "react-router-dom";
@@ -196,12 +199,19 @@ function SettingsPage() {
       if (useSettingsStore.getState().mockMode) throw new LibraryBackupError("Connect to Suwayomi before restoring a backup.");
       return restoreWithSafetyBackup(
         () => createLibraryBackup(client, server, "safety"),
-        async () => {
+        async (safetyBackup) => {
+          if (!safetyBackup.libraryId) throw new LibraryBackupError("The safety copy has no verified library identity. Restore stopped.");
+          const { verifyLibraryIdentity } = await import("../api/suwayomi/libraryIdentity");
+          await verifyLibraryIdentity(server, { marker: safetyBackup.libraryId });
           if (normalizeCacheServerUrl(useSettingsStore.getState().serverBaseUrl) === normalizeCacheServerUrl(server)) {
             setBackupMessage({ kind: "info", text: "Safety backup saved and verified. Restoring the selected file…" });
           }
+          const token = beginLibraryRestore(server);
           const restore = await restoreBackupUpload(endpoint, file);
-          return waitForRestoreStatus((id) => client.GetRestoreStatus({ id }), restore.id);
+          recordLibraryRestore(server, token, restore.id);
+          const result = await waitForRestoreStatus((id) => client.GetRestoreStatus({ id }), restore.id);
+          if (result.completed) { await finishLibraryRestore(server, token); if (normalizeCacheServerUrl(useSettingsStore.getState().serverBaseUrl) === normalizeCacheServerUrl(server) && !useSettingsStore.getState().mockMode) useSettingsStore.setState({ connectionStatus: "connected", errorMessage: "" }); }
+          return result;
         },
       );
     },
@@ -217,6 +227,7 @@ function SettingsPage() {
           : "Restore is still running in Suwayomi. Keep the server running; refresh the library after it completes. The safety backup is retained in Saved backups.",
       });
       if (result.completed) queryClient.invalidateQueries();
+      if (result.completed) notify("Backup restored successfully. Earlier device updates are kept separate; the safety backup is retained.", "success");
     },
     onError: (err) => {
       setBackupMessage({
@@ -234,7 +245,7 @@ function SettingsPage() {
       return;
     }
 
-    const confirmRestore = await confirm({ title: "Restore this backup?", detail: "Yomikura will first save and verify a safety backup on this device, then restore this file. Library, history, and categories may change.", confirmLabel: "Back up and restore", danger: true });
+    const confirmRestore = await confirm({ title: "Restore this backup?", detail: `Check that “${file.name}” is the backup you intend to restore. A server address can be reused by a different library. Yomikura will first save and verify a safety backup on this device. Library, history, and categories may change.`, confirmLabel: "Back up and restore", danger: true });
 
     if (confirmRestore) {
       if (normalizeCacheServerUrl(useSettingsStore.getState().serverBaseUrl) !== normalizeCacheServerUrl(server)) {
@@ -599,6 +610,7 @@ function SettingsPage() {
                 </div>
               </div>
 
+              <LibraryIdentityPanel />
               {/* Portability: Backup Server Profiles */}
               <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel">
                 <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
@@ -659,7 +671,7 @@ function SettingsPage() {
               clearAll={() => clearAll(progressBackend(serverBaseUrl, mockMode)).catch((error) => { notify(error instanceof Error ? error.message : "Saved chapters could not be cleared.", "error"); })}
               deleteChapter={(id) => deleteChapter(id, progressBackend(serverBaseUrl, mockMode)).catch((error) => { notify(error instanceof Error ? error.message : "Saved chapter could not be removed.", "error"); })}
               confirm={confirm}
-              /></>
+              /><EarlierLibraryData /></>
           )}
 
           {activeTab === "advanced" && <AdvancedSettingsPanel />}

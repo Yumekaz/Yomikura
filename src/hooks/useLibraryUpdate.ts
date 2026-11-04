@@ -13,7 +13,7 @@ export function useLibraryUpdate() {
   const wasRunningRef = useRef({ key: "", running: false });
 
   const sdk = useMemo(() => {
-    return backend ? createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live") : undefined;
+    return backend ? createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live") : undefined;
   }, [backend]);
 
   const { data: statusData, refetch: refetchStatus, isError: isStatusError, isPending: isStatusLoading } = useQuery({
@@ -32,7 +32,7 @@ export function useLibraryUpdate() {
   const start = useMutation({
     mutationFn: async ({ backend, categories }: { backend: ProgressBackend; categories?: number[] }) => {
       if (!isSelectedLibrary(backend)) throw new Error("The selected library changed. Try again in its update screen.");
-      const result = await createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live").UpdateLibrary({ input: categories?.length ? { categories } : {} }, undefined, AbortSignal.timeout(35000));
+      const result = await createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live").UpdateLibrary({ input: categories?.length ? { categories } : {} }, undefined, AbortSignal.timeout(35000));
       if (!result.updateLibrary?.updateStatus?.jobsInfo) throw new Error("The library did not confirm the update request.");
       return result;
     },
@@ -40,7 +40,7 @@ export function useLibraryUpdate() {
   });
   const stop = useMutation({ mutationFn: async (backend: ProgressBackend) => {
     if (!isSelectedLibrary(backend)) throw new Error("The selected library changed. Open its update screen again.");
-    const id = crypto.randomUUID(), result = await createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live").StopLibraryUpdate({ input: { clientMutationId: id } }, undefined, AbortSignal.timeout(15000));
+    const id = crypto.randomUUID(), result = await createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live").StopLibraryUpdate({ input: { clientMutationId: id } }, undefined, AbortSignal.timeout(15000));
     if (result.updateStop?.clientMutationId !== id) throw new Error("The library did not confirm the stop request.");
   }, onSuccess: (_result, backend) => { void queryClient.invalidateQueries({ queryKey: ["library-update-status", backend.key] }); } });
 

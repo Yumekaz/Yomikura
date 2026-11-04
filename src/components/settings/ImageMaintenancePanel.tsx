@@ -15,7 +15,7 @@ function ImageMaintenance({ backend }: { backend: ProgressBackend }) {
     if (!isSelectedLibrary(backend)) return;
     setBusy(true); setMessage("");
     try {
-      const id = crypto.randomUUID(), result = (await createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live").ClearTemporaryLibraryImages({ input: { clientMutationId: id, cachedPages: !covers, cachedThumbnails: true, downloadedThumbnails: covers } }, undefined, AbortSignal.timeout(30000))).clearCachedImages;
+      const id = crypto.randomUUID(), result = (await createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live").ClearTemporaryLibraryImages({ input: { clientMutationId: id, cachedPages: !covers, cachedThumbnails: true, downloadedThumbnails: covers } }, undefined, AbortSignal.timeout(30000))).clearCachedImages;
       if (result.clientMutationId !== id || result.cachedThumbnails !== true || (covers ? result.downloadedThumbnails !== true : result.cachedPages !== true)) throw new Error("Unconfirmed cleanup");
       if (isSelectedLibrary(backend)) setMessage(covers ? "Covers will be fetched again as you browse." : "Temporary library images cleared. Your saved chapters are kept.");
     } catch { if (isSelectedLibrary(backend)) setMessage("Your library couldn’t confirm the cleanup. Reconnect and try again; an older engine may not support it."); }

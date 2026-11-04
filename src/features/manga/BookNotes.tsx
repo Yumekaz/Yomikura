@@ -9,7 +9,7 @@ export function BookNotes({ backend, mangaId, title }: { backend: ProgressBacken
 }
 function NotesEditor({ backend, mangaId, title }: { backend: ProgressBackend; mangaId: number; title: string }) {
   const key = bookNoteScope(backend, mangaId, title);
-  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live"), [backend]);
+  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live"), [backend]);
   const [value, setValue] = useState("");
   const [base, setBase] = useState<string | null>(null);
   const [ready, setReady] = useState(false), [busy, setBusy] = useState(false), [message, setMessage] = useState("Loading your note…"), [conflict, setConflict] = useState<string>();

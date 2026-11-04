@@ -41,7 +41,16 @@ for (const count of [0, 1, 20]) {
   test(`library composition with ${count} books`, async ({ page, baseURL }) => {
     await page.setViewportSize({ width: 1440, height: 1024 });
     await libraryFixture(page, count, baseURL!);
-    if (!count) await expect(page.getByRole("link", { name: "Discover books", exact: true })).toBeVisible();
+    if (!count) {
+      const discover = page.getByRole("link", { name: "Discover books", exact: true });
+      await expect(discover).toBeVisible();
+      const alignment = await discover.locator("svg").evaluate((icon) => {
+        const box = icon.getBoundingClientRect(), button = icon.parentElement!.getBoundingClientRect();
+        return { size: box.width, centerOffset: Math.abs((box.top + box.height / 2) - (button.top + button.height / 2)) };
+      });
+      expect(alignment.size).toBeLessThanOrEqual(18);
+      expect(alignment.centerOffset).toBeLessThan(2);
+    }
     await page.screenshot({ path: `${evidence}/library-${count}-1440.png` });
   });
 }

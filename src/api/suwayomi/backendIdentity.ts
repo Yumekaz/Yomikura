@@ -1,9 +1,11 @@
 import { validateServerBaseUrl } from "../../config/server";
+import { rememberedLibrary } from "./librarySession";
 
 export interface ProgressBackend {
   key: string;
   serverBaseUrl: string;
   isDemo: boolean;
+  libraryId?: string;
 }
 
 /** Capture the endpoint when an operation is created; never resolve it again from a profile ID. */
@@ -11,7 +13,7 @@ export function progressBackend(serverBaseUrl: string, isDemo = false): Progress
   const validation = validateServerBaseUrl(serverBaseUrl);
   if (!validation.valid) throw new Error(validation.message);
   const server = validation.normalizedUrl.replace(/\/+$/, "");
-  return { key: JSON.stringify([isDemo ? "demo" : "live", server]), serverBaseUrl: server, isDemo };
+  return { key: JSON.stringify([isDemo ? "demo" : "live", server]), serverBaseUrl: server, isDemo, libraryId: isDemo ? undefined : rememberedLibrary(server)?.marker };
 }
 
 export interface ChapterProgressIdentity {

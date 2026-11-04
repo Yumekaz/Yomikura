@@ -11,7 +11,7 @@ type Manga = GetLibraryQuery["mangas"]["nodes"][number];
 export function DuplicateScanner() {
   const { serverBaseUrl, mockMode } = useSettingsStore();
   const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
-  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live"), [backend]);
+  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live"), [backend]);
   const [selection, setSelection] = useState<{ source: Manga; target: Manga }>();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["library-duplicates", backend.key], queryFn: () => sdk.GetLibrary({ filter: { inLibrary: { equalTo: true } }, first: 1000 }),

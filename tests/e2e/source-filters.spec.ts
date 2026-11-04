@@ -122,6 +122,8 @@ test("applying provided defaults is a search and clearing filters restores the o
   await form.getByRole("button", { name: "Apply filters", exact: true }).click(); await expect(page.getByRole("link", { name: "Result SEARCH all page 1", exact: true })).toBeVisible();
   expect(last(state.calls).filters).toContainEqual({ position: 1, checkBoxState: false });
   await page.getByRole("button", { name: "Clear filters", exact: true }).click(); await expect(page.getByRole("link", { name: "Result POPULAR all page 1", exact: true })).toBeVisible();
+  // The ordinary catalog can already be cached while its fresh request is verifying identity.
+  await expect.poll(() => last(state.calls)?.type).toBe("POPULAR");
   expect(last(state.calls).filters).toBeUndefined();
 });
 

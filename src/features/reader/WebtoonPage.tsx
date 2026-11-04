@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
-export function WebtoonPage({ chapterId, pageIndex, forceVisible, onAnchor, onLayout, children, preloadMargin = 1200 }: {
+export function WebtoonPage({ chapterId, pageIndex, forceVisible, onAnchor, onLayout, children, preloadMargin = 1200, scale = 1 }: {
   chapterId: number; pageIndex: number; forceVisible: boolean;
   onAnchor: (chapterId: number, index: number, element: HTMLDivElement | null) => void;
   onLayout: () => void; children: ReactNode;
   preloadMargin?: number;
+  scale?: number;
 }) {
   const element = useRef<HTMLDivElement | null>(null);
   const content = useRef<HTMLDivElement | null>(null);
@@ -27,7 +28,7 @@ export function WebtoonPage({ chapterId, pageIndex, forceVisible, onAnchor, onLa
     if (!element.current) return;
     const measure = () => {
       const width = element.current?.clientWidth ?? 0;
-      const height = content.current?.getBoundingClientRect().height ?? 0;
+      const height = (content.current?.getBoundingClientRect().height ?? 0) / scale;
       if (width > 0) setWidth((previous) => Math.abs(previous - width) > 0.5 ? width : previous);
       const images = [...(content.current?.querySelectorAll("img") ?? [])];
       const decoded = images.length > 0 && images.every((image) => image.naturalWidth > 0 && image.naturalHeight > 0) || !!content.current?.querySelector('[data-reader-tile-layout="ready"]');
@@ -40,8 +41,8 @@ export function WebtoonPage({ chapterId, pageIndex, forceVisible, onAnchor, onLa
     if (content.current) observer.observe(content.current);
     measure();
     return () => observer.disconnect();
-  }, [renderPage, onLayout]);
-  const placeholderHeight = measured.width && width ? measured.height * width / measured.width : measured.height;
+  }, [renderPage, onLayout, scale]);
+  const placeholderHeight = (measured.width && width ? measured.height * width / measured.width : measured.height) * scale;
   return <div ref={ref} data-reader-chapter={chapterId} data-reader-page={pageIndex}
     className="relative min-h-[100px] w-full bg-black"
     style={{ backgroundColor: "var(--reader-background, #000)", minHeight: renderPage ? Math.max(100, placeholderHeight) : undefined, height: renderPage ? "auto" : `${Math.max(100, placeholderHeight)}px`, containIntrinsicSize: `auto ${placeholderHeight}px` }}>
