@@ -34,6 +34,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          package-manager-cache: false
       - name: Resolve reviewed public download metadata
         id: release
         run: node website/scripts/releases.mjs
@@ -78,6 +79,7 @@ jobs:
         env:
           SUWAYOMI_CACHE: ${{ runner.temp }}/yomikura-site-deps
       - name: Preserve public preview package
+        if: always() && hashFiles('site-dist/index.html') != ''
         uses: actions/upload-artifact@v4
         with:
           name: yomikura-public-site
