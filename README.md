@@ -1,11 +1,22 @@
 # Yomikura
 
-Yomikura is an independent Suwayomi client for manga and comic libraries — **one codebase, two ways to run it:**
+Your next chapter has a home. Yomikura is a free, open-source manga and comic reader for your Suwayomi library.
 
-- **Web / PWA** — self-host or open in any modern browser
-- **Desktop** — native Windows, macOS, and Linux app (Tauri)
+**[Visit the reading room](https://yumekaz.github.io/Yomikura/)** · **[Download the desktop app](https://yumekaz.github.io/Yomikura/#get-started)** · **[Browser setup guide](https://yumekaz.github.io/Yomikura/setup/)** · **[Try the demo](https://yumekaz.github.io/Yomikura/app/#/library)**
 
-Inspired by the design and feel of Mihon.
+![Yomikura's reading spirit in a lantern-lit library](website/assets/hero-night.webp)
+
+## Start reading
+
+**Desktop is the easiest way.** Download an installer from the [public homepage](https://yumekaz.github.io/Yomikura/#get-started), open Yomikura and choose **Set up my library**. Guided setup prepares Java and Suwayomi when needed. You don't need Git, Node.js or Rust to install the app.
+
+**Prefer your browser?** The [visual browser guide](https://yumekaz.github.io/Yomikura/setup/) provides prebuilt web files and explains how standalone Suwayomi can serve Yomikura itself. No cloning or separate frontend web server is required. Follow the guide before replacing any existing web interface, and keep your library data intact.
+
+**Just curious?** [Explore two original illustrated demo stories](https://yumekaz.github.io/Yomikura/app/#/library), with no server or account needed.
+
+The homepage labels the current public beta and previous stable release separately, lists the available platform architectures, and links the tested limitations. Windows installers are not yet publisher-signed; interactive macOS/Linux testing has separate coverage limits.
+
+Yomikura is an independent project inspired by the design and feel of Mihon. Desktop and browser versions share the React/TypeScript reader; Suwayomi owns library data, source execution and server downloads.
 
 > [!IMPORTANT]
 > **Legal Disclaimer & Project Status**
@@ -45,7 +56,9 @@ Yomikura is an independent open-source project applying to the [SignPath Foundat
 
 ### Web / PWA
 
-Host the built `dist/` folder or run locally. You need a reachable Suwayomi server URL (your own instance or LAN); a browser cannot start the desktop local engine for you. Default:
+Start with the [public visual browser guide](https://yumekaz.github.io/Yomikura/setup/). It explains installing standalone Suwayomi, choosing its Custom WebUI flavor, preserving the existing interface and installing Yomikura's prebuilt browser files. The download has `index.html` and `assets` directly at the archive root, so no frontend compilation is needed.
+
+You need a reachable Suwayomi server URL (your own instance or LAN); a browser cannot start the desktop local engine for you. The usual address on the server's own computer is:
 ```text
 http://127.0.0.1:4567
 ```
@@ -53,6 +66,8 @@ http://127.0.0.1:4567
 Website chapter downloads are managed by the connected Suwayomi server. Desktop additionally creates a verified local offline cache.
 
 ### Development
+
+The source workflow below is for contributors. Ordinary readers can use the desktop installer or prebuilt web download above.
 
 ```bash
 pnpm install
