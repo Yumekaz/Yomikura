@@ -2,6 +2,8 @@
 
 Yomikura (MIT License) may integrate with or download the following third-party software at runtime. **Yomikura does not claim ownership of these components.**
 
+Production builds include the installed runtime JavaScript/UI/font packages' full license texts in `licenses/THIRD_PARTY_NPM.txt`, generated from their actual package files. This includes React, React DOM, React Router, TanStack Query, Zustand, GraphQL, Lucide, Radix and their installed runtime dependencies. The public website also serves these [runtime license notices](https://yumekaz.github.io/Yomikura/assets/licenses/THIRD_PARTY_NPM.txt) for its demo. These notices supplement the native and downloaded-component information below; existing older installers do not gain new files retroactively.
+
 ---
 
 ## Suwayomi Server

@@ -107,6 +107,7 @@ Explore our detailed architectural and design specifications:
 - [Local reliability status](docs/RELIABILITY_STATUS_2026-10-24.md) - Implemented audit findings, verification evidence, and remaining work.
 - [Public beta guide](docs/BETA_TESTING.md) - Safe tester journeys and privacy-preserving feedback.
 - [Privacy](PRIVACY.md) - Exact local storage, network, and deletion behavior.
+- [Public repository and website review](docs/PUBLIC_REVIEW_2026-11-04.md) - Security repairs, policy corrections and remaining release boundaries.
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Plain-language recovery steps for common problems.
 
 ---
