@@ -30,6 +30,10 @@ async function context(options = {}) {
 async function settledImages(page) {
   await page.evaluate(() => document.fonts.ready);
   await expect.poll(() => page.evaluate(() => [...document.images].filter((image) => { const box = image.getBoundingClientRect(); return box.width && box.height && box.bottom > 0 && box.top < innerHeight; }).every((image) => image.complete && image.naturalWidth > 0)), { timeout: 20000 }).toBe(true);
+  await page.evaluate(async () => {
+    await Promise.all([...document.images].filter((image) => image.complete && image.naturalWidth > 0).map((image) => image.decode()));
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
 }
 async function revealPage(page) {
   for (const image of await page.locator('img[loading="lazy"]').all()) if (await image.isVisible()) { await image.scrollIntoViewIfNeeded(); await settledImages(page); }
