@@ -408,8 +408,8 @@ mod tests {
         .unwrap();
         let mut archive = zip::ZipArchive::new(File::open(&paths[0]).unwrap()).unwrap();
         assert_eq!(archive.len(), 2);
-        assert_eq!(archive.by_index(0).unwrap().name(), "001.png");
-        assert_eq!(archive.by_index(1).unwrap().name(), "002.png");
+        assert_eq!(archive.by_index(0).unwrap().name().unwrap(), "001.png");
+        assert_eq!(archive.by_index(1).unwrap().name().unwrap(), "002.png");
         assert_ne!(
             paths,
             write_export(&root, Some("Comic"), Some("Chapter 1.cbz"), &[page()]).unwrap()
