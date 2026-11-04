@@ -10,7 +10,7 @@ const require = createRequire(path.join(build.source, "package.json"));
 const { chromium, expect } = require("@playwright/test");
 const axeModule = require("@axe-core/playwright");
 const AxeBuilder = axeModule.default || axeModule.AxeBuilder;
-const hosted = await serve(build.output);
+let hosted = await serve(build.output);
 const browser = await chromium.launch();
 const review = path.join(checkoutRoot, ".cache/homepage-review"); await mkdir(review, { recursive: true });
 const screens = path.join(build.output, "assets/screens"); await mkdir(screens, { recursive: true });
@@ -33,7 +33,8 @@ async function settledImages(page) {
 }
 async function revealPage(page) {
   for (const image of await page.locator('img[loading="lazy"]').all()) if (await image.isVisible()) { await image.scrollIntoViewIfNeeded(); await settledImages(page); }
-  await page.keyboard.press("Control+Home");
+  await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); window.scrollTo(0, 0); });
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await settledImages(page);
 }
 async function audit(page, label) {
@@ -76,6 +77,10 @@ try {
     await appContext.close();
   }
   assert.deepEqual(demoRequests, [], "The public demo must not probe a visitor's local server");
+
+  // Screenshot generation is complete. Serve a fresh immutable snapshot so the
+  // homepage can load those images without request-time filesystem access.
+  await hosted.close(); hosted = await serve(build.output);
 
   const desktop = await context(); const page = currentPage = await desktop.newPage(); observe(page);
   await page.goto(hosted.origin + PAGES_BASE);

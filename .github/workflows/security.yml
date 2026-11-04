@@ -34,7 +34,7 @@ jobs:
       - run: pnpm install --lockfile-only --ignore-scripts
       - working-directory: src-tauri
         run: |
-          cargo update -p zip --precise 9.0.5
+          cargo update -p tauri-plugin-updater --precise 2.14.1
           cargo update -p rustls --precise 0.23.46
           cargo update -p quinn-proto --precise 0.11.15
       - uses: actions/upload-artifact@v4
