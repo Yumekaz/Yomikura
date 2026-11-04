@@ -127,7 +127,7 @@ describe("download backend ownership", () => {
     await vi.waitFor(async () => expect(await saved(demo)).not.toBeNull());
     expect((await saved(first))!.mangaTitle).toBe("First title"); expect((await saved(demo))!.isDemo).toBe(true);
     expect(mocks.invoke.mock.calls.every((call) => call[1].url.startsWith(first.serverBaseUrl))).toBe(true);
-    expect(vi.mocked(fetch).mock.calls.some((call) => String(call[0]).startsWith("https://images.example"))).toBe(true);
+    expect(vi.mocked(fetch).mock.calls.some((call) => new URL(String(call[0])).origin === "https://images.example")).toBe(true);
   });
   it("does not publish an old cached-chapter load after a later profile load", async () => {
     let release!: (chapters: cache.CachedChapter[]) => void;

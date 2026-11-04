@@ -8,7 +8,9 @@ const headers = { accept: "application/vnd.github+json", "user-agent": "Yomikura
 async function latestRelease(repository) {
   const response = await fetch(`https://api.github.com/repos/${repository}/releases/latest`, { headers });
   if (!response.ok) throw new Error(`GitHub returned ${response.status} for ${repository}`);
-  return (await response.json()).tag_name.replace(/^v/, "");
+  const version = (await response.json()).tag_name;
+  if (typeof version !== "string" || !/^v\d+\.\d+\.\d+$/.test(version)) throw new Error("Unexpected upstream release version");
+  return version.slice(1);
 }
 
 const [stable, preview] = await Promise.all([

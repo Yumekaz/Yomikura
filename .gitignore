@@ -17,3 +17,6 @@ test-results/
 playwright-report/
 suwayomi-upstream-report.md
 mihon_app_images_by_me/
+new_mihon_pics/
+.reader-source/
+site-dist/

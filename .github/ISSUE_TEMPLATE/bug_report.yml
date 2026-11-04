@@ -6,12 +6,12 @@ body:
   - type: markdown
     attributes:
       value: |
-        Please remove passwords, tokens, private server URLs, and personal files before submitting.
+        For security vulnerabilities use https://github.com/Yumekaz/Yomikura/security/advisories/new instead of a public issue. Remove passwords, tokens, private server URLs, and personal files before submitting a bug report.
   - type: input
     id: version
     attributes:
       label: Yomikura version
-      placeholder: "1.0.13"
+      placeholder: "Version shown in Settings → About"
     validations:
       required: true
   - type: input

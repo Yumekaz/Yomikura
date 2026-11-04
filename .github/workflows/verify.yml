@@ -69,6 +69,9 @@ jobs:
       - name: Check Rust formatting
         working-directory: src-tauri
         run: cargo fmt -- --check
+      - name: Native unit tests
+        working-directory: src-tauri
+        run: cargo test --lib --locked
       - name: Run Rust Clippy
         working-directory: src-tauri
         run: cargo clippy --all-targets --all-features -- -D warnings
