@@ -119,6 +119,16 @@ try {
   await revealPage(page);
   await page.screenshot({ path: path.join(review, "setup-light-desktop.jpg"), fullPage: true, type: "jpeg", quality: 85 });
   await audit(page, "Public setup guide");
+  // The optional address helper must navigate directly, even with the public
+  // page's CSP, and must reject credentials before opening another tab.
+  await page.getByLabel("Your library address", { exact: true }).fill("https://reader:example-password@library.example/");
+  await page.getByRole("button", { name: "Open my library", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("without a username or password");
+  await desktop.route("https://library.example/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<h1>Synthetic library</h1>" }));
+  await page.getByLabel("Your library address", { exact: true }).fill("https://library.example/");
+  const opened = desktop.waitForEvent("page");
+  await page.getByRole("button", { name: "Open my library", exact: true }).click();
+  const libraryTab = await opened; await expect(libraryTab).toHaveURL("https://library.example/"); await libraryTab.close();
   await page.reload(); await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   const zip = await fetch(hosted.origin + metadata.web.url); assert.equal(zip.status, 200); assert.equal(Number(zip.headers.get("content-length")), metadata.web.bytes);
   const checksum = await fetch(hosted.origin + metadata.web.checksumUrl); assert.equal(checksum.status, 200); assert.ok((await checksum.text()).startsWith(metadata.web.sha256));
