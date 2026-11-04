@@ -4,6 +4,14 @@ import { APP_VERSION } from "../../utils/appVersion";
 import { SuwayomiServerUpdaterRow, TauriUpdaterRow } from "./UpdatePanels";
 import { BrandLogo } from "../Brand";
 
+const projectUrl = "https://github.com/Yumekaz/Yomikura/";
+const helpLinks = [
+  [FlaskConical, "Beta feedback", "issues/new?template=beta_feedback.yml"],
+  [Bug, "Report a bug", "issues/new?template=bug_report.yml"],
+  [CircleHelp, "Troubleshooting", "blob/main/docs/TROUBLESHOOTING.md"],
+  [ShieldCheck, "Privacy", "blob/main/PRIVACY.md"],
+] as const;
+
 export function AboutSettingsPanel() {
   const desktop = isTauri();
 
@@ -34,13 +42,10 @@ export function AboutSettingsPanel() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Help and project information">
-            <a className="yomi-button yomi-button-secondary justify-center" href="https://github.com/Yumekaz/Yomikura/issues/new?template=beta_feedback.yml" target="_blank" rel="noreferrer"><FlaskConical />Beta feedback</a>
-            <a className="yomi-button yomi-button-secondary justify-center" href="https://github.com/Yumekaz/Yomikura/issues/new?template=bug_report.yml" target="_blank" rel="noreferrer"><Bug />Report a bug</a>
-            <a className="yomi-button yomi-button-secondary justify-center" href="https://github.com/Yumekaz/Yomikura/blob/main/docs/TROUBLESHOOTING.md" target="_blank" rel="noreferrer"><CircleHelp />Troubleshooting</a>
-            <a className="yomi-button yomi-button-secondary justify-center" href="https://github.com/Yumekaz/Yomikura/blob/main/PRIVACY.md" target="_blank" rel="noreferrer"><ShieldCheck />Privacy</a>
+            {helpLinks.map(([Icon, label, path]) => <a key={path} className="yomi-button yomi-button-secondary justify-center" href={projectUrl + path} target="_blank" rel="noreferrer"><Icon />{label}</a>)}
           </div>
 
-          <p className="text-xs text-slate-500 leading-relaxed">Third-party components are documented in <a href="https://github.com/Yumekaz/Yomikura/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noreferrer" className="text-yomi-jade hover:underline">THIRD_PARTY_NOTICES.md</a>.</p>
+          <p className="text-xs text-slate-500 leading-relaxed">Third-party components are documented in <a href={projectUrl + "blob/main/THIRD_PARTY_NOTICES.md"} target="_blank" rel="noreferrer" className="text-yomi-jade hover:underline">THIRD_PARTY_NOTICES.md</a>.</p>
           <p className="text-xs text-slate-500 leading-relaxed">Set in Playfair Display and Inter. Both typefaces are included under the SIL Open Font License.</p>
         </div>
       </div>
