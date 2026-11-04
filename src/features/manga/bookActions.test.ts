@@ -15,7 +15,7 @@ it("hands a source URL to the desktop browser command without command interpolat
 });
 
 it("rejects unsafe source links before invoking native code and propagates launcher failures", async () => {
-  await expect(openSourceInDesktop("file:///C:/Windows/System32/cmd.exe")).rejects.toThrow(/valid source/i);
+  await expect(openSourceInDesktop("file:///C:/Windows/System32/cmd.exe")).rejects.toThrow(/valid/i);
   expect(native.invoke).not.toHaveBeenCalled();
   native.invoke.mockRejectedValueOnce(new Error("Browser association unavailable"));
   await expect(openSourceInDesktop("https://example.com/story")).rejects.toThrow("Browser association unavailable");

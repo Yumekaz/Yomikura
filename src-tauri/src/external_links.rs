@@ -1,4 +1,4 @@
-/** Only web source pages may leave the application through this command. */
+/** Only validated HTTP(S) pages may leave the application through this command. */
 fn web_url(value: &str) -> Result<String, String> {
     if value.chars().any(char::is_control) {
         return Err("The source website address is invalid.".to_string());
