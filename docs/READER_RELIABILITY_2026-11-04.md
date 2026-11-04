@@ -47,7 +47,7 @@ Browser specifications: [zoom](../tests/e2e/reader-zoom.spec.ts), [endings](../t
 
 ## GitHub verification
 
-Source/test commit: `724ebfcb609b7c831b912f1eeb44a6b507613c9a` on `codex/reading-room`. All three jobs passed in [Verify run 41767717025](https://github.com/Yumekaz/Yomikura/actions/runs/41767717025). All compilation and full browser/native suites ran on GitHub; no heavy local build was required.
+Final application/test commit: `8d42858731c574e5ab602031e6102ee2d67d5fee` on `codex/reading-room`. All three jobs passed in [Verify run 41771793948](https://github.com/Yumekaz/Yomikura/actions/runs/41771793948), following the successful [reader baseline run 41767717025](https://github.com/Yumekaz/Yomikura/actions/runs/41767717025) at `724ebfc`. All compilation and full browser/native suites ran on GitHub; no heavy local build was required.
 
 | Gate | Recorded result |
 | --- | --- |
@@ -57,11 +57,11 @@ Source/test commit: `724ebfcb609b7c831b912f1eeb44a6b507613c9a` on `codex/reading
 | Real Suwayomi identity, replacement and restore checks | PASS: two isolated libraries reused an endpoint without adopting stale work; verified restore and marker renewal retained the origin boundaries |
 | Frontend typechecking and unit tests | PASS: 544 tests across 80 files |
 | Release-artifact tooling tests and synchronized versions | PASS: 15 artifact-tooling tests and version synchronization |
-| Production dependency audit, build and bundle budget | PASS: 3,224,695 total bytes; 1,130,405 JavaScript bytes; 737,260 identity-artwork bytes; largest JavaScript chunk 332,839 bytes |
-| Browser interaction suite | PASS: 251 tests, plus separate chapter-menu and offline-continuity checks |
+| Production dependency audit, build and bundle budget | PASS: 3,224,670 total bytes; 1,130,289 JavaScript bytes; 737,260 identity-artwork bytes; largest JavaScript chunk 332,839 bytes |
+| Browser interaction suite | PASS: 255 tests, including the four light-palette contrast cases, plus separate chapter-menu and offline-continuity checks |
 | Tag-triggered release packages and attached checksum/signature verification | PENDING: branch artifacts do not substitute for the final release assets |
 
-Two subsequent bounded changes await the final tag preflight: tracker rows in comic details and settings use the built-in `Link2` icon instead of a remote favicon that appeared broken during visual review, and the desktop single-instance callback unminimizes the existing window before showing and focusing it. The successful `724ebfc` run does not cover these later changes. Their final validation must be recorded with the tag-built package.
+Run 41771793948 also covers the palette-aware ending surface, tracker rows using the built-in `Link2` icon instead of a broken remote favicon, and compilation of the desktop single-instance callback that unminimizes the window before showing and focusing it. Actual shortcut restoration and the corrected light ending still require the exact final installed-package check below.
 
 Earlier failed attempts remain retained privately. They exposed ambiguous test locators, a mutable DOM-ref type diagnostic, a small bundle overrun, footer-obscured completion assumptions and an offline fixture that had not actually saved the remounted image bytes. The final fixture explicitly seeds the saved chapter and requires a decoded `blob:` image before checking durable offline progress; it retains the completion/position assertions. The installer harness also stopped relying on PID-only ancestry after an unrelated compiler helper was misidentified. These earlier failures are not counted as successful checks.
 
@@ -73,7 +73,7 @@ This is a real Local-archive first-reading journey using an existing pinned priv
 
 ## Installed candidate and release handoff
 
-The installed branch candidate came from `c635bb578112b51d7e8e22fcc55d601f49d65297`, before the final test-fixture correction. Its Windows installer job passed in [run 41688782319](https://github.com/Yumekaz/Yomikura/actions/runs/41688782319); that earlier run’s Frontend job failed and is not counted as a passing full suite. The later `724ebfc` run above supplies the complete branch verification.
+The installed branch candidate came from `c635bb578112b51d7e8e22fcc55d601f49d65297`, before the final test-fixture correction. Its Windows installer job passed in [run 41688782319](https://github.com/Yumekaz/Yomikura/actions/runs/41688782319); that earlier run’s Frontend job failed and is not counted as a passing full suite. The later successful runs above supply complete branch verification.
 
 GitHub artifact `13257532221` ZIP SHA-256:
 
@@ -96,11 +96,11 @@ The archive matched GitHub’s recorded digest before extraction and execution. 
 | Source refresh | PASS: refresh completed and the displayed live metadata changed. A before/after backend JSON comparison found all 223 chapters’ read, bookmark and page-position state unchanged. |
 | Shared native zoom/reset | PASS: the isolated real Local chapter rendered at 120%, retained that scale when changing pages, and returned to 100% on double-click from both 120% and 83%. |
 | Final-chapter state | PASS for behavior: the loaded final page produced **Finished** and **There’s no next chapter** above the controls. The server confirmed page 2 of 2 and read state. |
-| Light-mode presentation | FAIL in this branch installer: the ending’s title and actions were too dark against the black canvas. The subsequent palette-aware surface fix and four contrast checks await the final build and installed retest. |
+| Light-mode presentation | FAIL in this earlier branch installer: the ending’s title and actions were too dark against the black canvas. The subsequent surface fix passed contrast checks in all four light palettes; the exact final installer still needs its visual retest. |
 
-These are branch-candidate observations. They do not substitute for installing and checking the exact final release asset, particularly the subsequent light-mode surface, icon and minimized-window changes. The original profile and its resume position were restored after the isolated reader checks.
+These are branch-candidate observations. They do not substitute for installing and checking the exact final release asset, particularly the subsequent light-mode surface, icon and minimized-window changes. The original profile and its resume position were restored after the isolated reader checks; a backend comparison confirmed all 223 original chapter states were unchanged after QA.
 
-Current sanitized views use original project artwork: [reader zoom](images/beta.4/reader-zoom.png), [reader ending](images/beta.4/reader-end.png) and [browser setup guide](images/beta.4/browser-setup.png). These three screenshots come from passing run 41767717025; the later light-mode correction needs its new run’s evidence.
+Current sanitized original-art views: [reader zoom](images/beta.4/reader-zoom.png), [reader ending](images/beta.4/reader-end.png) and [browser setup guide](images/beta.4/browser-setup.png). The updated reader views come from passing run 41771793948. Its isolated contrast-fixture screenshots show [Ember](images/beta.4/reader-end-light-ember.png), [Sakura](images/beta.4/reader-end-light-sakura.png), [Forest](images/beta.4/reader-end-light-forest.png) and [Moonstone](images/beta.4/reader-end-light-moonstone.png). The fixture’s transient pending-progress indicator is captured during test synchronization, not presented as a released library or live source session.
 
 **PENDING:** the exact tag-built Windows installer, attached checksums/updater payload signatures and final installed-package smoke test. Beta.4 must remain an unpublished draft until those concrete artifacts are reviewed and publication is explicitly approved. Stable updater and ordinary website-download routing continue to follow stable releases.
 
