@@ -6,12 +6,12 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for testing Yomikura. Do not include passwords, tokens, private server URLs, manga files, or full diagnostic logs. Yomikura never sends diagnostics automatically.
+        Thank you for testing Yomikura. Use https://github.com/Yumekaz/Yomikura/security/advisories/new for security vulnerabilities. Do not include passwords, tokens, private server URLs, manga files, or full diagnostic logs. Yomikura never sends diagnostics automatically.
   - type: input
     id: version
     attributes:
       label: Yomikura version
-      placeholder: "1.0.24"
+      placeholder: "Version shown in Settings → About"
     validations:
       required: true
   - type: dropdown

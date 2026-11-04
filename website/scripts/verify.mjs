@@ -10,7 +10,7 @@ const require = createRequire(path.join(build.source, "package.json"));
 const { chromium, expect } = require("@playwright/test");
 const axeModule = require("@axe-core/playwright");
 const AxeBuilder = axeModule.default || axeModule.AxeBuilder;
-const hosted = await serve(build.output);
+let hosted = await serve(build.output);
 const browser = await chromium.launch();
 const review = path.join(checkoutRoot, ".cache/homepage-review"); await mkdir(review, { recursive: true });
 const screens = path.join(build.output, "assets/screens"); await mkdir(screens, { recursive: true });
@@ -30,10 +30,15 @@ async function context(options = {}) {
 async function settledImages(page) {
   await page.evaluate(() => document.fonts.ready);
   await expect.poll(() => page.evaluate(() => [...document.images].filter((image) => { const box = image.getBoundingClientRect(); return box.width && box.height && box.bottom > 0 && box.top < innerHeight; }).every((image) => image.complete && image.naturalWidth > 0)), { timeout: 20000 }).toBe(true);
+  await page.evaluate(async () => {
+    await Promise.all([...document.images].filter((image) => image.complete && image.naturalWidth > 0).map((image) => image.decode()));
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
 }
 async function revealPage(page) {
   for (const image of await page.locator('img[loading="lazy"]').all()) if (await image.isVisible()) { await image.scrollIntoViewIfNeeded(); await settledImages(page); }
-  await page.keyboard.press("Control+Home");
+  await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); window.scrollTo(0, 0); });
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await settledImages(page);
 }
 async function audit(page, label) {
@@ -77,6 +82,10 @@ try {
   }
   assert.deepEqual(demoRequests, [], "The public demo must not probe a visitor's local server");
 
+  // Screenshot generation is complete. Serve a fresh immutable snapshot so the
+  // homepage can load those images without request-time filesystem access.
+  await hosted.close(); hosted = await serve(build.output);
+
   const desktop = await context(); const page = currentPage = await desktop.newPage(); observe(page);
   await page.goto(hosted.origin + PAGES_BASE);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
@@ -110,6 +119,16 @@ try {
   await revealPage(page);
   await page.screenshot({ path: path.join(review, "setup-light-desktop.jpg"), fullPage: true, type: "jpeg", quality: 85 });
   await audit(page, "Public setup guide");
+  // The optional address helper must navigate directly, even with the public
+  // page's CSP, and must reject credentials before opening another tab.
+  await page.getByLabel("Your library address", { exact: true }).fill("https://reader:example-password@library.example/");
+  await page.getByRole("button", { name: "Open my library", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("without a username or password");
+  await desktop.route("https://library.example/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<h1>Synthetic library</h1>" }));
+  await page.getByLabel("Your library address", { exact: true }).fill("https://library.example/");
+  const opened = desktop.waitForEvent("page");
+  await page.getByRole("button", { name: "Open my library", exact: true }).click();
+  const libraryTab = await opened; await expect(libraryTab).toHaveURL("https://library.example/"); await libraryTab.close();
   await page.reload(); await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   const zip = await fetch(hosted.origin + metadata.web.url); assert.equal(zip.status, 200); assert.equal(Number(zip.headers.get("content-length")), metadata.web.bytes);
   const checksum = await fetch(hosted.origin + metadata.web.checksumUrl); assert.equal(checksum.status, 200); assert.ok((await checksum.text()).startsWith(metadata.web.sha256));

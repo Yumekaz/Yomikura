@@ -2,6 +2,16 @@
 
 Yomikura contains no project analytics, advertising SDK, account system, or telemetry endpoint.
 
+This describes Yomikura's own data handling. Hosting, download, backend and source providers receive ordinary network requests and have their own policies; no project telemetry does not mean no network activity.
+
+## Public homepage and demo
+
+The [public website](https://yumekaz.github.io/Yomikura/) is hosted by GitHub Pages. GitHub receives requests for pages and assets, including ordinary connection information such as IP addresses; see [GitHub's privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement). Fonts and artwork are served with the site. The homepage has no project analytics, advertising pixels or third-party font service.
+
+The site stores its appearance preference locally. The interactive demo uses the same GitHub Pages origin and can retain demo preferences and reading state in browser storage. It contains original sample stories and starts in demo mode; it is not your personal library. The standalone browser guide's optional address form opens your chosen server directly in another tab; it does not send that address to a Yomikura service. Avoid putting credentials or tokens in addresses.
+
+GitHub Pages paths on the same owner domain share a browser origin, including browser storage; this is not a separate security boundary per project. Clearing site data can remove both website preferences and demo state. Personal libraries should use the desktop app or their own self-hosted web interface as described in the guide.
+
 ## Data stored locally
 
 - Interface preferences and configured server profiles.
@@ -14,7 +24,9 @@ Yomikura contains no project analytics, advertising SDK, account system, or tele
 
 ## Network activity
 
-Yomikura connects to the Suwayomi server selected by the user. Local-engine setup downloads pinned Java and Suwayomi releases from their official GitHub release locations. Suwayomi and user-installed extensions may contact extension repositories, trackers, and content sources configured by the user. Those services have their own policies and are outside Yomikura's control.
+Yomikura connects to the Suwayomi server selected by the user. Local-engine setup downloads pinned Java and Suwayomi releases from their official GitHub release locations. Update checks may contact GitHub's release API and release downloads for Yomikura or Suwayomi even when no comic source is opened. Opening a source website or help link contacts that destination. The public homepage reads download metadata from its own releases.json; it does not send reading history to a project backend.
+
+Suwayomi and user-installed extensions may contact extension repositories, trackers and content sources configured by the user. Those services have their own policies and are outside Yomikura's control.
 
 ## Reading privacy controls
 

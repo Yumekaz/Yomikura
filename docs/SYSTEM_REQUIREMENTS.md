@@ -3,8 +3,10 @@
 ## Supported desktop systems
 
 - Windows 10 or Windows 11, 64-bit.
-- macOS builds are produced for current Intel and Apple Silicon systems, but remain unsigned and unnotarized until Apple distribution credentials are configured.
-- Linux packages target Ubuntu 22.04-compatible desktop environments with WebKitGTK 4.1.
+- Current public macOS packages target Apple silicon (aarch64); an Intel installer is not currently published. Packages remain unsigned and unnotarized.
+- Current public Linux packages target x86_64 Ubuntu 22.04-compatible desktop environments with WebKitGTK 4.1.
+
+Windows receives installed-app verification. macOS and Linux packages are built in GitHub Actions but still need equivalent interactive native testing. Check the [homepage's platform choices](https://yumekaz.github.io/Yomikura/#get-started) and release notes for the exact version being downloaded.
 
 The desktop application uses Microsoft WebView2 on Windows. Current Windows 10 and Windows 11 installations normally include it; install the Microsoft WebView2 Runtime if Yomikura opens as an empty native window.
 

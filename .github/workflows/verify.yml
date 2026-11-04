@@ -55,6 +55,9 @@ jobs:
           node-version: 22
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -69,6 +72,9 @@ jobs:
       - name: Check Rust formatting
         working-directory: src-tauri
         run: cargo fmt -- --check
+      - name: Native unit tests
+        working-directory: src-tauri
+        run: cargo test --lib --locked
       - name: Run Rust Clippy
         working-directory: src-tauri
         run: cargo clippy --all-targets --all-features -- -D warnings

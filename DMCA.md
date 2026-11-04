@@ -1,25 +1,17 @@
-# Digital Millennium Copyright Act (DMCA) Policy
+# Copyright concerns and DMCA notices
 
-Yomikura is a client application (web, PWA, and desktop). It does **not** host, mirror, stream, or distribute copyrighted manga, comics, or media files. It does **not** ship scraping extensions or extension source code.
+Yomikura is an independent reader for user-controlled Suwayomi libraries. The project does not operate a third-party manga catalogue, content proxy or reading server, and it does not bundle source extensions. The public demo contains original generated story illustrations; code, documentation, artwork and third-party notices remain subject to their respective rights and licenses.
 
-Content retrieval is performed by the user's **Suwayomi Server** instance (which the user installs, connects to, or—in desktop mode—may allow Yomikura to download and run locally). Yomikura only displays data returned by that backend.
+## Material published by this project
 
-We respect intellectual property rights. If you believe material **in this repository** (documentation, screenshots, placeholders, etc.) infringes your copyright, you may submit a takedown notification.
+For a concern about this repository, its GitHub Pages website, release assets or demo, identify the exact public URL or file path, the work concerned and why you believe the use is unauthorized.
 
-## How to Submit a Takedown Notice
+A [public issue](https://github.com/Yumekaz/Yomikura/issues/new) may be used for an informal correction request containing only public information. **Do not post a postal address, phone number, signature, private identity document or other sensitive information in an issue.** An issue is not a private legal-notice channel.
 
-Your notice must include:
+For a formal DMCA notice about material hosted on GitHub, follow [GitHub's DMCA takedown process](https://docs.github.com/en/site-policy/content-removal-policies/dmca-takedown-policy). Use GitHub's official submission route and its current notice requirements. GitHub's policy also explains counter-notices and how notice information may be published or shared. This document does not designate a separate DMCA agent, promise statutory safe-harbor status or replace GitHub's process.
 
-1. A physical or electronic signature of the copyright owner or authorized agent;
-2. Identification of the copyrighted work claimed infringed;
-3. Identification of the material in this repository (file paths, URLs, line numbers);
-4. Contact information (address, phone, email);
-5. A good-faith statement that use is not authorized; and
-6. A statement under penalty of perjury that you are authorized to act for the owner.
+## Material outside this project
 
-## Contact
+Yomikura's maintainers cannot remove material from a source website, third-party extension repository or someone else's Suwayomi server. Direct those concerns to the responsible operator. A source title appearing in a reader does not establish that its content is hosted by the Yomikura project.
 
-- Open a **GitHub Issue** in this repository, or
-- Contact repository maintainers via their GitHub profiles.
-
-**Note:** Yomikura cannot remove content from third-party websites, extension sources, or user-controlled Suwayomi servers. Claims about content fetched through a user's server should be directed to the server operator or content provider.
+For a security flaw rather than a copyright concern, use the private route in [SECURITY.md](SECURITY.md).

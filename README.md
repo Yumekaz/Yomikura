@@ -16,14 +16,16 @@ Your next chapter has a home. Yomikura is a free, open-source manga and comic re
 
 The homepage labels the current public beta and previous stable release separately, lists the available platform architectures, and links the tested limitations. Windows installers are not yet publisher-signed; interactive macOS/Linux testing has separate coverage limits.
 
+Read [known issues and the security review](docs/KNOWN_ISSUES.md#security-review-and-existing-installers) before installing. Source dependency fixes do not retroactively change published installers.
+
 Yomikura is an independent project inspired by the design and feel of Mihon. Desktop and browser versions share the React/TypeScript reader; Suwayomi owns library data, source execution and server downloads.
 
 > [!IMPORTANT]
 > **Legal Disclaimer & Project Status**
-> - **Yomikura is a client, not a content host.** It does not host, mirror, stream, or distribute copyrighted manga, comics, or media.
+> - **Your library is yours.** The project does not operate a third-party comic catalogue or content proxy. The public demo uses original generated illustrations.
 > - **Zero extensions bundled.** Scraping extensions and repository indexes are user-configured on Suwayomi Server—not shipped by Yomikura.
 > - **Web/PWA:** Connect to your own [Suwayomi Server](https://github.com/Suwayomi/Suwayomi-Server) URL.
-> - **Desktop (Tauri):** Can connect to a remote server **or** optionally download and run Suwayomi Server + JRE locally on your machine. Content fetching still happens inside Suwayomi, not Yomikura.
+> - **Desktop (Tauri):** Can connect to a remote server **or** optionally download and run Suwayomi Server + JRE locally on your machine. Suwayomi executes extensions and retrieves source content; the reader receives and may save pages returned by that server.
 > - **No Affiliation.** Independent project—not endorsed by Mihon, Tachiyomi, Suwayomi, Keiyoushi, or any publisher.
 
 ---
@@ -36,8 +38,8 @@ Yomikura is an independent project inspired by the design and feel of Mihon. Des
 
 ## What Yomikura Is Not
 
-- **Not a manga hosting service.** It contains no media, links, or pirate indexes.
-- **Not a scraping proxy.** The frontend does not make connections to content providers; it operates solely through your backend server's APIs.
+- **Not a manga hosting service.** It ships original demo art and identity assets, with no third-party comic catalogue or bundled source extensions.
+- **Not a scraping proxy.** Source execution belongs to Suwayomi. The client also makes setup/update requests and can open a source website; see [Privacy](PRIVACY.md).
 - **Not an APK runtime.** Yomikura does not run Android extensions in the browser. It only parses repository indexes to let users trigger backend-side extension updates.
 
 ---
@@ -48,11 +50,11 @@ Yomikura is an independent project inspired by the design and feel of Mihon. Des
 
 1. Download the installer for your OS from **[GitHub Releases](https://github.com/Yumekaz/Yomikura/releases)**.
 2. Launch Yomikura — onboarding will guide you through storage location, optional JRE + Suwayomi download, and first connection.
-3. Add a trusted Extension Store in **Extensions → Stores**, verify its publisher and signing key, then install sources in **Browse** (user-configured; nothing bundled).
+3. Open **Discover → Extensions → Stores**, add a repository you trust, review the trust prompt, then install the sources you want. Return to **Discover** to browse them. Nothing is bundled.
 
 The local Suwayomi engine stays in the background; Yomikura disables Suwayomi's separate fallback browser window for managed storage.
 
-Yomikura is an independent open-source project applying to the [SignPath Foundation](https://signpath.org/) for free Windows code signing. Until that application is approved and the workflow is enabled, release installers are unsigned.
+Windows installers are currently unsigned. The updater's artifact signature is separate from Windows publisher signing; read [signing details](docs/release-signing.md) and release notes before installing.
 
 ### Web / PWA
 
@@ -105,6 +107,7 @@ Explore our detailed architectural and design specifications:
 - [Local reliability status](docs/RELIABILITY_STATUS_2026-10-24.md) - Implemented audit findings, verification evidence, and remaining work.
 - [Public beta guide](docs/BETA_TESTING.md) - Safe tester journeys and privacy-preserving feedback.
 - [Privacy](PRIVACY.md) - Exact local storage, network, and deletion behavior.
+- [Public repository and website review](docs/PUBLIC_REVIEW_2026-11-04.md) - Security repairs, policy corrections and remaining release boundaries.
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Plain-language recovery steps for common problems.
 
 ---
@@ -116,5 +119,6 @@ Yomikura is built with a strong commitment to open-source compliance, user priva
 - **Third-Party:** [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — Suwayomi Server (MPL-2.0), Temurin JRE, Tauri.
 - **Terms of Service:** [TERMS.md](TERMS.md)
 - **Privacy Policy:** [PRIVACY.md](PRIVACY.md) — local-first, zero project telemetry.
-- **Contributing:** See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines. We do not accept contributions containing scraping logic, bypasses, or copyrighted assets.
+- **Security reports:** Use the [private vulnerability report](https://github.com/Yumekaz/Yomikura/security/advisories/new); see [SECURITY.md](SECURITY.md).
+- **Contributing:** See [CONTRIBUTING.md](CONTRIBUTING.md). Contributions must respect third-party licenses and exclude unlicensed comic artwork or source-specific scraping/bypass logic.
 - **DMCA Policy:** We take copyright compliance seriously. For our notice and takedown procedure, see [DMCA.md](DMCA.md).

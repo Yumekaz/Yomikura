@@ -232,7 +232,8 @@ fn write_export(
             entry
                 .read_to_end(&mut bytes)
                 .map_err(|error| error.to_string())?;
-            if entry.name() != page.name || bytes != page.bytes {
+            if entry.name().map_err(|error| error.to_string())? != page.name || bytes != page.bytes
+            {
                 return Err("The exported archive did not match its pages.".into());
             }
         }
@@ -272,7 +273,10 @@ fn archive_pages(bytes: Vec<u8>) -> Result<Vec<ExportPage>, String> {
         if entry.size() > 80 * 1024 * 1024 || total > 256 * 1024 * 1024 {
             return Err("The archive exceeds the export size limit.".into());
         }
-        let name = entry.name().to_owned();
+        let name = entry
+            .name()
+            .map_err(|error| error.to_string())?
+            .into_owned();
         if !valid_component(&name) {
             return Err("The archive contains an invalid page name.".into());
         }
@@ -404,8 +408,8 @@ mod tests {
         .unwrap();
         let mut archive = zip::ZipArchive::new(File::open(&paths[0]).unwrap()).unwrap();
         assert_eq!(archive.len(), 2);
-        assert_eq!(archive.by_index(0).unwrap().name(), "001.png");
-        assert_eq!(archive.by_index(1).unwrap().name(), "002.png");
+        assert_eq!(archive.by_index(0).unwrap().name().unwrap(), "001.png");
+        assert_eq!(archive.by_index(1).unwrap().name().unwrap(), "002.png");
         assert_ne!(
             paths,
             write_export(&root, Some("Comic"), Some("Chapter 1.cbz"), &[page()]).unwrap()

@@ -8,11 +8,41 @@ on:
   schedule:
     - cron: "23 3 * * 1"
   workflow_dispatch:
+    inputs:
+      refresh_dependencies:
+        description: Resolve the reviewed dependency updates and retain lockfiles for review
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
+  refresh-dependencies:
+    if: github.event_name == 'workflow_dispatch' && inputs.refresh_dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install --lockfile-only --ignore-scripts
+      - working-directory: src-tauri
+        run: |
+          cargo update -p tauri-plugin-updater --precise 2.14.1
+          cargo update -p rustls --precise 0.23.46
+          cargo update -p quinn-proto --precise 0.11.15
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reviewed-security-lockfiles
+          path: |
+            pnpm-lock.yaml
+            src-tauri/Cargo.lock
   codeql:
     name: CodeQL (JavaScript and TypeScript)
     runs-on: ubuntu-latest
@@ -34,8 +64,12 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Check public helper boundaries
+        run: node --test website/scripts/releases.test.mjs website/scripts/serve.test.mjs
       - run: pnpm run build
       - uses: github/codeql-action/analyze@v3
+      - name: Audit production and development dependencies
+        run: pnpm audit --audit-level high
 
   dependency-review:
     name: Dependency review

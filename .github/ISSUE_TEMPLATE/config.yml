@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability privately
+    url: https://github.com/Yumekaz/Yomikura/security/advisories/new
+    about: Do not share exploit details or private library data in public issues.
+  - name: Copyright concerns and formal notices
+    url: https://github.com/Yumekaz/Yomikura/blob/main/DMCA.md
+    about: See the public-material scope and GitHub's formal notice process.
+  - name: Browser setup guide
+    url: https://yumekaz.github.io/Yomikura/setup/
+    about: Visual steps for the prebuilt web interface and Suwayomi.

@@ -1,6 +1,6 @@
 # Terms of Service
 
-**Last Updated:** June 2026
+**Description reviewed:** November 4, 2026
 
 Welcome to **Yomikura**. By downloading, hosting, building, or using Yomikura (the "Software"), you agree to these Terms of Service.
 
@@ -16,7 +16,7 @@ Yomikura is a free, open-source **client** for Suwayomi-compatible manga and com
 **Important boundaries:**
 
 - **Not a hosted service:** Project maintainers do not operate central reading servers, content databases, or proxy networks.
-- **No content provision:** Yomikura does not host, provide, distribute, or index copyrighted manga, comics, or media.
+- **Content boundary:** The project does not operate a third-party comic catalogue, source proxy or personal-library hosting service. Its public demo and website include original generated illustrations. The client displays and may save content returned by your configured Suwayomi server.
 - **No extension distribution:** Yomikura does not ship scraping extensions or community extension repositories. Extensions are installed and executed by **your** Suwayomi Server instance when you configure repositories.
 - **Third-party backend:** Suwayomi Server is separate software (MPL-2.0). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
