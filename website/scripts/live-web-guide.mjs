@@ -66,7 +66,7 @@ try {
   await page.getByRole("link", { name: "Library", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Library", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Add books", exact: true }).click();
-  await page.getByRole("link", { name: /Local source/i }).click();
+  await page.getByRole("link", { name: "Browse Local source", exact: true }).click();
   await page.getByRole("link", { name: "Web Guide Story", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Web Guide Story", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Add to Library", exact: true }).click();
