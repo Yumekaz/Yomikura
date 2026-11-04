@@ -59,7 +59,7 @@ async function fixture(page: Page, options: { saved?: number; single?: boolean; 
     if (options.delayed && record[0] === 12 && index === 1) await new Promise((resolve) => setTimeout(resolve, 850));
     await route.fulfill({ contentType: "image/svg+xml", body: picture(record[0], index, record[1].heights[index]) });
   });
-  if (options.offline) {
+  if (options.offline || options.cachedCount !== undefined) {
     await page.goto("/settings");
     await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
     await page.evaluate(async ({ backend, title, chapters }) => {
@@ -226,6 +226,7 @@ test("moving backward after completion stays read when synchronization becomes u
   data.setOnline(false);
   await page.getByRole("button", { name: "Go to page 2", exact: true }).click();
   await expect(fullPage(page, 12, 1)).toBeInViewport({ ratio: 0.2 });
+  await expect(fullPage(page, 12, 1)).toHaveAttribute("src", /^blob:/);
   await expect(fullPage(page, 12, 1)).toHaveCSS("opacity", "1");
   await expect.poll(async () => page.evaluate(async () => {
     const open = indexedDB.open("yomikura-progress", 1);
