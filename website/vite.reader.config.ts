@@ -14,6 +14,11 @@ export default async function readerConfig({ source, entry, outDir, base }: { so
       name: "released-reader-pages-assets", enforce: "pre" as const,
       transform(code: string, id: string) {
         if (!id.replaceAll("\\", "/").startsWith(sourcePrefix)) return;
+        // The public demo has no backend or desktop updater to check. Suppress
+        // the released app's update banner only in this demo build.
+        if (id.replaceAll("\\", "/").endsWith("/components/UpdateNotificationBanner.tsx")) {
+          return { code: "export function UpdateNotificationBanner() { return null; }", map: null };
+        }
         let updated = code;
         if (id.replaceAll("\\", "/").endsWith("/api/graphql/generated/graphql.ts")) updated = compactGraphqlSdk(updated);
         updated = updated.replace(/(["'`(])\/(identity\/|demo\/|placeholder-cover\.svg|placeholder-thumbnail\.svg|yomikura-logo\.png)/g, `$1${base}$2`);
