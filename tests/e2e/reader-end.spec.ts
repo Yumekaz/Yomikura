@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { mkdir } from "node:fs/promises";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
 import { chapterConnection } from "./fixtures/chapterConnection";
 
@@ -6,17 +8,18 @@ const backend = "http://127.0.0.1:45676";
 const title = "Chapter ending fixture";
 const picture = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="700"><rect width="600" height="700" fill="#264653"/></svg>';
 
-async function fixture(page: Page, options: { failLastPage?: boolean; filteredNext?: boolean } = {}) {
+async function fixture(page: Page, options: { failLastPage?: boolean; filteredNext?: boolean; lightPalette?: string } = {}) {
   let includeNext = options.filteredNext === true;
   let currentPage = 0, read = false;
   const patches: { isRead?: boolean; lastPageRead?: number }[] = [];
-  await page.addInitScript(({ backend, filteredNext }) => {
+  await page.addInitScript(({ backend, filteredNext, lightPalette }) => {
     localStorage.setItem("yomikura-library-sessions-v1", JSON.stringify({ [backend]: { marker: "11111111-1111-4111-8111-111111111111" } }));
     localStorage.setItem("yomikura-settings", JSON.stringify({ state: {
       serverBaseUrl: backend, mockMode: false, connectionStatus: "connected", readerMode: "WEBTOON", pageTransition: "none", infiniteChapterReading: false, autoDownloadCount: 0, autoDeleteReadChapters: false,
+      themeMode: lightPalette ? "light" : "dark", colorPalette: lightPalette || "ember",
       experience: { reader: { pauseBetweenChapters: true, skipRead: filteredNext } },
     }, version: 0 }));
-  }, { backend, filteredNext: !!options.filteredNext });
+  }, { backend, filteredNext: !!options.filteredNext, lightPalette: options.lightPalette });
   await page.route(`${backend}/api/graphql`, async (route) => {
     const { query, variables = {}, operationName } = route.request().postDataJSON();
     const operation = operationName || /\b(?:query|mutation)\s+(\w+)/.exec(query)?.[1] || "ConnectionTest";
@@ -85,6 +88,20 @@ test("a filtered next chapter is not announced as the source's last chapter", as
   await expect(ending.getByText("There’s no next chapter.", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Next", exact: true })).toHaveCount(0);
 });
+
+for (const palette of ["ember", "sakura", "forest", "moonstone"]) {
+  test(`the chapter ending has readable light-${palette} text on a black reading canvas`, async ({ page }) => {
+    await fixture(page, { lightPalette: palette });
+    const ending = page.getByRole("region", { name: "Chapter end", exact: true });
+    await ending.scrollIntoViewIfNeeded();
+    await expect(ending.getByText("Finished", { exact: true })).toBeVisible();
+    await expect(ending.getByText("There’s no next chapter.", { exact: true })).toBeInViewport();
+    const contrast = await new AxeBuilder({ page }).include('[aria-label="Chapter end"]').withRules(["color-contrast"]).analyze();
+    expect(contrast.violations).toEqual([]);
+    await mkdir(".cache/reader-release-review", { recursive: true });
+    await page.screenshot({ path: `.cache/reader-release-review/reader-end-light-${palette}.png` });
+  });
+}
 
 test("a failed final image never becomes a finished chapter announcement", async ({ page }) => {
   const data = await fixture(page, { failLastPage: true });

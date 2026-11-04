@@ -386,6 +386,7 @@ html.reduce-motion *::after {
 .yomi-reader-top { border-bottom-width: 1px; }
 .yomi-reader-bottom { border-top-width: 1px; }
 .yomi-reader-panel { border: 1px solid var(--line-strong); border-radius: 16px; background: var(--ink-850); box-shadow: 0 18px 52px rgba(0,0,0,.34); }
+.yomi-reader-end { border: 1px solid var(--line); border-radius: 16px; background: var(--ink-950); }
 
 .yomi-dialog-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: rgba(0,0,0,.68); backdrop-filter: blur(8px); }
 .yomi-dialog { width: min(100%, 430px); border: 1px solid var(--line-strong); border-radius: 18px; padding: 22px; background: var(--ink-850); box-shadow: 0 28px 90px rgba(0,0,0,.55); animation: yomi-dialog-enter 180ms var(--ease-out); }
