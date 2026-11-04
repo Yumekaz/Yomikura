@@ -1,6 +1,6 @@
 # Reader reliability and beta verification
 
-**Current result:** beta.5 passed its complete tagged release build, package/signature verification and exact installed Windows checks, including saved reading across an outage and app restart. The original library was restored unchanged. The release remains an unpublished draft for review. The earlier candidate evidence below is retained separately from the final beta.5 results.
+**Current result:** beta.5 passed its complete tagged release build, package/signature verification and exact installed Windows checks, including saved reading across an outage and app restart. The original library was restored unchanged. The [public beta prerelease](https://github.com/Yumekaz/Yomikura/releases/tag/v1.0.25-beta.5) was published on 4 November 2026 after owner approval; v1.0.24 remains stable. The earlier candidate evidence below is retained separately from the final beta.5 results.
 
 This follow-up addresses the reported reader ending, shared zoom, source-site action and sideways comic-content movement. It continues the existing Ink & Ember interface and React/Tauri/Suwayomi architecture. The earlier [reading-workflow report](READING_WORKFLOWS_2026-11-03.md) remains the baseline for automatic offline access, extension notices, history, duplicate review and the browser setup guide; its earlier installer does not establish verification of these subsequent reader changes.
 
@@ -122,7 +122,7 @@ Tag `v1.0.25-beta.5` points to `0413cf97fbbf918dbce89c9d56cc5dee5543070d`. Its a
 
 All uploaded packages matched the original platform-build manifests. The finalizer verified **five updater payload signatures and eight target mappings** against the configured public key, then attached the three platform checksum manifests. Actual packages are Windows x64 NSIS, macOS Apple-silicon DMG/app archive, and Linux x86_64 AppImage/DEB/RPM. No Intel Mac package or interactive macOS/Linux coverage is claimed.
 
-The exact draft Windows download, `Yomikura_1.0.25-beta.5_x64-setup.exe`, is **6,418,045 bytes** with SHA-256:
+The exact Windows release download, `Yomikura_1.0.25-beta.5_x64-setup.exe`, is **6,418,045 bytes** with SHA-256:
 
 ```text
 a8010d11da690ea16376da20c0446f553062e9b8e8aaaddf37a03731fc40d1a9
@@ -147,7 +147,9 @@ The outage test stopped a separately created backend after matching its saved pr
 
 The clean GitHub installer smoke recorded 19.91 seconds to backend readiness and 920.5 MB combined working set across its verified process set. These are runner measurements, not laptop performance guarantees.
 
-The release remains an **unpublished prerelease draft** for owner review. Publication is a separate decision. The latest stable release and ordinary updater/download routing remain `v1.0.24`; no main-branch merge or public website deployment accompanied this work. [Candidate notes](releases/v1.0.25-beta.5.md) include installation steps and the tested limitations.
+The release was published as a **public prerelease** after owner approval. The latest stable release and ordinary updater/download routing remain `v1.0.24`; no main-branch merge or public website deployment accompanied this work. [Release notes](releases/v1.0.25-beta.5.md) include installation steps and the tested limitations.
+
+Post-publication checks used no GitHub credentials: all **15 public asset links** returned HTTP 200. A fresh Windows installer download matched the SHA-256 above. The installer, its signature, Windows checksum manifest and updater metadata were byte-identical to the reviewed draft files; the updater metadata retained all eight target mappings. GitHub's public latest-stable endpoint still returned the existing v1.0.24 release.
 
 ## Scope and limits
 
