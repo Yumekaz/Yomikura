@@ -8,6 +8,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { render, waitForRender } from "../../test/render";
 import AppShell from "./AppShell";
 import { FeedbackProvider } from "../ui/FeedbackProvider";
+import { LIBRARY_SESSION_EVENT } from "../../api/suwayomi/librarySession";
 
 vi.mock("../../api/suwayomi/offlineCache", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../api/suwayomi/offlineCache")>(),
@@ -37,6 +38,7 @@ async function open(path: string) {
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route element={<AppShell />}>
+            <Route path="/library" element={<div data-testid="route">Library route</div>} />
             <Route path="*" element={<div data-testid="route">Route content</div>} />
           </Route>
         </Routes>
@@ -65,6 +67,39 @@ afterEach(async () => {
 });
 
 describe("offline shell access", () => {
+  it("keeps onboarding mounted while a first connection establishes its library marker", async () => {
+    vi.mocked(getCachedChapters).mockResolvedValue([]);
+    await open("/library");
+    await waitForRender(() => expect(view!.container.querySelector(".yomi-connect-details")).not.toBeNull());
+    const details = view!.container.querySelector<HTMLDetailsElement>(".yomi-connect-details")!;
+    details.open = true;
+    await act(async () => window.dispatchEvent(new Event(LIBRARY_SESSION_EVENT)));
+    expect(view!.container.querySelector(".yomi-connect-details")).toBe(details);
+    expect(details.open).toBe(true);
+  });
+  it("takes a new reader from the demo to library setup instead of technical settings", async () => {
+    vi.mocked(getCachedChapters).mockResolvedValue([]);
+    useSettingsStore.setState({ mockMode: true, connectionStatus: "disconnected" });
+    await open("/browse/sources");
+    const connect = [...view!.container.querySelectorAll("button")].find((button) => button.textContent?.includes("Connect your library"));
+    expect(connect).toBeDefined();
+    await act(async () => connect!.click());
+    await waitForRender(() => expect(view!.container.querySelector(".yomi-connect-details")).not.toBeNull());
+    expect(useSettingsStore.getState().mockMode).toBe(false);
+    expect(view!.container.querySelector('[data-testid="route"]')).toBeNull();
+  });
+
+  it("returns from the demo to a reachable existing library", async () => {
+    useSettingsStore.setState({ mockMode: true, connectionStatus: "disconnected", testConnection: vi.fn(async () => { useSettingsStore.setState({ connectionStatus: "connected" }); return true; }) });
+    await open("/browse/sources");
+    const connect = [...view!.container.querySelectorAll("button")].find((button) => button.textContent?.includes("Connect your library"));
+    await act(async () => connect!.click());
+    await waitForRender(() => expect(view!.container.querySelector('[data-testid="route"]')).not.toBeNull());
+    expect(view!.container.querySelector('[data-testid="route"]')?.textContent).toBe("Library route");
+    expect(useSettingsStore.getState().mockMode).toBe(false);
+    expect(useSettingsStore.getState().serverBaseUrl).toBe(server);
+  });
+
   it.each(["/library", "/library/", "/downloads", "/history", "/manga/42", "/reader/12"])(
     "opens %s with cached chapters while the server is unreachable", async (path) => {
       await open(path);

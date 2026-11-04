@@ -9,6 +9,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "smoke-process-ownership.ps1")
 $installer = (Resolve-Path -LiteralPath $InstallerPath).Path
 if ((Get-Item -LiteralPath $installer).Length -lt 1MB) { throw "Installer is unexpectedly small: $installer" }
 
@@ -17,28 +18,6 @@ $backendJarUrl = "https://github.com/Suwayomi/Suwayomi-Server/releases/download/
 $backendJarSha256 = "821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5"
 $managedStorageMarker = ".yomikura-managed-storage"
 $managedStorageMarkerContent = "YOMIKURA_MANAGED_STORAGE_V1"
-
-function Get-DescendantProcessIds {
-  param([Parameter(Mandatory = $true)][int]$RootProcessId)
-
-  $processes = @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId)
-  $pending = [Collections.Generic.Queue[int]]::new()
-  $descendants = [Collections.Generic.List[int]]::new()
-  $pending.Enqueue($RootProcessId)
-
-  while ($pending.Count -gt 0) {
-    $parentId = $pending.Dequeue()
-    foreach ($process in ($processes | Where-Object { $_.ParentProcessId -eq $parentId })) {
-      $childId = [int]$process.ProcessId
-      if (-not $descendants.Contains($childId)) {
-        $descendants.Add($childId)
-        $pending.Enqueue($childId)
-      }
-    }
-  }
-
-  return $descendants.ToArray()
-}
 
 function Get-RecordedBackendPort {
   param([Parameter(Mandatory = $true)][string]$PidRecordPath)
@@ -189,9 +168,23 @@ if (-not $appPath -or -not (Test-Path -LiteralPath $appPath)) {
 }
 if (-not (Test-Path -LiteralPath $appPath)) { throw "Installed executable was not found (InstallLocation: $($entry.InstallLocation))" }
 
+# Verify the shortcut a reader actually uses, as well as the executable's icon.
+$desktopShortcut = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'Yomikura.lnk'
+if (-not (Test-Path -LiteralPath $desktopShortcut -PathType Leaf)) { throw 'Desktop shortcut was not created' }
+$shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($desktopShortcut)
+if (-not (Test-Path -LiteralPath $shortcut.TargetPath -PathType Leaf)) { throw "Desktop shortcut target does not exist: $($shortcut.TargetPath)" }
+if (-not [string]::Equals([IO.Path]::GetFullPath($shortcut.TargetPath), [IO.Path]::GetFullPath($appPath), [StringComparison]::OrdinalIgnoreCase)) { throw 'Desktop shortcut targets a different executable' }
+$shortcutIconPath = [Environment]::ExpandEnvironmentVariables(($shortcut.IconLocation -replace ',\s*-?\d+$', '').Trim('"'))
+if ($shortcutIconPath -and -not (Test-Path -LiteralPath $shortcutIconPath -PathType Leaf)) { throw "Desktop shortcut icon source does not exist: $shortcutIconPath" }
+Add-Type -AssemblyName System.Drawing
+$installedIcon = [System.Drawing.Icon]::ExtractAssociatedIcon($appPath)
+if (-not $installedIcon) { throw 'Installed executable does not expose an icon' }
+$installedIcon.Dispose()
+Write-Host 'Desktop shortcut targets the installed executable and its icon is available'
+
 Write-Host "Launching $appPath"
 $app = $null
-$ownedProcessIds = @()
+$ownedProcesses = @()
 $startupWatch = [Diagnostics.Stopwatch]::StartNew()
 try {
   if ($PreservedStoragePath) {
@@ -199,6 +192,7 @@ try {
   }
   try {
     $app = Start-Process -FilePath $appPath -PassThru
+    $null = $app.SafeHandle
   } finally {
     Remove-Item Env:YOMIKURA_SMOKE_AUTOSTART_DATA_PATH -ErrorAction SilentlyContinue
   }
@@ -271,9 +265,12 @@ try {
   if ($LASTEXITCODE -ne 0) {
     throw "Installed Suwayomi backend does not satisfy Yomikura's supported GraphQL contract"
   }
-  $ownedProcessIds = @(Get-DescendantProcessIds -RootProcessId $app.Id)
-  $measuredProcessIds = @($app.Id) + $ownedProcessIds | Select-Object -Unique
-  $measuredProcesses = @($measuredProcessIds | ForEach-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+  if ($app.HasExited) { throw "Installed application exited during the GraphQL contract check (code $($app.ExitCode))" }
+  $ownedProcesses = @(Get-SmokeOwnedProcesses -Root $app)
+  $measuredProcesses = @($app) + @($ownedProcesses | Where-Object { Test-SmokeProcessIdentity $_ } | ForEach-Object { $_.Process })
+  if ($PreservedStoragePath -and $measuredProcesses.Count -lt 2) {
+    throw "Could not verify a live child process for the installed application"
+  }
   $combinedWorkingSetBytes = ($measuredProcesses | Measure-Object -Property WorkingSet64 -Sum).Sum
   if ($null -eq $combinedWorkingSetBytes) { $combinedWorkingSetBytes = 0 }
   $combinedWorkingSetMb = [Math]::Round($combinedWorkingSetBytes / 1MB, 1)
@@ -295,12 +292,23 @@ try {
 } finally {
   if ($app) {
     $app.Refresh()
+    $closeTimedOut = $false
+    $ownershipReadError = $null
     if (-not $app.HasExited) {
+      # Include children started since the working-set measurement. This also
+      # captures any surviving child when startup failed before measurement.
+      try {
+        $ownedProcesses += @(Get-SmokeOwnedProcesses -Root $app)
+      } catch {
+        # A failed snapshot still needs to close the app and check all children
+        # captured earlier. Surface the diagnostic after that cleanup.
+        $ownershipReadError = $_
+      }
       Write-Host "Requesting a graceful application close"
       $null = $app.CloseMainWindow()
       if (-not $app.WaitForExit(15000)) {
-        Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
-        throw "Installed application did not close gracefully within 15 seconds"
+        Stop-Process -InputObject $app -Force -ErrorAction SilentlyContinue
+        $closeTimedOut = $true
       }
     }
 
@@ -309,21 +317,24 @@ try {
     # grace period; this still fails if anything genuinely remains resident.
     $childExitDeadline = [DateTime]::UtcNow.AddSeconds(15)
     do {
-      $remaining = @($ownedProcessIds | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+      $remaining = @($ownedProcesses | Where-Object { Test-SmokeProcessIdentity $_ } |
+        Sort-Object Id, StartTimeUtc -Unique)
       if ($remaining.Count -eq 0) { break }
+      if ([DateTime]::UtcNow -ge $childExitDeadline) { break }
       Start-Sleep -Milliseconds 500
-    } while ([DateTime]::UtcNow -lt $childExitDeadline)
+    } while ($true)
 
     if ($remaining.Count -gt 0) {
-      $remainingDetails = @($remaining | ForEach-Object {
-        $process = Get-Process -Id $_ -ErrorAction SilentlyContinue
-        if ($process) { "$($process.Id):$($process.ProcessName)" } else { "$_`:unknown" }
-      })
-      foreach ($processId in $remaining) {
-        Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
+      $remainingDetails = @($remaining | ForEach-Object { "$($_.Id):$($_.Process.ProcessName) ($($_.StartTimeUtc.ToString('o')))" })
+      foreach ($record in $remaining) {
+        if (Test-SmokeProcessIdentity $record) {
+          Stop-Process -InputObject $record.Process -Force -ErrorAction SilentlyContinue
+        }
       }
       throw "Owned child processes remained 15 seconds after application close: $($remainingDetails -join ', ')"
     }
+    if ($closeTimedOut) { throw "Installed application did not close gracefully within 15 seconds" }
+    if ($ownershipReadError) { throw $ownershipReadError }
     Write-Host "Application and owned child processes exited cleanly"
   }
 }

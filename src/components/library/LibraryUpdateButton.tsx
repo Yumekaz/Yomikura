@@ -18,7 +18,7 @@ export function LibraryUpdateButton() {
     useLibraryUpdate();
 
   const sdk = useMemo(() => {
-    return backend ? createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live") : undefined;
+    return backend ? createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live") : undefined;
   }, [backend]);
 
   const { data: settingsData } = useQuery({

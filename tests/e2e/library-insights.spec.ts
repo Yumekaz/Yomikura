@@ -9,7 +9,7 @@ async function fixture(page: Page, options: { incomplete?: boolean; rejectOrder?
   const book = { id: 10001, title: "Weekly Lantern", thumbnailUrl: "/demo/paper-garden.webp", status: "ONGOING", genre: ["Fantasy"], unreadCount: 40, downloadCount: 3, chapters: { totalCount: 100 }, trackRecords: { totalCount: 1 }, categories: { nodes: [{ id: 1, name: "Reading" }] } };
   const books = [book, { ...book, id: 10002, title: "Finished Garden", status: "COMPLETED", chapters: { totalCount: 20 }, unreadCount: 0, downloadCount: 0, trackRecords: { totalCount: 0 }, categories: { nodes: [{ id: 2, name: "Favorites" }] } }];
   const samples: number[] = [], moves: unknown[] = [];
-  await page.addInitScript(({ server, light }) => { localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: server, mockMode: false, connectionStatus: "connected", themeMode: light ? "light" : "dark", profiles: [{ id: "one", name: "Reading library", url: server }], activeProfileId: "one" } })); }, { server, light: options.light });
+  await page.addInitScript(({ server, light }) => { localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: server, mockMode: false, connectionStatus: "connected", themeMode: light ? "light" : "dark", colorPalette: light ? "moonstone" : "ember", profiles: [{ id: "one", name: "Reading library", url: server }], activeProfileId: "one" } })); }, { server, light: options.light });
   await page.route("**/api/graphql", async (route) => {
     const { operationName, query, variables = {} } = route.request().postDataJSON(), name = operationName || /\b(?:query|mutation)\s+(\w+)/.exec(query)?.[1]; let data: unknown;
     if (name === "GetLibraryInsights") data = { mangas: { nodes: options.incomplete ? [book] : books, totalCount: 2, pageInfo: { hasNextPage: !!options.incomplete, endCursor: options.incomplete ? "repeated" : null } } };
@@ -44,7 +44,7 @@ test("updates show partial progress and truthful server availability", async ({ 
 test("category order has keyboard accessible controls and confirmed backend positions", async ({ page }) => {
   const data = await fixture(page); await page.goto("/library"); await page.getByRole("button", { name: "Manage Categories", exact: true }).click();
   const manager = page.getByRole("dialog", { name: "Manage Categories" }); await expect(manager.getByRole("button", { name: "Move Reading up", exact: true })).toBeDisabled();
-  await manager.getByRole("button", { name: "Move Favorites up", exact: true }).click(); await expect(manager.getByRole("button", { name: "Move Favorites up", exact: true })).toBeDisabled(); expect(data.moves).toEqual([{ id: 2, position: 1 }]);
+  await manager.getByRole("button", { name: "Move Favorites up", exact: true }).click(); await expect.poll(() => data.moves).toEqual([{ id: 2, position: 1 }]); await expect(manager.getByRole("button", { name: "Move Favorites up", exact: true })).toBeDisabled();
   await expect(manager.getByRole("button", { name: "Delete category Default", exact: true })).toHaveCount(0);
 });
 test("a rejected category reorder leaves the saved order intact", async ({ page }) => {
@@ -54,5 +54,10 @@ for (const light of [false, true]) test(`insights remain accessible in ${light ?
   await fixture(page, { light }); await page.goto("/upcoming"); await expect(page.getByText(/1 of 1 eligible books checked/)).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]); await page.setViewportSize({ width: 430, height: 932 });
   expect(await page.locator("body").evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true);
-  await expect(page.getByRole("navigation", { name: "Mobile navigation", exact: true }).getByRole("link")).toHaveCount(6);
+  const navigation = page.getByRole("navigation", { name: "Mobile navigation", exact: true });
+  await expect(navigation.getByRole("link")).toHaveCount(7);
+  await navigation.getByRole("link", { name: "Statistics", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Your reading, in perspective.", exact: true })).toBeVisible();
+  expect(await page.locator("body").evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true);
+  expect((await new AxeBuilder({ page }).include('[aria-label="Mobile navigation"]').analyze()).violations).toEqual([]);
 });

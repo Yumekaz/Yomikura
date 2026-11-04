@@ -7,7 +7,7 @@ const title = "Reader continuity fixture";
 const fullPage = (page: Page, chapter: number, index: number) => page.locator(`[data-reader-chapter="${chapter}"][data-reader-page="${index}"]`).getByRole("img", { name: `Page ${index + 1}`, exact: true });
 const picture = (chapter: number, index: number, height: number) => `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="${height}"><rect width="600" height="${height}" fill="${chapter === 12 ? "#264653" : "#563d55"}"/><text x="35" y="100" font-size="30" fill="white">Chapter ${chapter} / Page ${index + 1}</text></svg>`;
 
-async function fixture(page: Page, options: { saved?: number; single?: boolean; failNext?: boolean; offline?: boolean; delayed?: boolean } = {}) {
+async function fixture(page: Page, options: { saved?: number; single?: boolean; failNext?: boolean; offline?: boolean; delayed?: boolean; cachedCount?: number } = {}) {
   const records = new Map([
     [12, { name: "First chapter", number: 1, heights: options.single ? [400] : [400, 900, 700, 500], page: options.saved ?? 0, read: false }],
     [13, { name: "Second chapter", number: 2, heights: [500, 1000], page: 0, read: false }],
@@ -18,10 +18,10 @@ async function fixture(page: Page, options: { saved?: number; single?: boolean; 
   const metadataFetches: number[] = [];
   let allowNext = !options.failNext;
   let online = !options.offline;
-  await page.addInitScript(({ backend }) => localStorage.setItem("yomikura-settings", JSON.stringify({ state: {
+  await page.addInitScript(({ backend }) => { localStorage.setItem("yomikura-library-sessions-v1", JSON.stringify({ [backend]: { marker: "11111111-1111-4111-8111-111111111111" } })); localStorage.setItem("yomikura-settings", JSON.stringify({ state: {
     serverBaseUrl: backend, mockMode: false, connectionStatus: "connected", readerMode: "WEBTOON", autoDownloadCount: 0,
     autoDeleteReadChapters: false, infiniteChapterReading: true, pageTransition: "none",
-  }, version: 0 })), { backend });
+  }, version: 0 })); }, { backend });
   await page.route("**/api/graphql", async (route) => {
     if (new URL(route.request().url()).origin !== backend || !online) return route.abort("connectionrefused");
     const { query, variables = {}, operationName } = route.request().postDataJSON();
@@ -59,7 +59,7 @@ async function fixture(page: Page, options: { saved?: number; single?: boolean; 
     if (options.delayed && record[0] === 12 && index === 1) await new Promise((resolve) => setTimeout(resolve, 850));
     await route.fulfill({ contentType: "image/svg+xml", body: picture(record[0], index, record[1].heights[index]) });
   });
-  if (options.offline) {
+  if (options.offline || options.cachedCount !== undefined) {
     await page.goto("/settings");
     await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
     await page.evaluate(async ({ backend, title, chapters }) => {
@@ -80,16 +80,16 @@ async function fixture(page: Page, options: { saved?: number; single?: boolean; 
           for (let i = 0; i < chapter.pages.length; i += 1) await cache.put(chapter.pages[i], new Response(chapter.images[i], { headers: { "content-type": "image/svg+xml" } }));
           await new Promise<void>((resolve, reject) => {
             const tx = db.transaction("chapters", "readwrite"); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
-            tx.objectStore("chapters").put({ cacheKey: `${backend}::${chapter.id}`, serverBaseUrl: backend, id: chapter.id, name: chapter.name, chapterNumber: chapter.number, mangaId: 42, mangaTitle: title, sourceOrder: chapter.number, pages: chapter.pages, cachedUrls: chapter.pages, pageCount: chapter.pages.length, cachedAt: Date.now(), totalSizeBytes: 1, lastPageRead: chapter.page, isRead: false });
+            tx.objectStore("chapters").put({ cacheKey: `${backend}::${chapter.id}`, libraryId: "11111111-1111-4111-8111-111111111111", serverBaseUrl: backend, id: chapter.id, name: chapter.name, chapterNumber: chapter.number, mangaId: 42, mangaTitle: title, sourceOrder: chapter.number, pages: chapter.pages, cachedUrls: chapter.pages, pageCount: chapter.pages.length, cachedAt: Date.now(), totalSizeBytes: 1, lastPageRead: chapter.page, isRead: false });
           });
         }
       } finally { db.close(); }
-    }, { backend, title, chapters: [...records].slice(0, 2).map(([id, value]) => ({ id, ...value,
+    }, { backend, title, chapters: [...records].slice(0, options.cachedCount ?? 2).map(([id, value]) => ({ id, ...value,
       pages: value.heights.map((_height, index) => `${backend}/api/v1/manga/42/chapter/${value.number}/page/${index}`), images: value.heights.map((height, index) => picture(id, index, height)),
     })) });
   }
   await page.goto("/reader/12");
-  await expect(page.getByText("First chapter", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(".yomi-reader-top").getByText("First chapter", { exact: true })).toBeVisible({ timeout: 15_000 });
   return { records, writes, pageFetches, metadataFetches, allowNext: () => { allowNext = true; }, setOnline: (value: boolean) => { online = value; } };
 }
 
@@ -190,16 +190,44 @@ test("offline continuation resolves appended chapters from the device cache", as
   await expect(fullPage(page, 13, 0)).toHaveAttribute("src", /^blob:/);
 });
 
+test("reconnecting restores uncached chapter continuation without resetting the active page", async ({ page }) => {
+  const data = await fixture(page, { offline: true, cachedCount: 1 });
+  await expect(fullPage(page, 12, 0)).toHaveCSS("opacity", "1");
+  await expect(page.getByText("Offline continuation uses saved chapters only.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Next", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Go to page 2", exact: true }).click();
+  await expect(page.getByText("2 of 4 pages", { exact: true })).toBeVisible();
+
+  data.setOnline(true);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByText("Offline continuation uses saved chapters only.", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("2 of 4 pages", { exact: true })).toBeVisible();
+  await expect(fullPage(page, 12, 1)).toBeInViewport({ ratio: 0.2 });
+  await expect(page.getByRole("link", { name: "Next", exact: true })).toHaveAttribute("href", "/reader/13");
+  await page.getByRole("link", { name: "Next", exact: true }).click();
+  await expect(page).toHaveURL(/\/reader\/13$/);
+  await expect(fullPage(page, 13, 0)).toHaveCSS("opacity", "1");
+  expect(data.pageFetches).toContain(13);
+});
+
 test("moving backward after completion stays read when synchronization becomes unavailable", async ({ page }) => {
-  const data = await fixture(page, { saved: 3 });
+  // Earlier images can unmount beyond the preload margin. Keep this chapter
+  // downloaded so moving backward remains readable after the server goes away.
+  const data = await fixture(page, { saved: 3, cachedCount: 1 });
   await expect(fullPage(page, 12, 3)).toHaveCSS("opacity", "1");
+  await expect(page.getByRole("region", { name: "Reading surface", exact: true })).toHaveAttribute("aria-busy", "false");
   // A restored position at the top of the last image is not its completion.
-  await page.mouse.move(640, 400); await page.mouse.wheel(0, 220);
+  expect(data.records.get(12)!.read).toBe(false);
+  // Read past the actual footer, rather than treating obscured pixels as read.
+  const distance = await fullPage(page, 12, 3).evaluate((image) => Math.max(0, image.getBoundingClientRect().bottom - document.querySelector(".yomi-reader-bottom")!.getBoundingClientRect().top + 24));
+  await page.mouse.move(640, 400); await page.mouse.wheel(0, distance);
   await expect.poll(() => data.records.get(12)!.read).toBe(true);
   await expect(page.getByRole("status", { name: "Progress synchronization" })).toHaveCount(0);
   data.setOnline(false);
   await page.getByRole("button", { name: "Go to page 2", exact: true }).click();
   await expect(fullPage(page, 12, 1)).toBeInViewport({ ratio: 0.2 });
+  await expect(fullPage(page, 12, 1)).toHaveAttribute("src", /^blob:/);
+  await expect(fullPage(page, 12, 1)).toHaveCSS("opacity", "1");
   await expect.poll(async () => page.evaluate(async () => {
     const open = indexedDB.open("yomikura-progress", 1);
     const db = await new Promise<IDBDatabase>((resolve) => { open.onsuccess = () => resolve(open.result); });

@@ -14,7 +14,7 @@ Your next chapter has a home. Yomikura is a free, open-source manga and comic re
 
 **Just curious?** [Explore two original illustrated demo stories](https://yumekaz.github.io/Yomikura/app/#/library), with no server or account needed.
 
-The homepage labels the current public beta and previous stable release separately, lists the available platform architectures, and links the tested limitations. Windows installers are not yet publisher-signed; interactive macOS/Linux testing has separate coverage limits.
+The homepage labels the current release status, lists the available platform architectures, and links the tested limitations. Exact app source is available under each release tag. Windows installers are not yet publisher-signed; interactive macOS/Linux testing has separate coverage limits.
 
 Read [known issues and the security review](docs/KNOWN_ISSUES.md#security-review-and-existing-installers) before installing. Source dependency fixes do not retroactively change published installers.
 

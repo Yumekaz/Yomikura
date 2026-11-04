@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
+import { installNativeExternalLinks } from "../../utils/externalNavigation";
 
 type ToastTone = "info" | "success" | "error";
 
@@ -75,6 +76,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     toastIdRef.current += 1;
     setToast({ id: toastIdRef.current, message, tone });
   }, []);
+
+  useEffect(() => installNativeExternalLinks(notify), [notify]);
 
   const requestText = useCallback((options: Omit<TextRequest, "resolve">) => {
     previousFocusRef.current = document.activeElement as HTMLElement | null;

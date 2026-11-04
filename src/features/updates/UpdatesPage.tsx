@@ -24,7 +24,7 @@ export default function UpdatesPage() {
   const feed = useInfiniteQuery({
     queryKey: ["updates", backend.key, mode], initialPageParam: { after: undefined, seen: [] } as UpdateCursor, enabled: !!serverBaseUrl,
     queryFn: async ({ pageParam, signal }) => {
-      const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { signal }, backend.isDemo ? "demo" : "live");
+      const sdk = createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { signal, libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live");
       const connection = (await sdk.GetUpdates({ filter: { inLibrary: { equalTo: true } }, order: [{ by: mode === "discovered" ? ChapterOrderBy.FetchedAt : ChapterOrderBy.UploadDate, byType: SortOrder.Desc }, { by: ChapterOrderBy.Id, byType: SortOrder.Desc }], first: 100, after: pageParam.after })).chapters;
       return { ...connection, next: nextUpdatePage(connection.pageInfo, pageParam) };
     },
@@ -41,7 +41,7 @@ export default function UpdatesPage() {
   }, [updates, mode]);
   return <div className="yomi-workspace">
     <div className="yomi-workspace-head"><div><h1>Updates</h1><p>{mode === "discovered" ? "Fresh chapters from the books you follow." : "Your chapters, ordered by publication date."}</p></div><span className="yomi-status-chip">{updates.length} chapters loaded</span></div>
-    <div className="mb-5 flex flex-wrap items-center gap-3"><LibraryUpdateButton /><Link className="yomi-button yomi-button-secondary" to="/upcoming">Release calendar</Link><label className="flex items-center gap-2 text-sm text-slate-300">Update date<ThemedSelect aria-label="Update date" className="yomi-field" value={mode} onValueChange={(value) => setMode(value as UpdateDateMode)}><option value="discovered">Discovery date</option><option value="published">Publication date</option></ThemedSelect></label><button type="button" className="yomi-button yomi-button-secondary" onClick={() => void feed.refetch()} disabled={feed.isFetching}><RefreshCw />Refresh feed</button></div>
+    <div className="mb-5 flex flex-wrap items-center gap-3"><LibraryUpdateButton /><Link className="yomi-button yomi-button-secondary" to="/upcoming">Release calendar</Link><label className="flex items-center gap-2 text-sm text-slate-300"><span className="whitespace-nowrap">Update date</span><ThemedSelect aria-label="Update date" className="yomi-field" value={mode} onValueChange={(value) => setMode(value as UpdateDateMode)}><option value="discovered">Discovery date</option><option value="published">Publication date</option></ThemedSelect></label><button type="button" className="yomi-button yomi-button-secondary" onClick={() => void feed.refetch()} disabled={feed.isFetching}><RefreshCw />Refresh feed</button></div>
     {feed.isLoading && <p role="status" className="py-10 text-center text-slate-400">Loading library updates…</p>}
     {feed.isError && <div role="alert" className="yomi-surface mb-4 p-4 text-sm text-amber-200"><p>{getErrorMessage(feed.error)}</p><button type="button" className="yomi-button yomi-button-secondary mt-3" onClick={() => void (feed.isFetchNextPageError ? feed.fetchNextPage() : feed.refetch())}>Retry updates</button></div>}
     {!feed.isLoading && !feed.isError && !updates.length && <div className="yomi-surface p-6"><h2 className="text-lg text-slate-200">No matching chapters in the loaded pages</h2><p className="mt-2 text-sm text-slate-400">Update your library to fetch chapters from its sources. Older pages remain available below.</p></div>}

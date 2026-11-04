@@ -15,7 +15,7 @@ export default function SourcePrefsPage() {
   return backend && sourceId ? <SourcePreferences key={`${backend.key}:${sourceId}`} backend={backend} sourceId={sourceId} /> : <p>Connect a library to open source settings.</p>;
 }
 function SourcePreferences({ backend, sourceId }: { backend: ProgressBackend; sourceId: string }) {
-  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live"), [backend]);
+  const sdk = useMemo(() => createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live"), [backend]);
   const client = useQueryClient(), key = ["source-preferences", sourceId, backend.key];
   const [drafts, setDrafts] = useState<Record<number, string>>({}), [revealed, setRevealed] = useState<Record<number, boolean>>({});
   const query = useQuery({ queryKey: key, queryFn: ({ signal }) => sdk.GetSourcePreferences({ sourceId }, undefined, AbortSignal.any([signal, AbortSignal.timeout(15000)])), retry: false });

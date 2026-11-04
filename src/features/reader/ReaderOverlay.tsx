@@ -8,13 +8,16 @@ import { ProgressSyncStatus } from "../../components/ProgressSyncStatus";
 
 function ReaderThumbnail({ url, number }: { url: string; number: number }) {
   const { url: resolvedUrl } = useReaderImageSource(url);
-  return <img src={resolvedUrl || undefined} alt={`Page ${number}`} className="h-full w-full object-cover" loading="lazy" />;
+  const [failedUrl, setFailedUrl] = useState<string>();
+  if (failedUrl && failedUrl === resolvedUrl) return <span role="img" aria-label={`Page ${number} preview unavailable`} className="grid h-full w-full place-items-center bg-ink-900 text-xs text-slate-400">{number}</span>;
+  return <img src={resolvedUrl || undefined} alt={`Page ${number}`} className="h-full w-full object-cover" loading="lazy" draggable={false} onError={() => setFailedUrl(resolvedUrl)} />;
 }
 
 interface ReaderOverlayProps {
   fullscreen?: boolean;
   onToggleFullscreen?: () => void;
   pageTools?: ReactNode;
+  zoomControls?: ReactNode;
   show: boolean;
   mangaId: number | undefined;
   chapterName: string;
@@ -42,6 +45,7 @@ interface ReaderOverlayProps {
   buildPageUrl: (pageIndex: number) => string;
   onJumpToPage: (pageIndex: number) => void;
   onHeaderRef?: (element: HTMLDivElement | null) => void;
+  onFooterRef?: (element: HTMLDivElement | null) => void;
   isAutoScrolling: boolean;
   onToggleAutoScroll: () => void;
 }
@@ -50,6 +54,7 @@ export function ReaderOverlay({
   fullscreen,
   onToggleFullscreen,
   pageTools,
+  zoomControls,
   show,
   mangaId,
   chapterName,
@@ -77,6 +82,7 @@ export function ReaderOverlay({
   buildPageUrl,
   onJumpToPage,
   onHeaderRef,
+  onFooterRef,
   isAutoScrolling,
   onToggleAutoScroll,
 }: ReaderOverlayProps) {
@@ -110,7 +116,8 @@ export function ReaderOverlay({
       </div>
 
       {/* Bottom Nav */}
-      <div className="yomi-reader-bottom pointer-events-auto flex flex-col gap-3 p-4 pb-safe">
+      <div ref={onFooterRef} className="yomi-reader-bottom pointer-events-auto flex flex-col gap-3 p-4 pb-safe">
+        {zoomControls}
         
         {/* Sub-tab panels */}
         {activeSubTab !== "none" && (
@@ -183,7 +190,7 @@ export function ReaderOverlay({
                   </>
                 )}
 
-                <div className="flex items-center justify-between border-t border-white/5 pt-3">
+                <div className="yomi-reader-setting-row border-t border-white/5 pt-3">
                   <span className="text-xs font-semibold text-slate-300">Page transition</span>
                   <ThemedSelect
                     aria-label="Page transition"
@@ -197,7 +204,7 @@ export function ReaderOverlay({
                   </ThemedSelect>
                 </div>
 
-                <div className="flex items-center justify-between">
+                <div className="yomi-reader-setting-row">
                   <span className="text-xs font-semibold text-slate-300">Auto-download ahead</span>
                   <ThemedSelect
                     aria-label="Auto-download ahead"
@@ -224,15 +231,9 @@ export function ReaderOverlay({
                       onClick={onToggleOverride}
                       aria-label="Remember reader settings for this manga"
                       aria-pressed={hasOverride}
-                      className={`relative inline-flex h-5.5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        hasOverride ? "bg-yomi-jade" : "bg-ink-950 border-white/10"
-                      }`}
+                      className="yomi-reader-remember-switch"
                     >
-                      <span
-                        className={`pointer-events-none inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          hasOverride ? "translate-x-4.5 bg-ink-950" : "translate-x-0"
-                        }`}
-                      />
+                      <span aria-hidden="true" />
                     </button>
                   </div>
                 )}

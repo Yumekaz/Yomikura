@@ -1,7 +1,7 @@
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { useState, useMemo, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link, useSearchParams } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   Box,
@@ -19,7 +19,8 @@ import { createGraphqlClient } from "../../api/graphql/client";
 import { getErrorMessage } from "../../api/suwayomi/errors";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { performVerifiedExtensionAction } from "./extensionLifecycle";
-import { fetchAllExtensions } from "../../api/library/fetchAllExtensions";
+import { useExtensionUpdates } from "./useExtensionUpdates";
+import { isSelectedLibrary } from "../../api/suwayomi/libraryUpdateState";
 
 type ExtensionAction = {
   pkgName: string;
@@ -44,18 +45,15 @@ export default function ExtensionsPage() {
   const [activeExtensionPkgs, setActiveExtensionPkgs] = useState<Set<string>>(() => new Set());
   const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null);
   const [visibleLimit, setVisibleLimit] = useState(100);
-  useEffect(() => setVisibleLimit(100), [searchInput, langFilter, showNsfw]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = searchParams.get("view") ?? "all";
+  const { data, isLoading, isError, outdated: outdatedExtensions, backend, canCheck, refreshCatalog: checkCatalog } = useExtensionUpdates();
+  useEffect(() => setVisibleLimit(100), [searchInput, langFilter, showNsfw, view]);
 
   const sdk = useMemo(() => {
     const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-    return createGraphqlClient(`${cleanUrl}/api/graphql`, undefined, mockMode ? "demo" : "live");
-  }, [serverBaseUrl, mockMode]);
-
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["extensions", serverBaseUrl, mockMode],
-    queryFn: ({ signal }) => fetchAllExtensions(sdk, signal),
-    enabled: !!serverBaseUrl,
-  });
+    return createGraphqlClient(`${cleanUrl}/api/graphql`, { libraryId: backend?.libraryId ?? null }, mockMode ? "demo" : "live");
+  }, [serverBaseUrl, mockMode, backend?.libraryId]);
 
   const markExtensionBusy = (pkgName: string, busy: boolean) => {
     setActiveExtensionPkgs((current) => {
@@ -74,21 +72,26 @@ export default function ExtensionsPage() {
     queryClient.invalidateQueries({ queryKey: ["sources"] });
     queryClient.invalidateQueries({ queryKey: ["all-sources"] });
     queryClient.invalidateQueries({ queryKey: ["installed-ext-langs"] });
+    queryClient.invalidateQueries({ queryKey: ["extension-health"] });
   };
 
   const { mutate: refreshCatalog, isPending: refreshingCatalog } = useMutation({
-    mutationFn: () => sdk.FetchExtensionCatalog({ input: {} }),
+    mutationFn: async () => {
+      const result = await checkCatalog();
+      if (result.refreshError) throw new Error(result.refreshError);
+      return result;
+    },
     onMutate: () => {
       setStatusMessage(null);
     },
     onSuccess: (result) => {
-      const syncedCount = result.fetchExtensions?.extensions?.length ?? 0;
+      const syncedCount = result.extensions.nodes.length;
       setStatusMessage({
         kind: "success",
         title: "Catalog refreshed",
         detail: syncedCount
           ? `${syncedCount.toLocaleString()} extensions were synced from Suwayomi.`
-          : "Suwayomi accepted the refresh request. Recheck the list after the server finishes syncing.",
+          : "No extensions are available from your configured stores yet.",
       });
       invalidateExtensionData();
     },
@@ -102,8 +105,10 @@ export default function ExtensionsPage() {
   });
 
   const { mutate: toggleInstall } = useMutation({
-    mutationFn: ({ pkgName, action }: ExtensionAction) =>
-      performVerifiedExtensionAction(sdk, pkgName, action),
+    mutationFn: ({ pkgName, action }: ExtensionAction) => {
+      if (!backend || !canCheck || !isSelectedLibrary(backend)) throw new Error("Reconnect this library before changing its sources.");
+      return performVerifiedExtensionAction(sdk, pkgName, action);
+    },
     onMutate: ({ pkgName }) => {
       markExtensionBusy(pkgName, true);
       setStatusMessage(null);
@@ -150,18 +155,14 @@ export default function ExtensionsPage() {
     return data?.extensions?.nodes?.filter((n): n is NonNullable<typeof n> => n != null) || [];
   }, [data]);
 
-  const outdatedExtensions = useMemo(
-    () => extensions.filter((ext) => ext.isInstalled && ext.hasUpdate),
-    [extensions]
-  );
-
   const { mutate: updateAllExtensions, isPending: updatingAll } = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (extensionsToUpdate: typeof outdatedExtensions) => {
       const failures: string[] = [];
       const recovered: string[] = [];
       let updated = 0;
-      for (const extension of outdatedExtensions) {
+      for (const extension of extensionsToUpdate) {
         try {
+          if (!backend || !canCheck || !isSelectedLibrary(backend)) throw new Error("The selected library changed.");
           const result = await performVerifiedExtensionAction(sdk, extension.pkgName, "update");
           if (result.recovered) recovered.push(extension.name);
           else updated += 1;
@@ -171,9 +172,9 @@ export default function ExtensionsPage() {
       }
       return { failures, recovered, updated };
     },
-    onMutate: () => {
+    onMutate: (extensionsToUpdate) => {
       setStatusMessage(null);
-      outdatedExtensions.forEach((ext) => markExtensionBusy(ext.pkgName, true));
+      extensionsToUpdate.forEach((ext) => markExtensionBusy(ext.pkgName, true));
     },
     onSuccess: (result) => {
       const hasProblems = result.failures.length > 0 || result.recovered.length > 0;
@@ -193,8 +194,8 @@ export default function ExtensionsPage() {
         detail: getErrorMessage(error),
       });
     },
-    onSettled: () => {
-      outdatedExtensions.forEach((ext) => markExtensionBusy(ext.pkgName, false));
+    onSettled: (_result, _error, extensionsToUpdate) => {
+      extensionsToUpdate.forEach((ext) => markExtensionBusy(ext.pkgName, false));
     },
   });
 
@@ -204,7 +205,6 @@ export default function ExtensionsPage() {
     const knownTotal = data?.extensions?.totalCount ?? extensions.length;
 
     return {
-      visible: showNsfw ? extensions.length : extensions.length - hiddenByNsfw,
       hiddenByNsfw: showNsfw ? 0 : hiddenByNsfw,
       total: knownTotal,
       installed,
@@ -219,6 +219,8 @@ export default function ExtensionsPage() {
 
   const filteredExtensions = useMemo(() => {
     return extensions.filter(ext => {
+      if (view === "installed" && !ext.isInstalled) return false;
+      if (view === "updates" && !(ext.isInstalled && ext.hasUpdate)) return false;
       if (!showNsfw && ext.isNsfw) return false;
       if (langFilter !== ALL_LANG_FILTER && ext.lang !== langFilter) return false;
       if (searchInput) {
@@ -227,12 +229,14 @@ export default function ExtensionsPage() {
       }
       return true;
     }).sort((a, b) => {
-      // Installed first, then alphabetical
+      // Pending updates lead; the rest stays in installed/alphabetical order.
+      const aPending = a.isInstalled && a.hasUpdate, bPending = b.isInstalled && b.hasUpdate;
+      if (aPending !== bPending) return aPending ? -1 : 1;
       if (a.isInstalled && !b.isInstalled) return -1;
       if (!a.isInstalled && b.isInstalled) return 1;
       return a.name.localeCompare(b.name);
     });
-  }, [extensions, searchInput, showNsfw, langFilter]);
+  }, [extensions, searchInput, showNsfw, langFilter, view]);
 
   return (
     <div className="min-h-screen bg-transparent pb-24">
@@ -245,8 +249,8 @@ export default function ExtensionsPage() {
               {outdatedExtensions.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => updateAllExtensions()}
-                  disabled={updatingAll || !serverBaseUrl}
+                  onClick={() => updateAllExtensions(outdatedExtensions)}
+                  disabled={updatingAll || activeExtensionPkgs.size > 0 || refreshingCatalog || !canCheck}
                   className="yomi-button yomi-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
                   title="Update all outdated extensions without losing library data"
                 >
@@ -264,7 +268,7 @@ export default function ExtensionsPage() {
               <button
                 type="button"
                 onClick={() => refreshCatalog()}
-                disabled={refreshingCatalog || !serverBaseUrl}
+                disabled={refreshingCatalog || updatingAll || activeExtensionPkgs.size > 0 || !canCheck}
                 aria-label="Refresh catalog"
                 className="yomi-button yomi-button-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -287,15 +291,20 @@ export default function ExtensionsPage() {
             </div>
           </div>
 
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Extension list">
+            {[["all", "All extensions"], ["installed", `Installed (${extensionCounts.installed})`], ["updates", `Updates (${outdatedExtensions.length})`]].map(([value, label]) => <button key={value} type="button" aria-pressed={view === value} className={`yomi-button ${view === value ? "yomi-button-primary" : "yomi-button-secondary"} min-h-8 text-xs`} onClick={() => setSearchParams((current) => { const next = new URLSearchParams(current); if (value === "all") next.delete("view"); else next.set("view", value); return next; }, { replace: true })}>{label}</button>)}
+          </div>
+
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
               <input
                 type="text"
+                aria-label="Search extensions"
                 placeholder="Search extensions..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                className="yomi-field py-2 pl-10 pr-4"
+                className="yomi-field py-2 !pl-10 pr-4"
               />
             </div>
             <div className="flex items-center gap-3">
@@ -327,7 +336,7 @@ export default function ExtensionsPage() {
           {!isLoading && !isError && extensions.length > 0 && (
             <div className="flex flex-wrap gap-2 text-xs font-medium text-slate-400">
               <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
-                {extensionCounts.visible.toLocaleString()} visible
+                {filteredExtensions.length.toLocaleString()} matching
               </span>
               <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
                 {showNsfw
@@ -347,6 +356,8 @@ export default function ExtensionsPage() {
 
       {/* Content */}
       <div className="max-w-6xl mx-auto p-4 sm:p-6">
+        {outdatedExtensions.length > 0 && <section aria-label="Updates pending" className="yomi-commandbar mb-5 flex flex-wrap items-center justify-between gap-3 p-4"><div><h2 className="font-semibold text-slate-100">Updates pending</h2><p className="mt-1 text-sm text-slate-400">{outdatedExtensions.length} installed source {outdatedExtensions.length === 1 ? "has an update" : "extensions have updates"}. You choose when to install them.</p></div><p className="text-xs text-slate-400">Checks run automatically while Yomikura is open.</p></section>}
+        {data?.refreshError && !statusMessage && <p role="status" className="yomi-alert mb-4 text-sm text-slate-300">The latest source updates couldn’t be checked. Your existing extension list is still available. Use Refresh catalog to try again.</p>}
         {statusMessage && (
           <div
             role={statusMessage.kind === "error" ? "alert" : "status"}
@@ -397,7 +408,7 @@ export default function ExtensionsPage() {
             <p>No extensions match your filters.</p>
             {!showNsfw && extensionCounts.hiddenByNsfw > 0 && (
               <p className="text-sm">
-                {extensionCounts.hiddenByNsfw.toLocaleString()} extensions are hidden by the 18+ filter.
+                {extensionCounts.hiddenByNsfw.toLocaleString()} {extensionCounts.hiddenByNsfw === 1 ? "extension in the catalog is" : "extensions in the catalog are"} hidden by the 18+ filter.
               </p>
             )}
           </div>
@@ -442,7 +453,8 @@ export default function ExtensionsPage() {
                   {ext.isInstalled && ext.hasUpdate && (
                     <button
                       onClick={() => toggleInstall({ pkgName: ext.pkgName, name: ext.name, action: "update" })}
-                      disabled={isCardBusy}
+                      disabled={isCardBusy || updatingAll || !canCheck}
+                      aria-label={`Update ${ext.name}`}
                       className="yomi-button yomi-button-secondary min-h-8 px-2.5 disabled:opacity-60"
                       title="Update Extension"
                     >
@@ -455,7 +467,7 @@ export default function ExtensionsPage() {
                       if (ext.isInstalled && !(await confirm({ title: `Uninstall ${ext.name}?`, detail: "The source will disappear from Browse. Titles already in your library remain, but the source cannot refresh until reinstalled.", confirmLabel: "Uninstall", danger: true }))) return;
                       toggleInstall({ pkgName: ext.pkgName, name: ext.name, action: ext.isInstalled ? "uninstall" : "install" });
                     }}
-                    disabled={isCardBusy}
+                    disabled={isCardBusy || updatingAll || !canCheck}
                     className={`yomi-utility-button ${
                       ext.isInstalled
                         ? "danger"

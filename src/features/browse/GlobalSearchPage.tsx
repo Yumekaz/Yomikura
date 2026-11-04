@@ -297,9 +297,10 @@ export default function GlobalSearchPage() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search manga title globally..."
-                className="yomi-field py-2 pl-10 pr-4"
+                aria-label="Search manga title globally"
+                className="yomi-field py-2 !pl-10 pr-4"
               />
-              <Search className="absolute left-3.5 top-2.5 h-4.5 w-4.5 text-slate-500" />
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             </div>
             <button
               type="submit"

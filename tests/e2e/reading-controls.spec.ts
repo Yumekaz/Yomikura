@@ -1,6 +1,12 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { mkdir } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
 import { chooseOption } from "./fixtures/themedSelect";
+
+async function captureBetaReview(page: Page, name: string) {
+  await mkdir(".cache/beta-ui-review", { recursive: true });
+  await page.screenshot({ path: `.cache/beta-ui-review/${name}.png` });
+}
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -10,6 +16,8 @@ test.beforeEach(async ({ page }) => {
 
 test("chapter selection is deliberate, titles toggle selection, and Done returns to reading", async ({ page }) => {
   await page.goto("/manga/10002");
+  await expect(page.locator(".yomi-detail-summary").getByText("Yomikura", { exact: true })).toBeVisible();
+  await expect(page.getByText("Art: Yomikura", { exact: true })).toHaveCount(0);
   const rows = page.locator(".yomi-chapter-row");
   await expect(rows.first().getByRole("link")).toBeVisible();
   await expect(rows.getByRole("checkbox")).toHaveCount(0);
@@ -23,6 +31,71 @@ test("chapter selection is deliberate, titles toggle selection, and Done returns
   await expect(rows.getByRole("checkbox")).toHaveCount(0);
   await expect(rows.first().getByRole("link")).toBeVisible();
   await expect(page.getByRole("button", { name: "Mark read", exact: true })).toHaveCount(0);
+});
+
+test("chapter actions remain inside the viewport and restore keyboard focus", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 640 });
+  await page.goto("/manga/10002");
+  const trigger = page.getByRole("button", { name: "Actions for Chapter 1: The Journey Begins", exact: true });
+  await trigger.scrollIntoViewIfNeeded();
+  await trigger.evaluate((element) => {
+    window.scrollBy(0, element.getBoundingClientRect().bottom - (window.innerHeight - 16));
+  });
+  const anchor = await trigger.boundingBox();
+  expect(anchor!.y).toBeGreaterThan(320);
+  await trigger.click();
+  const menu = page.getByRole("menu", { name: "Actions for Chapter 1: The Journey Begins", exact: true });
+  await expect(menu).toBeVisible();
+  const rect = await menu.boundingBox();
+  expect(rect!.x).toBeGreaterThanOrEqual(0);
+  expect(rect!.y).toBeGreaterThanOrEqual(0);
+  expect(rect!.x + rect!.width).toBeLessThanOrEqual(1280);
+  expect(rect!.y + rect!.height).toBeLessThanOrEqual(640);
+  try {
+    await expect(menu.getByRole("menuitem", { name: "Mark read", exact: true })).toBeFocused();
+  } catch (error) {
+    const diagnostics = await menu.evaluate((element) => {
+      const active = document.activeElement as HTMLElement | null;
+      const item = element.querySelector<HTMLElement>('[role="menuitem"]');
+      return { active: active?.outerHTML.slice(0, 500), item: item?.outerHTML, visibility: item && getComputedStyle(item).visibility, inert: item?.closest("[inert]")?.outerHTML.slice(0, 300) };
+    });
+    console.log("Chapter menu focus diagnostics:", JSON.stringify(diagnostics));
+    throw error;
+  }
+  await expect(menu.locator("xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' yomi-privacy-content ')]")).toHaveCount(1);
+  await expect(menu.getByRole("menuitem", { name: "Bookmark", exact: true })).toBeVisible();
+  await captureBetaReview(page, "chapter-menu");
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+test("search icons leave room for typed text on discovery screens", async ({ page }) => {
+  for (const [path, label, capture] of [["/browse/search", "Search manga title globally", "global-search"], ["/browse/mock-source", "Search manga in source", "source-search"], ["/browse/extensions", "Search extensions", "extension-search"]]) {
+    await page.goto(path);
+    const input = page.getByRole("textbox", { name: label, exact: true });
+    await expect(input).toBeVisible();
+    await input.fill("Test query");
+    const field = await input.boundingBox();
+    const icon = await input.locator("..").locator("svg").first().boundingBox();
+    const padding = await input.evaluate((element) => parseFloat(getComputedStyle(element).paddingLeft));
+    expect(field!.x + padding).toBeGreaterThanOrEqual(icon!.x + icon!.width + 4);
+    await expect(input).toHaveValue("Test query");
+    await captureBetaReview(page, capture);
+  }
+});
+
+test("source names remain readable at desktop and narrow widths", async ({ page }) => {
+  for (const width of [1280, 360]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/browse/sources");
+    const name = page.getByRole("link", { name: "Browse Yomikura Playground", exact: true }).first().locator("strong");
+    await expect(name).toBeVisible();
+    const overflow = await name.evaluate((element) => ({ horizontal: element.scrollWidth - element.clientWidth, vertical: element.scrollHeight - element.clientHeight }));
+    expect(overflow.horizontal).toBeLessThanOrEqual(1);
+    expect(overflow.vertical).toBeLessThanOrEqual(1);
+    if (width === 1280) await captureBetaReview(page, "source-cards");
+  }
 });
 
 test("dropdowns support typeahead, Escape, focus return and the empty collection choice", async ({ page }) => {

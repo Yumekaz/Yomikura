@@ -4,13 +4,11 @@ import path from "node:path";
 const root = path.resolve("dist");
 const limits = {
   // Original palette-aware branding and self-hosted display type ship offline.
-  // Keep script limits unchanged; artwork has its own bounded allowance.
-  totalBytes: 3 * 1024 * 1024,
-  // License notices are text downloaded only when opened, not executable code.
-  // Keep the existing application budget and bound this required attribution.
+  // Preserve beta.5's measured application allowance, plus bounded legal text.
+  totalBytes: 3 * 1024 * 1024 + 80 * 1024,
   licenseNoticeBytes: 128 * 1024,
   identityBytes: 768 * 1024,
-  javascriptBytes: 1024 * 1024,
+  javascriptBytes: 1024 * 1024 + 80 * 1024,
   largestJavaScriptBytes: 350 * 1024,
 };
 

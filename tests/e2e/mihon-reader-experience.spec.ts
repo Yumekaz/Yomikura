@@ -105,7 +105,7 @@ test("page tools save the original decoded image with a meaningful filename", as
 test("a chapter pause holds the boundary until the reader explicitly continues", async ({ page }) => {
   await fixture(page, { count: 1, reader: { pauseBetweenChapters: true } }); await page.goto("/reader/12"); await expect(images(page).getByRole("img", { name: "Page 1", exact: true })).toBeVisible();
   await page.getByRole("region", { name: "Reading surface" }).press("ArrowRight"); await expect(page.getByRole("region", { name: "Chapter transition" })).toBeVisible(); await expect(page).toHaveURL(/\/reader\/12$/);
-  await page.getByRole("button", { name: "Continue reading", exact: true }).click(); await expect(page).toHaveURL(/\/reader\/13$/);
+  await page.getByRole("region", { name: "Chapter transition", exact: true }).getByRole("button", { name: "Continue reading", exact: true }).click(); await expect(page).toHaveURL(/\/reader\/13$/);
 });
 test("the vertical navigator has independent keyboard focus and reflects real page jumps", async ({ page }) => {
   await fixture(page, { reader: { verticalNavigator: true, navigatorLeft: true } }); await page.goto("/reader/12");

@@ -22,7 +22,7 @@ export async function queueDuplicateReads(backend: ProgressBackend, operation: P
     const chapter = { chapterId: item.id, chapterName: item.name, chapterNumber: item.chapterNumber, mangaId: item.mangaId, mangaTitle: operation.chapter.mangaTitle, pageCount: item.pageCount, sourceOrder: item.sourceOrder };
     const head = await getProgressHead(backend, item.id);
     if (head && (head.patch.isRead || !chapterIdentityMatches(head.chapter, chapter) || head.lastKind === "explicit" && head.dirtyFields?.includes("isRead") && !head.patch.isRead)) continue;
-    const result = await enqueueProgress(backend, { kind: "reading", chapter, patch: { isRead: true }, baseline: { isRead: item.isRead, lastPageRead: item.lastPageRead }, epoch: head?.epoch ?? 0, expectedSequence: head?.sequence ?? 0,
+    const result = await enqueueProgress(backend, { kind: "reading", libraryId: operation.libraryId, chapter, patch: { isRead: true }, baseline: { isRead: item.isRead, lastPageRead: item.lastPageRead }, epoch: head?.epoch ?? 0, expectedSequence: head?.sequence ?? 0,
       duplicateOf: { chapterId: operation.chapter.chapterId, epoch: operation.epoch, sequence: operation.sequence } });
     if (result.accepted) progressChanged(backend, "queued");
   }

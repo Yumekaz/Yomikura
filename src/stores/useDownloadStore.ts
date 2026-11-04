@@ -9,8 +9,10 @@ import { DEFAULT_DOWNLOAD_EXPERIENCE } from "./downloadExperience";
 import { allowDeviceDownload, connectionInformation, waitForDownloadNetwork } from "../api/suwayomi/networkPolicy";
 import { validatePageBlob } from "../api/suwayomi/validatePageBlob";
 import { splitTallImage } from "../api/suwayomi/tallImageTiles";
+import { assertLibrarySession, rememberedLibrary, LIBRARY_SESSION_EVENT } from "../api/suwayomi/librarySession";
+import { normalizeCacheServerUrl } from "../api/suwayomi/offlineCache";
 
-export interface DownloadProgress { progress: number; total: number; status: "queued" | "downloading" | "error" | "success"; attempts?: number; error?: string; waitingForNetwork?: boolean }
+export interface DownloadProgress { progress: number; total: number; status: "queued" | "downloading" | "error" | "success"; mangaTitle?: string; chapterName?: string; attempts?: number; error?: string; waitingForNetwork?: boolean }
 interface DownloadState {
   cachedChapters: CachedChapter[]; cachedChapterIds: Set<number>; activeDownloads: Record<number, DownloadProgress>; downloadControllers: Record<number, AbortController>;
   storageUsage: number; storageQuota: number; recoveryError: string;
@@ -26,10 +28,12 @@ interface DownloadState {
 type Entry = { key: string; token: string; backend: ProgressBackend; chapterId: number; mangaTitle?: string; native: boolean; controller: AbortController;
   progress: DownloadProgress; running: boolean; reason?: "cancel" | "pause"; persist: Promise<void>; done: Promise<void>; settle: () => void; stopping?: Promise<void> };
 const targetFor = (target?: ProgressBackend) => {
-  const settings = useSettingsStore.getState(); return progressBackend(target?.serverBaseUrl ?? settings.serverBaseUrl, target?.isDemo ?? settings.mockMode);
+  if (target) return target;
+  const settings = useSettingsStore.getState(); return progressBackend(settings.serverBaseUrl, settings.mockMode);
 };
-const currentKey = () => { try { return targetFor().key; } catch { return ""; } };
-const jobKey = (target: ProgressBackend, id: number) => JSON.stringify([target.key, id]);
+const backendScope = (target: ProgressBackend) => JSON.stringify([target.key, target.libraryId ?? null]);
+const currentKey = () => { try { return backendScope(targetFor()); } catch { return ""; } };
+const jobKey = (target: ProgressBackend, id: number) => JSON.stringify([backendScope(target), id]);
 let nativeCore: Promise<typeof import("@tauri-apps/api/core")> | undefined;
 
 async function fetchCachedPage(url: string, entry: Entry): Promise<Response> {
@@ -53,7 +57,7 @@ export function createDownloadStore() {
   const store = create<DownloadState>((set, get) => {
     publish = () => {
       const key = currentKey(); const activeDownloads: Record<number, DownloadProgress> = {}; const downloadControllers: Record<number, AbortController> = {};
-      for (const entry of entries.values()) if (entry.backend.key === key && !entry.reason) {
+      for (const entry of entries.values()) if (backendScope(entry.backend) === key && !entry.reason) {
         activeDownloads[entry.chapterId] = { ...entry.progress, waitingForNetwork: entry.progress.status !== "error" && !networkAllowed(entry) };
         if (entry.progress.status !== "error") downloadControllers[entry.chapterId] = entry.controller;
       }
@@ -61,18 +65,21 @@ export function createDownloadStore() {
     };
     const update = (entry: Entry, patch: Partial<DownloadProgress>) => { if (entries.get(entry.key) === entry) { entry.progress = { ...entry.progress, ...patch }; publish(); } };
     const persist = (entry: Entry, status: "queued" | "downloading" | "failed") => {
-      const job = { serverBaseUrl: entry.backend.serverBaseUrl, isDemo: entry.backend.isDemo, chapterId: entry.chapterId, mangaTitle: entry.mangaTitle, status, progress: entry.progress.progress, total: entry.progress.total, attempts: entry.progress.attempts ?? 0, error: entry.progress.error, updatedAt: Date.now() };
+      const job = { serverBaseUrl: entry.backend.serverBaseUrl, isDemo: entry.backend.isDemo, libraryId: entry.backend.libraryId, chapterId: entry.chapterId, mangaTitle: entry.mangaTitle, chapterName: entry.progress.chapterName, status, progress: entry.progress.progress, total: entry.progress.total, attempts: entry.progress.attempts ?? 0, error: entry.progress.error, updatedAt: Date.now() };
       const saved = entry.persist.catch(() => undefined).then(() => saveDownloadJob(job)); entry.persist = saved; return saved;
     };
     const remove = (entry: Entry) => { if (entries.get(entry.key) === entry) entries.delete(entry.key); publish(); };
-    const check = (entry: Entry) => { if (entry.controller.signal.aborted || entries.get(entry.key) !== entry) throw new DOMException("Download cancelled", "AbortError"); };
+    const check = (entry: Entry) => { if (entry.controller.signal.aborted || entries.get(entry.key) !== entry || !entry.backend.isDemo && entry.backend.libraryId !== rememberedLibrary(entry.backend.serverBaseUrl)?.marker) throw new DOMException("Download cancelled", "AbortError"); };
     const run = async (entry: Entry) => {
       entry.running = true; const created: string[] = [], tileCreated: string[] = [], pageTiles: CachedPageTiles[] = [];
       try {
         check(entry); await networkGate(entry); check(entry); update(entry, { status: "downloading", attempts: (entry.progress.attempts ?? 0) + 1, error: undefined }); await persist(entry, "downloading"); check(entry);
-        const sdk = createGraphqlClient(`${entry.backend.serverBaseUrl}/api/graphql`, { signal: entry.controller.signal }, entry.backend.isDemo ? "demo" : "live");
+        const sdk = createGraphqlClient(`${entry.backend.serverBaseUrl}/api/graphql`, { signal: entry.controller.signal, libraryId: entry.backend.libraryId ?? null }, entry.backend.isDemo ? "demo" : "live");
         const details = (await sdk.GetChapter({ id: entry.chapterId })).chapter; check(entry);
         if (!details || details.id !== entry.chapterId) throw new Error("The requested chapter metadata could not be confirmed.");
+        entry.mangaTitle = details.manga?.title || entry.mangaTitle;
+        update(entry, { mangaTitle: entry.mangaTitle, chapterName: details.name });
+        await persist(entry, "downloading"); check(entry);
         const pages = (await sdk.FetchChapterPages({ input: { chapterId: entry.chapterId } })).fetchChapterPages?.pages ?? []; check(entry);
         if (!pages.length) throw new Error("No pages were returned for this chapter.");
         update(entry, { total: pages.length }); await persist(entry, "downloading"); check(entry);
@@ -122,17 +129,18 @@ export function createDownloadStore() {
         if (completed !== pages.length || created.filter(Boolean).length !== pages.length) throw new Error("Not every page was saved. Retry this chapter.");
         await entry.persist;
         check(entry);
+        if (!entry.backend.isDemo) await assertLibrarySession(entry.backend.serverBaseUrl, entry.backend.libraryId);
         const mangaTitle = details.manga?.title || entry.mangaTitle || "Unknown Manga";
         const identity = { chapterId: details.id, chapterName: details.name, chapterNumber: details.chapterNumber, mangaId: details.mangaId, mangaTitle, sourceOrder: details.sourceOrder, pageCount: pages.length };
         const head = await getProgressHead(entry.backend, entry.chapterId).catch(() => undefined);
-        const progress = head && chapterIdentityMatches(head.chapter, identity) ? head.patch : details;
-        const previous = await getCachedChapter(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo); check(entry);
-        await saveCachedChapter({ cacheKey: getChapterCacheKey(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo), serverBaseUrl: entry.backend.serverBaseUrl, isDemo: entry.backend.isDemo,
+        const progress = head && (head.libraryId ?? undefined) === entry.backend.libraryId && chapterIdentityMatches(head.chapter, identity) ? head.patch : details;
+        const previous = await getCachedChapter(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo, entry.backend.libraryId ?? ""); check(entry);
+        await saveCachedChapter({ cacheKey: getChapterCacheKey(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo), serverBaseUrl: entry.backend.serverBaseUrl, isDemo: entry.backend.isDemo, libraryId: entry.backend.libraryId,
           id: details.id, name: details.name, chapterNumber: details.chapterNumber, mangaId: details.mangaId, mangaTitle, sourceOrder: details.sourceOrder,
           isBookmarked: progress.isBookmarked ?? details.isBookmarked, scanlator: details.scanlator, uploadDate: String(details.uploadDate ?? ""),
           pageCount: pages.length, pages, networkUrls, cachedUrls: created, pageTiles: pageTiles.sort((a, b) => a.index - b.index), totalSizeBytes, cachedAt: Date.now(), isRead: progress.isRead, lastPageRead: Math.max(0, Math.min(progress.lastPageRead, pages.length - 1)),
         }, entry.controller.signal);
-        await deleteDownloadJob(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo);
+        await deleteDownloadJob(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo, entry.backend.libraryId ?? "");
         if (previous) await cleanupUnreferencedCachedPages(cachedPageUrls(previous)).catch(() => undefined);
         if (!entry.reason) remove(entry);
         await get().loadCachedChapters();
@@ -162,18 +170,18 @@ export function createDownloadStore() {
       entry.reason = reason; entry.controller.abort(); const index = queue.indexOf(entry); if (index >= 0) queue.splice(index, 1); publish();
       const stopping = (async () => {
         await entry.persist.catch(() => undefined); if (!entry.running) entry.settle(); await entry.done;
-        if (reason === "pause") await persist(entry, "queued"); else await deleteDownloadJob(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo);
+        if (reason === "pause") await persist(entry, "queued"); else await deleteDownloadJob(entry.backend.serverBaseUrl, entry.chapterId, entry.backend.isDemo, entry.backend.libraryId ?? "");
         remove(entry);
       })();
       entry.stopping = stopping;
       void stopping.catch(() => { entry.stopping = undefined; entry.reason = undefined; update(entry, { status: "error", error: "Download stopped, but its saved queue state could not be updated. Check storage and retry." }); });
       return stopping;
     };
-    const enqueue = async (id: number, title?: string, provided?: ProgressBackend, attempts = 0, expectedLifecycle?: number) => {
+    const enqueue = async (id: number, title?: string, provided?: ProgressBackend, attempts = 0, expectedLifecycle?: number, chapterName?: string) => {
       if (!Number.isSafeInteger(id) || id < 0) throw new Error("Choose a valid chapter to download.");
       const backend = targetFor(provided); const native = isTauri();
       if (!native && !backend.isDemo) {
-        await createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, "live").EnqueueChapterDownload({ input: { id } }); return;
+        await createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, "live").EnqueueChapterDownload({ input: { id } }); return;
       }
       const key = jobKey(backend, id); const existing = entries.get(key);
       if (existing) {
@@ -184,7 +192,7 @@ export function createDownloadStore() {
       if (expectedLifecycle !== undefined && expectedLifecycle !== lifecycleRevision) return;
       let settle!: () => void; const done = new Promise<void>((resolve) => { settle = resolve; });
       const entry: Entry = { key, token: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`, backend, chapterId: id, mangaTitle: title, native,
-        controller: new AbortController(), progress: { progress: 0, total: 0, status: "queued", attempts }, running: false, persist: Promise.resolve(), done, settle };
+        controller: new AbortController(), progress: { progress: 0, total: 0, status: "queued", attempts, mangaTitle: title, chapterName }, running: false, persist: Promise.resolve(), done, settle };
       entries.set(key, entry); entry.persist = persist(entry, "queued"); publish();
       try { await entry.persist; }
       catch (error) { entry.settle(); update(entry, { status: "error", error: "The download could not be retained on this device. Check storage before retrying." }); throw error; }
@@ -192,7 +200,7 @@ export function createDownloadStore() {
       paused = false; queue.push(entry); pump();
     };
     const stopBackend = async (backend: ProgressBackend) => {
-      const results = await Promise.allSettled([...entries.values()].filter((entry) => entry.backend.key === backend.key).map((entry) => stop(entry, "cancel")));
+      const results = await Promise.allSettled([...entries.values()].filter((entry) => backendScope(entry.backend) === backendScope(backend)).map((entry) => stop(entry, "cancel")));
       const error = results.find((result): result is PromiseRejectedResult => result.status === "rejected"); if (error) throw error.reason;
     };
     return {
@@ -200,20 +208,21 @@ export function createDownloadStore() {
       loadCachedChapters: async () => {
         const revision = ++cacheLoadRevision; let backend: ProgressBackend;
         try { backend = targetFor(); } catch { set({ cachedChapters: [], cachedChapterIds: new Set() }); return; }
-        const chapters = await getCachedChapters(backend.serverBaseUrl, backend.isDemo); const estimate = await getStorageEstimate();
-        if (revision !== cacheLoadRevision || currentKey() !== backend.key) return;
+        const chapters = await getCachedChapters(backend.serverBaseUrl, backend.isDemo, backend.libraryId ?? ""); const estimate = await getStorageEstimate();
+        if (revision !== cacheLoadRevision || currentKey() !== backendScope(backend)) return;
         set({ cachedChapters: chapters, cachedChapterIds: new Set(chapters.map((chapter) => chapter.id)), storageUsage: estimate.usage, storageQuota: estimate.quota });
       },
       restoreDownloadJobs: async () => {
         let backend: ProgressBackend; try { backend = targetFor(); } catch { return; }
         if (!isTauri() && !backend.isDemo) return;
+        const scope = backendScope(backend);
         paused = false; publish(); const lifecycle = lifecycleRevision;
-        if (restoring.has(backend.key)) return restoring.get(backend.key)!;
-        if (restored.has(backend.key)) { pump(); return; }
+        if (restoring.has(scope)) return restoring.get(scope)!;
+        if (restored.has(scope)) { pump(); return; }
         const restore = (async () => {
           try {
-            for (const job of await getDownloadJobs(backend.serverBaseUrl, backend.isDemo)) {
-              if (currentKey() !== backend.key || lifecycle !== lifecycleRevision) return;
+            for (const job of await getDownloadJobs(backend.serverBaseUrl, backend.isDemo, backend.libraryId ?? "")) {
+              if (currentKey() !== scope || lifecycle !== lifecycleRevision) return;
               if (entries.has(jobKey(backend, job.chapterId))) {
                 const existing = entries.get(jobKey(backend, job.chapterId))!;
                 if (existing.stopping) await existing.stopping; else continue;
@@ -221,27 +230,27 @@ export function createDownloadStore() {
               if (job.status === "failed") {
                 let settle!: () => void; const done = new Promise<void>((resolve) => { settle = resolve; }); settle();
                 entries.set(jobKey(backend, job.chapterId), { key: jobKey(backend, job.chapterId), token: "restored-error", backend, chapterId: job.chapterId, mangaTitle: job.mangaTitle, native: isTauri(), controller: new AbortController(),
-                  progress: { progress: job.progress, total: job.total, attempts: job.attempts, status: "error", error: job.error || "Download was interrupted." }, running: false, persist: Promise.resolve(), done, settle }); publish();
-              } else await enqueue(job.chapterId, job.mangaTitle, backend, job.attempts, lifecycle);
+                  progress: { progress: job.progress, total: job.total, attempts: job.attempts, mangaTitle: job.mangaTitle, chapterName: job.chapterName, status: "error", error: job.error || "Download was interrupted." }, running: false, persist: Promise.resolve(), done, settle }); publish();
+              } else await enqueue(job.chapterId, job.mangaTitle, backend, job.attempts, lifecycle, job.chapterName);
             }
-            if (currentKey() === backend.key && lifecycle === lifecycleRevision && !paused) { restored.add(backend.key); set({ recoveryError: "" }); }
-          } catch { if (currentKey() === backend.key) set({ recoveryError: "Saved download jobs could not be restored. Check device storage and retry." }); }
+            if (currentKey() === scope && lifecycle === lifecycleRevision && !paused) { restored.add(scope); set({ recoveryError: "" }); }
+          } catch { if (currentKey() === scope) set({ recoveryError: "Saved download jobs could not be restored. Check device storage and retry." }); }
         })();
-        restoring.set(backend.key, restore); try { await restore; } finally { if (restoring.get(backend.key) === restore) restoring.delete(backend.key); }
+        restoring.set(scope, restore); try { await restore; } finally { if (restoring.get(scope) === restore) restoring.delete(scope); }
       },
       downloadChapter: (id, title, backend) => enqueue(id, title, backend),
-      retryDownload: async (id, title, provided) => { const backend = targetFor(provided); const entry = entries.get(jobKey(backend, id)); const attempts = entry?.progress.attempts ?? 0; if (entry) await stop(entry, "cancel"); await enqueue(id, title, backend, attempts); },
-      cancelDownload: (id, provided) => { const backend = targetFor(provided); const entry = entries.get(jobKey(backend, id)); if (entry) void stop(entry, "cancel").catch(() => undefined); else void deleteDownloadJob(backend.serverBaseUrl, id, backend.isDemo).catch(() => undefined); },
+      retryDownload: async (id, title, provided) => { const backend = targetFor(provided); const entry = entries.get(jobKey(backend, id)); const attempts = entry?.progress.attempts ?? 0; if (entry) await stop(entry, "cancel"); await enqueue(id, title ?? entry?.mangaTitle, backend, attempts, undefined, entry?.progress.chapterName); },
+      cancelDownload: (id, provided) => { const backend = targetFor(provided); const entry = entries.get(jobKey(backend, id)); if (entry) void stop(entry, "cancel").catch(() => undefined); else void deleteDownloadJob(backend.serverBaseUrl, id, backend.isDemo, backend.libraryId ?? "").catch(() => undefined); },
       cancelAllDownloads: (provided) => { void stopBackend(targetFor(provided)).catch(() => undefined); },
       pauseForShutdown: () => { paused = true; lifecycleRevision += 1; restored.clear(); for (const entry of entries.values()) if (entry.progress.status !== "error") void stop(entry, "pause").catch(() => undefined); },
-      deleteChapter: async (id, provided) => { const backend = targetFor(provided); const entry = entries.get(jobKey(backend, id)); if (entry) await stop(entry, "cancel"); await deleteCachedChapter(backend.serverBaseUrl, id, backend.isDemo); await get().loadCachedChapters(); },
-      clearAll: async (provided) => { const backend = targetFor(provided); await stopBackend(backend); await clearBackendCache(backend.serverBaseUrl, backend.isDemo); await get().loadCachedChapters(); },
+      deleteChapter: async (id, provided) => { const backend = targetFor(provided); const entry = entries.get(jobKey(backend, id)); if (entry) await stop(entry, "cancel"); await deleteCachedChapter(backend.serverBaseUrl, id, backend.isDemo, backend.libraryId ?? ""); await get().loadCachedChapters(); },
+      clearAll: async (provided) => { const backend = targetFor(provided); await stopBackend(backend); await clearBackendCache(backend.serverBaseUrl, backend.isDemo, backend.libraryId ?? ""); await get().loadCachedChapters(); },
     };
   });
   const unsubscribe = useSettingsStore.subscribe((next, previous) => {
     let nextKey = "", previousKey = "";
-    try { nextKey = progressBackend(next.serverBaseUrl, next.mockMode).key; } catch { /* Incomplete connection input. */ }
-    try { previousKey = progressBackend(previous.serverBaseUrl, previous.mockMode).key; } catch { /* Incomplete connection input. */ }
+    try { nextKey = backendScope(progressBackend(next.serverBaseUrl, next.mockMode)); } catch { /* Incomplete connection input. */ }
+    try { previousKey = backendScope(progressBackend(previous.serverBaseUrl, previous.mockMode)); } catch { /* Incomplete connection input. */ }
     if (nextKey !== previousKey) {
       cacheLoadRevision += 1; store.setState({ cachedChapters: [], cachedChapterIds: new Set(), recoveryError: "" }); publish();
       if (nextKey) void store.getState().loadCachedChapters().catch(() => undefined);
@@ -249,7 +258,14 @@ export function createDownloadStore() {
     if (next.downloadConcurrency !== previous.downloadConcurrency || next.experience?.downloads !== previous.experience?.downloads) { publish(); pump(); }
   });
   const connection = connectionInformation(); const networkChanged = () => { publish(); pump(); };
-  connection?.addEventListener?.("change", networkChanged); if (typeof window !== "undefined") { window.addEventListener("online", networkChanged); window.addEventListener("offline", networkChanged); }
-  return Object.assign(store, { dispose: async () => { paused = true; lifecycleRevision += 1; restored.clear(); await Promise.allSettled([...entries.values()].filter((entry) => entry.progress.status !== "error").map((entry) => stop(entry, "pause"))); unsubscribe(); connection?.removeEventListener?.("change", networkChanged); if (typeof window !== "undefined") { window.removeEventListener("online", networkChanged); window.removeEventListener("offline", networkChanged); } } });
+  const libraryChanged = (event: Event) => {
+    const settings = useSettingsStore.getState(), server = (event as CustomEvent<string>).detail;
+    if (settings.mockMode || typeof server === "string" && server !== normalizeCacheServerUrl(settings.serverBaseUrl)) return;
+    cacheLoadRevision += 1; store.getState().pauseForShutdown();
+    store.setState({ cachedChapters: [], cachedChapterIds: new Set(), recoveryError: "" });
+    void store.getState().loadCachedChapters().catch(() => undefined);
+  };
+  connection?.addEventListener?.("change", networkChanged); if (typeof window !== "undefined") { window.addEventListener("online", networkChanged); window.addEventListener("offline", networkChanged); window.addEventListener(LIBRARY_SESSION_EVENT, libraryChanged); }
+  return Object.assign(store, { dispose: async () => { paused = true; lifecycleRevision += 1; restored.clear(); await Promise.allSettled([...entries.values()].filter((entry) => entry.progress.status !== "error").map((entry) => stop(entry, "pause"))); unsubscribe(); connection?.removeEventListener?.("change", networkChanged); if (typeof window !== "undefined") { window.removeEventListener("online", networkChanged); window.removeEventListener("offline", networkChanged); window.removeEventListener(LIBRARY_SESSION_EVENT, libraryChanged); } } });
 }
 export const useDownloadStore = createDownloadStore();

@@ -37,4 +37,10 @@ describe("classifySourceProblem", () => {
     expect(detail).not.toContain("IllegalStateException");
     expect(detail).not.toContain("private backend path");
   });
+  it("explains unavailable libraries without a hard-coded development address", () => {
+    const problem = classifySourceProblem(new TypeError("Failed to fetch"));
+    expect(problem.title).toBe("Your library couldn’t be reached");
+    expect(problem.detail).toContain("saved chapters");
+    expect(getSourceRecoveryHints(problem).join(" ")).not.toMatch(/127\.0\.0\.1|CORS|localhost/);
+  });
 });

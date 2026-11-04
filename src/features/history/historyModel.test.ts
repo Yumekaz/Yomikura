@@ -18,6 +18,12 @@ describe("comic-level reading history", () => {
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ id: "1", lastPageRead: 5, isLocal: true });
   });
+  it("keeps the matching server cover when newer local progress wins", () => {
+    const known = server(1);
+    known.manga.thumbnailUrl = "/covers/comic-1";
+    const [result] = mergeReadingHistory([known], [local(1)], false);
+    expect(result).toMatchObject({ lastPageRead: 5, isLocal: true, manga: { thumbnailUrl: "/covers/comic-1" } });
+  });
   it("hides earlier chapters of a removed comic, including pages loaded afterward", () => {
     const marker = local(2, { isHidden: true, hideMangaBefore: now + 200, readAt: now + 200 });
     expect(mergeReadingHistory([server(1), server(2)], [marker], false)).toEqual([]);

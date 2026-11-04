@@ -7,6 +7,7 @@ import { synchronizeTracking } from "./trackingSync";
 import { TrackingBusyError, withTrackingLock } from "./trackingCoordination";
 import { pushLinkedTrackerProgress } from "./trackingActions";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+vi.mock("./librarySession", () => ({ rememberedLibrary: () => ({ marker: "11111111-1111-4111-8111-111111111111" }), assertLibrarySession: vi.fn() }));
 
 const mocks = vi.hoisted(() => ({ key: "" }));
 vi.mock("./trackingActions", () => ({

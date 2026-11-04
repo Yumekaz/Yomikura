@@ -1,4 +1,5 @@
 export interface ProgressChapter {
+  progressLibraryId?: string | null;
   id: number;
   name: string;
   chapterNumber: number;
@@ -11,6 +12,7 @@ export interface ProgressChapter {
 }
 
 export interface ProgressSnapshot {
+  libraryId?: string | null;
   chapterId: number;
   chapterName: string;
   chapterNumber: number;
@@ -31,6 +33,7 @@ export function createProgressSnapshot(
   pageIndex: number
 ): ProgressSnapshot {
   return {
+    libraryId: chapter.progressLibraryId,
     chapterId: chapter.id,
     chapterName: chapter.name,
     chapterNumber: chapter.chapterNumber,

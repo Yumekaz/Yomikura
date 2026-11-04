@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { act, useState } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import { WelcomeOnboarding } from "../layout/AppShell";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { render, waitForRender } from "../../test/render";
@@ -9,12 +10,12 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
 vi.mock("@tauri-apps/api/path", () => ({ appLocalDataDir: async () => "C:/OwnedPreview/app.yomikura.firstlaunch/" }));
 vi.mock("../../stores/settingsStorage", () => ({ createSettingsStorage: () => localStorage }));
 let view: Awaited<ReturnType<typeof render>> | undefined;
-function Harness({ offline = false }: { offline?: boolean }) {
+function Harness() {
   const [done, setDone] = useState(false);
   const settings = useSettingsStore();
   return done ? <div>Library route opened</div> : <WelcomeOnboarding serverBaseUrl={settings.serverBaseUrl} setServerBaseUrl={settings.setServerBaseUrl}
     testConnection={async () => { useSettingsStore.setState({ connectionStatus: "connected" }); return true; }} errorMessage="" setMockMode={settings.setMockMode}
-    onBeginSetup={() => {}} onConnected={() => { mocks.complete(); setDone(true); }} onReadOffline={offline ? () => setDone(true) : undefined} />;
+    onBeginSetup={() => {}} onConnected={() => { mocks.complete(); setDone(true); }} />;
 }
 beforeEach(() => {
   vi.clearAllMocks(); localStorage.clear(); mocks.hasJava = true; mocks.failStart = false; mocks.jar = undefined;
@@ -31,8 +32,8 @@ beforeEach(() => {
 });
 afterEach(async () => { await view?.unmount(); view = undefined; Object.defineProperty(window, "isTauri", { value: false, configurable: true }); });
 const calls = (command: string) => mocks.invoke.mock.calls.filter(([name]) => name === command);
-async function setup(offline = false) {
-  view = await render(<Harness offline={offline} />);
+async function setup() {
+  view = await render(<MemoryRouter><Harness /></MemoryRouter>);
   const start = [...view.container.querySelectorAll("button")].find((button) => button.textContent?.includes("Set up my library"));
   if (!start) throw new Error("Recommended setup action is missing");
   await act(async () => start.click());
@@ -50,10 +51,10 @@ it("installs missing reading essentials and hands the verified native engine to 
 });
 it("never starts an abandoned engine when a download finishes after leaving setup", async () => {
   let release!: () => void; mocks.jar = new Promise<void>((resolve) => { release = resolve; });
-  await setup(true);
+  await setup();
   await waitForRender(() => expect(calls("download_suwayomi_jar")).toHaveLength(1));
-  const offline = [...view!.container.querySelectorAll("button")].find((button) => button.textContent === "Continue offline")!;
-  await act(async () => offline.click());
+  expect(view!.container.textContent).not.toContain("Continue offline");
+  await view!.unmount(); view = undefined;
   await act(async () => release());
   expect(calls("start_backend")).toHaveLength(0);
 });

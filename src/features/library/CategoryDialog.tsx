@@ -35,7 +35,7 @@ function CategoryManager({ isOpen, onClose, categories, backend }: CategoryDialo
   const [errorMsg, setErrorMsg] = useState("");
 
   const sdk = useMemo(() => {
-    return createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, undefined, backend.isDemo ? "demo" : "live");
+    return createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live");
   }, [backend]);
   const assertSelected = () => { if (!isSelectedLibrary(backend)) throw new Error("Your active library changed. Open its collection manager again."); };
   const { mutate: moveCategory, isPending: moving } = useMutation({ mutationFn: async ({ id, position }: { id: number; position: number }) => {

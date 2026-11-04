@@ -9,6 +9,7 @@ use tauri::WindowEvent;
 use tauri::{Manager, State};
 mod desktop_lock;
 mod desktop_preferences;
+mod external_links;
 mod local_import;
 #[cfg(target_os = "windows")]
 mod native_folders;
@@ -985,6 +986,7 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();
             }
@@ -1003,6 +1005,7 @@ pub fn run() {
             desktop_preferences::set_desktop_preferences,
             desktop_preferences::unlock_reading_room,
             reader_platform::set_reader_keep_awake,
+            external_links::open_source_website,
             reader_exports::get_reader_export_directory,
             reader_exports::select_reader_export_directory,
             reader_exports::save_reader_export,

@@ -63,6 +63,7 @@ export function releaseHtml(html, metadata) {
   for (const [attribute, value] of [["release-version", metadata.primary.tag], ["release-kind", metadata.primary.prerelease ? "Public beta" : "Stable release"], ["web-version", `v${metadata.web.version}`]]) {
     updated = updated.replace(new RegExp(`(<[^>]+\\bdata-${attribute}\\b[^>]*>)[^<]*(</[^>]+>)`, "g"), (_match, start, end) => start + escape(value) + end);
   }
+  updated = updated.replace(/(<a\b[^>]*\bdata-stable-link\b[^>]*>)[\s\S]*?(<\/a>)/g, (_match, start, end) => start + escape(`${metadata.primary.prerelease ? "Previous stable release" : "Current stable release"} · ${metadata.stable.tag || metadata.primary.tag}`) + end);
   return updated;
 }
 async function github(route) {

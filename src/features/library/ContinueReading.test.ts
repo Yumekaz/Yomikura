@@ -9,6 +9,10 @@ describe("library continuation", () => {
   it("keeps newer local reading after an outage", () => {
     expect(recentReading([chapter], [{ ...chapter, lastPageRead: 7, readAt: 400 }], new Set([10]))?.lastPageRead).toBe(7);
   });
+  it("retains a matching server cover when a newer local position wins", () => {
+    const result = recentReading([{ ...chapter, thumbnailUrl: "/covers/book" }], [{ ...chapter, lastPageRead: 7, readAt: 400 }], new Set([10]));
+    expect(result).toMatchObject({ lastPageRead: 7, thumbnailUrl: "/covers/book" });
+  });
   it("does not offer progress that the user explicitly reset", () => {
     expect(recentReading([chapter], [{ ...chapter, isHidden: true, readAt: 100 }], new Set([10]))).toBeUndefined();
   });

@@ -4,12 +4,16 @@ import { useSettingsStore } from "../stores/useSettingsStore";
 import { backupErrorMessage, listLibraryBackups, readLibraryBackup } from "../api/suwayomi/backupStorage";
 import { createLibraryBackup } from "../api/suwayomi/libraryBackups";
 import { normalizeCacheServerUrl } from "../api/suwayomi/offlineCache";
+import { establishLibraryIdentity, verifyLibraryIdentity } from "../api/suwayomi/libraryIdentity";
+import { rememberedLibrary } from "../api/suwayomi/librarySession";
 
 const MINUTE = 60_000;
 
 export function useScheduledBackup() {
   const running = useRef(new Map<string, Promise<void>>());
   const { backupIntervalHours, connectionStatus, mockMode, serverBaseUrl, setScheduledBackupResult } = useSettingsStore();
+  let libraryId: string | undefined;
+  try { libraryId = serverBaseUrl.trim() ? rememberedLibrary(serverBaseUrl)?.marker : undefined; } catch { /* Invalid connection input remains editable. */ }
 
   useEffect(() => {
     const server = normalizeCacheServerUrl(serverBaseUrl);
@@ -21,23 +25,25 @@ export function useScheduledBackup() {
 
     const perform = async () => {
       try {
-        const latest = (await listLibraryBackups(server)).find((backup) => backup.purpose === "scheduled");
+        if (!backupIntervalHours || connectionStatus !== "connected") return;
+        const identity = await establishLibraryIdentity(server);
+        const latest = (await listLibraryBackups(server)).find((backup) => backup.purpose === "scheduled" && backup.libraryId === identity.marker);
         let savedAt = 0;
         if (latest) {
-          try { await readLibraryBackup(server, latest.id); savedAt = latest.createdAt; }
+          try {
+            const retained = await readLibraryBackup(server, latest.id);
+            await verifyLibraryIdentity(server, identity);
+            if (retained.backup.libraryId === identity.marker) savedAt = retained.backup.createdAt;
+          }
           catch { /* An unreadable file must not postpone a replacement recovery copy. */ }
         }
         if (!isCurrent()) return;
-        if (!backupIntervalHours || connectionStatus !== "connected") {
-          setScheduledBackupResult("idle", "", savedAt);
-          return;
-        }
         if (Date.now() - savedAt < intervalMs) {
           setScheduledBackupResult("success", "", savedAt);
           return;
         }
         setScheduledBackupResult("running", "", savedAt);
-        const backup = await createLibraryBackup(createGraphqlClient(`${server}/api/graphql`), server, "scheduled");
+        const backup = await createLibraryBackup(createGraphqlClient(`${server}/api/graphql`, { libraryId: identity.marker }, "live"), server, "scheduled");
         if (isCurrent()) setScheduledBackupResult("success", "", backup.createdAt);
       } catch (error) {
         if (isCurrent()) setScheduledBackupResult("error", backupErrorMessage(error));
@@ -56,5 +62,5 @@ export function useScheduledBackup() {
     void runIfDue();
     const timer = backupIntervalHours ? window.setInterval(() => void runIfDue(), Math.min(intervalMs, 15 * MINUTE)) : undefined;
     return () => { active = false; window.clearInterval(timer); };
-  }, [backupIntervalHours, connectionStatus, mockMode, serverBaseUrl, setScheduledBackupResult]);
+  }, [backupIntervalHours, connectionStatus, mockMode, serverBaseUrl, setScheduledBackupResult, libraryId]);
 }

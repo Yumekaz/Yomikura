@@ -20,6 +20,7 @@ GitHub Pages paths on the same owner domain share a browser origin, including br
 - Book notes, device drafts and note export/import data. Explicitly saved notes synchronize as metadata to the selected Suwayomi library; device drafts stay local until saved.
 - Native window preferences for capture protection, app lock and close-to-tray behavior, in the application's scoped configuration folder.
 - Verified library backup artifacts retained on this device for export and recovery. These can include library metadata, categories and history.
+- A library marker remembered for each server address and restore-recovery checkpoints. Yomikura writes its marker into the selected Suwayomi library's client metadata to check continuity before synchronization; it is not sent to a Yomikura service.
 - In desktop local-engine mode: the Suwayomi database, extensions, covers, downloads, logs, and optional private Java runtime in the selected storage folder.
 
 ## Network activity
@@ -40,6 +41,8 @@ Optional tray mode keeps the desktop library engine running after the window clo
 
 Uninstalling the desktop application removes the application but preserves a user-selected storage folder. Users can remove cached chapters or explicitly wipe managed local data from Settings. Yomikura does not receive a remote copy that must be deleted from a project server.
 
-Clearing the selected server's offline cache removes that endpoint/mode's saved chapters and local download jobs. Other profiles' saved chapters, retained library backups, preferences and pending reading progress are separate stores and are not removed by this action. A Suwayomi library backup does not contain those independent client stores or downloaded page bytes.
+Clearing the selected library's offline cache removes its endpoint/mode/marker's saved chapters and local download jobs. Earlier libraries' retained copies, library backups, preferences and pending reading progress are separate and are not removed by this action. Saved copies and notes from an earlier or unverified library remain accessible for device-only recovery in Settings → Storage. A Suwayomi library backup does not contain those independent client stores or downloaded page bytes.
+
+A restored or cloned server can carry the same marker. Identical clones at the same address cannot be distinguished automatically; Connection settings provide an explicit separation action that keeps earlier local data for review. Restoring through Yomikura pauses local writes and assigns a fresh marker after confirmation. These checks do not lock other clients or form an atomic transaction with the server.
 
 Do not include passwords, access tokens, private server addresses, or personal files in bug reports.

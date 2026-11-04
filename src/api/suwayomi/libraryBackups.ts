@@ -1,5 +1,6 @@
 import { validateServerBaseUrl } from "../../config/server";
 import { resolveBackendUrl } from "./pageUrls";
+import { establishLibraryIdentity, verifyLibraryIdentity } from "./libraryIdentity";
 import {
   LibraryBackupError, MAX_LIBRARY_BACKUP_BYTES, readLibraryBackup, saveLibraryBackup,
   validateLibraryBackupBytes, type BackupPurpose, type LibraryBackup,
@@ -15,6 +16,7 @@ export async function createLibraryBackup(
 ): Promise<LibraryBackup> {
   const validation = validateServerBaseUrl(serverBaseUrl);
   if (!validation.valid) throw new LibraryBackupError(validation.message);
+  const identity = await establishLibraryIdentity(validation.normalizedUrl).catch((error) => { throw new LibraryBackupError(error instanceof Error ? error.message : "The library identity could not be verified.", { cause: error }); });
   let backupUrl: string | null | undefined;
   try {
     backupUrl = (await sdk.CreateBackup({ input: {} })).createBackup?.url;
@@ -61,7 +63,16 @@ export async function createLibraryBackup(
     if (error instanceof LibraryBackupError) throw error;
     throw new LibraryBackupError("The backup could not be downloaded completely. Check the server connection and retry.", { cause: error });
   }
-  return (dependencies.save ?? saveLibraryBackup)(validation.normalizedUrl, bytes, purpose);
+  try {
+    await verifyLibraryIdentity(validation.normalizedUrl, identity);
+    const saved = await (dependencies.save ?? saveLibraryBackup)(validation.normalizedUrl, bytes, purpose, identity.marker);
+    if (saved.libraryId !== identity.marker) throw new LibraryBackupError("The saved backup did not retain its library identity. Existing copies are retained.");
+    await verifyLibraryIdentity(validation.normalizedUrl, identity);
+    return saved;
+  } catch (error) {
+    if (error instanceof LibraryBackupError) throw error;
+    throw new LibraryBackupError(error instanceof Error ? error.message : "The backup library identity could not be confirmed.", { cause: error });
+  }
 }
 
 export async function exportLibraryBackup(serverBaseUrl: string, id: string) {

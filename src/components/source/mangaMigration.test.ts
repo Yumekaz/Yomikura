@@ -55,6 +55,28 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("migration review and safety", () => {
+  it("copies categories alone without changing chapter progress or removing the original", async () => {
+    titles.get(2)!.chapters = [];
+    const review = await prepareMangaMigration(backend, 1, 2);
+    await executeMangaMigration(review, new Set(), "copy", { chapters: false, categories: true });
+    expect(writeChapterProgress).not.toHaveBeenCalled();
+    expect(titles.get(2)!.categories.edges.map((edge) => edge.node.id)).toEqual([8, 5]);
+    expect(titles.get(1)!.inLibrary).toBe(true);
+  });
+  it("copies chapter data alone while leaving destination categories unchanged", async () => {
+    const review = await prepareMangaMigration(backend, 1, 2);
+    await executeMangaMigration(review, selected(), "copy", { chapters: true, categories: false });
+    expect(titles.get(2)!.chapters[0].isRead).toBe(true);
+    expect(mocks.sdk.UpdateMangaCategories).not.toHaveBeenCalled();
+    expect(titles.get(2)!.categories.edges).toEqual([{ node: { id: 8 } }]);
+  });
+  it("cannot replace a book while excluding its existing chapter state or selecting no data", async () => {
+    const review = await prepareMangaMigration(backend, 1, 2);
+    expect(canReplaceMigration(review, selected(), { chapters: false, categories: true })).toBe(false);
+    await expect(executeMangaMigration(review, selected(), "replace", { chapters: false, categories: true })).rejects.toThrow("complete");
+    await expect(executeMangaMigration(review, selected(), "copy", { chapters: false, categories: false })).rejects.toThrow("Choose chapters or categories");
+    expect(mocks.sdk.ToggleMangaLibrary).not.toHaveBeenCalled();
+  });
   it("merges existing notes and an unsynced original draft before removing the original", async () => {
     notes.set(1, "Original thought"); notes.set(2, "Destination thought");
     await saveBookNoteDraft({ key: bookNoteScope(backend, 1, "Original"), value: "Device thought", base: "Original thought", pending: true, revision: "draft" });

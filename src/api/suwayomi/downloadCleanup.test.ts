@@ -6,6 +6,7 @@ import { cleanupJobKey, getCleanupJobs, cancelCleanupJobs, saveCleanupJob } from
 import { cleanupProtection, queueDownloadCleanup, runDownloadCleanup } from "./downloadCleanup";
 import { getCachedChapter, getChapterCacheKey, saveCachedChapter } from "./offlineCache";
 import { DEFAULT_DOWNLOAD_EXPERIENCE, type DownloadExperience } from "../../stores/downloadExperience";
+vi.mock("./librarySession", () => ({ rememberedLibrary: () => ({ marker: "11111111-1111-4111-8111-111111111111" }), assertLibrarySession: vi.fn() }));
 
 const mocks = vi.hoisted(() => ({
   settings: {} as { serverBaseUrl: string; mockMode: boolean; autoDeleteReadChapters: boolean; experience: { downloads: DownloadExperience } },

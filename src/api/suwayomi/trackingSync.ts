@@ -3,6 +3,7 @@ import { acquireTrackingLease, getPendingTracking, getProgressOperations, record
 import { assertTrackingBackend, pushLinkedTrackerProgress, trackingErrorMessage } from "./trackingActions";
 import { TrackingBusyError, withTrackingLock } from "./trackingCoordination";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { rememberedLibrary, assertLibrarySession } from "./librarySession";
 
 const inFlight = new Map<string, { promise: Promise<void>; rerun: boolean; force: boolean }>();
 const current = (backend: ProgressBackend) => { try { assertTrackingBackend(backend); return true; } catch { return false; } };
@@ -30,6 +31,9 @@ async function drain(backend: ProgressBackend, force: boolean) {
       if (!await shouldProceed()) continue;
       try {
         if (!backend.isDemo) {
+          const library = rememberedLibrary(backend.serverBaseUrl);
+          if (requests.some((head) => !head.libraryId || library && head.libraryId !== library.marker)) throw new Error("Tracker updates belong to an earlier or unverified library. Reading data is retained for review.");
+          await assertLibrarySession(backend.serverBaseUrl, requests[0].libraryId ?? undefined);
           const result = await pushLinkedTrackerProgress(backend, mangaId, { mangaTitle: requests[0].chapter.mangaTitle, shouldProceed });
           if (result.deferred) continue;
         }

@@ -5,7 +5,12 @@ const backend = "http://127.0.0.1:45679";
 async function fixture(page: Page, options: { unavailable?: boolean; reject?: boolean } = {}) {
   const settings = { downloadAsCbz: false, maxSourcesInParallel: 7, autoDownloadNewChapters: false, autoDownloadNewChaptersLimit: 0, excludeEntryWithUnreadChapters: true, autoDownloadIgnoreReUploads: false };
   const writes: Record<string, unknown>[] = [];
-  await page.addInitScript((backend) => { if (!localStorage.getItem("yomikura-settings")) localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: backend, connectionStatus: "connected", mockMode: false } })); }, backend);
+  await page.addInitScript((backend) => {
+    // These preference tests represent an already connected, verified library.
+    // Initial identity discovery has separate coverage and remounts route clients.
+    if (!localStorage.getItem("yomikura-library-sessions-v1")) localStorage.setItem("yomikura-library-sessions-v1", JSON.stringify({ [backend]: { marker: "11111111-1111-4111-8111-111111111111" } }));
+    if (!localStorage.getItem("yomikura-settings")) localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: backend, connectionStatus: "connected", mockMode: false } }));
+  }, backend);
   await page.route("**/api/graphql", async (route) => {
     const { query, operationName, variables = {} } = route.request().postDataJSON(); const name = operationName || /\b(?:query|mutation)\s+(\w+)/.exec(query)?.[1] || "ConnectionTest";
     let data: unknown;

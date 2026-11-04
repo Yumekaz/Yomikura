@@ -23,12 +23,16 @@ it("downloaded-only continuation cannot be bypassed by disabling filtered-chapte
   const data = connection([12, 13, 14]); Object.assign(data.chapters.nodes[1], { isDownloaded: true }); transport.read.mockResolvedValue(data);
   const result = await loadReadingSequence(backend, 42, "Fixture", 12, DEFAULT_CHAPTER_POLICY, undefined, { skipRead: false, skipFiltered: false, skipDuplicates: false });
   expect(result.chapters.map((chapter) => chapter.id)).toEqual([12, 13]); expect(result.chapters[1].availableOffline).toBe(true);
+  expect(result.knownChapterIds).toEqual([12, 13, 14]);
+  expect(result.knownChapters.map((chapter) => [chapter.id, chapter.availableOffline])).toEqual([[12, false], [13, true], [14, false]]);
 });
 it("uses pending local unread/read intent when building the frozen entry sequence", async () => {
   await enqueueProgress(backend, { kind: "explicit", chapter: { chapterId: 13, chapterName: "Chapter 13", chapterNumber: 13, sourceOrder: 13, mangaId: 42, mangaTitle: "Fixture", pageCount: 1 }, baseline: { isRead: false, lastPageRead: 0 }, patch: { isRead: true, lastPageRead: 0 } });
   transport.read.mockResolvedValue(connection([12, 13, 14]));
   const result = await loadReadingSequence(backend, 42, "Fixture", 12, { ...DEFAULT_CHAPTER_POLICY, filter: "unread" });
   expect(result.chapters.map((chapter) => chapter.id)).toEqual([12, 14]);
+  expect(result.knownChapterIds).toEqual([12, 13, 14]);
+  expect(result.knownChapters.find((chapter) => chapter.id === 13)?.isRead).toBe(true);
 });
 it("rejects changed totals instead of exposing a truncated list", async () => {
   transport.read.mockResolvedValueOnce(connection([12], "next", 3)).mockResolvedValueOnce(connection([13], null, 2));

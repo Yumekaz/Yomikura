@@ -4,10 +4,21 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing unpublished release tag to verify; no rebuild or publication"
+        required: true
+        type: string
+      source_run_id:
+        description: "Original tag build run containing the platform checksum artifacts"
+        required: true
+        type: string
 
 jobs:
   release-preflight:
     name: Release preflight
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -26,14 +37,34 @@ jobs:
         run: pnpm run check:tag "${{ github.ref_name }}"
       - name: Run release verification
         run: pnpm run verify:release
-      - name: Audit production dependencies
-        run: pnpm audit --prod --audit-level high
+      - name: Audit production and development dependencies
+        run: pnpm audit --audit-level high
       - name: Install browser for interaction tests
         run: pnpm exec playwright install --with-deps chromium
       - name: Run desktop interaction tests
         run: pnpm run test:e2e
+      - name: Preserve current preview screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-visual-review
+          path: |
+            .cache/reader-release-review/*.png
+            .cache/browser-setup-guide/*.png
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Preserve release browser failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-browser-failure-evidence
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
   publish-tauri:
+    if: github.event_name == 'push'
     needs: [release-preflight, release-installer-windows]
     permissions:
       contents: write
@@ -56,13 +87,17 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: lts/*
+          node-version: 22
 
       - name: Install Rust Stable
         uses: dtolnay/rust-toolchain@stable
         with:
           # Build dual-architecture target binaries on macOS
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: release-${{ matrix.platform }}
 
       - name: Install Linux Dependencies (Ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
@@ -90,14 +125,36 @@ jobs:
           releaseBody: |
             See the assets below to download and install this version of Yomikura.
 
-            ${{ contains(github.ref_name, '-') && 'This is a public beta prerelease. Back up your library before testing and report reproducible feedback through Settings → About → Beta feedback.' || 'This is a stable release.' }}
+            ${{ contains(github.ref_name, '-') && 'This beta prerelease is prepared as a draft for review. Back up your library before testing and report reproducible feedback through Settings → About → Beta feedback.' || 'This release is prepared as a draft for review.' }}
 
-            Yomikura is an independent open-source project applying to the SignPath Foundation for free Windows code signing. Until approval and workflow confirmation, installers are unsigned.
+            Windows installers are not currently publisher-signed. Updater signatures provide separate artifact integrity verification. Read the release notes for platform coverage and known issues.
 
-            See the [release readiness checklist](https://github.com/Yumekaz/Yomikura/blob/main/docs/RELEASE_READINESS.md) for validation boundaries.
-          releaseDraft: false
+            See the [release readiness checklist](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/docs/RELEASE_READINESS.md) for validation boundaries.
+          releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           args: ${{ matrix.platform == 'windows-latest' && '--bundles nsis' || '' }}
+
+      - name: Set up Java for exact Windows release-asset smoke test
+        if: matrix.platform == 'windows-latest'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Cache pinned backend for exact release asset
+        if: matrix.platform == 'windows-latest'
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/yomikura-smoke-deps
+          key: suwayomi-smoke-v2.3.2243-821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5
+      - name: Test the exact uploaded Windows installer
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe")
+          if ($installers.Count -ne 1) { throw "Expected exactly one release installer" }
+          $storage = Join-Path $env:RUNNER_TEMP "yomikura-exact-release-library"
+          $backend = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.3.2243.jar"
+          ./scripts/smoke-test-installer.ps1 -InstallerPath $installers[0].FullName -PreservedStoragePath $storage -PreseedRuntime -JavaHomePath $env:JAVA_HOME -BackendJarCachePath $backend -StartupTimeoutSeconds 240
 
       - name: Create release checksums
         run: node scripts/write-artifact-checksums.mjs "src-tauri/target/release/bundle" "SHA256SUMS-${{ matrix.platform }}.txt"
@@ -111,6 +168,7 @@ jobs:
 
   release-installer-windows:
     name: Release installer smoke (Windows)
+    if: github.event_name == 'push'
     needs: release-preflight
     runs-on: windows-latest
     permissions:
@@ -134,6 +192,10 @@ jobs:
           path: ${{ runner.temp }}/yomikura-smoke-deps
           key: suwayomi-smoke-v2.3.2243-821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: release-installer
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Check release version synchronization
@@ -143,14 +205,26 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Run native unit tests
+        working-directory: src-tauri
+        run: cargo test --lib -- --test-threads=1
+      - name: Verify installer process ownership
+        shell: pwsh
+        run: ./scripts/test-smoke-process-ownership.ps1
+      - name: Verify production private runtime
+        id: private-runtime
+        shell: pwsh
+        run: ./scripts/verify-private-runtime.ps1 -Destination (Join-Path $env:RUNNER_TEMP 'yomikura-private-runtime')
       - name: Install, launch, and uninstall smoke test
+        env:
+          YOMIKURA_PRIVATE_JAVA: ${{ steps.private-runtime.outputs.java_home }}
         shell: pwsh
         run: |
           $installer = (Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1).FullName
           if (-not $installer) { throw "NSIS installer artifact was not found" }
           $userStorage = Join-Path $env:RUNNER_TEMP "yomikura-release-user-storage"
           $backendJarCache = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.3.2243.jar"
-          ./scripts/smoke-test-installer.ps1 -InstallerPath $installer -PreservedStoragePath $userStorage -PreseedRuntime -JavaHomePath $env:JAVA_HOME -BackendJarCachePath $backendJarCache -StartupTimeoutSeconds 240
+          ./scripts/smoke-test-installer.ps1 -InstallerPath $installer -PreservedStoragePath $userStorage -PreseedRuntime -JavaHomePath $env:YOMIKURA_PRIVATE_JAVA -BackendJarCachePath $backendJarCache -StartupTimeoutSeconds 240
       - name: Collect installer smoke diagnostics
         if: always()
         shell: pwsh
@@ -192,34 +266,76 @@ jobs:
 
   release-checksums:
     name: Verify and publish release checksums
+    if: always() && (github.event_name == 'workflow_dispatch' || needs.publish-tauri.result == 'success')
     needs: publish-tauri
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+      SOURCE_RUN_ID: ${{ inputs.source_run_id || github.run_id }}
     steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Verify finalizer regressions
+        run: node --test scripts/release-artifacts.test.mjs
+      - name: Verify the original build and unpublished draft
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { pathToFileURL } = require('node:url');
+            const { inspectReleaseOrigin } = await import(pathToFileURL(`${process.env.GITHUB_WORKSPACE}/scripts/verify-release-origin.mjs`).href);
+            if (!/^\d+$/.test(process.env.SOURCE_RUN_ID)) throw new Error('Provide the original numeric build run ID.');
+            const runId = Number(process.env.SOURCE_RUN_ID);
+            if (!Number.isSafeInteger(runId) || runId < 1) throw new Error('Invalid original build run ID.');
+            const run = (await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: runId })).data;
+            const releases = await github.paginate(github.rest.repos.listReleases, { ...context.repo, per_page: 100 });
+            const matches = releases.filter((release) => release.tag_name === process.env.RELEASE_TAG);
+            if (matches.length !== 1) throw new Error('The unpublished release is missing or ambiguous.');
+            const release = matches[0];
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, { ...context.repo, run_id: runId, filter: 'latest', per_page: 100 });
+            const commit = inspectReleaseOrigin(run, release, jobs, process.env.RELEASE_TAG, `${context.repo.owner}/${context.repo.repo}`);
+            core.info(`Verified unpublished ${release.tag_name}, original build ${runId}, commit ${commit}.`);
+      - name: Install signature verifier
+        run: sudo apt-get update && sudo apt-get install -y minisign
       - name: Download platform checksums
         uses: actions/download-artifact@v4
         with:
           pattern: release-checksum-*
           path: checksums
           merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
 
       - name: Upload checksums and verify release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          gh release upload "${{ github.ref_name }}" checksums/SHA256SUMS-*.txt --clobber
-          assets="$(gh release view "${{ github.ref_name }}" --json assets --jq '.assets[].name')"
+          gh release download "$RELEASE_TAG" --dir release-downloads
+          node scripts/reconcile-artifact-checksums.mjs release-downloads checksums
           for checksum in \
             "SHA256SUMS-macos-latest.txt" \
             "SHA256SUMS-ubuntu-22.04.txt" \
             "SHA256SUMS-windows-latest.txt"; do
-            grep -Fx "$checksum" <<< "$assets" > /dev/null || {
-              echo "Missing release checksum asset: $checksum"
+            test -f "checksums/$checksum" || {
+              echo "Missing original build checksum manifest: $checksum"
               exit 1
             }
           done
-          grep -E '\.(exe|dmg|AppImage|deb|rpm)$' <<< "$assets" > /dev/null || {
-            echo "No platform installer artifact was found in the release"
-            exit 1
-          }
+          for checksum in checksums/SHA256SUMS-*.txt; do
+            (cd release-downloads && sha256sum --check "$GITHUB_WORKSPACE/$checksum")
+          done
+          node scripts/verify-updater-manifest.mjs release-downloads "$RELEASE_TAG"
+          assets="$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')"
+          for pattern in '\.exe$' '\.exe\.sig$' '\.dmg$' '\.app\.tar\.gz$' '\.app\.tar\.gz\.sig$' '\.AppImage$' '\.deb$' '\.rpm$' '^latest\.json$'; do
+            grep -E "$pattern" <<< "$assets" > /dev/null || {
+              echo "Missing required release asset matching: $pattern"
+              exit 1
+            }
+          done
+          gh release upload "$RELEASE_TAG" checksums/SHA256SUMS-*.txt --clobber

@@ -27,7 +27,9 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Check release version synchronization
         run: pnpm run check:version
-      - name: Typecheck
+      - name: Verify release artifact manifests
+        run: pnpm run test:release-artifacts
+      - name: Typecheck application
         run: pnpm run typecheck
       - name: Unit tests
         run: pnpm test
@@ -37,10 +39,42 @@ jobs:
         run: pnpm run build
       - name: Check production bundle budget
         run: pnpm run check:bundle
+      - name: Preserve GitHub-built browser preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: yomikura-web-preview
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
       - name: Install browser for interaction tests
         run: pnpm exec playwright install --with-deps chromium
+      - name: Check chapter menu focus and positioning
+        run: pnpm exec playwright test tests/e2e/reading-controls.spec.ts --grep "chapter actions remain inside the viewport"
+      - name: Check offline reader continuity after completion
+        run: pnpm exec playwright test tests/e2e/reader-continuity.spec.ts --grep "moving backward after completion"
       - name: Desktop interaction tests
         run: pnpm run test:e2e
+      - name: Preserve demo visual review screens
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: beta-visual-review
+          path: |
+            .cache/beta-ui-review/*.png
+            .cache/browser-setup-guide/*.png
+            .cache/reader-release-review/*.png
+            .cache/visual-upgrade-2026-10-24/screens/library-0-1440.png
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Preserve browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failure-evidence
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
   desktop-windows:
     name: Desktop (Windows)
@@ -74,7 +108,7 @@ jobs:
         run: cargo fmt -- --check
       - name: Native unit tests
         working-directory: src-tauri
-        run: cargo test --lib --locked
+        run: cargo test --lib --locked -- --test-threads=1
       - name: Run Rust Clippy
         working-directory: src-tauri
         run: cargo clippy --all-targets --all-features -- -D warnings
@@ -115,7 +149,16 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Verify installer process ownership
+        shell: pwsh
+        run: ./scripts/test-smoke-process-ownership.ps1
+      - name: Verify production private runtime
+        id: private-runtime
+        shell: pwsh
+        run: ./scripts/verify-private-runtime.ps1 -Destination (Join-Path $env:RUNNER_TEMP 'yomikura-private-runtime')
       - name: Install, launch, and uninstall smoke test
+        env:
+          YOMIKURA_PRIVATE_JAVA: ${{ steps.private-runtime.outputs.java_home }}
         shell: pwsh
         run: |
           $installer = (Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1).FullName
@@ -125,7 +168,22 @@ jobs:
           # Fresh Windows runners can spend several minutes scanning the
           # verified 166 MB backend JAR. Keep the wait bounded, but allow a
           # realistic clean-install margin before declaring startup broken.
-          ./scripts/smoke-test-installer.ps1 -InstallerPath $installer -PreservedStoragePath $userStorage -PreseedRuntime -JavaHomePath $env:JAVA_HOME -BackendJarCachePath $backendJarCache -StartupTimeoutSeconds 240
+          ./scripts/smoke-test-installer.ps1 -InstallerPath $installer -PreservedStoragePath $userStorage -PreseedRuntime -JavaHomePath $env:YOMIKURA_PRIVATE_JAVA -BackendJarCachePath $backendJarCache -StartupTimeoutSeconds 240
+      - name: Verify identity across two isolated local libraries
+        shell: pwsh
+        run: |
+          $backendJar = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.3.2243.jar"
+          $javaBinary = Join-Path $env:JAVA_HOME "bin\java.exe"
+          node scripts/verify-library-identity.mjs "--jar=$backendJar" "--java=$javaBinary"
+      - name: Preserve live identity evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: library-identity-live-evidence
+          path: .cache/library-identity-live/**/*.log
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:

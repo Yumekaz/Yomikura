@@ -1,14 +1,31 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryBackupError, verifyLibraryBackupArchive, type LibraryBackup } from "./backupStorage";
 import { createLibraryBackup, RestoreAfterBackupError, restoreWithSafetyBackup } from "./libraryBackups";
+import { verifyLibraryIdentity } from "./libraryIdentity";
+vi.mock("./libraryIdentity", async (original) => ({ ...await original<typeof import("./libraryIdentity")>(), establishLibraryIdentity: vi.fn(async () => ({ marker: "11111111-1111-4111-8111-111111111111" })), verifyLibraryIdentity: vi.fn() }));
+beforeEach(() => vi.mocked(verifyLibraryIdentity).mockReset());
 
 // Gzip fixture produced independently with node:zlib, including its CRC trailer.
 const bytes = new Uint8Array([31,139,8,0,0,0,0,0,0,10,75,203,172,40,41,45,74,85,200,201,76,42,74,44,170,84,200,77,45,73,76,73,44,73,4,0,34,182,244,80,24,0,0,0]);
-const backup: LibraryBackup = { id: "backup-fixture", serverBaseUrl: "http://localhost:4567", fileName: "fixture.tachibk", purpose: "safety", size: bytes.length, createdAt: 123, sha256: null, storage: "browser" };
+const backup: LibraryBackup = { id: "backup-fixture", serverBaseUrl: "http://localhost:4567", fileName: "fixture.tachibk", purpose: "safety", size: bytes.length, createdAt: 123, sha256: null, storage: "browser", libraryId: "11111111-1111-4111-8111-111111111111" };
 const sdk = (url: string | null = "/api/v1/backup/file/test.tachibk") => ({ CreateBackup: vi.fn(async () => ({ createBackup: { url } })) });
 const download = () => vi.fn<typeof fetch>(async () => new Response(new Uint8Array(bytes)));
 
 describe("durable library backup lifecycle", () => {
+  it("never confirms an export from a library replaced at the same address", async () => {
+    vi.mocked(verifyLibraryIdentity).mockRejectedValueOnce(new Error("Library changed"));
+    const save = vi.fn();
+    await expect(createLibraryBackup(sdk(), backup.serverBaseUrl, "manual", { fetch: download(), save })).rejects.toThrow("Library changed");
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("does not report success if identity changes while saving the recovery file", async () => {
+    vi.mocked(verifyLibraryIdentity).mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("Library changed"));
+    const save = vi.fn(async () => backup);
+    await expect(createLibraryBackup(sdk(), backup.serverBaseUrl, "safety", { fetch: download(), save })).rejects.toThrow("Library changed");
+    expect(save).toHaveBeenCalledOnce();
+  });
+
   it("downloads the export and waits for storage verification before resolving", async () => {
     let finish!: (value: LibraryBackup) => void;
     const save = vi.fn(() => new Promise<LibraryBackup>((resolve) => { finish = resolve; }));
@@ -16,7 +33,7 @@ describe("durable library backup lifecycle", () => {
     const request = download();
     const pending = createLibraryBackup(sdk(), "http://localhost:4567/", "safety", { fetch: request, save }).then((result) => { completed = true; return result; });
     await vi.waitFor(() => expect(save).toHaveBeenCalledOnce());
-    expect(save).toHaveBeenCalledWith("http://localhost:4567", bytes, "safety");
+    expect(save).toHaveBeenCalledWith("http://localhost:4567", bytes, "safety", "11111111-1111-4111-8111-111111111111");
     expect(String(request.mock.calls[0][0])).toBe("http://localhost:4567/api/v1/backup/file/test.tachibk");
     expect(request.mock.calls[0][1]?.redirect).toBe("error");
     expect(completed).toBe(false);

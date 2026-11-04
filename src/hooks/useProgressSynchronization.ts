@@ -7,12 +7,15 @@ import { synchronizeProgress } from "../api/suwayomi/progressSync";
 import { invalidateChapterState } from "../api/suwayomi/chapterState";
 import { useDownloadStore } from "../stores/useDownloadStore";
 import { synchronizeTracking } from "../api/suwayomi/trackingSync";
+import { rememberedLibrary } from "../api/suwayomi/librarySession";
 
 export function useProgressBackend() {
   const { serverBaseUrl, mockMode } = useSettingsStore();
+  let libraryId: string | undefined;
+  try { libraryId = mockMode ? undefined : rememberedLibrary(serverBaseUrl)?.marker; } catch { /* Invalid connection input remains editable. */ }
   return useMemo(() => {
     try { return progressBackend(serverBaseUrl, mockMode); } catch { return null; }
-  }, [serverBaseUrl, mockMode]);
+  }, [serverBaseUrl, mockMode, libraryId]);
 }
 
 export function useProgressSynchronization() {

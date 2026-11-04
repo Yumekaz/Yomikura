@@ -30,7 +30,7 @@ export function BackupSettingsPanel({
   exportLibraryCsv,
   restoreSavedBackup,
 }: BackupSettingsPanelProps) {
-  const { mockMode, backupIntervalHours, setBackupIntervalHours, lastScheduledBackupAt, scheduledBackupStatus, scheduledBackupError } = useSettingsStore();
+  const { mockMode, connectionStatus, backupIntervalHours, setBackupIntervalHours, lastScheduledBackupAt, scheduledBackupStatus, scheduledBackupError } = useSettingsStore();
   return (
     <div className="rounded-md border border-white/10 bg-ink-900 p-6 shadow-panel space-y-6">
       <div>
@@ -78,7 +78,7 @@ export function BackupSettingsPanel({
       <div className="flex flex-col sm:flex-row gap-4">
         <button
           onClick={createBackup}
-          disabled={creatingBackup || restoringBackup || mockMode}
+          disabled={creatingBackup || restoringBackup || mockMode || connectionStatus !== "connected"}
           className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-yomi-jade px-4 py-3 font-semibold text-ink-950 hover:bg-yomi-jade/90 disabled:opacity-50 transition"
         >
           {creatingBackup ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
@@ -93,7 +93,7 @@ export function BackupSettingsPanel({
             accept=".zip,.tachibk,.json"
             onChange={handleFileChange}
             className="hidden"
-            disabled={creatingBackup || restoringBackup || mockMode}
+            disabled={creatingBackup || restoringBackup || mockMode || connectionStatus !== "connected"}
           />
         </label>
       </div>

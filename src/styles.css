@@ -57,6 +57,8 @@ html {
   min-width: 320px;
   background: var(--ink-950);
   transition: background-color 0.2s ease;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
 }
 
 body {
@@ -65,6 +67,8 @@ body {
   min-height: 100vh;
   background: var(--ink-950);
   transition: background 0.2s ease, color 0.2s ease;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
 }
 
 .light-theme body {
@@ -269,6 +273,8 @@ html.reduce-motion *::after {
 /* Desktop product system -------------------------------------------------- */
 .yomi-app-shell {
   min-height: 100vh;
+  max-width: 100%;
+  overflow-x: clip;
   background: var(--ink-950);
 }
 
@@ -286,6 +292,8 @@ html.reduce-motion *::after {
 
 .yomi-main {
   min-height: 100vh;
+  min-width: 0;
+  max-width: 100%;
   padding-bottom: 96px;
 }
 
@@ -370,7 +378,7 @@ html.reduce-motion *::after {
 .yomi-route-loading { display: grid; gap: 24px; width: min(100%, 1120px); margin: 0 auto; padding: 44px clamp(24px, 4vw, 56px); }
 @keyframes yomi-skeleton { to { background-position: -200% 0; } }
 
-.yomi-manga-detail { background: var(--ink-950); }
+.yomi-manga-detail { background: var(--ink-950); min-width: 0; max-width: 100%; touch-action: pan-y; overscroll-behavior-x: none; }
 .yomi-manga-backdrop { opacity: .13; filter: saturate(.72) blur(32px); transform: scale(1.04); mask-image: linear-gradient(to bottom, black 12%, transparent 88%); }
 .yomi-manga-cover { border: 1px solid var(--line-strong); border-radius: 18px; box-shadow: 0 24px 64px rgba(0,0,0,.42), 0 2px 8px rgba(0,0,0,.34); }
 .yomi-content-surface { border: 1px solid var(--line); background: var(--ink-900); box-shadow: 0 18px 45px rgba(0,0,0,.2); }
@@ -378,6 +386,7 @@ html.reduce-motion *::after {
 .yomi-reader-top { border-bottom-width: 1px; }
 .yomi-reader-bottom { border-top-width: 1px; }
 .yomi-reader-panel { border: 1px solid var(--line-strong); border-radius: 16px; background: var(--ink-850); box-shadow: 0 18px 52px rgba(0,0,0,.34); }
+.yomi-reader-end { border: 1px solid var(--line); border-radius: 16px; background: var(--ink-950); }
 
 .yomi-dialog-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: rgba(0,0,0,.68); backdrop-filter: blur(8px); }
 .yomi-dialog { width: min(100%, 430px); border: 1px solid var(--line-strong); border-radius: 18px; padding: 22px; background: var(--ink-850); box-shadow: 0 28px 90px rgba(0,0,0,.55); animation: yomi-dialog-enter 180ms var(--ease-out); }
@@ -483,7 +492,7 @@ select.yomi-field option,
 .yomi-alert.is-success { border-color: rgba(239,234,226,.18); background: rgba(239,234,226,.045); }
 .yomi-route-empty { display: grid; min-height: 360px; place-items: center; padding: 40px 22px; border: 1px dashed var(--line-strong); border-radius: 18px; text-align: center; }
 .yomi-route-empty > div { max-width: 370px; }
-.yomi-route-empty svg { width: 34px; height: 34px; margin: 0 auto 16px; color: rgb(var(--yomi-signature)); }
+.yomi-route-empty > svg, .yomi-route-empty > div > svg { width: 34px; height: 34px; margin: 0 auto 16px; color: rgb(var(--yomi-signature)); }
 .yomi-route-empty h2 { margin: 0; color: var(--text-strong); font-size: 18px; font-weight: 680; letter-spacing: -.02em; }
 .yomi-route-empty p { margin: 8px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
 
@@ -548,6 +557,7 @@ button:disabled { cursor: not-allowed; }
 .yomi-continue-copy { flex: 1; min-width: 0; }
 .yomi-continue-copy > a { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-strong); font-size: 16px; font-weight: 620; letter-spacing: -.02em; }
 .yomi-continue-copy p { margin-top: 5px; color: var(--text); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yomi-continue-copy p.yomi-continue-availability { color: var(--text-muted); white-space: normal; overflow: visible; line-height: 1.5; }
 .yomi-continue-copy > span { display: block; color: var(--text-muted); font-size: 11px; margin-top: 4px; }
 .yomi-continue-copy .yomi-progress-line { margin-top: 10px; width: min(360px, 90%); }
 .yomi-library-tools { margin-bottom: 22px; border-top: 1px solid var(--line); padding-top: 17px; }
@@ -619,13 +629,15 @@ button:disabled { cursor: not-allowed; }
 .yomi-route-empty { min-height: 280px; border: 1px solid var(--line); border-radius: 12px; background: var(--ink-900); }
 .yomi-route-empty > div { max-width: 400px; }
 .yomi-route-empty h2 { font-size: 19px; font-weight: 600; }
-.yomi-route-empty svg { width: 29px; height: 29px; }
+.yomi-route-empty > svg, .yomi-route-empty > div > svg { width: 29px; height: 29px; }
 .yomi-route-empty p { font-size: 13px; line-height: 1.7; }
 .yomi-settings-tabs { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; padding: 0 0 12px; gap: 6px; margin-top: 24px; }
 .yomi-settings-tabs button { padding: 0 13px; font-weight: 500; }
 .yomi-settings-tabs button.is-active { background: var(--ink-800); }
 .yomi-catalog-item { border-radius: 10px; min-height: 82px; padding: 16px; }
 .yomi-catalog { grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
+.yomi-source-catalog { grid-template-columns: repeat(auto-fill, minmax(min(100%, 350px), 1fr)); }
+.yomi-source-catalog .yomi-catalog-copy strong { white-space: normal; overflow-wrap: anywhere; }
 .yomi-manga-backdrop { opacity: .07; }
 .yomi-manga-cover { border-radius: 9px; box-shadow: 0 12px 30px #0004; }
 .yomi-content-surface { box-shadow: none; border-radius: 12px; }
@@ -760,7 +772,8 @@ html.reduce-motion .yomi-book-cover { transform: none !important; }
   .yomi-timeline-date { position: static; padding-top: 0; }
   .yomi-history-row { grid-template-columns: 40px minmax(0,1fr); gap: 12px; }
   .yomi-history-cover { width: 40px; height: 60px; }
-  .yomi-history-actions { grid-column: 2; justify-self: end; }
+  .yomi-history-actions { display: flex; grid-column: 1 / -1; justify-self: end; flex-wrap: wrap; gap: 4px; }
+  .yomi-history-actions .yomi-icon-button { width: 40px; height: 40px; }
   .yomi-discover-guide { flex-wrap: wrap; padding: 16px; gap: 12px; }
   .yomi-discover-guide > .yomi-button { margin-left: 40px; }
   .yomi-onboarding { display: flex; flex-direction: column; }
@@ -812,6 +825,7 @@ html.reduce-motion .yomi-book-cover { transform: none !important; }
 .yomi-chapter-swipe-hint { position: absolute; right: 18px; color: rgb(var(--yomi-signature)); font-size: 11px; font-weight: 650; }
 .yomi-chapter-swipe-hint.is-read-action { right: auto; left: 18px; }
 .yomi-context-menu { position: absolute; top: calc(100% - 10px); right: 16px; z-index: 40; min-width: 185px; padding: 5px; background: var(--ink-900); border: 1px solid var(--line-strong); border-radius: 10px; box-shadow: 0 12px 28px #0003; }
+.yomi-chapter-context-menu { position: fixed; right: auto; z-index: 80; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow-y: auto; }
 .yomi-context-menu > button { display: block; width: 100%; min-height: 38px; border-radius: 6px; padding: 9px 12px; text-align: left; color: var(--text); font-size: 12px; }
 .yomi-context-menu > button:hover, .yomi-context-menu > button:focus-visible { outline-offset: -2px; background: rgba(var(--yomi-signature), .10); }
 .yomi-book-toolbar { position: sticky; top: 0; z-index: 30; min-height: 58px; display: flex; align-items: center; gap: 14px; padding: 10px clamp(16px, 3vw, 36px); background: var(--ink-950); border-bottom: 1px solid var(--line); }
@@ -836,6 +850,8 @@ html.reduce-motion .yomi-book-cover { transform: none !important; }
 .yomi-reader-page-tools .yomi-context-menu > :is(button,a) { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 9px 12px; border-radius: 6px; font-size: 12px; color: var(--text); }
 .yomi-reader-page-tools .yomi-context-menu > a:hover { background: rgba(var(--yomi-signature), .1); }
 .yomi-reader-page-tools svg { width: 16px; height: 16px; }
+.yomi-reader-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.yomi-reader-setting-row .yomi-select-trigger { width: auto; min-width: 144px; max-width: 55%; }
 .yomi-reader-menu-label { display: block; padding: 7px 12px; font-size: 10px; color: var(--text-muted); }
 .yomi-reader-vertical-nav { position: fixed; z-index: 55; right: max(8px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; width: 36px; padding: 10px 5px; border-radius: 10px; background: #000b; color: #fff; font-size: 10px; font-variant-numeric: tabular-nums; }
 .yomi-reader-vertical-nav.on-left { right: auto; left: max(8px, env(safe-area-inset-left)); }
@@ -897,7 +913,7 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
 .yomi-sidebar-companion figcaption { position: relative; margin: 6px 22px 0; color: var(--text); font-family: var(--font-display); font-size: 14px; line-height: 1.5; font-style: italic; }
 .yomi-reading-spirit { display: block; object-fit: contain; user-select: none; pointer-events: none; }
 .yomi-empty-spirit { width: 148px; height: 120px; margin: 0 auto 22px; }
-.yomi-library-header h1, .yomi-page-header h1, .yomi-workspace-head h1, .yomi-manga-detail h1 { font-family: var(--font-display); font-size: 36px; font-weight: 550; line-height: 1.17; letter-spacing: -.035em; }
+.yomi-library-header h1, .yomi-page-header h1, .yomi-workspace-head h1, .yomi-workspace-title, .yomi-manga-detail h1 { font-family: var(--font-display); font-size: 36px; font-weight: 550; line-height: 1.17; letter-spacing: -.035em; }
 .yomi-section-heading h2, .yomi-route-empty h2, .yomi-empty-state h1 { font-family: var(--font-display); font-weight: 550; letter-spacing: -.025em; }
 .yomi-section-heading h2 { font-size: 18px; }
 .yomi-route-empty h2 { font-size: 23px; }
@@ -961,6 +977,11 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
 .yomi-switch input:checked + span { background: var(--action-bg); border-color: rgb(var(--yomi-signature)); }
 .yomi-switch input:checked + span::before { transform: translateX(14px); background: var(--action-text); }
 .yomi-switch input:focus-visible + span { outline: 2px solid rgb(var(--yomi-signature)); outline-offset: 4px; }
+.yomi-reader-remember-switch { display: inline-flex; width: 42px; height: 26px; flex: 0 0 auto; align-items: center; padding: 2px; border: 1px solid var(--line-strong); border-radius: 99px; background: var(--ink-800); transition: background-color 150ms ease; }
+.yomi-reader-remember-switch span { display: block; width: 20px; height: 20px; border-radius: 50%; background: var(--text-muted); transition: transform 150ms var(--ease-out), background-color 150ms ease; }
+.yomi-reader-remember-switch[aria-pressed="true"] { background: var(--action-bg); border-color: var(--action-bg); }
+.yomi-reader-remember-switch[aria-pressed="true"] span { transform: translateX(16px); background: var(--action-text); }
+.yomi-reader-remember-switch:focus-visible { outline: 2px solid rgb(var(--yomi-signature)); outline-offset: 3px; }
 .yomi-comfort-options { display: grid; gap: 15px; }
 .yomi-comfort-options label { display: flex; align-items: center; gap: 10px; color: var(--text); font-size: 13px; }
 .yomi-comfort-options input { width: 16px; height: 16px; accent-color: var(--action-bg); }
@@ -989,7 +1010,7 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
 .yomi-storage-options > button:not(:first-child) > span { display: none; }
 @media (max-width: 1280px) { .yomi-palette-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width: 640px) {
-  .yomi-library-header h1, .yomi-page-header h1, .yomi-workspace-head h1 { font-size: 32px; }
+  .yomi-library-header h1, .yomi-page-header h1, .yomi-workspace-head h1, .yomi-workspace-title { font-size: 32px; }
   .yomi-appearance { padding: 18px 14px; }
   .yomi-palette-grid { gap: 10px; }
   .yomi-palette-art { min-height: 85px; padding: 12px 10px; gap: 5px; }
@@ -1020,3 +1041,10 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
 .yomi-privacy-curtain h1 { font: 32px/1.2 'Playfair Display Variable', serif; }
 .yomi-privacy-curtain p { color: var(--text-muted); font-size: 13px; }
 a.yomi-text-link { text-decoration: underline; text-underline-offset: 3px; }
+.yomi-reader-zoom { display: flex; align-items: center; align-self: center; gap: 2px; border: 1px solid var(--line-strong); border-radius: 10px; padding: 2px; color: var(--text-strong); background: var(--ink-900); }
+.yomi-reader-zoom button { display: grid; place-items: center; min-width: 38px; min-height: 34px; padding: 5px 9px; border-radius: 7px; font-size: 15px; font-weight: 600; touch-action: manipulation; }
+.yomi-reader-zoom button:nth-child(2) { min-width: 62px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.yomi-reader-zoom button:focus-visible { outline: 2px solid rgb(var(--yomi-signature)); outline-offset: 2px; }
+.yomi-reader-zoom button:disabled { opacity: .4; }
+@media (hover: hover) and (pointer: fine) { .yomi-reader-zoom button:hover:enabled { background: var(--ink-800); } }
+@media (max-width: 640px) { .yomi-reader-zoom button { min-height: 40px; min-width: 40px; } }

@@ -1,0 +1,66 @@
+# Library identity work
+
+Final implementation: `19a75b0842fe54dfa6219a586b1d0ecb541e49d4`. All three jobs in [GitHub Actions run 41482802780](https://github.com/Yumekaz/Yomikura/actions/runs/41482802780) passed. Its GitHub-built Windows installer was installed normally over the existing test installation and checked against the real local Suwayomi library. The final verification section below supersedes the outstanding gates recorded at earlier checkpoints.
+
+## Backup lifecycle
+
+New exports establish a marker using Suwayomi's authenticated global metadata API, record it beside the retained backup, and verify it after downloading and after writing the archive. Restore rechecks the safety copy's marker immediately before uploading. Scheduled backups require a matching marker and a readable retained file before trusting its timestamp. Address-only older copies cannot postpone a fresh scheduled export. Older archives and their notes remain exportable; no archive or old manifest is migrated or deleted.
+
+The saved list shows matching, different, or unverified origins. The marker establishes continuity of the server's client metadata. It is not a cryptographically verified server identity: administrators can edit it, backups that include client data can carry it, and two clones can have identical values. Concurrent first-time clients can race because Suwayomi does not offer compare-and-set; the client reads back the retained value and verifies it around the operation, stopping on a changed value. A server replacement between verification and the actual HTTP request remains outside an atomic guarantee. A changed marker after storage fails the operation rather than claiming success; its retained archive is kept for recovery.
+
+Evidence in the pinned Suwayomi source: `graphql/queries/MetaQuery.kt` (`metas`), `graphql/mutations/MetaMutation.kt` (`setGlobalMeta`), `global/impl/GlobalMeta.kt` (update-or-insert), and `manga/impl/backup/proto/handlers/BackupGlobalMetaHandler.kt` (conditional export and restore). Yomikura's native CI checks for the required query and mutation fields. Unit tests cover identity bootstrap/readback, unavailable metadata, changed markers during export/write, and recent archives from a different or unverified library. A browser fixture replaces a library marker at the same URL and preserves both labelled archives. These fixture checks do not substitute for two live databases or installed native verification.
+
+## Verification and boundaries
+
+Initial remote verification: commit `b6a8096` passed typechecking but failed a timestamp-inconsistent test fixture; commit `34cc2ee` corrected it and passed all 464 unit tests and the production build. The resulting scripts measured 1,052,148 bytes, 3,572 bytes over the former 1 MiB script budget; total output was 3,133,557 bytes, below the unchanged 3 MiB total cap. The explicit script allowance was increased by 8 KiB for these identity checks. Browser and live-database validation remain separate gates, and failed logs are retained privately.
+
+The first two-database CI attempt used immediate Windows process termination immediately after writing metadata. Distinct-library checks and exports proceeded, but reopening the first database did not recover the expected marker. Its backend logs confirm the intended database paths. This is failed abrupt-termination evidence; it does not establish crash-durable metadata. The follow-up harness waits for an idle interval and reads the reopened marker without creating one. Run `41440885094` passed the live two-database test and both Windows jobs, including overlapping comic/chapter IDs, distinct markers, export and idle restart. Its frontend job passed 464 unit tests and 225 browser tests, but one notes-backup fixture omitted the identity response. Loss of server metadata must be handled as lost continuity, never a reason to assign an old archive to a new marker. The idle-restart check does not replace a crash-recovery guarantee.
+
+The data-scope batch captures a marker during connection, verifies captured client markers before GraphQL mutations, tags new pending progress, cached chapters, reading history, download jobs and device notes, and separates retained page records by marker. Legacy progress is blocked from automatic replay; conflict review is an explicit per-chapter action. Earlier device notes and saved pages remain available in Settings → Storage → Earlier saved libraries. Its saved reader only consumes device cache bytes, including saved page tiles; missing bytes remain an error and do not trigger a source fetch. Earlier progress can be exported for review and unfinished earlier downloads stay listed for review. Query state and active download work are reset when a new marker is remembered; onboarding stays mounted so engine setup retains ownership. Unverified clients cannot silently adopt a later marker for mutations.
+
+Run `41461940941`, for commit `5c1b468`, passed all three jobs: 482 unit tests, 227 browser tests, typechecking, dependency audit, production build/bundle limits, Windows compilation/Clippy, installer lifecycle and live database identity checks. Its scripts measured 1,071,167 bytes and total output 3,152,687 bytes. Run `41470462984`, for `eafe8a3`, also passed all jobs, including the expanded production-service test: earlier queued work was quarantined against a replacement database, explicit review retained an archived progress record, a verified safety archive preceded an actual restore, and pre-restore work stayed blocked after renewal. Recovery browser coverage includes saved tiles and missing bytes without source fetching. Installed validation is still outstanding at this checkpoint.
+
+Follow-up review freezes the captured marker when background services recreate GraphQL clients, makes cache reads/deletions/clears retain their captured scope across awaits, and scopes in-memory download registries by marker. A replacement library's same-numbered download cannot consume an earlier library's failed job. Explicit conflict review refreshes the target to the user's currently selected library while archiving the earlier record. These changes add targeted regressions and require their own final run.
+
+The marker can be copied by restore or cloning. A completely identical cloned server at an identical endpoint cannot be distinguished automatically by this metadata mechanism. Connection settings now provide a deliberate "Separate this library's saved data" action: it verifies the current marker, writes a fresh one, reads it back, and keeps earlier local data for recovery. Other clients then need to reconnect. This applies to both managed local and remote servers; there is no claim of an independent native database-generation identifier. Address changes retain the original endpoint's offline data for review rather than silently moving pending actions to a new endpoint.
+
+Restore pauses local server mutations after its safety copy is verified. A persistent checkpoint records the restore ID when received. A completed restore receives a fresh marker even if it carried the old marker, so pre-restore updates are not automatically reapplied. The recovery panel can check an in-progress restore after navigation/restart. If upload response or status was lost, writes stay paused until the user reviews the library; a deliberate recovery action renews its marker before resuming. This is a local client fence, not a transaction lock over other clients or in-flight server work. Retained safety files remain independent of the recovery checkpoint.
+
+The first data-scope checkpoint passed typechecking and 473 unit tests. Build output measured 3,145,066 bytes, including 1,063,546 bytes of scripts. Verification and device-only recovery are budgeted explicitly with 32 KiB total headroom over 3 MiB and 32 KiB script headroom over 1 MiB, including the late-client and captured-cleanup checks; the artwork and largest-chunk caps are unchanged. These are feature-size allowances, not evidence that runtime checks pass.
+
+The supported boundary is client metadata continuity plus explicit separation and restore renewal, rather than an independently attested physical server identity. Overlapping records at one endpoint, unavailable identity, retained legacy data, stale callbacks, explicit conflict review, address changes and restore checkpoint failures have targeted coverage. The CI live probe is extended to exercise the production progress outbox, safety archive storage, actual Suwayomi restore and post-restore quarantine. Browser tests cover device-only recovery; installed native checks must confirm that the tested app artifact behaves the same. No result here establishes atomic cross-client writes, automatic detection of indistinguishable copies, or crash-durable upstream metadata.
+
+## Final verification
+
+### Automated checks on GitHub
+
+The final implementation run passed 488 unit tests across 72 files, 227 browser tests plus the focused chapter-menu check, typechecking, production dependency audit, production build and bundle budgets. Both Windows jobs passed: compilation, Rust formatting, Clippy, installer lifecycle, shortcut/icon checks, local-engine readiness, shutdown/uninstall and preserved-storage checks.
+
+The live database probe used production progress, backup and restore services against two disposable real Suwayomi databases at one endpoint with overlapping comic/chapter IDs. It rejected stale-origin mutations, quarantined earlier queued progress, exercised explicit review while retaining the earlier record, verified a safety archive before an actual multipart restore, renewed the restored marker, and confirmed pre-restore work stayed blocked. Copied-marker separation and reopening the original database after an idle interval also passed.
+
+Browser coverage includes same-address replacement, earlier saved tiles, missing saved bytes without source fetching, note separation, captured asynchronous cleanup, download-job isolation, stale clients, address changes and durable restore checkpoints. The pending-progress review now appears in the main workspace rather than below the sidebar's scroll area; its viewport regression passed. The reader retains its compact presentation.
+
+Final build output: 119 files, 3,156,480 total bytes, 1,074,960 JavaScript bytes, 737,260 identity-artwork bytes. Largest JavaScript chunk: 320,205 bytes. The explicit identity/recovery allowances are 32 KiB above the former 3 MiB total and 1 MiB script caps. Artwork and largest-chunk caps are unchanged.
+
+### Normal Windows installation
+
+The tested installer is `Yomikura_1.0.25-beta.1_x64-setup.exe`, produced by the final run above. Its downloaded artifact ZIP matched GitHub's artifact digest before extraction. Installer SHA-256:
+
+```text
+342ae8afb2520d49a739581aadef100e0d2e389c04c8b8f1d8e1bb631b2230dc
+```
+
+Before updating, the normal app and engine were closed and the app-data directory was copied outside the repository and sync folder. Original/copy counts and size agreed. This was a safety copy, not a file-by-file cryptographic verification or a profile-restore rehearsal.
+
+Installed results:
+
+- The branded desktop shortcut launches the normal per-user installation, with the title-bar icon present. The existing test library, source extension and reading position survive the update.
+- An earlier unverified progress update requires explicit review. The approved server position remains and the earlier record stays recoverable. Its progress export parses as the expected versioned JSON format.
+- A new native backup is retained and exported. Its size and SHA-256 match its manifest, its gzip payload expands, and the downloaded copy is identical. Its marker still matches the connected library after the final update and restart. The final installed UI shows “Matches connected library.”
+- Chapter 2 advances to page 4 and Suwayomi reports the corresponding zero-based position. After closing both app and engine, shortcut relaunch shows Chapter 2 / Page 4 in Continue reading; opening it renders page 4 of 15.
+- Saving the chapter produces a device download. It remains listed after another full app/engine restart and opens at page 4. Library counts show one on-device download and zero on-server downloads.
+- Appearance and retained-backup settings were checked in light mode, then returned to the original dark appearance. The app was left on Library.
+
+These native checks were performed online. They do not establish disconnected laptop reading or a destructive restore/replacement of the user's normal library. Actual restore and replacement ran against disposable CI databases. Earlier saved-page recovery was verified in browser tests; this normal native profile had no earlier page record for that specific recovery-reader check. No heavy local build or public release was performed.
+
+Earlier failed fixture, setup ownership, stale callback and catalog-refresh attempts remain preserved privately. The final pass does not erase the immediate-termination failure described above or establish crash-durable upstream metadata. Identical clones, atomic cross-client writes, signed-in providers, other operating systems and arbitrary remote Suwayomi versions remain outside this verification.
