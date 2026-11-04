@@ -1,5 +1,7 @@
 # Reader reliability and beta verification
 
+**Current result:** beta.5 passed its complete tagged release build, package/signature verification and exact installed Windows checks, including saved reading across an outage and app restart. The original library was restored unchanged. The release remains an unpublished draft for review. The earlier candidate evidence below is retained separately from the final beta.5 results.
+
 This follow-up addresses the reported reader ending, shared zoom, source-site action and sideways comic-content movement. It continues the existing Ink & Ember interface and React/Tauri/Suwayomi architecture. The earlier [reading-workflow report](READING_WORKFLOWS_2026-11-03.md) remains the baseline for automatic offline access, extension notices, history, duplicate review and the browser setup guide; its earlier installer does not establish verification of these subsequent reader changes.
 
 ## Behavior and implementation
@@ -47,7 +49,7 @@ Browser specifications: [zoom](../tests/e2e/reader-zoom.spec.ts), [endings](../t
 
 ## GitHub verification
 
-Final application/test commit: `8d42858731c574e5ab602031e6102ee2d67d5fee` on `codex/reading-room`. All three jobs passed in [Verify run 41771793948](https://github.com/Yumekaz/Yomikura/actions/runs/41771793948), following the successful [reader baseline run 41767717025](https://github.com/Yumekaz/Yomikura/actions/runs/41767717025) at `724ebfc`. All compilation and full browser/native suites ran on GitHub; no heavy local build was required.
+Reader/palette baseline commit: `8d42858731c574e5ab602031e6102ee2d67d5fee` on `codex/reading-room`. All three jobs passed in [Verify run 41771793948](https://github.com/Yumekaz/Yomikura/actions/runs/41771793948), following the successful [reader baseline run 41767717025](https://github.com/Yumekaz/Yomikura/actions/runs/41767717025) at `724ebfc`. All compilation and full browser/native suites ran on GitHub; no heavy local build was required.
 
 | Gate | Recorded result |
 | --- | --- |
@@ -59,9 +61,9 @@ Final application/test commit: `8d42858731c574e5ab602031e6102ee2d67d5fee` on `co
 | Release-artifact tooling tests and synchronized versions | PASS: 15 artifact-tooling tests and version synchronization |
 | Production dependency audit, build and bundle budget | PASS: 3,224,670 total bytes; 1,130,289 JavaScript bytes; 737,260 identity-artwork bytes; largest JavaScript chunk 332,839 bytes |
 | Browser interaction suite | PASS: 255 tests, including the four light-palette contrast cases, plus separate chapter-menu and offline-continuity checks |
-| Tag-triggered release packages and attached checksum/signature verification | PENDING: branch artifacts do not substitute for the final release assets |
+| Tagged packages and checksum/signature verification | Completed separately for the final beta.5 assets below; these earlier branch artifacts are baseline evidence only |
 
-Run 41771793948 also covers the palette-aware ending surface, tracker rows using the built-in `Link2` icon instead of a broken remote favicon, and compilation of the desktop single-instance callback that unminimizes the window before showing and focusing it. Actual shortcut restoration and the corrected light ending still require the exact final installed-package check below.
+Run 41771793948 also covers the palette-aware ending surface, tracker rows using the built-in `Link2` icon instead of a broken remote favicon, and compilation of the desktop single-instance callback that unminimizes the window before showing and focusing it. Actual shortcut restoration and the corrected light ending were subsequently checked in the exact final installed package below.
 
 Earlier failed attempts remain retained privately. They exposed ambiguous test locators, a mutable DOM-ref type diagnostic, a small bundle overrun, footer-obscured completion assumptions and an offline fixture that had not actually saved the remounted image bytes. The final fixture explicitly seeds the saved chapter and requires a decoded `blob:` image before checking durable offline progress; it retains the completion/position assertions. The installer harness also stopped relying on PID-only ancestry after an unrelated compiler helper was misidentified. These earlier failures are not counted as successful checks.
 
@@ -96,7 +98,7 @@ The archive matched GitHub’s recorded digest before extraction and execution. 
 | Source refresh | PASS: refresh completed and the displayed live metadata changed. A before/after backend JSON comparison found all 223 chapters’ read, bookmark and page-position state unchanged. |
 | Shared native zoom/reset | PASS: the isolated real Local chapter rendered at 120%, retained that scale when changing pages, and returned to 100% on double-click from both 120% and 83%. |
 | Final-chapter state | PASS for behavior: the loaded final page produced **Finished** and **There’s no next chapter** above the controls. The server confirmed page 2 of 2 and read state. |
-| Light-mode presentation | FAIL in this earlier branch installer: the ending’s title and actions were too dark against the black canvas. The subsequent surface fix passed contrast checks in all four light palettes; the exact final installer still needs its visual retest. |
+| Light-mode presentation | FAIL in this earlier branch installer: the ending’s title and actions were too dark against the black canvas. The subsequent fix passed contrast checks in all four light palettes and its final Windows visual retest below. |
 
 These are branch-candidate observations. They do not substitute for installing and checking the exact final release asset, particularly the subsequent light-mode surface, icon and minimized-window changes. The original profile and its resume position were restored after the isolated reader checks; a backend comparison confirmed all 223 original chapter states were unchanged after QA.
 
@@ -110,9 +112,42 @@ All desktop HTTP(S) external links now use one validated browser handoff, coveri
 
 The server-update notice now uses the palette's text and surface, stays still rather than pulsing, and explains that Yomikura's managed engine updates through app releases. Readers managing their own server are directed to its release notes and a backup before upgrading. Four light-palette contrast cases cover this actual status, including its release link.
 
+Current beta.5 views from its successful branch run: [reader zoom](images/beta.5/reader-zoom.png), [reader ending](images/beta.5/reader-end.png) and [light server-update notice](images/beta.5/server-update-light.png). These contain only original demo artwork or isolated fixtures.
+
 Beta.5 application/test commit `df86c72c944dcba5e86c3c9b38385c46e86158f3` passed all three jobs in [Verify run 41777921993](https://github.com/Yumekaz/Yomikura/actions/runs/41777921993): **555 unit tests, 259 browser tests, 27 native tests and 15 artifact-tooling tests**, including installer lifecycle, verified runtime and real-library replacement/restore checks. The four server-update light-palette contrast cases passed. Production output is 3,224,830 total bytes, 1,130,449 JavaScript bytes and a largest chunk of 334,097 bytes; the existing budgets and artwork size were retained. One earlier beta.5 run exceeded the JavaScript limit by 444 bytes; sharing repeated help-link rendering resolved that without removing any destination or relaxing the limit.
 
-**PENDING:** exact beta.5 tag-built Windows installer, attached checksums/updater payload signatures and installed-package retest. Candidate publication remains a separate owner decision. Stable updater and ordinary website-download routing continue to follow stable releases.
+## Final beta.5 packages and installed verification
+
+Tag `v1.0.25-beta.5` points to `0413cf97fbbf918dbce89c9d56cc5dee5543070d`. Its application/test tree is identical to the verified `df86c72` commit; the intervening changes document the handoff. All six jobs passed in [release run 41779186550](https://github.com/Yumekaz/Yomikura/actions/runs/41779186550): release preflight, Windows installer smoke, Windows/macOS/Linux packaging and final artifact verification. Preflight repeated the 555 unit and 259 browser tests, dependency audit, build budget and 15 artifact-tooling tests. The installer gate repeated 27 native tests and verified the production private runtime and lifecycle.
+
+All uploaded packages matched the original platform-build manifests. The finalizer verified **five updater payload signatures and eight target mappings** against the configured public key, then attached the three platform checksum manifests. Actual packages are Windows x64 NSIS, macOS Apple-silicon DMG/app archive, and Linux x86_64 AppImage/DEB/RPM. No Intel Mac package or interactive macOS/Linux coverage is claimed.
+
+The exact draft Windows download, `Yomikura_1.0.25-beta.5_x64-setup.exe`, is **6,418,045 bytes** with SHA-256:
+
+```text
+a8010d11da690ea16376da20c0446f553062e9b8e8aaaddf37a03731fc40d1a9
+```
+
+The downloaded file matched both the original Windows checksum manifest and GitHub asset digest before execution. Its attached signature also matched the updater metadata. Normal Explorer installation selected **Do not uninstall**, retained the usual destination and created the desktop shortcut. About displayed `1.0.25-beta.5`.
+
+| Final installed Windows check | Result |
+| --- | --- |
+| Upgrade and original library | PASS: the original library, saved download and Chapter 1 / Page 3 of 19 resume position remained. All 223 original chapters' read, bookmark and page-position values matched the pre-upgrade baseline after the complete QA session. |
+| Pre-upgrade backup | PASS: a new retained backup matched its manifest checksum and decompressed with a valid gzip checksum. The same archive remained byte-identical after installation. This was an integrity check, not a restore over the user's library. |
+| Source and help links | PASS: primary clicks opened the actual comic source, official server release and existing Troubleshooting document in Chrome outside the app. Source refresh left the original chapter-state baseline unchanged. |
+| Details containment | PASS: dragging the cover and applying horizontal wheel input left comic content inside the window. The broader browser regression checks also cover long titles at 1100px and 390px. |
+| Light-mode presentation | PASS: the server-update notice and chapter-ending title, status and actions remained readable in the final installed light theme. **Finished** and **There's no next chapter** were visible above the footer. |
+| Shortcut and restart | PASS: normal shortcut launch worked; opening it again restored the same minimized app window. |
+| Saved reading and zoom | PASS: both original-art saved pages rendered while their test server refused connections. A 120% scale followed page selection; double-click reset from both 120% and 83% to 100%. |
+| Offline app restart | PASS: the retained library opened automatically without a **Continue offline** choice. Covers, comic details and the saved chapter remained accessible. The reader resumed at page 1 of 2 and retained its pending progress record. |
+| Reconnection and progress | PASS: reconnect cleared the pending record. The real isolated server changed its zero-based `lastPageRead` from 1 to 0 while `read` stayed true. Reading to the end afterwards showed the confirmed last-chapter panel. |
+| Profile restoration | PASS: the original on-device profile was restored, became reachable and retained its complete chapter-state baseline. Only the separately identified QA helper was stopped; its data and failed attempts remain private. |
+
+The outage test stopped a separately created backend after matching its saved process identity; the QA endpoint was confirmed unavailable while the original library remained reachable. The laptop's internet connection was not disabled. This establishes saved reading during server unavailability; it does not add a physical network-disconnection or upstream crash-durability claim.
+
+The clean GitHub installer smoke recorded 19.91 seconds to backend readiness and 920.5 MB combined working set across its verified process set. These are runner measurements, not laptop performance guarantees.
+
+The release remains an **unpublished prerelease draft** for owner review. Publication is a separate decision. The latest stable release and ordinary updater/download routing remain `v1.0.24`; no main-branch merge or public website deployment accompanied this work. [Candidate notes](releases/v1.0.25-beta.5.md) include installation steps and the tested limitations.
 
 ## Scope and limits
 
