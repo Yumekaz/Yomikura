@@ -27,4 +27,12 @@ Source checks: [official release assets](https://github.com/Suwayomi/Suwayomi-Se
 - Reader regression coverage waits for a middle-page backend acknowledgement, then leaves, reopens and reloads the reader. Intentional backward reading is checked too.
 - The real-server web-guide harness uses four original-art pages, acknowledges page 3, reloads, gracefully restarts pinned Suwayomi and resumes from an entirely fresh browser. It also checks first-install update notices and a subsequent intentional move to page 2. This runs against both pinned server versions; it does not automate the Windows launcher or certify abrupt power-loss durability.
 
-These additions require passing GitHub execution before they are reported as verified. The public web archive continues to come from the reviewed release commit; changing this guide does not silently replace the released app with unreleased source.
+## Verified results
+
+At source `47a711ed2cae4135cebfc656a28b8c0d991af171`, [application/browser/Windows verification](https://github.com/Yumekaz/Yomikura/actions/runs/42000745723), [security](https://github.com/Yumekaz/Yomikura/actions/runs/42000745910) and [public-guide verification](https://github.com/Yumekaz/Yomikura/actions/runs/42000745930) passed. The public-guide artifact records no site asset failures or page errors, desktop/mobile coverage at 390px, both appearances and automated accessibility checks. Generated guide screenshots were also visually inspected.
+
+Both real pinned servers (v2.3.2243 and v2.4.2366) acknowledged page 3, retained it across a graceful server restart and resumed it in a fresh browser. Both saved a subsequent deliberate move to page 2. Fresh installations showed no waiting-update notice. These results narrow the manual discrepancy; they do not resolve the earlier forced-stop observation or prove power-loss durability.
+
+The first public-guide run failed at its clipboard assertion because headless Chromium lacked clipboard permission. That failed evidence remains retained. The corrected check grants only the test origin's clipboard permissions and verifies the actual copied folder path. No shipping browser permission behavior was changed.
+
+The public web archive continues to come from the reviewed v1.0.25 release commit; changing this guide does not silently replace the released app with unreleased source. In-app help changes require a subsequent app release.

@@ -18,6 +18,8 @@ Focused regression tests cover failed checks and retry, successful installation 
 
 ## Remaining planned batches
 
+The earlier released-upgrade workflow [41959252209](https://github.com/Yumekaz/Yomikura/actions/runs/41959252209) passed both official upgrade paths, saved-page integrity, beta.5 unsynced-note retention, offline app restart and acknowledged progress replay at source `17a4876`. The repetition covered 16 chapter visits and 48 decoded page visits in 10.162 seconds; it is not prolonged-session evidence. The resulting Windows installer/source run [41959711595](https://github.com/Yumekaz/Yomikura/actions/runs/41959711595) also passed. See the [browser setup review](BROWSER_SETUP_REVIEW_2026-11-05.md) for the separate guide and graceful-server-restart checks.
+
 1. Complete client-state recovery: a versioned recovery package, explicit optional saved-page export, integrity checks and a review before connecting imported state to any backend. Server archives, device preferences, draft notes, pending reading/tracker work and page bytes have different ownership and restoration rules. Restoring one must not silently replay another client's pending writes.
 2. Recovery into an empty profile, with interruption, malformed-package, quota/permission and mismatched/identical-clone scenarios. Keep original imports and pre-import state recoverable. Cross-database/cache restoration requires a durable staged journal; it cannot be described as one atomic IndexedDB transaction.
 3. Sustained reading and failure recovery: measured memory/responsiveness across repeated chapters, navigation modes, queues, cancellation, app restart and isolated-backend outages. Report the tested duration and fixture size; do not call a short loop an hours-long reading test.
