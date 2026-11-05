@@ -34,7 +34,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/yomikura-reliability-deps
-          key: reliability-suwayomi-2.3.2243-821141b3
+          key: suwayomi-reliability-runtime-v1
+      - name: Permit loopback inspection of the released app on this disposable elevated runner
+        shell: pwsh
+        run: |
+          # Elevated WebView2 hosts ignore user/environment diagnostic flags.
+          # Scope the machine policy to Yomikura executables on this fresh VM.
+          $key = 'HKLM:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+          New-Item -Path $key -Force | Out-Null
+          foreach ($app in @('app.exe', 'Yomikura.exe')) {
+            New-ItemProperty -Path $key -Name $app -Value '--remote-debugging-port=9237 --remote-debugging-address=127.0.0.1' -PropertyType String -Force | Out-Null
+          }
       - name: Exercise official released updater
         run: node scripts/released-windows-upgrade.mjs
         env:

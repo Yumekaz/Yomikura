@@ -2,3 +2,5 @@
 # commit. Exact fingerprints only; credentials and all other matches still fail.
 dc9c1f03ccaeae05b85ca0b18bbfc5a75f708fea:.github/workflows/publish.yml:generic-api-key:133
 dc9c1f03ccaeae05b85ca0b18bbfc5a75f708fea:.github/workflows/verify.yml:generic-api-key:97
+# Public CI cache key, not a credential. Exact historical match only.
+fa86f1a4e9eba66ecf9aeecb2aac629996fea60f:.github/workflows/released-windows-reliability.yml:generic-api-key:32
