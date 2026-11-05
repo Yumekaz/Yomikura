@@ -31,7 +31,7 @@ it("failed checks expose a recovery action and can retry without false success",
 it("successful installation followed by relaunch failure explains how to reopen", async () => {
   const downloadAndInstall = vi.fn().mockResolvedValue(undefined);
   mocks.check.mockResolvedValue({ version: "9.0.0", downloadAndInstall }); mocks.relaunch.mockRejectedValue(new Error("relaunch denied"));
-  const { container, click } = mount(); await click("Check for Updates"); await click("Install");
+  const { container, click } = mount(); await click("Check for Updates"); await click("Download & Relaunch Update");
   await vi.waitFor(() => expect(container.querySelector('[role="alert"]')?.textContent).toContain("was installed"));
   expect(container.querySelector('[role="alert"]')?.textContent).toContain("usual shortcut");
   expect(downloadAndInstall).toHaveBeenCalledOnce(); expect(mocks.relaunch).toHaveBeenCalledOnce();
