@@ -3,11 +3,12 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { compareSuwayomiVersions } from "../../api/suwayomi/version";
 import { APP_VERSION } from "../../utils/appVersion";
+import { updateFailure, type UpdatePhase } from "../../utils/updateFailure";
 
 export function TauriUpdaterRow() {
   const [checking, setChecking] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ReturnType<typeof updateFailure> | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<{ downloaded: number; total: number } | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [checked, setChecked] = useState(false);
@@ -22,7 +23,7 @@ export function TauriUpdaterRow() {
       setUpdateInfo(update || null);
     } catch (err: any) {
       console.error("Update check failed:", err);
-      setError(err.message || String(err));
+      setError(updateFailure(err, "checking"));
     } finally {
       setChecking(false);
     }
@@ -32,6 +33,7 @@ export function TauriUpdaterRow() {
     if (!updateInfo) return;
     setDownloading(true);
     setError(null);
+    let phase: UpdatePhase = "installing";
     try {
       let totalBytes = 0;
       let downloadedBytes = 0;
@@ -50,11 +52,13 @@ export function TauriUpdaterRow() {
             break;
         }
       });
+      phase = "restarting";
       const { relaunch } = await import("@tauri-apps/plugin-process");
       await relaunch();
     } catch (err: any) {
       console.error("Update installation failed:", err);
-      setError(err.message || String(err));
+      setError(updateFailure(err, phase));
+      setDownloadProgress(null);
       setDownloading(false);
     }
   };
@@ -70,7 +74,7 @@ export function TauriUpdaterRow() {
           {checking ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /><span>Checking...</span></> : <span>Check for Updates</span>}
         </button>
       </div>
-      {error && <p className="text-xs text-red-400 leading-normal" role="alert">{error}</p>}
+      {error && <div className="text-xs text-red-400 leading-normal" role="alert"><p>{error.message}</p><a className="yomi-text-link mt-2 inline-block" href="https://github.com/Yumekaz/Yomikura/releases/latest" target="_blank" rel="noopener noreferrer">Open official release page</a><details className="mt-2"><summary>Technical details</summary><pre className="mt-2 whitespace-pre-wrap break-all">{error.details}</pre></details></div>}
       {checked && !checking && !updateInfo && !error && <p className="text-xs text-yomi-jade flex items-center gap-1.5 font-semibold" role="status"><CheckCircle2 className="h-4 w-4" />No newer stable release is available. Running v{APP_VERSION}.</p>}
       {updateInfo && <div className="rounded-lg bg-white/[0.02] border border-white/5 p-4 space-y-3 animate-fade-in">
         <div className="flex items-center justify-between"><span className="text-xs font-bold text-slate-200">Update Available: v{updateInfo.version}</span></div>

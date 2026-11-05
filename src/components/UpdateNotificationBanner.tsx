@@ -4,8 +4,9 @@ import { Download, X, Server } from "lucide-react";
 import { isTauri } from "../stores/useSettingsStore";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import { APP_VERSION } from "../utils/appVersion";
+import { updateFailure, type UpdatePhase } from "../utils/updateFailure";
 
-type AppUpdate = { version: string; download: () => Promise<void> };
+type AppUpdate = { version: string; download: (phase: (value: UpdatePhase) => void) => Promise<void> };
 
 export function UpdateNotificationBanner() {
   const { serverBaseUrl, connectionStatus } = useSettingsStore();
@@ -13,16 +14,17 @@ export function UpdateNotificationBanner() {
   const [serverUpdate, setServerUpdate] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [installing, setInstalling] = useState(false);
-  const [installError, setInstallError] = useState<string | null>(null);
+  const [installError, setInstallError] = useState<ReturnType<typeof updateFailure> | null>(null);
 
   const installAppUpdate = async () => {
     if (!appUpdate) return;
     setInstalling(true);
     setInstallError(null);
+    let phase: UpdatePhase = "installing";
     try {
-      await appUpdate.download();
+      await appUpdate.download((value) => { phase = value; });
     } catch (error) {
-      setInstallError(error instanceof Error ? error.message : "The update could not be installed.");
+      setInstallError(updateFailure(error, phase));
     } finally {
       setInstalling(false);
     }
@@ -39,8 +41,9 @@ export function UpdateNotificationBanner() {
         if (!cancelled && update) {
           setAppUpdate({
             version: update.version,
-            download: async () => {
+            download: async (phase) => {
               await update.downloadAndInstall();
+              phase("restarting");
               const { relaunch } = await import("@tauri-apps/plugin-process");
               await relaunch();
             },
@@ -96,8 +99,9 @@ export function UpdateNotificationBanner() {
             if (update) {
               setAppUpdate({
                 version: update.version,
-                download: async () => {
+                download: async (phase) => {
                   await update.downloadAndInstall();
+                  phase("restarting");
                   const { relaunch } = await import("@tauri-apps/plugin-process");
                   await relaunch();
                 },
@@ -141,9 +145,7 @@ export function UpdateNotificationBanner() {
         </div>
       )}
       {installError && (
-        <p className="text-xs text-red-300" role="alert">
-          Update failed: {installError}. You can download the latest release manually from Settings.
-        </p>
+        <div className="text-xs text-red-300" role="alert"><p>{installError.message}</p><a className="underline" href="https://github.com/Yumekaz/Yomikura/releases/latest" target="_blank" rel="noopener noreferrer">Open official release page</a><details className="mt-2"><summary>Technical details</summary><pre className="whitespace-pre-wrap break-all">{installError.details}</pre></details></div>
       )}
       {serverUpdate && (
         <div className="flex items-center justify-between gap-3 border-t border-yomi-jade/15 pt-2">
