@@ -187,9 +187,17 @@ try {
     await page.getByRole('button', { name: 'Go to page 2', exact: true }).click();
     const offlineImage = page.locator('[id^="reader-page-"]').getByRole('img', { name: 'Page 2', exact: true });
     await expect(offlineImage).toHaveAttribute('src', /^blob:/); await expect(offlineImage).toHaveCSS('opacity', '1');
+    await until(() => page.evaluate(async (chapterId) => {
+      const db = await new Promise((resolve, reject) => { const request = indexedDB.open('yomikura-progress'); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+      try { return await new Promise((resolve, reject) => { const request = db.transaction('heads').objectStore('heads').getAll(); request.onsuccess = () => resolve(request.result.some((head) => head.chapter.chapterId === chapterId && head.patch.lastPageRead === 1 && head.sequence > head.acknowledgedSequence)); request.onerror = () => reject(request.error); }); }
+      finally { db.close(); }
+    }, second.id));
     await page.screenshot({ path: path.join(root, 'saved-reading-server-unavailable.png') });
+    const oldWebView = (await (await fetch('http://127.0.0.1:9237/json/version')).json()).webSocketDebuggerUrl;
     await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('plugin:process|restart')).catch(() => {});
-    await browser?.close().catch(() => {}); await attach();
+    await browser?.close().catch(() => {});
+    await until(async () => { const version = await (await fetch('http://127.0.0.1:9237/json/version', { signal: AbortSignal.timeout(1000) })).json(); return version.webSocketDebuggerUrl !== oldWebView; });
+    await attach();
     await page.goto(`http://tauri.localhost/reader/${second.id}`);
     await expect(page.locator('[id^="reader-page-"]').getByRole('img', { name: 'Page 2', exact: true })).toHaveAttribute('src', /^blob:/, { timeout: 30000 });
     report.checks.push('48 decoded page visits across 16 chapter visits, then real saved-page reading and app restart while the isolated server was unavailable');
