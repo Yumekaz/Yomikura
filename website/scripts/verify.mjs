@@ -116,6 +116,16 @@ try {
   await page.goto(hosted.origin + PAGES_BASE + "setup/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible(); await settledImages(page);
   await expect(page.locator("[data-web-download]").first()).toHaveAttribute("href", metadata.web.url);
+  await expect(page.getByRole("list", { name: "Windows ZIP setup" })).toContainText("windows-x64.zip");
+  await expect(page.getByRole("list", { name: "Windows ZIP setup" })).toContainText("Suwayomi Launcher.bat");
+  await page.getByText("Already have a Suwayomi library?", { exact: true }).click();
+  await expect(page.getByText(/Selecting Downloads itself/)).toBeVisible();
+  await page.getByText("Where is Suwayomi’s data folder?", { exact: true }).click();
+  await expect(page.getByText(/First check the launcher/)).toBeVisible();
+  await desktop.grantPermissions(["clipboard-read", "clipboard-write"], { origin: hosted.origin });
+  await page.getByRole("button", { name: "Copy", exact: true }).first().click();
+  await expect(page.getByRole("button", { name: "Copied", exact: true }).first()).toBeVisible();
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), "%LOCALAPPDATA%\\Tachidesk");
   await revealPage(page);
   await page.screenshot({ path: path.join(review, "setup-light-desktop.jpg"), fullPage: true, type: "jpeg", quality: 85 });
   await audit(page, "Public setup guide");

@@ -111,3 +111,13 @@ test("switching offline inside the running app still queries device-backed route
   await page.getByRole("link", { name: "Read again", exact: true }).click();
   await expect(page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 1", exact: true })).toHaveAttribute("src", /^blob:/, { timeout: 15000 });
 });
+
+test("a fresh browser installation has no waiting-update notice", async ({ page }) => {
+  await page.goto(`${origin}/setup`);
+  await expect(page.getByRole("heading", { name: "Your browser. Your reading room.", exact: true })).toBeVisible();
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+  await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration())!.update(); });
+  expect(await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())!.waiting)).toBe(false);
+  await expect(page.getByText(/An app update is ready/)).toHaveCount(0);
+});

@@ -19,6 +19,9 @@ for (const [palette, mode, width] of [["ember", "dark", 1440], ["moonstone", "li
     await expect(page.getByRole("link", { name: "Download Yomikura Desktop", exact: true })).toHaveAttribute("href", "https://github.com/Yumekaz/Yomikura/releases/latest");
     await expect(page.getByRole("navigation", { name: "Browser setup steps" }).getByRole("link")).toHaveCount(4);
     await expect(page.getByRole("link", { name: "Download Suwayomi", exact: true })).toHaveAttribute("href", "https://github.com/Suwayomi/Suwayomi-Server/releases/latest");
+    await page.getByText("Which download should I choose?", { exact: true }).click();
+    await expect(page.getByText(/The Windows ZIP includes Java/)).toBeVisible();
+    await expect(page.getByText(/For a separate library, create an empty folder/)).toBeVisible();
     await page.getByRole("link", { name: "I already have Suwayomi", exact: true }).click();
     await expect(page.getByRole("textbox", { name: "Your Suwayomi address", exact: true })).toBeInViewport();
     await page.getByRole("button", { name: "Use the usual address", exact: true }).click();
