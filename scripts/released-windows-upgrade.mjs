@@ -159,6 +159,7 @@ try {
   process.exitCode = 1;
 } finally {
   await writeFile(path.join(root, 'result.json'), JSON.stringify(report, null, 2));
+  await browser?.close().catch(() => {});
   // Only this harness's own process handles are stopped; runner-only teardown.
   if (appProcess && appProcess.exitCode === null) appProcess.kill();
   if (backendProcess && backendProcess.exitCode === null) backendProcess.kill();
