@@ -122,8 +122,10 @@ try {
   await expect(page.getByText(/Selecting Downloads itself/)).toBeVisible();
   await page.getByText("Where is Suwayomi’s data folder?", { exact: true }).click();
   await expect(page.getByText(/First check the launcher/)).toBeVisible();
+  await desktop.grantPermissions(["clipboard-read", "clipboard-write"], { origin: hosted.origin });
   await page.getByRole("button", { name: "Copy", exact: true }).first().click();
   await expect(page.getByRole("button", { name: "Copied", exact: true }).first()).toBeVisible();
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), "%LOCALAPPDATA%\\Tachidesk");
   await revealPage(page);
   await page.screenshot({ path: path.join(review, "setup-light-desktop.jpg"), fullPage: true, type: "jpeg", quality: 85 });
   await audit(page, "Public setup guide");
