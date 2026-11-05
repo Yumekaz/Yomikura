@@ -1,5 +1,10 @@
 name: Released Windows reliability
 on:
+  push:
+    branches: [codex/windows-reliability-2026-11-05]
+    paths:
+      - .github/workflows/released-windows-reliability.yml
+      - scripts/released-windows-upgrade.mjs
   workflow_dispatch:
 permissions:
   contents: read
