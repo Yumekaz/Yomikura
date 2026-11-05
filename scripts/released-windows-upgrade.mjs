@@ -200,7 +200,16 @@ try {
     await attach();
     await page.goto(`http://tauri.localhost/reader/${second.id}`);
     await expect(page.locator('[id^="reader-page-"]').getByRole('img', { name: 'Page 2', exact: true })).toHaveAttribute('src', /^blob:/, { timeout: 30000 });
-    report.checks.push('48 decoded page visits across 16 chapter visits, then real saved-page reading and app restart while the isolated server was unavailable');
+    const reconnectLog = createWriteStream(path.join(root, 'backend-reconnect.log'));
+    backendProcess = spawn(backendProcess.spawnfile, backendProcess.spawnargs.slice(1), { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    backendProcess.stdout.pipe(reconnectLog); backendProcess.stderr.pipe(reconnectLog);
+    await until(async () => (await graphql('{ __typename }')).__typename);
+    await page.goto('http://tauri.localhost/library');
+    await until(async () => {
+      const result = await graphql('query($id:Int!){chapter(id:$id){isRead lastPageRead}}', { id: second.id });
+      return result.chapter.isRead && result.chapter.lastPageRead === 1;
+    });
+    report.checks.push('48 decoded page visits across 16 chapter visits, saved-page reading and a fresh app restart during server unavailability, then replay to the real reconnected server with completion retained');
   }
   report.result = 'PASS';
 } catch (error) {
