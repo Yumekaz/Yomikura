@@ -1,0 +1,50 @@
+name: Released Windows reliability
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  released-upgrade:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        from: [v1.0.24, v1.0.25-beta.5]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: pnpm install --frozen-lockfile
+      - name: Cache pinned backend
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/yomikura-reliability-deps
+          key: reliability-suwayomi-2.3.2243-821141b3
+      - name: Exercise official released updater
+        run: node scripts/released-windows-upgrade.mjs
+        env:
+          FROM_RELEASE: ${{ matrix.from }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Preserve synthetic test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: released-upgrade-${{ matrix.from }}
+          path: |
+            .cache/released-upgrade/**/*.json
+            .cache/released-upgrade/**/*.txt
+            .cache/released-upgrade/**/*.log
+            .cache/released-upgrade/**/*.png
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
