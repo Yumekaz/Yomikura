@@ -102,6 +102,20 @@ try {
   else await page.getByRole('button', { name: new RegExp(`^(Download|Save).*${chapter.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`) }).first().click();
   await until(async () => (await records())['yomikura-offline'].chapters?.some((item) => item.id === chapter.id), 120000);
   const before = await records(); await writeFile(path.join(root, 'before.json'), JSON.stringify(before, null, 2));
+  if (from === 'v1.0.25-beta.5') {
+    await page.getByLabel('A note for Upgrade Story', { exact: true }).fill('Keep this unsynced upgrade-test note.');
+    await expect(page.getByText('Saved on this device. Sync to keep it with your library.', { exact: true })).toBeVisible();
+  }
+  const cachedDigests = () => page.evaluate(async () => {
+    const cache = await caches.open('yomikura-page-cache'), result = [];
+    for (const request of await cache.keys()) {
+      const response = await cache.match(request), bytes = await response.arrayBuffer();
+      const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((value) => value.toString(16).padStart(2, '0')).join('');
+      result.push([request.url, bytes.byteLength, digest]);
+    }
+    return result.sort((a, b) => a[0].localeCompare(b[0]));
+  });
+  const savedBytes = await cachedDigests(); assert.ok(savedBytes.length >= 3, 'A saved record without page bytes is not a successful download');
   const settingsBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('yomikura-settings') || 'null'));
   report.checks.push('Official old installer digest verified, real Local library loaded and chapter saved through UI');
   await page.screenshot({ path: path.join(root, 'before-upgrade.png') });
@@ -120,11 +134,18 @@ try {
   await expect(page.getByRole('link', { name: 'Upgrade Story', exact: true }).first()).toBeVisible();
   const after = await records(); await writeFile(path.join(root, 'after.json'), JSON.stringify(after, null, 2));
   assert.ok(after['yomikura-offline'].chapters?.some((item) => item.id === chapter.id), 'Saved chapter record was lost during upgrade');
+  assert.deepEqual(await cachedDigests(), savedBytes, 'Saved page bytes changed or disappeared during upgrade');
   const settingsAfter = await page.evaluate(() => JSON.parse(localStorage.getItem('yomikura-settings') || 'null'));
   assert.equal(settingsAfter.state.serverBaseUrl, backend); assert.equal(settingsAfter.state.themeMode, settingsBefore?.state.themeMode || 'light');
   const progress = await graphql('query($id:Int!){chapter(id:$id){isRead lastPageRead isBookmarked}}', { id: chapter.id });
   assert.deepEqual(progress.chapter, { isRead: false, lastPageRead: 1, isBookmarked: true });
   report.checks.push('Real updater installed target release and relaunched; library membership, partial progress, bookmark, saved record, server profile and theme survived');
+  if (from === 'v1.0.25-beta.5') {
+    await page.goto(`http://tauri.localhost/manga/${book.id}`);
+    await expect(page.getByLabel('A note for Upgrade Story', { exact: true })).toHaveValue('Keep this unsynced upgrade-test note.');
+    report.checks.push('Unsynced note saved through the beta.5 UI survived the real update');
+  }
+  report.checks.push('Every saved page retained its original SHA-256 and byte length');
   await page.screenshot({ path: path.join(root, 'after-upgrade.png') });
   report.result = 'PASS';
 } catch (error) {
