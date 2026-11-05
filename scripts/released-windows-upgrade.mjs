@@ -91,7 +91,8 @@ try {
   const installed = await ps(String.raw`$ErrorActionPreference="Stop"; $p=Start-Process -FilePath $env:UPGRADE_INSTALLER -ArgumentList "/S" -WindowStyle Hidden -Wait -PassThru; if($p.ExitCode -ne 0){throw "Install failed"}; $e=Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {$_.DisplayName -eq "Yomikura"} | Select-Object -First 1; if(-not $e){throw "No installation record"}; ($e.DisplayIcon -replace ',\d+$', '').Trim([char]34)`, { UPGRADE_INSTALLER: installerPath });
   assert.ok(path.isAbsolute(installed));
   const appLog = createWriteStream(path.join(root, 'app.log'));
-  appProcess = spawn(installed, [], { windowsHide: true, env: { ...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9237 --remote-debugging-address=127.0.0.1', WEBVIEW2_USER_DATA_FOLDER: path.join(root, 'webview') }, stdio: ['ignore', 'pipe', 'pipe'] });
+  await writeFile(path.join(root, 'installed.json'), JSON.stringify({ path: installed, productVersion: await ps('(Get-Item -LiteralPath $env:UPGRADE_APP).VersionInfo.ProductVersion', { UPGRADE_APP: installed }) }));
+  appProcess = spawn(installed, [], { env: { ...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9237 --remote-debugging-address=127.0.0.1' }, stdio: ['ignore', 'pipe', 'pipe'] });
   appProcess.stdout.pipe(appLog); appProcess.stderr.pipe(appLog);
   await attach();
   await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible({ timeout: 60000 });
@@ -150,6 +151,8 @@ try {
   report.result = 'PASS';
 } catch (error) {
   report.result = 'FAIL'; report.failures.push(String(error));
+  await writeFile(path.join(root, 'process-diagnostics.txt'), await ps('Get-CimInstance Win32_Process | Where-Object {$_.Name -match "Yomikura|msedgewebview"} | Select-Object ProcessId,Name,ExecutablePath,CommandLine | Format-List | Out-String').catch(String));
+  await writeFile(path.join(root, 'window-diagnostics.txt'), await ps('Get-Process | Where-Object {$_.MainWindowTitle} | Select-Object Id,ProcessName,MainWindowTitle | Format-Table | Out-String').catch(String));
   if (page && !page.isClosed()) { await page.screenshot({ path: path.join(root, 'failure.png') }).catch(() => {}); await writeFile(path.join(root, 'failure-dom.txt'), await page.locator('body').innerText().catch(() => 'unavailable')); }
   process.exitCode = 1;
 } finally {
