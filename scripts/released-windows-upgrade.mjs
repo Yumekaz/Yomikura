@@ -46,7 +46,7 @@ async function attach() {
 async function records() {
   return page.evaluate(async () => {
     const result = {};
-    for (const name of ['yomikura-offline', 'yomikura-notes']) {
+    for (const name of ['yomikura-offline', 'yomikura-book-notes']) {
       if (!(await indexedDB.databases()).some((db) => db.name === name)) { result[name] = {}; continue; }
       const db = await new Promise((resolve, reject) => { const request = indexedDB.open(name); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
       result[name] = {};
@@ -164,6 +164,36 @@ try {
   }
   report.checks.push('Every saved page retained its original SHA-256 and byte length');
   await page.screenshot({ path: path.join(root, 'after-upgrade.png') });
+  if (from === 'v1.0.25-beta.5') {
+    const started = Date.now(), samples = [];
+    const chapters = details.fetchMangaAndChapters.chapters;
+    for (let cycle = 0; cycle < 8; cycle++) {
+      for (const reading of chapters) {
+        await page.goto(`http://tauri.localhost/reader/${reading.id}`);
+        for (const number of [1, 2, 3]) {
+          await page.getByRole('button', { name: `Go to page ${number}`, exact: true }).click();
+          await expect(page.locator('[id^="reader-page-"]').getByRole('img', { name: `Page ${number}`, exact: true })).toHaveCSS('opacity', '1', { timeout: 30000 });
+        }
+      }
+      samples.push({ cycle, elapsedMs: Date.now() - started, heapBytes: await page.evaluate(() => performance.memory?.usedJSHeapSize ?? null) });
+    }
+    report.readingStress = { durationMs: Date.now() - started, chapterVisits: 16, decodedPageVisits: 48, samples, interpretation: 'bounded repetition only; no long-session memory guarantee' };
+    await page.goto(`http://tauri.localhost/manga/${book.id}`);
+    const second = chapters.find((item) => item.id !== chapter.id); assert.ok(second);
+    await page.getByRole('button', { name: `Save ${second.name} for offline reading`, exact: true }).click();
+    await until(async () => (await records())['yomikura-offline'].chapters?.some((item) => item.id === second.id));
+    backendProcess.kill(); await until(async () => !await fetch(backend + '/api/graphql', { signal: AbortSignal.timeout(1000) }).then(() => true, () => false));
+    await page.goto(`http://tauri.localhost/reader/${second.id}`);
+    await page.getByRole('button', { name: 'Go to page 2', exact: true }).click();
+    const offlineImage = page.locator('[id^="reader-page-"]').getByRole('img', { name: 'Page 2', exact: true });
+    await expect(offlineImage).toHaveAttribute('src', /^blob:/); await expect(offlineImage).toHaveCSS('opacity', '1');
+    await page.screenshot({ path: path.join(root, 'saved-reading-server-unavailable.png') });
+    await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('plugin:process|restart')).catch(() => {});
+    await browser?.close().catch(() => {}); await attach();
+    await page.goto(`http://tauri.localhost/reader/${second.id}`);
+    await expect(page.locator('[id^="reader-page-"]').getByRole('img', { name: 'Page 2', exact: true })).toHaveAttribute('src', /^blob:/, { timeout: 30000 });
+    report.checks.push('48 decoded page visits across 16 chapter visits, then real saved-page reading and app restart while the isolated server was unavailable');
+  }
   report.result = 'PASS';
 } catch (error) {
   report.result = 'FAIL'; report.failures.push(String(error));
