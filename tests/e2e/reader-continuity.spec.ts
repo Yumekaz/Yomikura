@@ -250,3 +250,26 @@ test("auto-scroll crosses chapters and pauses on manual scrolling", async ({ pag
   await page.mouse.wheel(0, -120);
   await expect(page.getByRole("button", { name: "Start Scroll", exact: true })).toBeVisible();
 });
+
+// Confirm the visible page reaches the backend before leaving. This separates
+// reader restoration from a server crash before a write was acknowledged.
+test("a saved middle page survives leaving, reopening and a cold reader reload", async ({ page }) => {
+  const data = await fixture(page, { delayed: true });
+  await page.getByRole("button", { name: "Go to page 3", exact: true }).click();
+  await expect(page.getByText("3 of 4 pages", { exact: true })).toBeVisible();
+  await expect.poll(() => data.records.get(12)!.page).toBe(2);
+  await page.getByRole("link", { name: "Back to manga details", exact: true }).click();
+  await expect(page).toHaveURL(/\/manga\/42$/);
+  await page.goto("/reader/12");
+  await expect(page.getByText("3 of 4 pages", { exact: true })).toBeVisible();
+  await expect(fullPage(page, 12, 2)).toHaveCSS("opacity", "1");
+  await page.reload();
+  await expect(page.getByText("3 of 4 pages", { exact: true })).toBeVisible();
+  await expect(fullPage(page, 12, 2)).toBeInViewport({ ratio: 0.2 });
+  // Deliberate backward reading still changes the saved position.
+  await page.getByRole("button", { name: "Go to page 2", exact: true }).click();
+  await expect(page.getByText("2 of 4 pages", { exact: true })).toBeVisible();
+  await expect.poll(() => data.records.get(12)!.page).toBe(1);
+  await page.reload();
+  await expect(page.getByText("2 of 4 pages", { exact: true })).toBeVisible();
+});

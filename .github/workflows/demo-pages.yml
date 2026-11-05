@@ -94,6 +94,7 @@ jobs:
           path: |
             .cache/homepage-review/
             .cache/web-guide-live/**/result.json
+            .cache/web-guide-live/**/after-restart.jpg
             .cache/web-guide-live/**/failure.txt
             .cache/web-guide-live/**/failed-dom.txt
             .cache/web-guide-live/**/failed-page.jpg

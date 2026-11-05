@@ -37,16 +37,21 @@ await cp(build.webRoot, path.join(root, "webUI"), { recursive: true });
 const chapter = path.join(root, "local/Web Guide Story/Chapter 1"); await mkdir(chapter, { recursive: true });
 await cp(path.join(build.source, "public/demo/moonlit-courier-page.webp"), path.join(chapter, "001.webp"));
 await cp(path.join(build.source, "public/demo/paper-garden-page.webp"), path.join(chapter, "002.webp"));
+await cp(path.join(build.source, "public/demo/moonlit-courier-page.webp"), path.join(chapter, "003.webp"));
+await cp(path.join(build.source, "public/demo/paper-garden-page.webp"), path.join(chapter, "004.webp"));
 await cp(path.join(build.source, "public/demo/moonlit-courier.webp"), path.join(root, "local/Web Guide Story/cover.webp"));
 const log = createWriteStream(path.join(root, "server.log"));
 const java = process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, "bin", process.platform === "win32" ? "java.exe" : "java") : "java";
 const origin = "http://127.0.0.1:4599";
-const child = spawn(java, ["-Xmx512m", "-XX:ActiveProcessorCount=2", `-Dsuwayomi.tachidesk.config.server.rootDir=${root}`, "-Dsuwayomi.tachidesk.config.server.port=4599", "-Dsuwayomi.tachidesk.config.server.ip=127.0.0.1", "-Dsuwayomi.tachidesk.config.server.webUIFlavor=CUSTOM", "-Dsuwayomi.tachidesk.config.server.webUIEnabled=true", "-Dsuwayomi.tachidesk.config.server.initialOpenInBrowserEnabled=false", "-Dsuwayomi.tachidesk.config.server.kcefEnabled=false", "-jar", jar], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+let child, exit, exited = false, spawnError, browser, page;
+function startServer() {
+exited = false; spawnError = undefined;
+child = spawn(java, ["-Xmx512m", "-XX:ActiveProcessorCount=2", `-Dsuwayomi.tachidesk.config.server.rootDir=${root}`, "-Dsuwayomi.tachidesk.config.server.port=4599", "-Dsuwayomi.tachidesk.config.server.ip=127.0.0.1", "-Dsuwayomi.tachidesk.config.server.webUIFlavor=CUSTOM", "-Dsuwayomi.tachidesk.config.server.webUIEnabled=true", "-Dsuwayomi.tachidesk.config.server.initialOpenInBrowserEnabled=false", "-Dsuwayomi.tachidesk.config.server.kcefEnabled=false", "-jar", jar], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
 child.stdout.pipe(log, { end: false }); child.stderr.pipe(log, { end: false });
-let exited = false, spawnError, browser, page;
-const exit = new Promise((resolve) => child.once("exit", () => { exited = true; resolve(); }));
+exit = new Promise((resolve) => child.once("exit", () => { exited = true; resolve(); }));
 child.once("error", (error) => { spawnError = error; });
-try {
+}
+async function readyServer() {
   const deadline = Date.now() + 180000;
   while (true) {
     if (spawnError) throw spawnError;
@@ -55,6 +60,16 @@ try {
     if (response?.ok && (await response.json()).data?.aboutServer?.version) break;
     assert.ok(Date.now() < deadline, "Pinned CUSTOM WebUI server did not become ready"); await delay(500);
   }
+}
+async function stopServer(requireGraceful = false) {
+  if (exited || !child) return;
+  child.kill("SIGTERM");
+  const graceful = await Promise.race([exit.then(() => true), delay(15000).then(() => false)]);
+  if (!graceful) { child.kill("SIGKILL"); await exit; }
+  assert.ok(graceful || !requireGraceful, "Server did not stop gracefully; restart preservation is not proven");
+}
+try {
+  startServer(); await readyServer();
   const html = await fetch(origin + "/"); assert.equal(html.status, 200); assert.match(await html.text(), /<title>Yomikura<\/title>/);
   browser = await chromium.launch();
   page = await browser.newPage({ viewport: { width: 1440, height: 980 }, reducedMotion: "reduce" });
@@ -63,6 +78,8 @@ try {
   await page.getByLabel("Your Suwayomi address", { exact: true }).fill(origin);
   await page.getByRole("button", { name: "Connect my library", exact: true }).click();
   await expect(page.getByText("Your library is connected. Next, choose your sources below.", { exact: true })).toBeVisible({ timeout: 30000 });
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await expect(page.getByText(/An app update is ready/)).toHaveCount(0);
   await page.getByRole("link", { name: "Library", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Library", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Add books", exact: true }).click();
@@ -74,24 +91,42 @@ try {
   await expect(page.getByRole("button", { name: "In Library", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Resume", exact: true }).first().click();
   await expect(page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 1", exact: true })).toHaveCSS("opacity", "1", { timeout: 30000 });
-  await page.getByRole("button", { name: "Go to page 2", exact: true }).click();
-  await expect(page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 2", exact: true })).toHaveCSS("opacity", "1");
-  await expect(page.getByText("2 of 2 pages", { exact: true })).toBeVisible();
-  await expect.poll(async () => { const response = await fetch(origin + "/api/v1/manga/1/chapters"); return (await response.json())[0]?.lastPageRead; }).toBe(1);
+  await page.getByRole("button", { name: "Go to page 3", exact: true }).click();
+  await expect(page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 3", exact: true })).toHaveCSS("opacity", "1");
+  await expect(page.getByText("3 of 4 pages", { exact: true })).toBeVisible();
+  await expect.poll(async () => { const response = await fetch(origin + "/api/v1/manga/1/chapters"); return (await response.json())[0]?.lastPageRead; }).toBe(2);
   await page.reload();
-  await expect(page.getByText("2 of 2 pages", { exact: true })).toBeVisible({ timeout: 30000 });
-  await expect(page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 2", exact: true })).toHaveCSS("opacity", "1");
+  await expect(page.getByText("3 of 4 pages", { exact: true })).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 3", exact: true })).toHaveCSS("opacity", "1");
   await page.goto(origin + "/library"); await page.reload();
   await expect(page.getByRole("link", { name: "Web Guide Story", exact: true }).first()).toBeVisible({ timeout: 30000 });
-  await writeFile(path.join(root, "result.json"), JSON.stringify({ runtime: `Suwayomi v${version} / Java 21`, customWebUI: "PASS: unpacked ordinary web build served at root", guideConnectionForm: "PASS", sourceDiscovery: "PASS: built-in Local, original-art pages only", categoryAwareLibraryAdd: "PASS", reading: "PASS: decoded two pages", progress: "PASS: server lastPageRead=1 and reader restore at page2", normalDeepLinkRefresh: "PASS: /setup, /reader/1 and /library", boundaries: ["isolated empty backend", "no user library modified", "third-party extensions and interactive OS bundle launcher not exercised"] }, null, 2));
-  console.log(`Verified the downloadable web build on real pinned Suwayomi v${version} CUSTOM WebUI: guide connect, Local discovery, library add, decoded pages, progress and deep-link refresh.`);
+  // Stop only after Suwayomi acknowledged the middle-page write. Reopen in
+  // a fresh browser so retained client state cannot conceal a server regression.
+  await browser.close(); browser = undefined;
+  await stopServer(true); startServer(); await readyServer();
+  browser = await chromium.launch();
+  page = await browser.newPage({ viewport: { width: 1440, height: 980 }, reducedMotion: "reduce" });
+  await page.goto(origin + "/setup");
+  await page.getByLabel("Your Suwayomi address", { exact: true }).fill(origin);
+  await page.getByRole("button", { name: "Connect my library", exact: true }).click();
+  await expect(page.getByText("Your current library is connected.", { exact: true })).toBeVisible({ timeout: 30000 });
+  await page.getByRole("link", { name: "Library", exact: true }).click();
+  await page.getByRole("link", { name: "Web Guide Story", exact: true }).first().click();
+  await page.getByRole("link", { name: "Resume", exact: true }).first().click();
+  await expect(page.getByText("3 of 4 pages", { exact: true })).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 3", exact: true })).toHaveCSS("opacity", "1");
+  await page.screenshot({ path: path.join(root, "after-restart.jpg"), type: "jpeg", quality: 85 });
+  await page.getByRole("button", { name: "Go to page 2", exact: true }).click();
+  await expect(page.getByText("2 of 4 pages", { exact: true })).toBeVisible();
+  await expect.poll(async () => { const response = await fetch(origin + "/api/v1/manga/1/chapters"); return (await response.json())[0]?.lastPageRead; }).toBe(1);
+  await writeFile(path.join(root, "result.json"), JSON.stringify({ runtime: `Suwayomi v${version} / Java 21`, customWebUI: "PASS: unpacked ordinary web build served at root", guideConnectionForm: "PASS", sourceDiscovery: "PASS: built-in Local, original-art pages only", categoryAwareLibraryAdd: "PASS", reading: "PASS: decoded original-art pages", progress: "PASS: acknowledged middle-page position, reload, graceful server restart and fresh-browser resume at page3; intentional backward reading saved at page2", firstInstallUpdateNotice: "PASS: no waiting-update notice in a fresh browser", normalDeepLinkRefresh: "PASS: /setup, /reader/1 and /library", boundaries: ["isolated empty backend", "no user library modified", "third-party extensions and interactive OS bundle launcher not exercised"] }, null, 2));
+  console.log(`Verified the downloadable web build on real pinned Suwayomi v${version} CUSTOM WebUI: guide connect, Local discovery, library add, decoded pages, middle-page resume across a graceful server restart, fresh-browser service-worker installation and deep-link refresh.`);
 } catch (error) {
   if (page && !page.isClosed()) { await page.screenshot({ path: path.join(root, "failed-page.jpg"), fullPage: true, type: "jpeg", quality: 85 }).catch(() => {}); await writeFile(path.join(root, "failed-dom.txt"), await page.locator("body").innerText().catch(() => "Unavailable")); }
   await writeFile(path.join(root, "failure.txt"), String(error)); throw error;
 } finally {
   await browser?.close();
-  if (!exited) { child.kill("SIGTERM"); await Promise.race([exit, delay(15000)]); }
-  if (!exited) { child.kill("SIGKILL"); await exit; }
+  await stopServer();
   log.end();
 }
 }
