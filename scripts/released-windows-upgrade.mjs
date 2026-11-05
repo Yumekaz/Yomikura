@@ -104,6 +104,7 @@ try {
   await until(async () => (await records())['yomikura-offline'].chapters?.some((item) => item.id === chapter.id), 120000);
   const before = await records(); await writeFile(path.join(root, 'before.json'), JSON.stringify(before, null, 2));
   if (from === 'v1.0.25-beta.5') {
+    await page.getByText('My notes', { exact: true }).click();
     await page.getByLabel('A note for Upgrade Story', { exact: true }).fill('Keep this unsynced upgrade-test note.');
     await expect(page.getByText('Saved on this device. Sync to keep it with your library.', { exact: true })).toBeVisible();
   }
@@ -143,6 +144,7 @@ try {
   report.checks.push('Real updater installed target release and relaunched; library membership, partial progress, bookmark, saved record, server profile and theme survived');
   if (from === 'v1.0.25-beta.5') {
     await page.goto(`http://tauri.localhost/manga/${book.id}`);
+    await page.getByText('My notes', { exact: true }).click();
     await expect(page.getByLabel('A note for Upgrade Story', { exact: true })).toHaveValue('Keep this unsynced upgrade-test note.');
     report.checks.push('Unsynced note saved through the beta.5 UI survived the real update');
   }
