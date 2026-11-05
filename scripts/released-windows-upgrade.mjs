@@ -22,7 +22,7 @@ const backend = 'http://127.0.0.1:4596';
 let browser, page, backendProcess, appProcess;
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 async function ps(script, env = {}) {
-  const result = await run('pwsh', ['-NoProfile', '-NonInteractive', '-Command', script], { env: { ...process.env, ...env }, windowsHide: true, maxBuffer: 1024 * 1024 });
+  const result = await run('pwsh', ['-NoProfile', '-NonInteractive', '-Command', script], { env: { ...process.env, ...env }, windowsHide: true, timeout: 90000, maxBuffer: 1024 * 1024 });
   return result.stdout.trim();
 }
 async function github(route) {
@@ -118,6 +118,7 @@ try {
     return result.sort((a, b) => a[0].localeCompare(b[0]));
   });
   const savedBytes = await cachedDigests(); assert.ok(savedBytes.length >= 3, 'A saved record without page bytes is not a successful download');
+  await writeFile(path.join(root, 'download-verified.json'), JSON.stringify({ count: savedBytes.length, pages: savedBytes }, null, 2));
   const settingsBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('yomikura-settings') || 'null'));
   report.checks.push('Official old installer digest verified, real Local library loaded and chapter saved through UI');
   await page.screenshot({ path: path.join(root, 'before-upgrade.png') });
@@ -127,11 +128,17 @@ try {
   const notice = page.getByRole('status').filter({ hasText: /v1\.0\.25.*available/ });
   await expect(notice).toBeVisible({ timeout: 60000 });
   await notice.getByRole('button', { name: 'Update', exact: true }).click();
+  await writeFile(path.join(root, 'update-started.json'), JSON.stringify({ time: new Date().toISOString(), from, target }));
   await until(async () => {
+    const failure = page.isClosed() ? '' : await page.getByRole('alert').allTextContents().catch(() => []);
+    if (String(failure).includes('Update failed')) throw new Error(String(failure));
     const output = await ps('(Get-Item -LiteralPath $env:UPGRADE_APP).VersionInfo.ProductVersion', { UPGRADE_APP: installed });
     return output.startsWith('1.0.25') && !output.includes('beta');
   }, 300000);
+  await writeFile(path.join(root, 'target-file-verified.json'), JSON.stringify({ productVersion: target }));
+  await browser?.close().catch(() => {});
   await attach(); await page.goto('http://tauri.localhost/library');
+  assert.equal(await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('plugin:app|version')), target.slice(1), 'The running process must be the new version, not merely its on-disk file');
   await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible({ timeout: 60000 });
   await expect(page.getByRole('link', { name: 'Upgrade Story', exact: true }).first()).toBeVisible();
   const after = await records(); await writeFile(path.join(root, 'after.json'), JSON.stringify(after, null, 2));
