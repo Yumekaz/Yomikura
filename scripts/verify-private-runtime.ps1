@@ -15,8 +15,11 @@ $archive = Join-Path $runtimeDestination 'runtime.zip'
 Invoke-WebRequest -Uri $runtimePin.Groups['url'].Value -OutFile $archive
 $digest = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($digest -ne $runtimePin.Groups['hash'].Value) { throw 'Private runtime archive hash does not match production.' }
-Expand-Archive -LiteralPath $archive -DestinationPath (Join-Path $runtimeDestination 'extracted')
-$privateBinaries = @(Get-ChildItem -LiteralPath (Join-Path $runtimeDestination 'extracted') -Recurse -File -Filter 'java.exe')
+$extracted = Join-Path $runtimeDestination 'extracted'
+New-Item -ItemType Directory -Path $extracted | Out-Null
+& (Join-Path $env:SystemRoot 'System32\tar.exe') -xf $archive -C $extracted
+if ($LASTEXITCODE -ne 0) { throw 'Windows could not extract the production Java runtime.' }
+$privateBinaries = @(Get-ChildItem -LiteralPath $extracted -Recurse -File -Filter 'java.exe')
 if ($privateBinaries.Count -ne 1) { throw 'The verified archive must contain exactly one Java launcher.' }
 $privateJava = $privateBinaries[0]
 $start = [Diagnostics.ProcessStartInfo]::new()

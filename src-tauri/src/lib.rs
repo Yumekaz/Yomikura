@@ -620,7 +620,9 @@ fn download_and_install_jre_sync(
     prepare_managed_storage(&app_handle, &data_dir)?;
     disable_suwayomi_browser_autolaunch(&data_dir)?;
 
-    let _install = JRE_INSTALL_LOCK.lock().map_err(|_| "Java installation could not be resumed. Restart Yomikura and retry.".to_string())?;
+    let _install = JRE_INSTALL_LOCK.lock().map_err(|_| {
+        "Java installation could not be resumed. Restart Yomikura and retry.".to_string()
+    })?;
     let jre_dir = data_dir.join(PATCHED_JRE_DIR);
     if find_java_binary(&jre_dir).is_some_and(|binary| runtime_setup::compatible_java(&binary)) {
         return Ok(());
@@ -633,7 +635,10 @@ fn download_and_install_jre_sync(
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|e| e.to_string())?
         .as_nanos();
-    let staging = data_dir.join(format!("{PATCHED_JRE_DIR}-setup-{}-{timestamp}", std::process::id()));
+    let staging = data_dir.join(format!(
+        "{PATCHED_JRE_DIR}-setup-{}-{timestamp}",
+        std::process::id()
+    ));
     std::fs::create_dir(&staging)
         .map_err(|e| format!("Failed to create Java setup folder: {e}"))?;
 
@@ -652,33 +657,10 @@ fn install_verified_jre(
     url: &str,
     expected_sha256: &str,
 ) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        let archive_path = staging.join("jre.zip");
-        download_file_with_curl(url, &archive_path, expected_sha256)?;
-        runtime_setup::extract_verified_java_archive(&archive_path, staging)?;
-        let _ = std::fs::remove_file(&archive_path);
-    }
-
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
-    {
-        let archive_path = staging.join("jre.tar.gz");
-        download_file_with_curl(url, &archive_path, expected_sha256)?;
-        let output = Command::new("tar")
-            .arg("-xzf")
-            .arg(&archive_path)
-            .arg("-C")
-            .arg(staging)
-            .output()
-            .map_err(|e| format!("Failed to extract verified JRE archive: {e}"))?;
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to extract verified JRE archive: {}",
-                String::from_utf8_lossy(&output.stderr).trim()
-            ));
-        }
-        let _ = std::fs::remove_file(&archive_path);
-    }
+    let archive_path = staging.join(if cfg!(windows) { "jre.zip" } else { "jre.tar.gz" });
+    download_file_with_curl(url, &archive_path, expected_sha256)?;
+    runtime_setup::extract_verified_java_archive(&archive_path, staging)?;
+    let _ = std::fs::remove_file(&archive_path);
 
     if find_java_binary(staging).is_some_and(|binary| runtime_setup::compatible_java(&binary)) {
         Ok(())
