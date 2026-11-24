@@ -10,7 +10,11 @@ fn java_version(output: &str) -> Option<[u32; 4]> {
         remainder.split_once('"').map(|(value, _)| value)
     })?;
     let (numbers, build) = version.split_once('+').unwrap_or((version, ""));
-    if numbers.contains('-') || build.split('-').any(|part| part == "ea" || part == "internal") {
+    if numbers.contains('-')
+        || build
+            .split('-')
+            .any(|part| part == "ea" || part == "internal")
+    {
         return None;
     }
     let mut parsed = [0; 4];
@@ -96,7 +100,13 @@ mod tests {
             );
         }
         for version in [
-            "1.8.0_202", "17.0.21.1", "21.0.12.1", "21.0.13", "25.0.5", "25.0.6-ea", "26",
+            "1.8.0_202",
+            "17.0.21.1",
+            "21.0.12.1",
+            "21.0.13",
+            "25.0.5",
+            "25.0.6-ea",
+            "26",
             "25.invalid",
         ] {
             assert!(
