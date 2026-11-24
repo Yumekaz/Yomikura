@@ -657,7 +657,11 @@ fn install_verified_jre(
     url: &str,
     expected_sha256: &str,
 ) -> Result<(), String> {
-    let archive_path = staging.join(if cfg!(windows) { "jre.zip" } else { "jre.tar.gz" });
+    let archive_path = staging.join(if cfg!(windows) {
+        "jre.zip"
+    } else {
+        "jre.tar.gz"
+    });
     download_file_with_curl(url, &archive_path, expected_sha256)?;
     runtime_setup::extract_verified_java_archive(&archive_path, staging)?;
     let _ = std::fs::remove_file(&archive_path);
