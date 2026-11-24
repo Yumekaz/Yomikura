@@ -23,12 +23,14 @@ On a clean Windows runner, the verification workflow must prove:
 3. A seeded user-selected storage folder, using the same pinned and SHA-256-verified Suwayomi build plus Java 21, lets the installed app start its local engine and answer a real GraphQL health request.
 4. The installed executable and its owned backend remain alive through the launch smoke window, then close cleanly.
 5. Uninstallation removes the application executable.
-6. The user-selected storage folder outside the install directory survives uninstall.
+6. The selected library, default library directory, and local settings survive uninstall. The installer also preserves unrelated files in the install directory and a neighboring directory reached through a junction.
 7. Local-engine startup stays under three minutes and the combined application/backend working set stays below 1.5 GB on the clean runner.
 
 The test does not delete arbitrary user folders. It uses a temporary runner folder and an explicit sentinel file.
 The lifecycle gate pre-stages its runtime so a slow third-party download cannot be mistaken for an installer or startup regression. Clean-machine first-run downloads remain part of the manual beta matrix below.
 The runner independently downloads the production-pinned Windows Java archive, verifies its SHA-256, and starts that private launcher with system Java removed from its child environment. The installed-app smoke test then uses that verified private runtime. Native Rust unit tests also run on Windows. This covers the archive and runtime launch; it does not claim a fully automated first-run wizard or interrupted component-download interaction.
+
+The Windows uninstaller preserves reader data. To free chapter storage before uninstall, clear the selected library's device copies in **Settings → Offline storage**. Server downloads are managed separately by the connected library. The first release containing this installer change must tell v1.0.25 users to upgrade in place so they keep their existing data.
 
 ## Manual beta matrix
 

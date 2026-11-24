@@ -31,6 +31,7 @@ Yomikura is a separate application (a "Larger Work" under MPL-2.0). The Yomikura
 
 - **Project:** [Tauri](https://tauri.app/)
 - **License:** Apache-2.0 OR MIT (per component; see Tauri release notices)
+- The Windows installer template is adapted from [Tauri CLI v2.12.4](https://github.com/tauri-apps/tauri/blob/tauri-cli-v2.12.4/crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi). Its [MIT license](src-tauri/installer/LICENSE_TAURI_MIT) is retained with the template.
 - **Role:** Native desktop shell wrapping the Yomikura web UI.
 
 ---

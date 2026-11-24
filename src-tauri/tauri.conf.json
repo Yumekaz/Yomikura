@@ -38,7 +38,7 @@
     "resources": [],
     "windows": {
       "nsis": {
-        "installerHooks": "./hooks.nsh",
+        "template": "./installer/installer.nsi",
         "installMode": "currentUser",
         "installerIcon": "icons/icon.ico",
         "uninstallerIcon": "icons/icon.ico"
