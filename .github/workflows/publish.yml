@@ -134,12 +134,11 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           args: ${{ matrix.platform == 'windows-latest' && '--bundles nsis' || '' }}
 
-      - name: Set up Java for exact Windows release-asset smoke test
+      - name: Verify production private runtime for the exact Windows release asset
         if: matrix.platform == 'windows-latest'
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "21"
+        id: release-private-runtime
+        shell: pwsh
+        run: ./scripts/verify-private-runtime.ps1 -Destination (Join-Path $env:RUNNER_TEMP 'yomikura-exact-release-runtime')
       - name: Cache pinned backend for exact release asset
         if: matrix.platform == 'windows-latest'
         uses: actions/cache@v4
@@ -148,13 +147,15 @@ jobs:
           key: suwayomi-smoke-v2.3.2243-821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5
       - name: Test the exact uploaded Windows installer
         if: matrix.platform == 'windows-latest'
+        env:
+          YOMIKURA_PRIVATE_JAVA: ${{ steps.release-private-runtime.outputs.java_home }}
         shell: pwsh
         run: |
           $installers = @(Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe")
           if ($installers.Count -ne 1) { throw "Expected exactly one release installer" }
           $storage = Join-Path $env:RUNNER_TEMP "yomikura-exact-release-library"
           $backend = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.3.2243.jar"
-          ./scripts/smoke-test-installer.ps1 -InstallerPath $installers[0].FullName -PreservedStoragePath $storage -PreseedRuntime -JavaHomePath $env:JAVA_HOME -BackendJarCachePath $backend -StartupTimeoutSeconds 240
+          ./scripts/smoke-test-installer.ps1 -InstallerPath $installers[0].FullName -PreservedStoragePath $storage -PreseedRuntime -JavaHomePath $env:YOMIKURA_PRIVATE_JAVA -BackendJarCachePath $backend -StartupTimeoutSeconds 240
 
       - name: Create release checksums
         run: node scripts/write-artifact-checksums.mjs "src-tauri/target/release/bundle" "SHA256SUMS-${{ matrix.platform }}.txt"

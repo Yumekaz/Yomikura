@@ -32,6 +32,8 @@ The runner independently downloads the production-pinned Windows Java archive, v
 
 The Windows uninstaller preserves reader data. To free chapter storage before uninstall, clear the selected library's device copies in **Settings → Offline storage**. Server downloads are managed separately by the connected library. The first release containing this installer change must tell v1.0.25 users to upgrade in place so they keep their existing data.
 
+Managed local setup downloads a checksum-verified Java 21.0.13.1 runtime when no supported patched Java is available. Existing releases keep their original runtime until the app is updated. The [Adoptium advisory](https://adoptium.net/news/2026/11/temurin-november-2026-cspu-java4shell/) establishes the Java patch floor. Verify Suwayomi itself separately, including migration from the previous pin, before replacing the server JAR.
+
 ## Manual beta matrix
 
 For public testers, use the reproducible journey and privacy guidance in [BETA_TESTING.md](BETA_TESTING.md). Treat reports of unexpected data changes as release-blocking until reproduced or disproved.

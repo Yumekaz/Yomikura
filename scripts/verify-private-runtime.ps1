@@ -34,7 +34,11 @@ $stdout = $runtimeProcess.StandardOutput.ReadToEndAsync()
 $stderr = $runtimeProcess.StandardError.ReadToEndAsync()
 if (!$runtimeProcess.WaitForExit(10000)) { $runtimeProcess.Kill(); throw 'Private Java version check timed out.' }
 $version = $stdout.Result + $stderr.Result
-if ($runtimeProcess.ExitCode -ne 0 -or $version -notmatch '(?m)^(?:openjdk|java)(?: version)?[ "]+21[.\s"]') { throw "Private Java 21 could not start: $version" }
+$reported = [regex]::Match($version, '(?m)^(?:openjdk|java)(?: version)?[ "]+(?<version>21\.\d+\.\d+\.\d+)')
+if ($runtimeProcess.ExitCode -ne 0 -or !$reported.Success -or
+    ([version]$reported.Groups['version'].Value) -lt [version]'21.0.13.1') {
+  throw "The verified private runtime must run patched Java 21.0.13.1 or later: $version"
+}
 $privateHome = $privateJava.Directory.Parent.FullName
 Write-Output "Verified production-pinned private Java 21 without system Java on PATH: $digest"
 Write-Output $version.Trim()
