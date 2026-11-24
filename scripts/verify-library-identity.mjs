@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createWriteStream } from "node:fs";
-import { copyFile, mkdir, mkdtemp } from "node:fs/promises";
+import { cp, copyFile, mkdir, mkdtemp } from "node:fs/promises";
 import { createServer as createNetServer } from "node:net";
 import path from "node:path";
 import { createServer } from "vite";
@@ -12,6 +12,9 @@ if (process.env.CI !== "true") throw new Error("Run the live identity test on th
 const argument = (name) => process.argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3);
 const jar = argument("jar"), java = argument("java");
 if (!jar || !java) throw new Error("Provide the pinned --jar and CI --java paths.");
+const candidateJar = argument("candidate-jar");
+const candidateVersion = argument("candidate-version");
+if (!!candidateJar !== !!candidateVersion) throw new Error("Provide both candidate JAR and version.");
 const output = path.resolve(".cache/library-identity-live");
 await mkdir(output, { recursive: true });
 const root = await mkdtemp(path.join(output, "run-"));
@@ -49,19 +52,20 @@ async function graphql(query, variables) {
   if (!response.ok || result.errors?.length || !result.data) throw new Error(JSON.stringify(result.errors ?? response.status));
   return result.data;
 }
-async function withLibrary(name, callback) {
+async function withLibrary(name, callback, serverJar = jar) {
   const directory = path.join(root, name);
-  await mkdir(directory, { recursive: true });
-  const chapterFolder = path.join(directory, "local", "Identity fixture", "Chapter 1");
-  await mkdir(chapterFolder, { recursive: true });
-  await copyFile(path.resolve("public/demo/paper-garden-page.webp"), path.join(chapterFolder, "001.webp"));
+  if (serverJar === jar) {
+    const chapterFolder = path.join(directory, "local", "Identity fixture", "Chapter 1");
+    await mkdir(chapterFolder, { recursive: true });
+    await copyFile(path.resolve("public/demo/paper-garden-page.webp"), path.join(chapterFolder, "001.webp"));
+  }
   const log = createWriteStream(path.join(root, `${name}-${Date.now()}.log`));
   const child = spawn(java, [
     `-Dsuwayomi.tachidesk.config.server.rootDir=${directory}`,
     `-Dsuwayomi.tachidesk.config.server.port=${port}`,
     "-Dsuwayomi.tachidesk.config.server.ip=127.0.0.1",
     "-Dsuwayomi.tachidesk.config.server.initialOpenInBrowserEnabled=false",
-    "-Dsuwayomi.tachidesk.config.server.kcefEnabled=false", "-jar", jar,
+    "-Dsuwayomi.tachidesk.config.server.kcefEnabled=false", "-jar", serverJar,
   ], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   child.stdout.pipe(log, { end: false }); child.stderr.pipe(log, { end: false });
   let stopped = false, spawnError;
@@ -94,6 +98,20 @@ async function fixtureChapter() {
   assert.equal(details.fetchMangaAndChapters.chapters.length, 1);
   return { mangaId: manga.id, ...details.fetchMangaAndChapters.chapters[0] };
 }
+
+async function readMigratedState(chapterId) {
+  const { chapter } = await graphql("query RetainedChapter($id: Int!) { chapter(id: $id) { id isRead lastPageRead isBookmarked manga { id title inLibrary } } }", { id: chapterId });
+  const { fetchChapterPages } = await graphql("mutation RetainedPages($id: Int!) { fetchChapterPages(input: { chapterId: $id }) { pages } }", { id: chapterId });
+  assert.equal(fetchChapterPages.pages.length, 1, "Expected the original-art page to remain available");
+  const page = new URL(fetchChapterPages.pages[0], base);
+  assert.equal(page.origin, base, "The Local page must come from the isolated Suwayomi server");
+  const response = await fetch(page, { redirect: "error", signal: AbortSignal.timeout(15000) });
+  assert.equal(response.ok, true);
+  const bytes = Buffer.from(await response.arrayBuffer());
+  assert.ok(bytes.length > 0);
+  return { chapter, bytes };
+}
+
 try {
   let firstChapter, firstArchive, firstClient;
   const first = await withLibrary("first-library", async () => {
@@ -166,11 +184,27 @@ try {
     const backup = await graphql("mutation IdentityBackup { createBackup(input: {}) { url } }");
     assert.ok(backup.createBackup.url);
   });
-  await withLibrary("first-library", async () => {
+  const beforeMigration = await withLibrary("first-library", async () => {
     const reopened = await readLibraryIdentity(base);
     console.log(`Reopened first library marker: ${reopened?.marker ?? "MISSING"}`);
     assert.deepEqual(reopened, first);
     await verifyLibraryIdentity(base, first);
+    if (candidateJar) return readMigratedState(firstChapter.id);
   });
   console.log("PASS: two real Suwayomi databases reused one endpoint; stale progress and mutations were rejected, backup/restore and copied-marker separation succeeded, and the first identity survived idle restart.");
+  if (candidateJar) {
+    await cp(path.join(root, "first-library"), path.join(root, "migration-library"), { recursive: true, errorOnExist: true, force: false });
+    await withLibrary("migration-library", async () => {
+      const { aboutServer } = await graphql("query MigratedVersion { aboutServer { version } }");
+      assert.equal(aboutServer.version.replace(/^v/, ""), candidateVersion);
+      await verifyLibraryIdentity(base, first);
+      assert.deepEqual(await readMigratedState(firstChapter.id), beforeMigration);
+      rememberLibrary(base, first);
+      const client = createGraphqlClient(`${base}/api/graphql`, undefined, "live");
+      const backup = await createLibraryBackup(client, base, "manual");
+      assert.equal(backup.libraryId, first.marker);
+      assert.ok((await readLibraryBackup(base, backup.id)).bytes.length);
+    }, candidateJar);
+    console.log(`PASS: Suwayomi ${candidateVersion} migrated a copy of the old database and preserved library identity, chapter state, and Local page bytes. The client also saved a verified backup from the upgraded server.`);
+  }
 } finally { await compiler.close(); }

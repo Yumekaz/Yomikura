@@ -169,12 +169,23 @@ jobs:
           # verified 166 MB backend JAR. Keep the wait bounded, but allow a
           # realistic clean-install margin before declaring startup broken.
           ./scripts/smoke-test-installer.ps1 -InstallerPath $installer -PreservedStoragePath $userStorage -PreseedRuntime -JavaHomePath $env:YOMIKURA_PRIVATE_JAVA -BackendJarCachePath $backendJarCache -StartupTimeoutSeconds 240
-      - name: Verify identity across two isolated local libraries
+      - name: Verify library identity and Suwayomi hotfix migration
+        env:
+          YOMIKURA_PRIVATE_JAVA: ${{ steps.private-runtime.outputs.java_home }}
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           $backendJar = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.3.2243.jar"
-          $javaBinary = Join-Path $env:JAVA_HOME "bin\java.exe"
-          node scripts/verify-library-identity.mjs "--jar=$backendJar" "--java=$javaBinary"
+          $javaBinary = Join-Path $env:YOMIKURA_PRIVATE_JAVA "bin\java.exe"
+          $candidateVersion = '2.4.2373'
+          $candidateName = "Suwayomi-Server-v$candidateVersion.jar"
+          $candidateJar = Join-Path $env:RUNNER_TEMP $candidateName
+          Invoke-WebRequest -Uri "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v$candidateVersion/$candidateName" -OutFile $candidateJar
+          $candidateDigest = (Get-FileHash -LiteralPath $candidateJar -Algorithm SHA256).Hash
+          if ($candidateDigest -ne 'dd05d523cc785b7acf90c9feac0bc84c53d5fb3af5ab2a33653646e2076e5217') {
+            throw 'The Suwayomi migration candidate does not match its official digest.'
+          }
+          node scripts/verify-library-identity.mjs "--jar=$backendJar" "--java=$javaBinary" "--candidate-jar=$candidateJar" "--candidate-version=$candidateVersion"
       - name: Preserve live identity evidence
         if: always()
         uses: actions/upload-artifact@v4
