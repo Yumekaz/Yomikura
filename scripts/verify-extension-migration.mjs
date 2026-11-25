@@ -124,9 +124,11 @@ async function installFixture(jar) {
   const fixture = path.resolve('scripts/fixtures/suwayomi-extension');
   const classes = path.join(root, 'classes');
   const extension = path.join(root, 'yomikura-migration-fixture.jar');
-  await mkdir(classes);
-  await run(jdk('javac'), ['--release', '21', '-cp', jar, '-d', classes, path.join(fixture, 'MigrationSource.java')]);
-  await run(jdk('jar'), ['--create', '--file', extension, '-C', classes, '.', '-C', fixture, 'AndroidManifest.xml']);
+  if (jar) {
+    await mkdir(classes);
+    await run(jdk('javac'), ['--release', '21', '-cp', jar, '-d', classes, path.join(fixture, 'MigrationSource.java')]);
+    await run(jdk('jar'), ['--create', '--file', extension, '-C', classes, '.', '-C', fixture, 'AndroidManifest.xml']);
+  }
   const form = new FormData();
   form.append('operations', JSON.stringify({ query: 'mutation($file:Upload!){ installExternalExtension(input:{extensionFile:$file}){ extension { pkgName versionName isInstalled } } }', variables: { file: null } }));
   form.append('map', JSON.stringify({ 0: ['variables.file'] }));
@@ -300,8 +302,50 @@ try {
       native, browser, origin, settings, mangaId: book.id, chapterId: chapter.id,
       stopServer: () => stopProcess(backend), startServer: (name) => startBackend(name, newJar, migratedLibrary, mediaOrigin),
       closeDesktop: () => stopProcess(desktop), chapterState, waitFor,
+      rebuild: async (page) => {
+        await web.close();
+        // Capture the upstream backup alongside the portable device file.
+        await graphql('mutation($id:Int!){updateChapter(input:{id:$id,patch:{isRead:false,lastPageRead:1}}){chapter{id}}}', { id: chapter.id });
+        const { createBackup } = await graphql('mutation { createBackup(input:{}) { url } }');
+        const backupUrl = new URL(createBackup.url, origin);
+        assert.equal(backupUrl.origin, origin);
+        const response = await fetch(backupUrl, { redirect: 'error', signal: AbortSignal.timeout(30000) });
+        assert.ok(response.ok);
+        const backup = Buffer.from(await response.arrayBuffer());
+        await stopProcess(backend);
+
+        const rebuilt = path.join(root, 'rebuilt-library');
+        await cp('dist', path.join(rebuilt, 'webUI'), { recursive: true });
+        for (let index = 1; index <= 3; index++) {
+          const decoy = path.join(rebuilt, 'local', 'Decoy Story', `Chapter ${index}`);
+          await mkdir(decoy, { recursive: true });
+          await writeFile(path.join(decoy, '001.webp'), first);
+        }
+        await startBackend('rebuilt-server', newJar, rebuilt, mediaOrigin);
+        await installFixture();
+        const decoy = (await sourceCatalog('0')).find((item) => item.title === 'Decoy Story');
+        assert.ok(decoy);
+        const details = (await graphql('mutation($id:Int!){fetchMangaAndChapters(input:{id:$id,fetchManga:true,fetchChapters:true}){chapters{id}}}', { id: decoy.id })).fetchMangaAndChapters;
+        assert.ok(details.chapters.length >= 2);
+        await graphql('mutation($id:Int!){updateManga(input:{id:$id,patch:{inLibrary:true}}){manga{id}}}', { id: decoy.id });
+
+        await page.goto(`${origin}/settings/backup`);
+        await expect(page.getByLabel('Upload & Restore Backup')).toBeEnabled();
+        await page.getByLabel('Upload & Restore Backup').setInputFiles({ name: 'fixture.tachibk', mimeType: 'application/gzip', buffer: backup });
+        await page.getByRole('alertdialog').getByRole('button', { name: 'Back up and restore' }).click();
+        await expect(page.getByText(/Backup restored successfully/).first()).toBeVisible({ timeout: 60000 });
+        assert.notEqual(await libraryMarker(), marker);
+
+        const lookup = await graphql('query($source:LongString!){mangas(first:2,condition:{sourceId:$source,inLibrary:true}){nodes{id title}}}', { source: source.id });
+        const remapped = lookup.mangas.nodes.find((item) => item.title === book.title);
+        assert.ok(remapped);
+        const chapters = await graphql('query($id:Int!){chapters(first:5,condition:{mangaId:$id}){nodes{id name}}}', { id: remapped.id });
+        const remappedChapter = chapters.chapters.nodes.find((item) => item.name === 'Chapter 1');
+        assert.ok(remappedChapter);
+        return { mangaId: remapped.id, chapterId: remappedChapter.id, decoyChapterId: details.chapters.find((item) => item.id === chapter.id)?.id ?? details.chapters[0].id };
+      },
     });
-    report.checks.push('The installed app exported preferences, a note draft, pending progress, and chapter pages offline. A fresh browser profile restored the file, reviewed the progress against real Suwayomi, and opened the saved chapter with API requests blocked.');
+    report.checks.push('Windows exported device records offline and a portable file while connected. Fresh browser profiles restored into the original library and into a newly restored Suwayomi database that assigned different IDs. Pending progress required review, the decoy chapter was unchanged, and the recovered pages opened offline.');
   } finally {
     await native.desktopBrowser.close().catch(() => {});
   }

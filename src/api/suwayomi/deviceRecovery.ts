@@ -202,7 +202,7 @@ export function restoreDeviceRecords(id: string, backend: ProgressBackend) {
   });
 }
 
-function serverProgress(chapter: { lastPageRead: number; isRead: boolean; isBookmarked: boolean; lastReadAt: unknown }) {
+function serverProgress(chapter: { lastPageRead: number; isRead: boolean; isBookmarked: boolean; lastReadAt?: unknown }) {
   return { lastPageRead: chapter.lastPageRead, isRead: chapter.isRead, isBookmarked: chapter.isBookmarked, lastReadAt: String(chapter.lastReadAt ?? "") };
 }
 
@@ -214,8 +214,16 @@ export async function previewRecoveredProgress(id: string, chapterId: number, ba
   const libraryId = job.rebuiltLibraryId ?? archive.manifest.libraryId;
   const matcher = job.rebuiltLibraryId && archive.manifest.sourceKeys ? createRecoveryMatcher(backend, archive.manifest.sourceKeys) : undefined;
   await confirmRecoveryLibrary(backend, libraryId);
-  const chapter = matcher ? await matcher.matchChapter(entry.chapter) : (await libraryClient(backend).GetChapter({ id: chapterId })).chapter;
+  let chapter = matcher ? await matcher.matchChapter(entry.chapter) : (await libraryClient(backend).GetChapter({ id: chapterId })).chapter;
   if (!chapter || !matcher && !chapterIdentityMatches(entry.chapter, progressChapterIdentity(chapter))) throw new Error("This chapter could not be matched in the selected library.");
+  if (matcher && !chapter.pageCount && (entry.patch.lastPageRead ?? 0) > 0) {
+    // Suwayomi backups can restore a chapter before its page count is initialized.
+    // The progress mutation clamps positions to that count, so fetch the list first.
+    await libraryClient(backend).FetchChapterPages({ input: { chapterId: chapter.id } });
+    const refreshed = await matcher.matchChapter(entry.chapter);
+    if (!refreshed || refreshed.id !== chapter.id) throw new Error("The chapter changed while its page count was checked. Review it again.");
+    chapter = refreshed;
+  }
   if (entry.patch.lastPageRead !== undefined && entry.patch.lastPageRead >= chapter.pageCount && entry.patch.lastPageRead !== 0) throw new Error("The saved page does not exist in this copy of the chapter.");
   await confirmRecoveryLibrary(backend, libraryId);
   const before = await getProgressHead(backend, chapter.id);

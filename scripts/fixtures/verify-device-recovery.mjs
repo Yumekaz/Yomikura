@@ -7,7 +7,7 @@ async function confirmAction(page, action, confirm) {
   await page.getByRole('alertdialog').getByRole('button', { name: confirm, exact: true }).click();
 }
 
-export async function verifyDeviceRecovery({ native, browser, origin, settings, mangaId, chapterId, stopServer, startServer, closeDesktop, chapterState, waitFor }) {
+export async function verifyDeviceRecovery({ native, browser, origin, settings, mangaId, chapterId, stopServer, startServer, closeDesktop, chapterState, waitFor, rebuild }) {
   const note = 'Original Windows fixture note held on this device.';
   await native.page.goto(`${native.base}/manga/${mangaId}`);
   await native.page.getByText('My notes', { exact: false }).click();
@@ -43,8 +43,25 @@ export async function verifyDeviceRecovery({ native, browser, origin, settings, 
     if (!window.fixtureRecoveryFile) return undefined;
     return Array.from(new Uint8Array(await window.fixtureRecoveryFile.arrayBuffer()));
   }));
-  await closeDesktop();
+  // Keep the existing journal pending while reconnecting for the portable export.
+  const backendRoute = `${origin}/api/graphql`;
+  await native.page.route(backendRoute, (route) => {
+    if (route.request().method() === 'POST' && route.request().postDataJSON()?.operationName === 'UpdateChapterProgress') return;
+    return route.continue();
+  });
   await startServer('recovery-target');
+  await native.page.getByRole('button', { name: 'Connection', exact: true }).click();
+  await native.page.getByRole('button', { name: 'Test Connection', exact: true }).click();
+  await native.page.getByRole('button', { name: 'Backups', exact: true }).click();
+  await native.page.getByRole('checkbox', { name: 'Include source identifiers for a rebuilt server', exact: false }).check({ timeout: 45000 });
+  await native.page.getByRole('checkbox', { name: 'Include saved chapter pages from this device' }).check();
+  await native.page.evaluate(() => { delete window.fixtureRecoveryFile; });
+  await native.page.getByRole('button', { name: 'Export device recovery', exact: true }).click();
+  const portable = await waitFor('portable recovery file created by the installed app', () => native.page.evaluate(async () => {
+    if (!window.fixtureRecoveryFile) return undefined;
+    return Array.from(new Uint8Array(await window.fixtureRecoveryFile.arrayBuffer()));
+  }));
+  await closeDesktop();
   assert.equal((await chapterState(chapterId)).lastPageRead, 1, 'The Windows device update must still be pending');
 
   const clean = await browser.newPage({ serviceWorkers: 'block' });
@@ -75,4 +92,34 @@ export async function verifyDeviceRecovery({ native, browser, origin, settings, 
     await expect(recovered).toHaveAttribute('src', /^blob:/, { timeout: 45000 });
     await expect(recovered).toHaveCSS('opacity', '1');
   } finally { await clean.close(); }
+
+  const rebuilt = await browser.newPage({ serviceWorkers: 'block' });
+  try {
+    await rebuilt.addInitScript((serialized) => {
+      if (!localStorage.getItem('yomikura-settings')) localStorage.setItem('yomikura-settings', serialized);
+    }, settings);
+    const ids = await rebuild(rebuilt);
+    assert.notEqual(ids.mangaId, mangaId);
+    assert.notEqual(ids.chapterId, chapterId);
+    const originalPage = (await chapterState(ids.chapterId)).lastPageRead;
+    assert.equal(originalPage, 1);
+    await rebuilt.getByLabel('Open recovery file').setInputFiles({ name: 'portable.yomirecovery', mimeType: 'application/octet-stream', buffer: Buffer.from(portable) });
+    await confirmAction(rebuilt, 'Use rebuilt library', 'Use this library');
+    await expect(rebuilt.getByText(/Rebuilt library selected/)).toBeVisible();
+    await rebuilt.reload();
+    await confirmAction(rebuilt, 'Restore notes and saved chapters', 'Restore device records');
+    await expect(rebuilt.getByRole('button', { name: 'Device records restored' })).toBeDisabled();
+    assert.equal((await chapterState(ids.chapterId)).lastPageRead, originalPage, 'Recovery must leave progress alone until review');
+    await confirmAction(rebuilt, 'Review progress for Chapter 1', 'Apply saved update');
+    await waitFor('reviewed progress reached the remapped chapter', async () => (await chapterState(ids.chapterId)).lastPageRead === 0);
+    assert.equal((await chapterState(ids.decoyChapterId)).lastPageRead, 0);
+    await rebuilt.goto(`${origin}/manga/${ids.mangaId}`);
+    await rebuilt.getByText('My notes', { exact: false }).click();
+    await expect(rebuilt.getByRole('textbox', { name: 'A note for Migration Story', exact: true })).toHaveValue(note);
+    await rebuilt.route(`${origin}/api/**`, (route) => route.abort('connectionrefused'));
+    await rebuilt.goto(`${origin}/reader/${ids.chapterId}`);
+    const recovered = rebuilt.locator('[id^="reader-page-"]').getByRole('img', { name: 'Page 1', exact: true });
+    await expect(recovered).toHaveAttribute('src', /^blob:/, { timeout: 45000 });
+    await expect(recovered).toHaveCSS('opacity', '1');
+  } finally { await rebuilt.close(); }
 }
