@@ -8,6 +8,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium, expect } from '@playwright/test';
+import { verifyProgressAfterStop } from './fixtures/verify-progress-after-stop.mjs';
 
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Use a disposable GitHub runner.');
 assert.equal(process.env.RUNNER_OS, 'Windows');
@@ -223,7 +224,7 @@ try {
   report.checks.push('Suwayomi installed the fixture extension and loaded its title and chapters.');
 
   browser = await chromium.launch();
-  web = await browser.newPage();
+  web = await browser.newPage({ serviceWorkers: 'block' });
   await web.addInitScript((serialized) => {
     if (!localStorage.getItem('yomikura-settings')) localStorage.setItem('yomikura-settings', serialized);
   }, settings);
@@ -280,6 +281,19 @@ try {
     await expect(offlinePage).toHaveCSS('opacity', '1');
     await native.page.screenshot({ path: path.join(root, 'migrated-desktop-offline.png') });
     report.checks.push('Installed desktop resumed the existing page 2 device copy with Suwayomi stopped.');
+
+    report.abruptProgress = [];
+    await verifyProgressAfterStop({
+      clients: [{ name: 'desktop', ...native }, { name: 'web', page: web, base: origin }],
+      chapterId: chapter.id,
+      origin,
+      readServerPage: async () => (await chapterState(chapter.id)).lastPageRead + 1,
+      restartServer: (name) => startBackend(name, newJar, migratedLibrary, mediaOrigin),
+      stopServer: () => stopProcess(backend),
+      waitFor,
+      outcomes: report.abruptProgress,
+    });
+    report.checks.push('Both readers kept page 2 after each abrupt server stop. Pending writes reached Suwayomi after reconnecting.');
   } finally {
     await native.desktopBrowser.close().catch(() => {});
   }
