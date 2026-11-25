@@ -49,6 +49,7 @@ jobs:
           else
             test "$ref_commit" = "$RELEASE_COMMIT"
           fi
-          gh api --method PATCH "$release_api/$RELEASE_ID" -F draft=false -F prerelease=true -f make_latest=false \
-            | jq -e '.draft == false and .prerelease == true and .published_at != null'
+          gh api --method PATCH "$release_api/$RELEASE_ID" -f tag_name="$RELEASE_TAG" \
+            -f target_commitish="$RELEASE_COMMIT" -F draft=false -F prerelease=true -f make_latest=false \
+            | jq -e --arg tag "$RELEASE_TAG" '.tag_name == $tag and .draft == false and .prerelease == true and .published_at != null'
           test "$(gh api "$release_api/latest" --jq .tag_name)" = "$STABLE_TAG"
