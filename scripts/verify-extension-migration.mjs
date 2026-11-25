@@ -170,10 +170,10 @@ const settings = JSON.stringify({ version: 0, state: {
   backupIntervalHours: 0, autoDeleteReadChapters: false, autoDownloadCount: 0,
 } });
 
-async function openDesktop() {
+async function openDesktop(seedSettings = true) {
   const config = path.join(process.env.APPDATA, 'app.yomikura');
   await mkdir(config, { recursive: true });
-  await writeFile(path.join(config, 'yomikura-settings.json'), settings, { flag: 'wx' });
+  if (seedSettings) await writeFile(path.join(config, 'yomikura-settings.json'), settings, { flag: 'wx' });
   const { stdout } = await run('pwsh', ['-NoProfile', '-NonInteractive', '-Command', String.raw`
     $ErrorActionPreference = 'Stop'
     $entry = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' |
@@ -301,7 +301,7 @@ try {
     await verifyDeviceRecovery({
       native, browser, origin, settings, mangaId: book.id, chapterId: chapter.id,
       stopServer: () => stopProcess(backend), startServer: (name) => startBackend(name, newJar, migratedLibrary, mediaOrigin),
-      closeDesktop: () => stopProcess(desktop), chapterState, waitFor,
+      closeDesktop: () => stopProcess(desktop), reopenDesktop: () => openDesktop(false), chapterState, waitFor,
       rebuild: async (page) => {
         await web.close();
         // Capture the upstream backup alongside the portable device file.
@@ -346,6 +346,7 @@ try {
       },
     });
     report.checks.push('Windows exported device records offline and a portable file while connected. Fresh browser profiles restored into the original library and into a newly restored Suwayomi database that assigned different IDs. Pending progress required review, the decoy chapter was unchanged, and the recovered pages opened offline.');
+    report.checks.push('The installed Windows reader also imported the portable file into the rebuilt library, opened the remapped note, and rendered a recovered page with Suwayomi stopped.');
   } finally {
     await native.desktopBrowser.close().catch(() => {});
   }

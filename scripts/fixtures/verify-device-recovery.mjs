@@ -7,7 +7,7 @@ async function confirmAction(page, action, confirm) {
   await page.getByRole('alertdialog').getByRole('button', { name: confirm, exact: true }).click();
 }
 
-export async function verifyDeviceRecovery({ native, browser, origin, settings, mangaId, chapterId, stopServer, startServer, closeDesktop, chapterState, waitFor, rebuild }) {
+export async function verifyDeviceRecovery({ native, browser, origin, settings, mangaId, chapterId, stopServer, startServer, closeDesktop, reopenDesktop, chapterState, waitFor, rebuild }) {
   const note = 'Original Windows fixture note held on this device.';
   await native.page.goto(`${native.base}/manga/${mangaId}`);
   await native.page.getByText('My notes', { exact: false }).click();
@@ -94,11 +94,12 @@ export async function verifyDeviceRecovery({ native, browser, origin, settings, 
   } finally { await clean.close(); }
 
   const rebuilt = await browser.newPage({ serviceWorkers: 'block' });
+  let ids;
   try {
     await rebuilt.addInitScript((serialized) => {
       if (!localStorage.getItem('yomikura-settings')) localStorage.setItem('yomikura-settings', serialized);
     }, settings);
-    const ids = await rebuild(rebuilt);
+    ids = await rebuild(rebuilt);
     assert.notEqual(ids.mangaId, mangaId);
     assert.notEqual(ids.chapterId, chapterId);
     const originalPage = (await chapterState(ids.chapterId)).lastPageRead;
@@ -122,4 +123,24 @@ export async function verifyDeviceRecovery({ native, browser, origin, settings, 
     await expect(recovered).toHaveAttribute('src', /^blob:/, { timeout: 45000 });
     await expect(recovered).toHaveCSS('opacity', '1');
   } finally { await rebuilt.close(); }
+
+  const installed = await reopenDesktop();
+  try {
+    await installed.page.goto(`${installed.base}/settings/backup`);
+    await installed.page.getByLabel('Open recovery file').setInputFiles({ name: 'portable.yomirecovery', mimeType: 'application/octet-stream', buffer: Buffer.from(portable) });
+    await expect(installed.page.getByRole('button', { name: 'Use rebuilt library' })).toBeEnabled({ timeout: 45000 });
+    await confirmAction(installed.page, 'Use rebuilt library', 'Use this library');
+    await expect(installed.page.getByText(/Rebuilt library selected/)).toBeVisible();
+    await confirmAction(installed.page, 'Restore notes and saved chapters', 'Restore device records');
+    await expect(installed.page.getByRole('button', { name: 'Device records restored' })).toBeDisabled();
+    await installed.page.goto(`${installed.base}/manga/${ids.mangaId}`);
+    await installed.page.getByText('My notes', { exact: false }).click();
+    await expect(installed.page.getByRole('textbox', { name: 'A note for Migration Story', exact: true })).toHaveValue(note);
+    assert.equal((await chapterState(ids.decoyChapterId)).lastPageRead, 0);
+    await stopServer();
+    await installed.page.goto(`${installed.base}/reader/${ids.chapterId}`);
+    const recovered = installed.page.locator('[id^="reader-page-"]').getByRole('img', { name: 'Page 1', exact: true });
+    await expect(recovered).toHaveAttribute('src', /^blob:/, { timeout: 45000 });
+    await expect(recovered).toHaveCSS('opacity', '1');
+  } finally { await installed.desktopBrowser.close().catch(() => {}); }
 }
