@@ -214,6 +214,30 @@ describe("progress replay and acknowledgement", () => {
     expect(await projectChapterProgress(first, remoteChapter())).toMatchObject({ lastPageRead: 0 });
   });
 
+  it("resumes the device's confirmed position when Suwayomi rolls back and leaves the server change for review", async () => {
+    const server = servers.get(first.serverBaseUrl)!;
+    mocks.update.mockResolvedValueOnce({ updateChapter: { chapter: { ...server, lastPageRead: 2, lastReadAt: "103" } } });
+    await saveProgressIntent(first, reading(2));
+    await synchronizeProgress(first);
+    expect(await getProgressOperations(first)).toHaveLength(0);
+
+    const rolledBack = { ...server, lastReadAt: "101" };
+    expect(await projectChapterProgress(first, rolledBack)).toMatchObject({ lastPageRead: 2 });
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+    await saveProgressIntent(first, reading(2));
+    await synchronizeProgress(first);
+    expect((await getProgressOperations(first))[0]).toMatchObject({ status: "blocked" });
+    expect(server.lastPageRead).toBe(0);
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["104", "103", undefined])("honors a server rewind when its reading timestamp is %s", async (lastReadAt) => {
+    mocks.update.mockResolvedValueOnce({ updateChapter: { chapter: { ...remoteChapter(), lastPageRead: 2, lastReadAt: "103" } } });
+    await saveProgressIntent(first, reading(2));
+    await synchronizeProgress(first);
+    expect(await projectChapterProgress(first, { ...remoteChapter(), lastReadAt })).toMatchObject({ lastPageRead: 0 });
+  });
+
   it("does not overwrite a server reset that happens to match the session's initial baseline", async () => {
     await saveProgressIntent(first, reading(3)); await synchronizeProgress(first);
     servers.get(first.serverBaseUrl)!.isRead = false; servers.get(first.serverBaseUrl)!.lastPageRead = 0;

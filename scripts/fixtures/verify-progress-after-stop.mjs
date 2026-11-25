@@ -23,8 +23,9 @@ async function progressHead(page, chapterId, origin) {
   }, { chapterId, origin });
 }
 
-export async function verifyProgressAfterStop({ clients, chapterId, origin, readServerPage, restartServer, stopServer, waitFor, outcomes }) {
+export async function verifyProgressAfterStop({ clients, chapterId, origin, readServerChapter, restartServer, stopServer, waitFor, outcomes }) {
   const endpoint = `${origin}/api/graphql`;
+  const readServerPage = async () => (await readServerChapter()).lastPageRead + 1;
   await restartServer('progress-setup');
 
   for (const { name, page, base } of clients) {
@@ -62,7 +63,9 @@ export async function verifyProgressAfterStop({ clients, chapterId, origin, read
           const response = await route.fetch({ timeout: 12000, maxRetries: 0 });
           const result = await response.json();
           assert.ok(response.ok() && !result.errors?.length, JSON.stringify(result.errors));
-          outcome.wirePage = result.data.updateChapter.chapter.lastPageRead + 1;
+          const chapter = result.data.updateChapter.chapter;
+          outcome.wirePage = chapter.lastPageRead + 1;
+          outcome.wireReadAt = chapter.lastReadAt;
           assert.equal(outcome.wirePage, 2);
           await stopServer();
           await route.fulfill({ response });
@@ -86,7 +89,9 @@ export async function verifyProgressAfterStop({ clients, chapterId, origin, read
         }, 30000);
         await restartServer(`${name}-${stopAt}-restarted`);
         // Read the recovered database while this client is still blocked from sending progress.
-        outcome.serverAfterRestart = await readServerPage();
+        const chapter = await readServerChapter();
+        outcome.serverAfterRestart = chapter.lastPageRead + 1;
+        outcome.serverAfterRestartReadAt = chapter.lastReadAt;
       } finally {
         await page.unroute(endpoint, interrupt);
       }
@@ -100,6 +105,16 @@ export async function verifyProgressAfterStop({ clients, chapterId, origin, read
           await waitFor('the original pending page is replayed after restart', async () => (await readServerPage()) === 2);
           outcome.pendingReplay = true;
         }
+      }
+      if (stopAt === 'acknowledged' && outcome.serverAfterRestart === 1 && outcome.readerAfterRestart === 2) {
+        assert.ok(Number(outcome.serverAfterRestartReadAt) < Number(outcome.wireReadAt));
+        const useSaved = page.getByRole('button', { name: 'Use saved progress', exact: true });
+        await expect(useSaved).toBeVisible({ timeout: 45000 });
+        assert.equal(await readServerPage(), 1, 'The server must remain untouched before review');
+        await useSaved.click();
+        await page.getByRole('alertdialog').getByRole('button', { name: 'Use saved progress', exact: true }).click();
+        await waitFor('the reviewed page is stored on Suwayomi', async () => (await readServerPage()) === 2);
+        outcome.reviewedReplay = true;
       }
       await page.goto(`${base}/library`);
     }

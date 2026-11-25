@@ -135,7 +135,7 @@ async function installFixture(jar) {
 }
 
 async function chapterState(id) {
-  return (await graphql('query($id:Int!){ chapter(id:$id){ id name sourceOrder pageCount isRead lastPageRead isBookmarked isDownloaded manga { id title inLibrary } } }', { id })).chapter;
+  return (await graphql('query($id:Int!){ chapter(id:$id){ id name sourceOrder pageCount isRead lastPageRead lastReadAt isBookmarked isDownloaded manga { id title inLibrary } } }', { id })).chapter;
 }
 
 async function libraryMarker() {
@@ -287,7 +287,7 @@ try {
       clients: [{ name: 'desktop', ...native }, { name: 'web', page: web, base: origin }],
       chapterId: chapter.id,
       origin,
-      readServerPage: async () => (await chapterState(chapter.id)).lastPageRead + 1,
+      readServerChapter: () => chapterState(chapter.id),
       restartServer: (name) => startBackend(name, newJar, migratedLibrary, mediaOrigin),
       stopServer: () => stopProcess(backend),
       waitFor,

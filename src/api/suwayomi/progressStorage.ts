@@ -29,7 +29,7 @@ export interface ProgressHead {
   acknowledgedSequence: number;
   patch: ProgressPatch;
   baseline: { isRead: boolean; lastPageRead: number };
-  lastAcknowledged?: { isRead: boolean; lastPageRead: number };
+  lastAcknowledged?: { isRead: boolean; lastPageRead: number; lastReadAt?: number };
   hasActivity: boolean;
   hideHistory: boolean;
   updatedAt: number;
@@ -125,7 +125,7 @@ export function progressHeadVersion(head: ProgressHead | undefined) {
 }
 
 /** Only a fresh response with no pending local edits may replace an observed server baseline. */
-export async function observeChapterProgress(backend: ProgressBackend, chapter: ChapterProgressIdentity, state: ProgressIntent["baseline"], expectedVersion?: string) {
+export async function observeChapterProgress(backend: ProgressBackend, chapter: ChapterProgressIdentity, state: ProgressIntent["baseline"], expectedVersion?: string, serverReadAt?: number) {
   return transaction(["heads"], "readwrite", async (tx) => {
     const store = tx.objectStore("heads");
     const head = await read<ProgressHead | undefined>(store.get(entityKey(backend, chapter.chapterId)));
@@ -133,6 +133,13 @@ export async function observeChapterProgress(backend: ProgressBackend, chapter: 
     if (expectedVersion !== undefined && progressHeadVersion(head) !== expectedVersion) return { head, stale: true };
     if (!head || head.sequence > head.acknowledgedSequence) return { head, stale: false };
     const identityChanged = !chapterIdentityMatches(head.chapter, chapter);
+    const acknowledgedReadAt = head.lastAcknowledged?.lastReadAt;
+    // An immediate server stop can roll back a confirmed write. Compare the
+    // server's own timestamps so a newer rewind or reset remains authoritative.
+    if (!identityChanged && head.libraryId && state.lastPageRead !== head.patch.lastPageRead &&
+        serverReadAt !== undefined && acknowledgedReadAt !== undefined && serverReadAt < acknowledgedReadAt) {
+      return { head, stale: true };
+    }
     const changed = identityChanged || head.patch.isRead !== state.isRead || head.patch.lastPageRead !== state.lastPageRead;
     if (!changed) return { head, stale: false };
     const next: ProgressHead = { ...head, chapter, patch: { ...head.patch, ...state }, baseline: state, lastAcknowledged: state,
@@ -268,7 +275,7 @@ export async function markProgressOperation(operation: ProgressOperation, owner:
   });
 }
 
-export async function acknowledgeProgress(operation: ProgressOperation, owner: string, acknowledged: ProgressPatch) {
+export async function acknowledgeProgress(operation: ProgressOperation, owner: string, acknowledged: ProgressPatch, serverReadAt?: number) {
   return transaction(["heads", "operations", "leases"], "readwrite", async (tx) => {
     const lease = await read<Lease | undefined>(tx.objectStore("leases").get(operation.backend.key));
     if (lease?.owner !== owner || lease.expires <= Date.now()) return false;
@@ -277,7 +284,8 @@ export async function acknowledgeProgress(operation: ProgressOperation, owner: s
       const isLatest = head.sequence === operation.sequence;
       const completed = (operation.kind === "reading" && !operation.duplicateOf || operation.trackCompletion) && acknowledged.isRead && head.patch.isRead && operation.epoch === head.epoch
         && operation.sequence > (head.trackingCancelledThrough ?? 0) && !(head.lastAcknowledged?.isRead ?? head.baseline.isRead) && Number.isFinite(operation.chapter.chapterNumber) && operation.chapter.chapterNumber > 0;
-      tx.objectStore("heads").put({ ...head, acknowledgedSequence: operation.sequence, lastAcknowledged: acknowledged,
+      tx.objectStore("heads").put({ ...head, acknowledgedSequence: operation.sequence,
+        lastAcknowledged: { ...acknowledged, lastReadAt: serverReadAt },
         serverRevision: (head.serverRevision ?? 0) + 1,
         ...(isLatest ? { patch: acknowledged } : {}),
         ...(completed ? { trackingDueSequence: operation.sequence, trackingAttempts: 0, trackingRetryAt: 0, trackingError: undefined } : {}),
