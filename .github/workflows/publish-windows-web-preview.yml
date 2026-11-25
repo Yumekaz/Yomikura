@@ -1,0 +1,54 @@
+name: Publish verified Windows and web preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: publish-windows-web-preview
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_ID: '458198861'
+      RELEASE_TAG: v1.0.26
+      RELEASE_COMMIT: f1a9cfccadbc12aa42bd89aca7cb1757af9e6fd7
+      STABLE_TAG: v1.0.25
+    steps:
+      - name: Verify the draft and publish it for manual download
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_api="repos/$GH_REPO/releases"
+          ref_api="repos/$GH_REPO/git"
+          test "$(gh api "$release_api/latest" --jq .tag_name)" = "$STABLE_TAG"
+          gh api "repos/$GH_REPO/compare/$RELEASE_COMMIT...$GITHUB_SHA" --jq .status | grep -Ex 'ahead|identical'
+
+          draft=$(gh api "$release_api/$RELEASE_ID")
+          jq -e --arg tag "$RELEASE_TAG" --arg commit "$RELEASE_COMMIT" \
+            '.draft == true and .tag_name == $tag and .target_commitish == $commit' <<< "$draft"
+          diff -u <(cat <<'ASSETS'
+          SHA256SUMS-windows-latest.txt	sha256:15e205f5e049625eb714584c769ce10ff2079c5e6cd020f0f89e63d5cb7eb4de
+          Yomikura-web-1.0.26.zip	sha256:d659cb4c2f0ed5a041c47d459f7509ce494cd2ed360feca28524f74caac73452
+          Yomikura-web-1.0.26.zip.sha256	sha256:b3e2185113c95114771ef2b655474c651317176df1f198404001ace5c4ca7643
+          Yomikura_1.0.26_x64-setup.exe	sha256:0949ebb6199a7464e56ef4f06e9c58a794d1663ac603609ca47ad1e028a809db
+          Yomikura_1.0.26_x64-setup.exe.sig	sha256:0a33d2cfe1488514e444133b691c85ccc6a224ebc2bebfe50b7e70d3e057661b
+          updater-preview.json	sha256:c661f5eba2c710e898dabf58ff0951762d3089773e15f4417d50482241074aad
+          ASSETS
+          ) <(jq -r '.assets | sort_by(.name)[] | [.name, .digest] | @tsv' <<< "$draft")
+
+          # Use the workflow token so tag creation does not run the stable publisher.
+          ref_commit=$(gh api "$ref_api/matching-refs/tags/$RELEASE_TAG" | jq -r --arg ref "refs/tags/$RELEASE_TAG" '.[] | select(.ref == $ref) | .object.sha')
+          if [[ -z "$ref_commit" ]]; then
+            gh api --method POST "$ref_api/refs" -f ref="refs/tags/$RELEASE_TAG" -f sha="$RELEASE_COMMIT" --jq .ref
+          else
+            test "$ref_commit" = "$RELEASE_COMMIT"
+          fi
+          gh api --method PATCH "$release_api/$RELEASE_ID" -F draft=false -F prerelease=true -f make_latest=false \
+            | jq -e '.draft == false and .prerelease == true and .published_at != null'
+          test "$(gh api "$release_api/latest" --jq .tag_name)" = "$STABLE_TAG"

@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { cp, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -6,6 +7,28 @@ import { promisify } from 'node:util';
 
 const run = promisify(execFile);
 const python = process.platform === 'win32' ? 'python' : 'python3';
+
+async function fetchReleaseAsset(asset) {
+  const response = await fetch(asset.url);
+  assert.ok(response.ok, `Could not download ${asset.name}: HTTP ${response.status}`);
+  const contents = Buffer.from(await response.arrayBuffer());
+  assert.equal(contents.length, asset.bytes, `Unexpected size for ${asset.name}`);
+  assert.equal(createHash('sha256').update(contents).digest('hex'), asset.sha256, `Checksum mismatch for ${asset.name}`);
+  return contents;
+}
+
+export async function copyReleasedWebReader({ webPackage, webRoot, destination, reader }) {
+  const { zip, checksum } = webPackage;
+  const [archive, checksumFile] = await Promise.all([fetchReleaseAsset(zip), fetchReleaseAsset(checksum)]);
+  assert.equal(checksumFile.toString('utf8').trim(), `${zip.sha256}  ${zip.name}`, 'Published checksum must identify the exact web ZIP');
+  await writeFile(destination, archive);
+  await writeFile(destination + '.sha256', checksumFile);
+  await run(python, ['-m', 'zipfile', '-e', destination, webRoot]);
+  const source = JSON.parse(await readFile(path.join(webRoot, 'source.json'), 'utf8'));
+  assert.equal(source.repository, 'https://github.com/Yumekaz/Yomikura');
+  assert.equal(source.commit, reader.commit, 'Published web ZIP must come from the selected release commit');
+  return { sha256: zip.sha256, bytes: zip.bytes };
+}
 
 export async function packageWebReader({ source, webRoot, destination, version, reader }) {
   for (const file of ['LICENSE', 'THIRD_PARTY_NOTICES.md']) await cp(path.join(source, file), path.join(webRoot, file));

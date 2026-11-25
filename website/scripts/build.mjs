@@ -8,7 +8,7 @@ import { pathToFileURL } from "node:url";
 import { checkoutRoot, websiteRoot, PAGES_BASE, readReleases, releaseHtml } from "./releases.mjs";
 import readerConfig from "../vite.reader.config.ts";
 import { generateLicenseNotices } from "../../scripts/generate-license-notices.mjs";
-import { packageWebReader } from "./package-web-reader.mjs";
+import { copyReleasedWebReader, packageWebReader } from "./package-web-reader.mjs";
 
 const run = promisify(execFile);
 const source = path.resolve(process.env.READER_SOURCE || path.join(checkoutRoot, ".reader-source"));
@@ -29,12 +29,17 @@ const webRoot = path.join(working, "web");
 // Stable readers enforce bundled notices in their Vite config. Prepare the
 // source public asset before the programmatic build, just as pnpm build does.
 await generateLicenseNotices(source, path.join(source, "public/licenses/THIRD_PARTY_NPM.txt"));
-process.chdir(source);
-try { await build({ configFile: path.join(source, "vite.config.ts"), configLoader: "native", build: { outDir: webRoot, emptyOutDir: false } }); }
-finally { process.chdir(originalCwd); }
 const downloads = path.join(output, "downloads"); await mkdir(downloads);
 const zipName = path.basename(metadata.web.url);
-Object.assign(metadata.web, await packageWebReader({ source, webRoot, destination: path.join(downloads, zipName), version: metadata.primary.version, reader: metadata.reader }));
+const destination = path.join(downloads, zipName);
+if (metadata.primary.webPackage) {
+  Object.assign(metadata.web, await copyReleasedWebReader({ webPackage: metadata.primary.webPackage, webRoot, destination, reader: metadata.reader }));
+} else {
+  process.chdir(source);
+  try { await build({ configFile: path.join(source, "vite.config.ts"), configLoader: "native", build: { outDir: webRoot, emptyOutDir: false } }); }
+  finally { process.chdir(originalCwd); }
+  Object.assign(metadata.web, await packageWebReader({ source, webRoot, destination, version: metadata.primary.version, reader: metadata.reader }));
+}
 
 // Only the public hosted demo gets a hash router and base-aware public assets.
 const demoEntry = path.join(source, ".website-demo-entry");
