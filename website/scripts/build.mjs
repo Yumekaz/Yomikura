@@ -67,4 +67,4 @@ await writeFile(path.join(output, "releases.json"), JSON.stringify(metadata, nul
 await writeFile(path.join(output, ".nojekyll"), "");
 await writeFile(path.join(working, "build.json"), JSON.stringify({ source, webRoot, output, reader: metadata.reader }, null, 2));
 await writeFile(path.join(checkoutRoot, ".cache/public-site-current-build.json"), JSON.stringify({ source, webRoot, output, working, reader: metadata.reader }, null, 2));
-console.log(`Built public homepage, scoped interactive demo and ${zipName} (${zip.length} bytes).`);
+console.log(`Built public homepage, scoped interactive demo and ${zipName} (${metadata.web.bytes} bytes).`);

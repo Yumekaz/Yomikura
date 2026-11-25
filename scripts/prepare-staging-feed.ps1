@@ -12,6 +12,7 @@ $serverKey = Join-Path $directory 'server.key'
 $serverCert = Join-Path $directory 'server.crt'
 $request = Join-Path $directory 'server.csr'
 $extensions = Join-Path $directory 'server.ext'
+Write-Host 'Creating one-day certificates for the loopback update feed.'
 Set-Content -LiteralPath $extensions -Value @('subjectAltName=IP:127.0.0.1', 'basicConstraints=critical,CA:FALSE', 'keyUsage=critical,digitalSignature,keyEncipherment', 'extendedKeyUsage=serverAuth')
 & $openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=Yomikura CI fixture root' -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' -keyout $rootKey -out $rootCert 2>$null
 if ($LASTEXITCODE) { throw 'Could not create the test certificate authority.' }
@@ -19,9 +20,12 @@ if ($LASTEXITCODE) { throw 'Could not create the test certificate authority.' }
 if ($LASTEXITCODE) { throw 'Could not create the loopback certificate request.' }
 & $openssl x509 -req -in $request -CA $rootCert -CAkey $rootKey -CAcreateserial -days 1 -extfile $extensions -out $serverCert 2>$null
 if ($LASTEXITCODE) { throw 'Could not sign the loopback certificate.' }
-Import-Certificate -FilePath $rootCert -CertStoreLocation 'Cert:\CurrentUser\Root' | Out-Null
+# The elevated disposable runner can install its generated root in the machine
+# store without the interactive trust prompt used by the current-user store.
+Write-Host 'Installing the generated root in the disposable runner trust store.'
+Import-Certificate -FilePath $rootCert -CertStoreLocation 'Cert:\LocalMachine\Root' | Out-Null
 Set-Content -LiteralPath (Join-Path $directory 'tauri.conf.json') -Value (@{
-  version = '1.0.24'
+  version = '1.0.25'
   plugins = @{ updater = @{ endpoints = @('https://127.0.0.1:9238/latest.json') } }
   bundle = @{ createUpdaterArtifacts = $false }
 } | ConvertTo-Json -Depth 6)

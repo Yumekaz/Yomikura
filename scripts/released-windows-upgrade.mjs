@@ -17,11 +17,12 @@ assert.ok(process.env.RUNNER_TEMP && process.env.JAVA_HOME);
 const from = process.env.FROM_RELEASE;
 const candidate = process.env.YOMIKURA_CANDIDATE_INSTALLER;
 const stagingInstaller = process.env.YOMIKURA_STAGING_INSTALLER;
+const stagingVersion = '1.0.25';
 assert.ok(stagingInstaller ? Boolean(candidate && path.isAbsolute(candidate) && path.isAbsolute(stagingInstaller)) : candidate ? from === 'v1.0.25' && path.isAbsolute(candidate) : ['v1.0.24', 'v1.0.25-beta.5'].includes(from));
 const target = candidate ? process.env.GITHUB_SHA : 'v1.0.25', run = promisify(execFile);
 const testNotes = Boolean(stagingInstaller) || from !== 'v1.0.24';
 const root = path.resolve('.cache/released-upgrade', stagingInstaller ? 'staging-feed' : from); await mkdir(root, { recursive: true });
-const report = { from: stagingInstaller ? '1.0.24 staging client' : from, target, checks: [], failures: [], boundaries: ['fresh GitHub Windows runner', stagingInstaller ? 'local HTTPS feed with an unpublished bootstrap client and the exact production-signed candidate' : candidate ? 'manual in-place installation of the candidate artifact' : 'official unmodified installers and real updater', 'synthetic Local source and original artwork', 'no third-party tracker authentication', 'WebView automation, not physical input'] };
+const report = { from: stagingInstaller ? `${stagingVersion} staging client` : from, target, checks: [], failures: [], boundaries: ['fresh GitHub Windows runner', stagingInstaller ? 'local HTTPS feed with an unpublished bootstrap client and the exact production-signed candidate' : candidate ? 'manual in-place installation of the candidate artifact' : 'official unmodified installers and real updater', 'synthetic Local source and original artwork', 'no third-party tracker authentication', 'WebView automation, not physical input'] };
 const backend = 'http://127.0.0.1:4596';
 let browser, page, backendProcess, appProcess, stagingFeed;
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -67,7 +68,7 @@ try {
   const current = candidate ? undefined : await github('releases/latest');
   let installerPath = stagingInstaller, oldArtifact;
   if (stagingInstaller) {
-    oldArtifact = { version: '1.0.24', sha256: hash(await readFile(stagingInstaller)) };
+    oldArtifact = { version: stagingVersion, sha256: hash(await readFile(stagingInstaller)) };
     stagingFeed = await startStagingFeed(candidate);
   } else {
     const old = await github('releases/tags/' + from);
@@ -148,7 +149,7 @@ try {
   await page.screenshot({ path: path.join(root, 'before-upgrade.png') });
   if (stagingFeed) {
     const beforeHash = hash(await readFile(installed));
-    assert.equal(await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('plugin:app|version')), '1.0.24');
+    assert.equal(await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('plugin:app|version')), stagingVersion);
     await installStagedUpdate(page, stagingFeed, async () => assert.equal(hash(await readFile(installed)), beforeHash));
     await until(async () => {
       const output = await ps('(Get-Item -LiteralPath $env:UPGRADE_APP).VersionInfo.ProductVersion', { UPGRADE_APP: installed });

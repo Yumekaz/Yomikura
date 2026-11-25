@@ -492,6 +492,7 @@ jobs:
           path: ${{ runner.temp }}/yomikura-signed-installer
       - name: Generate a temporary HTTPS endpoint and older client configuration
         shell: pwsh
+        timeout-minutes: 2
         run: ./scripts/prepare-staging-feed.ps1
       - name: Build the unpublished bootstrap client
         shell: pwsh
@@ -505,7 +506,7 @@ jobs:
             New-ItemProperty -Path $key -Name $app -Value '--remote-debugging-port=9237 --remote-debugging-address=127.0.0.1' -PropertyType String -Force | Out-Null
           }
           $candidates = @(Get-ChildItem -LiteralPath (Join-Path $env:RUNNER_TEMP 'yomikura-signed-installer') -Filter '*-setup.exe' -File)
-          $bootstrap = @(Get-ChildItem -Path 'src-tauri/target/release/bundle/nsis/*_1.0.24_*-setup.exe' -File)
+          $bootstrap = @(Get-ChildItem -Path 'src-tauri/target/release/bundle/nsis/*_1.0.25_*-setup.exe' -File)
           if ($candidates.Count -ne 1 -or $bootstrap.Count -ne 1) { throw 'Expected one signed candidate and one staging bootstrap.' }
           $env:YOMIKURA_CANDIDATE_INSTALLER = $candidates[0].FullName
           $env:YOMIKURA_STAGING_INSTALLER = $bootstrap[0].FullName
