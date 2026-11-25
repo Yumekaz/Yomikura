@@ -11,6 +11,10 @@ on:
         description: Verify a populated extension library against the Suwayomi hotfix
         type: boolean
         default: false
+      candidate_upgrade:
+        description: Install this Windows build over the public stable app and exercise a sustained reader session
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -290,4 +294,61 @@ jobs:
             .cache/extension-migration/**/*.png
           include-hidden-files: true
           if-no-files-found: ignore
+          retention-days: 14
+
+  candidate-upgrade-windows:
+    name: Candidate upgrade from v1.0.25 (Windows)
+    if: github.event_name == 'workflow_dispatch' && inputs.candidate_upgrade
+    needs: desktop-installer-windows
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: yomikura-windows-installer
+          path: ${{ runner.temp }}/yomikura-candidate-installer
+      - name: Permit loopback inspection of the installed app on this disposable runner
+        shell: pwsh
+        run: |
+          $key = 'HKLM:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+          New-Item -Path $key -Force | Out-Null
+          foreach ($app in @('app.exe', 'Yomikura.exe')) {
+            New-ItemProperty -Path $key -Name $app -Value '--remote-debugging-port=9237 --remote-debugging-address=127.0.0.1' -PropertyType String -Force | Out-Null
+          }
+      - name: Exercise in-place upgrade, offline restart, and sustained reading
+        shell: pwsh
+        env:
+          FROM_RELEASE: v1.0.25
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $directory = Join-Path $env:RUNNER_TEMP 'yomikura-candidate-installer'
+          $installers = @(Get-ChildItem -LiteralPath $directory -File -Filter '*-setup.exe')
+          if ($installers.Count -ne 1) { throw 'Expected one candidate installer from this run.' }
+          $env:YOMIKURA_CANDIDATE_INSTALLER = $installers[0].FullName
+          node scripts/released-windows-upgrade.mjs
+      - name: Preserve candidate upgrade evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-upgrade-evidence
+          path: |
+            .cache/released-upgrade/**/*.json
+            .cache/released-upgrade/**/*.txt
+            .cache/released-upgrade/**/*.log
+            .cache/released-upgrade/**/*.png
+          include-hidden-files: true
+          if-no-files-found: warn
           retention-days: 14
