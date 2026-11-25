@@ -1,7 +1,7 @@
 import { PALETTES } from "../theme/palettes";
 import { normalizeDownloadExperience } from "./downloadExperience";
 import { normalizeReaderExperience } from "./readerExperience";
-import { useSettingsStore } from "./useSettingsStore";
+import type { useSettingsStore } from "./useSettingsStore";
 
 const options = {
   readerMode: ["WEBTOON", "LTR", "RTL"],
@@ -52,17 +52,4 @@ export function parseRecoveryPreferences(value: unknown): RecoveryPreferences {
     reader: normalizeReaderExperience(input.reader),
     downloads: { unmeteredOnly, preloadUnmeteredOnly, connectionCost, pageConcurrency, preloadPages, splitTallImages },
   };
-}
-
-export function captureRecoveryPreferences() {
-  const settings = useSettingsStore.getState();
-  return parseRecoveryPreferences({ ...settings, reader: settings.experience.reader, downloads: settings.experience.downloads });
-}
-
-export function applyRecoveryPreferences({ reader, downloads, customKeybinds, ...settings }: RecoveryPreferences) {
-  useSettingsStore.setState((current) => ({
-    ...settings,
-    ...(customKeybinds ? { customKeybinds: { ...current.customKeybinds, ...customKeybinds } } : {}),
-    experience: { ...current.experience, reader, downloads: { ...current.experience.downloads, ...downloads } },
-  }));
 }

@@ -1,6 +1,6 @@
 import { createGraphqlClient } from "../graphql/client";
 import { captureNoteExport, importNoteExport, parseNoteExport } from "../../features/manga/notePortability";
-import { applyRecoveryPreferences, captureRecoveryPreferences } from "../../stores/recoveryPreferences";
+import { parseRecoveryPreferences, type RecoveryPreferences } from "../../stores/recoveryPreferences";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { chapterIdentityMatches, progressBackend, type ProgressBackend } from "./backendIdentity";
 import { createRecoveryFile, describeRecoveryPage, MAX_RECOVERY_BYTES, openRecoveryFile, verifyRecoveryPage, type RecoveryChapter, type RecoveryManifest } from "./deviceRecoveryFormat";
@@ -13,6 +13,19 @@ import { cachedIdentity, isCurrentProgressBackend, progressChapterIdentity, save
 import { validatePageBlob } from "./validatePageBlob";
 
 const pageCache = "yomikura-page-cache";
+
+function captureRecoveryPreferences() {
+  const settings = useSettingsStore.getState();
+  return parseRecoveryPreferences({ ...settings, reader: settings.experience.reader, downloads: settings.experience.downloads });
+}
+
+function applyRecoveryPreferences({ reader, downloads, customKeybinds, ...settings }: RecoveryPreferences) {
+  useSettingsStore.setState((current) => ({
+    ...settings,
+    ...(customKeybinds ? { customKeybinds: { ...current.customKeybinds, ...customKeybinds } } : {}),
+    experience: { ...current.experience, reader, downloads: { ...current.experience.downloads, ...downloads } },
+  }));
+}
 
 export function recoveryBackend() {
   const { serverBaseUrl, mockMode } = useSettingsStore.getState();

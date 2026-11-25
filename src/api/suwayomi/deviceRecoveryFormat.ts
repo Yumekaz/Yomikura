@@ -1,4 +1,4 @@
-import { parseNoteExport, type NoteExport } from "../../features/manga/notePortability";
+import { parseNoteExport, type NoteExport } from "../../features/manga/noteExportFormat";
 import { parseRecoveryPreferences, type RecoveryPreferences } from "../../stores/recoveryPreferences";
 import type { ChapterProgressIdentity } from "./backendIdentity";
 import { validLibraryMarker } from "./libraryIdentity";
