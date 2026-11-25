@@ -15,6 +15,10 @@ on:
         description: Install this Windows build over the public stable app and exercise a sustained reader session
         type: boolean
         default: false
+      release_journey:
+        description: Exercise unseeded Windows onboarding and the matching self-hosted web package
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -224,7 +228,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Preserve the installer build's browser interface for migration
-        if: inputs.extension_migration
+        if: inputs.extension_migration || inputs.release_journey
         uses: actions/upload-artifact@v4
         with:
           name: yomikura-extension-migration-web
@@ -349,6 +353,46 @@ jobs:
             .cache/released-upgrade/**/*.txt
             .cache/released-upgrade/**/*.log
             .cache/released-upgrade/**/*.png
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
+
+  clean-setup-windows:
+    name: Clean Windows setup and first chapter
+    if: github.event_name == 'workflow_dispatch' && inputs.release_journey
+    needs: desktop-installer-windows
+    runs-on: windows-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: yomikura-windows-installer
+          path: ${{ runner.temp }}/yomikura-clean-installer
+      - name: Enable WebView inspection on this disposable runner
+        shell: pwsh
+        run: |
+          $key = 'HKLM:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+          New-Item -Path $key -Force | Out-Null
+          foreach ($app in @('app.exe', 'Yomikura.exe')) {
+            New-ItemProperty -Path $key -Name $app -Value '--remote-debugging-port=9237 --remote-debugging-address=127.0.0.1' -PropertyType String -Force | Out-Null
+          }
+      - name: Exercise the installed app without seeded Java or Suwayomi
+        run: node scripts/verify-clean-windows.mjs
+      - name: Preserve clean setup evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clean-windows-evidence
+          path: .cache/clean-windows/
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
