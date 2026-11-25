@@ -510,13 +510,13 @@ jobs:
           if ($candidates.Count -ne 1 -or $bootstrap.Count -ne 1) { throw 'Expected one signed candidate and one staging bootstrap.' }
           $env:YOMIKURA_CANDIDATE_INSTALLER = $candidates[0].FullName
           $env:YOMIKURA_STAGING_INSTALLER = $bootstrap[0].FullName
-          node scripts/released-windows-upgrade.mjs
+          node scripts/verify-clean-windows.mjs
       - name: Preserve signed-update evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: staging-updater-evidence
-          path: .cache/released-upgrade/staging-feed/
+          path: .cache/clean-windows/
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14

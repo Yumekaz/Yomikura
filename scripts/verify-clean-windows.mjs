@@ -7,6 +7,7 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import { chromium, expect } from '@playwright/test';
+import { installStagedUpdate, startStagingFeed } from './fixtures/staging-updater.mjs';
 
 assert.equal(process.env.GITHUB_ACTIONS, 'true');
 assert.equal(process.env.RUNNER_OS, 'Windows');
@@ -17,10 +18,13 @@ await mkdir(root, { recursive: true });
 const data = path.join(process.env.LOCALAPPDATA, 'app.yomikura');
 const serverData = path.join(data, 'server-data');
 const report = { commit: process.env.GITHUB_SHA, checks: [] };
+const bootstrap = process.env.YOMIKURA_STAGING_INSTALLER;
+const candidate = process.env.YOMIKURA_CANDIDATE_INSTALLER;
+if (bootstrap) assert.ok(candidate && path.isAbsolute(bootstrap) && path.isAbsolute(candidate));
 const env = { ...process.env };
 for (const name of Object.keys(env)) if (/^(?:path|java_home|jdk_home|jre_home|java_tool_options|_java_options)$/i.test(name)) delete env[name];
 env.PATH = [path.join(process.env.SystemRoot, 'System32'), process.env.SystemRoot].join(';');
-let app, browser, page, executable;
+let app, browser, page, executable, feed;
 
 async function ps(script, variables = {}) {
   return (await exec('pwsh', ['-NoProfile', '-NonInteractive', '-Command', script], {
@@ -42,8 +46,14 @@ async function launch() {
   app = spawn(executable, [], { cwd: root, env, stdio: 'ignore', windowsHide: true });
   let failed;
   app.once('error', (error) => { failed = error; });
-  browser = await waitFor('installed app WebView', () => {
+  await attach(() => {
     if (failed || app.exitCode !== null) throw failed ?? new Error(`Yomikura exited with ${app.exitCode}`);
+  });
+}
+
+async function attach(check = () => {}) {
+  browser = await waitFor('installed app WebView', () => {
+    check();
     return chromium.connectOverCDP('http://127.0.0.1:9237', { timeout: 3000 });
   });
   page = await waitFor('Yomikura window', () => browser.contexts().flatMap((context) => context.pages()).find((entry) => /^https?:\/\/tauri\.localhost/.test(entry.url())));
@@ -64,21 +74,30 @@ async function graphql(origin, document, variables) {
   return body.data;
 }
 
-async function closeWindow() {
-  const pid = app.pid;
+async function closeWindow(pid = app.pid) {
   await browser.close().catch(() => {});
   await ps(String.raw`$p=Get-Process -Id $env:YOMIKURA_PID; if (!$p.CloseMainWindow()) { throw 'The app window could not be closed' }; if (!$p.WaitForExit(15000)) { throw 'The app did not exit' }`, { YOMIKURA_PID: String(pid) });
   await waitFor('backend shutdown recorded', async () => !(await stat(path.join(data, 'backend.pid')).catch(() => null)));
 }
 
+const pidFile = path.join(data, 'backend.pid');
+const backendPid = async () => Number(await readFile(pidFile, 'utf8'));
+const isRunning = (pid) => ps(`if (Get-Process -Id ${pid} -ErrorAction SilentlyContinue) { 'yes' }`).then((value) => value === 'yes');
+
 try {
   assert.ok(!await stat(serverData).catch(() => null), 'A clean runner has no managed library');
   assert.ok(!await stat(path.join(process.env.APPDATA, 'app.yomikura', 'yomikura-settings.json')).catch(() => null), 'A clean runner has no Yomikura settings');
   await assert.rejects(exec('java', ['-version'], { cwd: root, env }), { code: 'ENOENT' });
-  const directory = path.join(process.env.RUNNER_TEMP, 'yomikura-clean-installer');
-  const installers = (await readdir(directory)).filter((name) => name.endsWith('-setup.exe'));
-  assert.equal(installers.length, 1);
-  const installer = path.join(directory, installers[0]);
+  let installer = bootstrap;
+  if (bootstrap) {
+    report.candidateSha256 = createHash('sha256').update(await readFile(candidate)).digest('hex');
+    feed = await startStagingFeed(candidate);
+  } else {
+    const directory = path.join(process.env.RUNNER_TEMP, 'yomikura-clean-installer');
+    const installers = (await readdir(directory)).filter((name) => name.endsWith('-setup.exe'));
+    assert.equal(installers.length, 1);
+    installer = path.join(directory, installers[0]);
+  }
   report.installerSha256 = createHash('sha256').update(await readFile(installer)).digest('hex');
   executable = await ps(String.raw`$ErrorActionPreference='Stop'; $p=Start-Process -FilePath $env:YOMIKURA_TEST_INSTALLER -ArgumentList '/S' -Wait -PassThru -WindowStyle Hidden; if ($p.ExitCode) { throw "Installer exited $($p.ExitCode)" }; $entry=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' | Where-Object DisplayName -eq 'Yomikura' | Select-Object -First 1; if (!$entry) { throw 'Missing installation record' }; ($entry.DisplayIcon -replace ',\d+$', '').Trim([char]34)`, { YOMIKURA_TEST_INSTALLER: installer });
   assert.ok(path.isAbsolute(executable));
@@ -108,6 +127,15 @@ try {
   await page.getByRole('link', { name: 'First Reading', exact: true }).click({ timeout: 45000 });
   await page.getByRole('button', { name: 'Add to Library', exact: true }).click();
   await page.getByRole('button', { name: 'Save to library', exact: true }).click();
+  const bookPath = new URL(page.url()).pathname;
+  const note = 'Keep this note through the Windows update.';
+  if (feed) {
+    await page.getByText('My notes', { exact: false }).click();
+    await page.getByRole('textbox', { name: 'A note for First Reading', exact: true }).fill(note);
+    await expect(page.getByRole('status').filter({ hasText: 'Saved on this device' })).toBeVisible();
+    await page.getByRole('button', { name: /^Save .* for offline reading$/ }).click();
+    await expect(page.getByRole('button', { name: /^Remove offline download of / })).toBeVisible({ timeout: 60000 });
+  }
   await page.getByRole('link', { name: 'Resume', exact: true }).first().click();
   await page.getByRole('button', { name: 'Go to page 3', exact: true }).click();
   const pageThree = () => page.locator('[id^="reader-page-"]').getByRole('img', { name: 'Page 3', exact: true });
@@ -117,16 +145,49 @@ try {
   assert.ok(chapterId > 0);
   await waitFor('server saved page 3', async () => (await graphql(origin, 'query($id:Int!){chapter(id:$id){lastPageRead}}', { id: chapterId })).chapter.lastPageRead === 2);
   await delay(1500); // Exercise ordinary restart after the just-confirmed database write has settled.
-  await closeWindow();
-  await launch();
+  let updatedAppPid;
+  if (feed) {
+    assert.equal(await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('plugin:app|version')), '1.0.25');
+    const before = createHash('sha256').update(await readFile(executable)).digest('hex');
+    const initialPid = await backendPid();
+    assert.ok(Number.isSafeInteger(initialPid) && initialPid > 0);
+    const initialAppPid = app.pid;
+    await installStagedUpdate(page, feed, async () => {
+      assert.equal(createHash('sha256').update(await readFile(executable)).digest('hex'), before);
+      assert.ok(await isRunning(initialPid), 'Failed signature verification must leave the owned library running.');
+    });
+    await waitFor('signed installer replaced the running release', async () => {
+      return (await ps('(Get-Item -LiteralPath $env:YOMIKURA_EXE).VersionInfo.ProductVersion', { YOMIKURA_EXE: executable })).startsWith(feed.version);
+    }, 180000);
+    assert.equal(feed.payloadRequests(), 2);
+    await browser.close().catch(() => {});
+    await attach();
+    assert.equal(await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('plugin:app|version')), feed.version);
+    // Probe the original PID before accepting the new server. If it is left alive
+    // it can hold the same database open while the new app tries to start.
+    assert.ok(!await isRunning(initialPid), `The update left its previous managed Suwayomi process alive (PID ${initialPid}).`);
+    const newPid = await ps(String.raw`$process=Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $env:YOMIKURA_EXE -and $_.ProcessId -ne [int]$env:YOMIKURA_OLD_PID } | Select-Object -First 1; $process.ProcessId`, { YOMIKURA_EXE: executable, YOMIKURA_OLD_PID: String(initialAppPid) });
+    updatedAppPid = Number(newPid);
+    assert.ok(updatedAppPid > 0);
+    report.checks.push('The native updater rejected altered bytes and installed the signed candidate. The previous managed backend exited.');
+  } else {
+    await closeWindow();
+    await launch();
+  }
   await expect(page.getByRole('link', { name: 'First Reading', exact: true }).first()).toBeVisible({ timeout: 60000 });
+  if (feed) {
+    await page.goto(`${desktopOrigin}${bookPath}`);
+    await page.getByText('My notes', { exact: false }).click();
+    await expect(page.getByRole('textbox', { name: 'A note for First Reading', exact: true })).toHaveValue(note);
+    await expect(page.getByRole('button', { name: /^Remove offline download of / })).toBeVisible();
+  }
   await page.goto(`${desktopOrigin}${readerPath}`);
   await expect(page.getByText('3 of 4 pages', { exact: true })).toBeVisible({ timeout: 60000 });
   await expect(pageThree()).toHaveCSS('opacity', '1');
   assert.equal((await graphql(await currentServer(), 'query($id:Int!){chapter(id:$id){lastPageRead}}', { id: chapterId })).chapter.lastPageRead, 2);
   report.checks.push('The installed app added the original-art book, read page 3, and resumed there after the app and managed server restarted.');
   await page.screenshot({ path: path.join(root, 'resume.png') });
-  await closeWindow();
+  await closeWindow(updatedAppPid);
   report.result = 'PASS';
 } catch (error) {
   report.result = 'FAIL';
@@ -140,6 +201,8 @@ try {
 } finally {
   await browser?.close().catch(() => {});
   if (app?.exitCode === null) app.kill();
+  feed?.server.closeAllConnections();
+  feed?.server.close();
   console.log(JSON.stringify(report));
   await writeFile(path.join(root, 'result.json'), JSON.stringify(report, null, 2));
 }
