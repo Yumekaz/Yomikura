@@ -148,8 +148,12 @@ async function sourceCatalog(sourceId) {
 }
 
 async function pageDigests(chapter) {
-  return Promise.all([0, 1, 2].map(async (index) => {
-    const response = await fetch(`${origin}/api/v1/manga/${chapter.manga.id}/chapter/${chapter.sourceOrder}/page/${index}`, { signal: AbortSignal.timeout(12000) });
+  const { fetchChapterPages } = await graphql('mutation($id:Int!){fetchChapterPages(input:{chapterId:$id}){pages}}', { id: chapter.id });
+  assert.equal(fetchChapterPages.pages.length, 3);
+  return Promise.all(fetchChapterPages.pages.map(async (page, index) => {
+    const url = new URL(page, origin);
+    assert.equal(url.origin, origin, 'The retained page must be served by Suwayomi');
+    const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(12000) });
     assert.equal(response.ok, true, `Could not read page ${index + 1}`);
     return hash(Buffer.from(await response.arrayBuffer()));
   }));
@@ -216,6 +220,7 @@ try {
   const chapter = details.fetchMangaAndChapters.chapters.find((item) => item.chapterNumber === 1);
   assert.ok(chapter);
   await graphql('mutation($id:Int!){updateManga(input:{id:$id,patch:{inLibrary:true}}){manga{id}}}', { id: book.id });
+  report.checks.push('Suwayomi installed the fixture extension and loaded its title and chapters.');
 
   browser = await chromium.launch();
   web = await browser.newPage();
@@ -224,13 +229,12 @@ try {
   }, settings);
   await web.goto(`${origin}/manga/${book.id}`);
   await web.getByRole('button', { name: 'Download Chapter 1 through Suwayomi', exact: true }).click({ timeout: 60000 });
-  const status = await graphql('{ downloadStatus { state } }');
-  if (status.downloadStatus.state === 'STOPPED') await graphql('mutation { startDownloader(input:{}){downloadStatus{state}} }');
   await waitFor('Suwayomi download completion', async () => (await chapterState(chapter.id)).isDownloaded);
   assert.ok(mediaRequests >= 3, 'Suwayomi did not retrieve the original fixture pages');
   const firstState = await chapterState(chapter.id);
   const bytes = await pageDigests(firstState);
   assert.deepEqual(bytes, [hash(first), hash(second), hash(first)]);
+  report.checks.push('The web app queued the extension chapter and Suwayomi served all three downloaded pages with the original checksums.');
 
   const native = await openDesktop();
   try {
@@ -246,7 +250,7 @@ try {
     const savedState = await chapterState(chapter.id);
     assert.equal(savedState.lastPageRead, 1);
     const marker = await libraryMarker();
-    report.checks.push('Web queued the extension chapter, Suwayomi downloaded it, and installed desktop saved its own offline copy and read to page 2.');
+    report.checks.push('Installed desktop saved its own offline copy and Suwayomi acknowledged reading page 2.');
 
     await delay(2000); // Let the fixture server flush, separate from the abrupt-stop test.
     await stopProcess(backend);
