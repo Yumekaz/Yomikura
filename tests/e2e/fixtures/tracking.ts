@@ -91,7 +91,7 @@ export async function finishTrackerChapter(page: Page) {
 }
 export async function trackingHeads(page: Page) {
   return page.evaluate(async () => {
-    const open = indexedDB.open("yomikura-progress", 1);
+    const open = indexedDB.open("yomikura-progress");
     const db = await new Promise<IDBDatabase>((resolve, reject) => { open.onsuccess = () => resolve(open.result); open.onerror = () => reject(open.error); });
     try { return await new Promise<any[]>((resolve, reject) => { const request = db.transaction("heads", "readonly").objectStore("heads").getAll(); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); }); }
     finally { db.close(); }

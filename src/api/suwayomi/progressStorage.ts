@@ -16,6 +16,8 @@ export type ProgressIntent = {
   hideHistory?: boolean;
   deleteAfterAck?: boolean;
   expectedSequence?: number;
+  recoveryKey?: string;
+  recoveryBaseline?: { lastPageRead: number; isRead: boolean; isBookmarked: boolean; lastReadAt: string };
   trackCompletion?: boolean;
   duplicateOf?: { chapterId: number; epoch: number; sequence: number };
 };
@@ -64,15 +66,18 @@ export function progressChanged(backend: ProgressBackend, kind: "queued" | "chan
 
 async function openProgressDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DATABASE, 1);
-    request.onupgradeneeded = () => {
+    const request = indexedDB.open(DATABASE, 2);
+    request.onupgradeneeded = (event) => {
       const db = request.result;
-      const heads = db.createObjectStore("heads", { keyPath: "entityKey" });
-      heads.createIndex("backend", "backend.key");
-      const operations = db.createObjectStore("operations", { keyPath: "sequence", autoIncrement: true });
-      operations.createIndex("backend", "backend.key");
-      operations.createIndex("entity", "entityKey");
-      db.createObjectStore("leases", { keyPath: "key" });
+      if (event.oldVersion < 1) {
+        const heads = db.createObjectStore("heads", { keyPath: "entityKey" });
+        heads.createIndex("backend", "backend.key");
+        const operations = db.createObjectStore("operations", { keyPath: "sequence", autoIncrement: true });
+        operations.createIndex("backend", "backend.key");
+        operations.createIndex("entity", "entityKey");
+        db.createObjectStore("leases", { keyPath: "key" });
+      }
+      db.createObjectStore("recovered");
     };
     request.onerror = () => reject(request.error);
     request.onblocked = () => reject(new Error("Close other Yomikura tabs to open progress storage."));
@@ -171,11 +176,16 @@ export async function getProgressOperations(backend: ProgressBackend) {
 
 export async function enqueueProgress(backend: ProgressBackend, intent: ProgressIntent) {
   const libraryId = backend.isDemo ? undefined : Object.prototype.hasOwnProperty.call(intent, "libraryId") ? intent.libraryId : rememberedLibrary(backend.serverBaseUrl)?.marker;
-  const result = await transaction(["heads", "operations"], "readwrite", async (tx) => {
+  const storeNames = ["heads", "operations", ...(intent.recoveryKey ? ["recovered"] : [])];
+  const result = await transaction(storeNames, "readwrite", async (tx) => {
     const heads = tx.objectStore("heads");
     const operations = tx.objectStore("operations");
     const key = entityKey(backend, intent.chapter.chapterId);
     const previous = await read<ProgressHead | undefined>(heads.get(key));
+    if (intent.recoveryKey) {
+      if (await read(tx.objectStore("recovered").getKey(intent.recoveryKey))) return { head: previous, accepted: false, reason: "already-recovered" };
+      if (previous && previous.sequence > previous.acknowledgedSequence) return { head: previous, accepted: false, reason: "pending-progress" };
+    }
     if (previous && previous.sequence > previous.acknowledgedSequence && (previous.libraryId ?? null) !== (libraryId ?? null) && !(intent.kind === "explicit" && intent.reviewedLibrary)) return { head: previous, accepted: false, reason: "identity" };
     if (previous && (previous.libraryId ?? null) !== (libraryId ?? null)) {
       const archivedKey = JSON.stringify(["earlier", previous.entityKey, previous.libraryId ?? "unverified", previous.sequence]);
@@ -239,6 +249,7 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
       trackingCancelledThrough: sameChapter ? previous.trackingCancelledThrough : undefined,
     };
     heads.put(head);
+    if (intent.recoveryKey) await read(tx.objectStore("recovered").add(sequence, intent.recoveryKey));
     return { head, accepted: true };
   });
   progressChanged(backend, result.accepted ? "queued" : "changed");

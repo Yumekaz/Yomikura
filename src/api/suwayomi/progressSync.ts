@@ -103,6 +103,12 @@ async function sendOperation(backend: ProgressBackend, operation: ProgressOperat
   }
   const head = await getProgressHead(backend, operation.chapter.chapterId);
   const state = { isRead: remote.isRead, lastPageRead: remote.lastPageRead };
+  const reviewed = operation.recoveryBaseline;
+  if (reviewed && (!sameState(state, reviewed) || remote.isBookmarked !== reviewed.isBookmarked || String(remote.lastReadAt ?? "") !== reviewed.lastReadAt)) {
+    await markProgressOperation(operation, owner, "blocked", "Server progress changed after recovery review. Compare the two positions before syncing.");
+    progressChanged(backend, "error");
+    return;
+  }
   const cancelledDuplicate = !await duplicateOriginValid(operation);
   const requestedFields = (operation.fields ?? ["isRead", "lastPageRead"]).filter((field) => !cancelledDuplicate || field === "isBookmarked");
   if (cancelledDuplicate && !requestedFields.length) {
