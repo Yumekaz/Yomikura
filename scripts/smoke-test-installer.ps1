@@ -13,9 +13,10 @@ $ErrorActionPreference = "Stop"
 $installer = (Resolve-Path -LiteralPath $InstallerPath).Path
 if ((Get-Item -LiteralPath $installer).Length -lt 1MB) { throw "Installer is unexpectedly small: $installer" }
 
-$backendJarName = "Suwayomi-Server-v2.3.2243.jar"
-$backendJarUrl = "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.3.2243/Suwayomi-Server-v2.3.2243.jar"
-$backendJarSha256 = "821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5"
+$backendVersion = "2.4.2373"
+$backendJarName = "Suwayomi-Server-v$backendVersion.jar"
+$backendJarUrl = "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v$backendVersion/$backendJarName"
+$backendJarSha256 = "dd05d523cc785b7acf90c9feac0bc84c53d5fb3af5ab2a33653646e2076e5217"
 $managedStorageMarker = ".yomikura-managed-storage"
 $managedStorageMarkerContent = "YOMIKURA_MANAGED_STORAGE_V1"
 
@@ -258,7 +259,12 @@ try {
     # has been satisfied so this test verifies uninstall preservation rather
     # than accidentally testing rejection of a non-empty folder.
     Set-Content -LiteralPath (Join-Path $PreservedStoragePath "smoke-sentinel.txt") -Value "Yomikura user data must survive an application uninstall." -NoNewline
-    Write-Host "Local Suwayomi GraphQL endpoint is ready on port $backendPort"
+    $about = Invoke-RestMethod -Uri "http://127.0.0.1:$backendPort/api/graphql" -Method Post -ContentType "application/json" -Body '{"query":"{ aboutServer { version } }"}' -TimeoutSec 10
+    $runningVersion = ([string]$about.data.aboutServer.version) -replace '^v', ''
+    if ($runningVersion -ne $backendVersion) {
+      throw "The installed app started Suwayomi '$runningVersion'. Expected '$backendVersion'."
+    }
+    Write-Host "Installed app started Suwayomi $runningVersion on port $backendPort"
   }
   Write-Host "Verifying the supported Suwayomi GraphQL contract"
   node (Join-Path $PSScriptRoot "verify-suwayomi-contract.mjs") "--base-url=http://127.0.0.1:$backendPort"
@@ -347,12 +353,46 @@ if (-not $uninstaller) { $uninstaller = ($uninstallCommand -split '\s+')[0].Trim
 if (-not (Test-Path -LiteralPath $uninstaller)) { throw "Registered uninstaller was not found: $uninstaller" }
 
 Write-Host "Uninstalling $uninstaller"
+# Use fixtures owned by the GitHub runner. Preserve both the default library
+# location and the selected library, and preserve unrelated install-dir files.
+$preservedFixtures = @{}
+if ($env:GITHUB_ACTIONS -eq 'true' -and $env:RUNNER_OS -eq 'Windows') {
+  $fixtureId = [guid]::NewGuid().ToString('N')
+  $defaultLibrary = Join-Path $env:LOCALAPPDATA 'app.yomikura\server-data'
+  $configDirectory = Join-Path $env:APPDATA 'app.yomikura'
+  $installDirectory = Split-Path -Parent $appPath
+  $outsideLibrary = Join-Path $env:RUNNER_TEMP "yomikura-uninstall-neighbor-$fixtureId"
+  foreach ($directory in @($defaultLibrary, $configDirectory, $installDirectory, $outsideLibrary)) {
+    New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    $fixture = Join-Path $directory "uninstall-preserve-$fixtureId.txt"
+    Set-Content -LiteralPath $fixture -Value "Preserve $fixtureId" -NoNewline
+    $preservedFixtures[$fixture] = (Get-FileHash -LiteralPath $fixture -Algorithm SHA256).Hash
+  }
+  $junction = Join-Path $defaultLibrary "uninstall-junction-$fixtureId"
+  New-Item -ItemType Junction -Path $junction -Target $outsideLibrary | Out-Null
+  $preservedFixtures[(Join-Path $junction "uninstall-preserve-$fixtureId.txt")] =
+    $preservedFixtures[(Join-Path $outsideLibrary "uninstall-preserve-$fixtureId.txt")]
+  if ($PreservedStoragePath) {
+    $selectedFixture = Join-Path $PreservedStoragePath 'smoke-sentinel.txt'
+    $preservedFixtures[$selectedFixture] = (Get-FileHash -LiteralPath $selectedFixture -Algorithm SHA256).Hash
+  }
+  $settingsPath = Join-Path $configDirectory 'yomikura-settings.json'
+  if (Test-Path -LiteralPath $settingsPath -PathType Leaf) {
+    $preservedFixtures[$settingsPath] = (Get-FileHash -LiteralPath $settingsPath -Algorithm SHA256).Hash
+  }
+}
 $uninstallProcess = Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait -PassThru
 if ($uninstallProcess.ExitCode -ne 0) { throw "Uninstaller exited with code $($uninstallProcess.ExitCode)" }
 Start-Sleep -Seconds 2
 if (Test-Path -LiteralPath $appPath) { throw "Application executable remains after uninstall: $appPath" }
 if ($PreservedStoragePath -and -not (Test-Path -LiteralPath (Join-Path $PreservedStoragePath "smoke-sentinel.txt"))) {
   throw "User-selected storage was removed during uninstall: $PreservedStoragePath"
+}
+foreach ($fixture in $preservedFixtures.GetEnumerator()) {
+  if (-not (Test-Path -LiteralPath $fixture.Key -PathType Leaf) -or
+      (Get-FileHash -LiteralPath $fixture.Key -Algorithm SHA256).Hash -ne $fixture.Value) {
+    throw "Uninstall removed or changed a retained file: $($fixture.Key)"
+  }
 }
 Write-Host "Installer lifecycle smoke test passed"
 exit 0

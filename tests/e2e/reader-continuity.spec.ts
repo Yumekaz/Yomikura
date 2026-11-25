@@ -229,7 +229,7 @@ test("moving backward after completion stays read when synchronization becomes u
   await expect(fullPage(page, 12, 1)).toHaveAttribute("src", /^blob:/);
   await expect(fullPage(page, 12, 1)).toHaveCSS("opacity", "1");
   await expect.poll(async () => page.evaluate(async () => {
-    const open = indexedDB.open("yomikura-progress", 1);
+    const open = indexedDB.open("yomikura-progress");
     const db = await new Promise<IDBDatabase>((resolve) => { open.onsuccess = () => resolve(open.result); });
     try {
       return await new Promise((resolve) => { const read = db.transaction("heads", "readonly").objectStore("heads").getAll(); read.onsuccess = () => resolve(read.result.find((head) => head.chapter.chapterId === 12)?.patch); });

@@ -119,7 +119,12 @@
       all('[data-release-version]').forEach((element) => { element.textContent = release.tag; });
       all('[data-release-kind]').forEach((element) => { element.textContent = release.prerelease ? 'Public beta' : 'Stable release'; });
       all('[data-release-link]').forEach((link) => { link.href = release.url; });
-      all('[data-platform]').forEach((link) => { const asset = release.assets?.[link.dataset.platform]; if (asset) link.href = asset.url; });
+      all('[data-platform]').forEach((link) => {
+        const asset = release.assets?.[link.dataset.platform];
+        link.hidden = !asset;
+        if (asset) link.href = asset.url;
+        else link.removeAttribute('href');
+      });
       const userAgent = navigator.userAgent;
       const mobile = /Android|iPhone|iPad|Mobile/i.test(userAgent);
       const windows = !mobile && /Windows/i.test(userAgent);
@@ -127,9 +132,9 @@
       const platform = windows ? 'windows' : linux ? 'linux' : null;
       const asset = platform && release.assets?.[platform];
       all('[data-download-primary]').forEach((link) => {
-        link.href = asset?.url || new URL('#get-started', base).href;
+        link.href = asset?.url || release.url;
         const label = link.querySelector('[data-download-label]');
-        if (label) label.textContent = asset ? windows ? 'Download for Windows' : 'Download for Linux x86_64' : 'Choose your desktop download';
+        if (label) label.textContent = asset ? windows ? 'Download for Windows' : 'Download for Linux x86_64' : 'View desktop downloads';
       });
       all('[data-stable-link]').forEach((link) => { if (data.stable) { link.href = data.stable.url; link.textContent = `${release.prerelease ? 'Previous stable release' : 'Current stable release'} · ${data.stable.tag}`; } });
       all('[data-web-download]').forEach((link) => { if (data.web?.url) link.href = data.web.url; });

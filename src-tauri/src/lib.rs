@@ -1,5 +1,5 @@
 use std::process::{Child, Command};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::menu::{MenuBuilder, MenuItem};
 use tauri::path::BaseDirectory;
@@ -26,7 +26,7 @@ struct DownloadedPage {
 }
 
 struct BackendState {
-    backend: Mutex<Option<RunningBackend>>,
+    backend: Arc<Mutex<Option<RunningBackend>>>,
     verified_jar: Mutex<Option<VerifiedJar>>,
 }
 
@@ -43,16 +43,44 @@ struct RunningBackend {
     data_path: std::path::PathBuf,
 }
 
-const SUWAYOMI_JAR_NAME: &str = "Suwayomi-Server-v2.3.2243.jar";
+// The Windows updater clears Tauri resources and exits without a RunEvent::Exit.
+// Keep an exit guard in that table so the managed child releases its database
+// before the updated app opens the same library.
+#[cfg(windows)]
+struct ManagedBackendExit {
+    backend: Arc<Mutex<Option<RunningBackend>>>,
+    pid_file: Option<std::path::PathBuf>,
+}
+
+#[cfg(windows)]
+impl tauri::Resource for ManagedBackendExit {}
+
+#[cfg(windows)]
+impl Drop for ManagedBackendExit {
+    fn drop(&mut self) {
+        let mut state = self.backend.lock().unwrap_or_else(|err| err.into_inner());
+        if let Some(mut running) = state.take() {
+            let _ = running.child.kill();
+            let _ = running.child.wait();
+            if let Some(path) = &self.pid_file {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
+}
+
+const SUWAYOMI_JAR_NAME: &str = "Suwayomi-Server-v2.4.2373.jar";
 const SUWAYOMI_JAR_URL: &str =
-    "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.3.2243/Suwayomi-Server-v2.3.2243.jar";
+    "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.4.2373/Suwayomi-Server-v2.4.2373.jar";
 const SUWAYOMI_JAR_MIN_BYTES: u64 = 50_000_000;
 const SUWAYOMI_JAR_SHA256: &str =
-    "821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5";
+    "dd05d523cc785b7acf90c9feac0bc84c53d5fb3af5ab2a33653646e2076e5217";
 const MANAGED_STORAGE_MARKER: &str = ".yomikura-managed-storage";
 const MANAGED_STORAGE_MARKER_CONTENT: &str = "YOMIKURA_MANAGED_STORAGE_V1";
 const MANAGED_STORAGE_RECORD: &str = "managed-storage-path.txt";
 const BACKEND_PID_RECORD: &str = "backend.pid";
+const PATCHED_JRE_DIR: &str = "jre-21.0.13.1";
+static JRE_INSTALL_LOCK: Mutex<()> = Mutex::new(());
 const MAX_PAGE_DOWNLOAD_BYTES: u64 = 32 * 1024 * 1024;
 
 fn ci_smoke_autostart_enabled() -> bool {
@@ -557,17 +585,21 @@ fn find_java_binary(dir: &std::path::Path) -> Option<std::path::PathBuf> {
 
 #[tauri::command]
 fn check_java_installed(data_path: Option<String>) -> bool {
-    if let Some(path) = data_path {
-        let data_dir = std::path::PathBuf::from(&path);
-        let jre_dir = data_dir.join("jre");
-        if let Some(java_bin) = find_java_binary(&jre_dir) {
-            if runtime_setup::compatible_java(&java_bin) {
-                return true;
+    supported_backend_java(data_path.as_deref().map(std::path::Path::new)).is_some()
+}
+
+fn supported_backend_java(data_dir: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
+    if let Some(data_dir) = data_dir {
+        for name in [PATCHED_JRE_DIR, "jre"] {
+            if let Some(binary) = find_java_binary(&data_dir.join(name))
+                .filter(|binary| runtime_setup::compatible_java(binary))
+            {
+                return Some(binary);
             }
         }
     }
-
-    runtime_setup::compatible_java(std::path::Path::new("java"))
+    let java = std::path::PathBuf::from("java");
+    runtime_setup::compatible_java(&java).then_some(java)
 }
 
 #[tauri::command]
@@ -588,77 +620,79 @@ fn download_and_install_jre_sync(
 ) -> Result<(), String> {
     let (url, expected_sha256) = match (std::env::consts::OS, std::env::consts::ARCH) {
         ("windows", "x86_64") => (
-            "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_x64_windows_hotspot_21.0.12.1_1.zip",
-            "d35f31e712f0fcf6ac5a093edc90204fbff22f720ba3950bd09d331d5e621636",
+            "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13.1%2B2/OpenJDK21U-jre_x64_windows_hotspot_21.0.13.1_2.zip",
+            "e15ee1e54a5a3b38027a09cedfa87bc3348d7dd3ce50866dd3d9671d7fffc6c1",
         ),
         ("linux", "x86_64") => (
-            "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_x64_linux_hotspot_21.0.12.1_1.tar.gz",
-            "2413149700df0f7d440500a84a8f764c535f21e5a5e87d38328b64eec2c5b500",
+            "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13.1%2B2/OpenJDK21U-jre_x64_linux_hotspot_21.0.13.1_2.tar.gz",
+            "18f44fab9065217f3ba61d0eef8a7b5f3c3713aa7293001b0d4ac10ede3850f0",
         ),
         ("linux", "aarch64") => (
-            "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_aarch64_linux_hotspot_21.0.12.1_1.tar.gz",
-            "14be1f35ebdbd1f6e8d57eb911a3ffb74d6d9aa255abc5daf2b1302002cf2cf2",
+            "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13.1%2B2/OpenJDK21U-jre_aarch64_linux_hotspot_21.0.13.1_2.tar.gz",
+            "52bc58323d9266538a6361a3cf8365fc1186dd9510d7f33f623681c4aabb7e72",
         ),
         ("macos", "x86_64") => (
-            "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_x64_mac_hotspot_21.0.12.1_1.tar.gz",
-            "6717ec641fd9ce0bb209ca083ee23b42202ac68cb6fcc5753496e0e4a0f41989",
+            "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13.1%2B2/OpenJDK21U-jre_x64_mac_hotspot_21.0.13.1_2.tar.gz",
+            "10cee6ba4cd83fd4613a3f0bb3ef9dddd68c68d5f3ccfcc7e456707c9e1eafe0",
         ),
         ("macos", "aarch64") => (
-            "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_aarch64_mac_hotspot_21.0.12.1_1.tar.gz",
-            "dec50fc6f9fcd4fe3ae8cabf5a5fa68f6afc48841f7698e468e9aa5d54beed84",
+            "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13.1%2B2/OpenJDK21U-jre_aarch64_mac_hotspot_21.0.13.1_2.tar.gz",
+            "848feb1906c7de79de4f8391636042193fbd46eff86e26299506c4656f62c260",
         ),
-        (os, arch) => return Err(format!("No verified Java runtime is available for {os}/{arch}. Install Java 21 or newer manually.")),
+        (os, arch) => return Err(format!("No verified Java download is available for {os}/{arch}. Install Java 21.0.13.1 or 25.0.5.1 (or a newer patch in either series), then retry.")),
     };
 
     let data_dir = std::path::PathBuf::from(&data_path);
     prepare_managed_storage(&app_handle, &data_dir)?;
     disable_suwayomi_browser_autolaunch(&data_dir)?;
 
-    let jre_dir = data_dir.join("jre");
-
-    if jre_dir.exists() {
-        if let Some(java_bin) = find_java_binary(&jre_dir) {
-            if runtime_setup::compatible_java(&java_bin) {
-                return Ok(());
-            }
-        }
-        let _ = std::fs::remove_dir_all(&jre_dir);
-    }
-
-    std::fs::create_dir_all(&jre_dir)
-        .map_err(|e| format!("Failed to create JRE directory: {e}"))?;
-
-    #[cfg(target_os = "windows")]
-    {
-        let archive_path = data_dir.join("jre.zip");
-        if !archive_path.is_file() || verify_sha256(&archive_path, expected_sha256).is_err() {
-            download_file_with_curl(url, &archive_path, expected_sha256)?;
-        }
-        runtime_setup::extract_verified_java_archive(&archive_path, &jre_dir)?;
-        let _ = std::fs::remove_file(&archive_path);
-    }
-
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
-    {
-        let archive_path = data_dir.join("jre.tar.gz");
-        download_file_with_curl(url, &archive_path, expected_sha256)?;
-        let output = Command::new("tar")
-            .arg("-xzf")
-            .arg(&archive_path)
-            .arg("-C")
-            .arg(&jre_dir)
-            .output()
-            .map_err(|e| format!("Failed to extract verified JRE archive: {e}"))?;
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to extract verified JRE archive: {}",
-                String::from_utf8_lossy(&output.stderr).trim()
-            ));
-        }
-        let _ = std::fs::remove_file(&archive_path);
-    }
-
+    let _install = JRE_INSTALL_LOCK.lock().map_err(|_| {
+        "Java installation could not be resumed. Restart Yomikura and retry.".to_string()
+    })?;
+    let jre_dir = data_dir.join(PATCHED_JRE_DIR);
     if find_java_binary(&jre_dir).is_some_and(|binary| runtime_setup::compatible_java(&binary)) {
+        return Ok(());
+    }
+    if jre_dir.exists() {
+        return Err(format!("The patched Java folder is already present but unusable: {}. Move it aside and retry setup.", jre_dir.display()));
+    }
+
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_nanos();
+    let staging = data_dir.join(format!(
+        "{PATCHED_JRE_DIR}-setup-{}-{timestamp}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&staging)
+        .map_err(|e| format!("Failed to create Java setup folder: {e}"))?;
+
+    let result = install_verified_jre(&staging, url, expected_sha256).and_then(|()| {
+        std::fs::rename(&staging, &jre_dir)
+            .map_err(|e| format!("Failed to activate verified Java runtime: {e}"))
+    });
+    if result.is_err() {
+        let _ = std::fs::remove_dir_all(&staging);
+    }
+    result
+}
+
+fn install_verified_jre(
+    staging: &std::path::Path,
+    url: &str,
+    expected_sha256: &str,
+) -> Result<(), String> {
+    let archive_path = staging.join(if cfg!(windows) {
+        "jre.zip"
+    } else {
+        "jre.tar.gz"
+    });
+    download_file_with_curl(url, &archive_path, expected_sha256)?;
+    runtime_setup::extract_verified_java_archive(&archive_path, staging)?;
+    let _ = std::fs::remove_file(&archive_path);
+
+    if find_java_binary(staging).is_some_and(|binary| runtime_setup::compatible_java(&binary)) {
         Ok(())
     } else {
         Err("The verified Java archive did not contain a runnable Java binary.".to_string())
@@ -712,14 +746,9 @@ fn start_backend(
     #[cfg(windows)]
     use std::os::windows::process::CommandExt;
 
-    let jre_dir = data_dir.join("jre");
-    let java_program = if let Some(local_bin) =
-        find_java_binary(&jre_dir).filter(|binary| runtime_setup::compatible_java(binary))
-    {
-        local_bin
-    } else {
-        std::path::PathBuf::from("java")
-    };
+    let java_program = supported_backend_java(Some(&data_dir)).ok_or_else(|| {
+        "A patched Java runtime is required to start the local library. Run library setup again to download it, or install an updated Java 21 or 25 runtime.".to_string()
+    })?;
 
     let mut cmd = Command::new(java_program);
     #[cfg(windows)]
@@ -996,7 +1025,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(BackendState {
-            backend: Mutex::new(None),
+            backend: Arc::new(Mutex::new(None)),
             verified_jar: Mutex::new(None),
         })
         .manage(desktop_preferences::DesktopState::default())
@@ -1024,6 +1053,11 @@ pub fn run() {
             local_import::import_local_archives
         ])
         .setup(|app| {
+            #[cfg(windows)]
+            app.resources_table().add(ManagedBackendExit {
+                backend: Arc::clone(&app.state::<BackendState>().backend),
+                pid_file: backend_pid_path(app.handle()).ok(),
+            });
             desktop_preferences::initialize(app.handle());
             if let Some(window) = app.get_webview_window("main") {
                 if let Err(error) = window_layout::fit_initial_window(&window) {

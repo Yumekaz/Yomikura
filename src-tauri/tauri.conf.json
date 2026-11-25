@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Yomikura",
-  "version": "1.0.25",
+  "version": "1.0.26",
   "identifier": "app.yomikura",
   "build": {
     "frontendDist": "../dist",
@@ -38,7 +38,7 @@
     "resources": [],
     "windows": {
       "nsis": {
-        "installerHooks": "./hooks.nsh",
+        "template": "./installer/installer.nsi",
         "installMode": "currentUser",
         "installerIcon": "icons/icon.ico",
         "uninstallerIcon": "icons/icon.ico"

@@ -27,7 +27,7 @@ export async function loadReaderChapterDetails(backend: ProgressBackend, id: num
     if (!cached) throw error;
     details = { id: cached.id, name: cached.name, chapterNumber: cached.chapterNumber, isRead: cached.isRead ?? false,
       isBookmarked: cached.isBookmarked ?? false, scanlator: cached.scanlator ?? null, uploadDate: cached.uploadDate ?? null,
-      lastPageRead: cached.lastPageRead ?? 0, pageCount: cached.pageCount, sourceOrder: cached.sourceOrder, mangaId: cached.mangaId,
+      lastPageRead: cached.lastPageRead ?? 0, lastReadAt: undefined, pageCount: cached.pageCount, sourceOrder: cached.sourceOrder, mangaId: cached.mangaId,
       manga: { title: cached.mangaTitle },
     };
     offline = true;

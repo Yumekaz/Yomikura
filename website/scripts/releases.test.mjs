@@ -35,6 +35,22 @@ test("drafts and incomplete platform packages cannot become public download meta
   assert.throws(() => normalizeRelease(release));
   assert.throws(() => normalizeRelease({ ...release, draft: false }));
 });
+test("a Windows and web preview uses verified assets and hides platforms without installers", () => {
+  const release = {
+    tag_name: tag, draft: false, prerelease: true,
+    html_url: `https://github.com/Yumekaz/Yomikura/releases/tag/${tag}`,
+    assets: [asset("Yomikura_1.0.25-beta.5_x64-setup.exe"), asset("Yomikura-web-1.0.25-beta.5.zip"), asset("Yomikura-web-1.0.25-beta.5.zip.sha256")],
+  };
+  assert.throws(() => normalizeRelease({ ...release, assets: release.assets.slice(0, 2) }));
+  assert.throws(() => normalizeRelease({ ...release, prerelease: false }));
+  const primary = normalizeRelease(release);
+  assert.equal(primary.webPackage.zip.sha256, "a".repeat(64));
+  assert.equal(primary.assets.macos, null);
+  const stable = { tag: "v1.0.25", url: "https://github.com/Yumekaz/Yomikura/releases/tag/v1.0.25" };
+  const updated = releaseHtml('<a data-platform="linux" href="old">Linux</a><a data-stable-link href="old">Stable</a>', { primary, stable, web: { version: primary.version } });
+  assert.ok(updated.includes('<a data-platform="linux" hidden>Linux</a>'));
+  assert.ok(updated.includes(`href="${stable.url}">Previous stable release · v1.0.25`));
+});
 test("the assembled no-JavaScript download paths follow the selected release", () => {
   const html = '<a href="old" data-download-primary>Download</a><a data-platform="windows" href="old">Windows</a><a href="old" data-web-download>Web</a><a data-stable-link href="old">Stable</a><span data-release-version>old</span><span data-release-kind>old</span><span data-web-version>old</span>';
   const metadata = { primary: { tag: "v2.0.0", prerelease: false, url: "https://github.com/Yumekaz/Yomikura/releases/tag/v2.0.0", assets: { windows: { url: "https://github.com/Yumekaz/Yomikura/releases/download/v2.0.0/setup.exe" } } }, stable: { url: "https://github.com/Yumekaz/Yomikura/releases/tag/v2.0.0" }, web: { url: "/Yomikura/downloads/Yomikura-web-2.0.0.zip", version: "2.0.0" } };

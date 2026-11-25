@@ -1,18 +1,34 @@
 use std::path::Path;
 use std::process::Command;
 
-fn java_major_version(output: &str) -> Option<u32> {
+fn java_version(output: &str) -> Option<[u32; 4]> {
     let version = output.lines().find_map(|line| {
-        let (_, remainder) = line.split_once("version \"")?;
-        remainder.split('"').next()
+        let line = line.trim_start();
+        let remainder = line
+            .strip_prefix("openjdk version \"")
+            .or_else(|| line.strip_prefix("java version \""))?;
+        remainder.split_once('"').map(|(value, _)| value)
     })?;
-    let mut parts = version.split(['.', '-', '+']);
-    let first = parts.next()?.parse::<u32>().ok()?;
-    if first == 1 {
-        parts.next()?.parse().ok()
-    } else {
-        Some(first)
+    let (numbers, build) = version.split_once('+').unwrap_or((version, ""));
+    if numbers.contains('-')
+        || build
+            .split('-')
+            .any(|part| part == "ea" || part == "internal")
+    {
+        return None;
     }
+    let mut parsed = [0; 4];
+    for (index, value) in numbers.split('.').enumerate() {
+        *parsed.get_mut(index)? = value.parse().ok()?;
+    }
+    Some(parsed)
+}
+
+fn supported_java_version(output: &str) -> bool {
+    // Use the LTS lines with published patches for CVE-2026-114938.
+    matches!(java_version(output), Some(version) if
+        (version[0] == 21 && version >= [21, 0, 13, 1]) ||
+        (version[0] == 25 && version >= [25, 0, 5, 1]))
 }
 
 pub(crate) fn compatible_java(binary: &Path) -> bool {
@@ -34,28 +50,34 @@ pub(crate) fn compatible_java(binary: &Path) -> bool {
         String::from_utf8_lossy(&output.stderr),
         String::from_utf8_lossy(&output.stdout)
     );
-    java_major_version(&version).is_some_and(|major| major >= 21)
+    supported_java_version(&version)
 }
 
-#[cfg(windows)]
 pub(crate) fn extract_verified_java_archive(
     archive: &Path,
     destination: &Path,
 ) -> Result<(), String> {
-    use std::os::windows::process::CommandExt;
-    // PowerShell -Command does not bind trailing native arguments to $args.
-    // Both paths stay literal, including spaces, apostrophes and metacharacters.
-    let literal = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "''"));
-    let script = format!(
-        "$ErrorActionPreference = 'Stop'; Expand-Archive -LiteralPath {} -DestinationPath {} -Force",
-        literal(archive), literal(destination)
-    );
-    let output = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command"])
-        .arg(script)
-        .creation_flags(0x08000000)
+    // The caller provides a checksum-verified archive and a fresh staging
+    // folder. Windows ships bsdtar, which can unpack ZIP files directly.
+    #[cfg(windows)]
+    let mut command = {
+        use std::os::windows::process::CommandExt;
+        let system = std::env::var_os("SystemRoot")
+            .ok_or_else(|| "Windows system directory was not available.".to_string())?;
+        let mut command = Command::new(Path::new(&system).join("System32").join("tar.exe"));
+        command.creation_flags(0x08000000);
+        command
+    };
+    #[cfg(not(windows))]
+    let mut command = Command::new("tar");
+
+    let output = command
+        .arg("-xf")
+        .arg(archive)
+        .arg("-C")
+        .arg(destination)
         .output()
-        .map_err(|error| format!("Failed to extract verified JRE archive: {error}"))?;
+        .map_err(|error| format!("Failed to start the Java archive extractor: {error}"))?;
     if !output.status.success() {
         return Err(format!(
             "Failed to extract verified JRE archive: {}",
@@ -67,18 +89,32 @@ pub(crate) fn extract_verified_java_archive(
 
 #[cfg(test)]
 mod tests {
-    use super::java_major_version;
+    use super::supported_java_version;
 
     #[test]
-    fn recognizes_current_and_legacy_java_versions() {
-        assert_eq!(
-            java_major_version("openjdk version \"21.0.12.1\" 2026-10-20"),
-            Some(21)
-        );
-        assert_eq!(java_major_version("java version \"1.8.0_202\""), Some(8));
-        assert_eq!(java_major_version("openjdk version \"17.0.10\""), Some(17));
-        assert_eq!(java_major_version("openjdk version \"25-ea\""), Some(25));
-        assert_eq!(java_major_version("not a Java runtime"), None);
+    fn requires_a_patched_lts_runtime_for_the_managed_server() {
+        for version in ["21.0.13.1", "21.0.14", "25.0.5.1", "25.0.5.1+2-LTS"] {
+            assert!(
+                supported_java_version(&format!("openjdk version \"{version}\"")),
+                "{version}"
+            );
+        }
+        for version in [
+            "1.8.0_202",
+            "17.0.21.1",
+            "21.0.12.1",
+            "21.0.13",
+            "25.0.5",
+            "25.0.6-ea",
+            "26",
+            "25.invalid",
+        ] {
+            assert!(
+                !supported_java_version(&format!("java version \"{version}\"")),
+                "{version}"
+            );
+        }
+        assert!(!supported_java_version("not a Java runtime"));
     }
 
     #[cfg(windows)]
@@ -101,6 +137,7 @@ mod tests {
         )
         .unwrap();
         let destination = root.join("private runtime's [1]");
+        std::fs::create_dir(&destination).unwrap();
         super::extract_verified_java_archive(&archive, &destination).unwrap();
         assert_eq!(
             std::fs::read_to_string(destination.join("runtime probe.txt")).unwrap(),

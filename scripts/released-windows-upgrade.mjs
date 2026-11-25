@@ -14,10 +14,12 @@ assert.equal(process.env.GITHUB_ACTIONS, 'true');
 assert.equal(process.env.RUNNER_OS, 'Windows');
 assert.ok(process.env.RUNNER_TEMP && process.env.JAVA_HOME);
 const from = process.env.FROM_RELEASE;
-assert.ok(['v1.0.24', 'v1.0.25-beta.5'].includes(from));
-const target = 'v1.0.25', run = promisify(execFile);
+const candidate = process.env.YOMIKURA_CANDIDATE_INSTALLER;
+assert.ok(candidate ? from === 'v1.0.25' && path.isAbsolute(candidate) : ['v1.0.24', 'v1.0.25-beta.5'].includes(from));
+const target = candidate ? process.env.GITHUB_SHA : 'v1.0.25', run = promisify(execFile);
+const testNotes = from !== 'v1.0.24';
 const root = path.resolve('.cache/released-upgrade', from); await mkdir(root, { recursive: true });
-const report = { from, target, checks: [], failures: [], boundaries: ['fresh GitHub Windows runner', 'official unmodified installers', 'synthetic Local source and original artwork', 'no third-party tracker authentication', 'WebView automation, not physical input'] };
+const report = { from, target, checks: [], failures: [], boundaries: ['fresh GitHub Windows runner', candidate ? 'manual in-place installation of the candidate artifact' : 'official unmodified installers and real updater', 'synthetic Local source and original artwork', 'no third-party tracker authentication', 'WebView automation, not physical input'] };
 const backend = 'http://127.0.0.1:4596';
 let browser, page, backendProcess, appProcess;
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -43,6 +45,9 @@ async function attach() {
   page = await until(() => browser.contexts().flatMap((context) => context.pages()).find((candidate) => /^https?:\/\/tauri\.localhost/.test(candidate.url())));
   await page.waitForLoadState('domcontentloaded'); return page;
 }
+async function install(filename) {
+  return ps(String.raw`$ErrorActionPreference="Stop"; $p=Start-Process -FilePath $env:UPGRADE_INSTALLER -ArgumentList "/S" -WindowStyle Hidden -Wait -PassThru; if($p.ExitCode -ne 0){throw "Install failed"}; $e=Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {$_.DisplayName -eq "Yomikura"} | Select-Object -First 1; if(-not $e){throw "No installation record"}; ($e.DisplayIcon -replace ',\d+$', '').Trim([char]34)`, { UPGRADE_INSTALLER: filename });
+}
 async function records() {
   return page.evaluate(async () => {
     const result = {};
@@ -57,15 +62,17 @@ async function records() {
   });
 }
 try {
-  const old = await github('releases/tags/' + from), current = await github('releases/latest');
-  assert.equal(old.draft, false); assert.equal(current.tag_name, target); assert.equal(current.prerelease, false);
+  const old = await github('releases/tags/' + from), current = candidate ? undefined : await github('releases/latest');
+  assert.equal(old.draft, false);
+  if (current) { assert.equal(current.tag_name, 'v1.0.25'); assert.equal(current.prerelease, false); }
   const installer = old.assets.find((asset) => asset.name.endsWith('_x64-setup.exe')); assert.ok(installer);
   assert.match(installer.digest, /^sha256:[a-f0-9]{64}$/);
   assert.ok(installer.browser_download_url.startsWith(`https://github.com/Yumekaz/Yomikura/releases/download/${from}/`));
   const response = await fetch(installer.browser_download_url); assert.equal(response.status, 200);
   const bytes = Buffer.from(await response.arrayBuffer()); assert.equal(hash(bytes), installer.digest.slice(7));
   const installerPath = path.join(root, 'old-setup.exe'); await writeFile(installerPath, bytes);
-  await writeFile(path.join(root, 'releases.json'), JSON.stringify({ old: { tag: from, digest: installer.digest, bytes: bytes.length }, target: { tag: target, commit: current.target_commitish } }, null, 2));
+  const targetArtifact = candidate ? { commit: target, sha256: hash(await readFile(candidate)) } : { tag: target, commit: current.target_commitish };
+  await writeFile(path.join(root, 'releases.json'), JSON.stringify({ old: { tag: from, digest: installer.digest, bytes: bytes.length }, target: targetArtifact }, null, 2));
   const jarPath = path.join(process.env.RUNNER_TEMP, 'yomikura-reliability-deps/Suwayomi-Server-v2.3.2243.jar'); await mkdir(path.dirname(jarPath), { recursive: true });
   const jarDigest = '821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5';
   let jar = await readFile(jarPath).catch(() => null);
@@ -88,7 +95,7 @@ try {
   const configDirectory = path.join(process.env.APPDATA, 'app.yomikura'); await mkdir(configDirectory, { recursive: true });
   assert.equal(await readFile(path.join(configDirectory, 'yomikura-settings.json')).then(() => true, () => false), false, 'CI profile must start empty');
   await writeFile(path.join(configDirectory, 'yomikura-settings.json'), JSON.stringify({ version: 0, state: { serverBaseUrl: backend, serverDataPath: '', mockMode: false, connectionStatus: 'connected', profiles: [{ id: 'upgrade-test', name: 'Upgrade test library', url: backend }], activeProfileId: 'upgrade-test', themeMode: 'light', readerMode: 'LTR', reducedMotion: true, backupIntervalHours: 0, autoDeleteReadChapters: false, autoDownloadCount: 0 } }));
-  const installed = await ps(String.raw`$ErrorActionPreference="Stop"; $p=Start-Process -FilePath $env:UPGRADE_INSTALLER -ArgumentList "/S" -WindowStyle Hidden -Wait -PassThru; if($p.ExitCode -ne 0){throw "Install failed"}; $e=Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {$_.DisplayName -eq "Yomikura"} | Select-Object -First 1; if(-not $e){throw "No installation record"}; ($e.DisplayIcon -replace ',\d+$', '').Trim([char]34)`, { UPGRADE_INSTALLER: installerPath, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: "--remote-debugging-port=9237 --remote-debugging-address=127.0.0.1" });
+  const installed = await install(installerPath);
   assert.ok(path.isAbsolute(installed));
   const appLog = createWriteStream(path.join(root, 'app.log'));
   await writeFile(path.join(root, 'installed.json'), JSON.stringify({ path: installed, productVersion: await ps('(Get-Item -LiteralPath $env:UPGRADE_APP).VersionInfo.ProductVersion', { UPGRADE_APP: installed }) }));
@@ -110,7 +117,7 @@ try {
   const progressBefore = await graphql('query($id:Int!){chapter(id:$id){isRead lastPageRead isBookmarked}}', { id: chapter.id });
   assert.deepEqual(progressBefore.chapter, { isRead: false, lastPageRead: 1, isBookmarked: true });
   await writeFile(path.join(root, 'progress-before.json'), JSON.stringify(progressBefore));
-  if (from === 'v1.0.25-beta.5') {
+  if (testNotes) {
     await page.locator('summary').filter({ hasText: 'My notes' }).click();
     await page.getByLabel('A note for Upgrade Story', { exact: true }).fill('Keep this unsynced upgrade-test note.');
     await expect(page.getByText('Saved on this device. Sync to keep it with your library.', { exact: true })).toBeVisible();
@@ -129,23 +136,37 @@ try {
   const settingsBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('yomikura-settings') || 'null'));
   report.checks.push('Official old installer digest verified, real Local library loaded and chapter saved through UI');
   await page.screenshot({ path: path.join(root, 'before-upgrade.png') });
-  // This invokes the released UI's real updater; no new installer is manually
-  // substituted and no HTTP or Tauri updater response is mocked.
-  await page.evaluate(() => window.dispatchEvent(new Event('yomikura-check-updates')));
-  const notice = page.getByRole('status').filter({ hasText: /v1\.0\.25.*available/ });
-  await expect(notice).toBeVisible({ timeout: 60000 });
-  await notice.getByRole('button', { name: 'Update', exact: true }).click();
-  await writeFile(path.join(root, 'update-started.json'), JSON.stringify({ time: new Date().toISOString(), from, target }));
-  await until(async () => {
-    const failure = page.isClosed() ? '' : await page.getByRole('alert').allTextContents().catch(() => []);
-    if (String(failure).includes('Update failed')) throw new Error(String(failure));
-    const output = await ps('(Get-Item -LiteralPath $env:UPGRADE_APP).VersionInfo.ProductVersion', { UPGRADE_APP: installed });
-    return output.startsWith('1.0.25') && !output.includes('beta');
-  }, 300000);
-  await writeFile(path.join(root, 'target-file-verified.json'), JSON.stringify({ productVersion: target }));
-  await browser?.close().catch(() => {});
+  if (candidate) {
+    const beforeHash = hash(await readFile(installed));
+    await browser.close().catch(() => {});
+    await ps(String.raw`$process = Get-Process -Id $env:UPGRADE_PID; if (!$process.CloseMainWindow()) { throw 'Could not close the released Yomikura window' }; if (!$process.WaitForExit(15000)) { throw 'The released app did not exit' }`, { UPGRADE_PID: String(appProcess.pid) });
+    assert.equal(await install(candidate), installed, 'The candidate must replace the app in the same install directory');
+    const afterHash = hash(await readFile(installed));
+    assert.notEqual(afterHash, beforeHash, 'The candidate executable must replace the released executable');
+    await writeFile(path.join(root, 'target-file-verified.json'), JSON.stringify({ beforeHash, afterHash }));
+    appProcess = spawn(installed, [], { windowsHide: true, stdio: 'ignore' });
+  } else {
+    // The original release probe continues to drive the public updater.
+    await page.evaluate(() => window.dispatchEvent(new Event('yomikura-check-updates')));
+    const notice = page.getByRole('status').filter({ hasText: /v1\.0\.25.*available/ });
+    await expect(notice).toBeVisible({ timeout: 60000 });
+    await notice.getByRole('button', { name: 'Update', exact: true }).click();
+    await writeFile(path.join(root, 'update-started.json'), JSON.stringify({ time: new Date().toISOString(), from, target }));
+    await until(async () => {
+      const failure = page.isClosed() ? '' : await page.getByRole('alert').allTextContents().catch(() => []);
+      if (String(failure).includes('Update failed')) throw new Error(String(failure));
+      const output = await ps('(Get-Item -LiteralPath $env:UPGRADE_APP).VersionInfo.ProductVersion', { UPGRADE_APP: installed });
+      return output.startsWith('1.0.25') && !output.includes('beta');
+    }, 300000);
+    await writeFile(path.join(root, 'target-file-verified.json'), JSON.stringify({ productVersion: target }));
+    await browser?.close().catch(() => {});
+  }
   await attach(); await page.goto('http://tauri.localhost/library');
-  assert.equal(await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('plugin:app|version')), target.slice(1), 'The running process must be the new version, not merely its on-disk file');
+  if (candidate) {
+    await page.goto('http://tauri.localhost/settings/backup');
+    await expect(page.getByRole('button', { name: 'Export device recovery' })).toBeVisible();
+    await page.goto('http://tauri.localhost/library');
+  } else assert.equal(await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('plugin:app|version')), target.slice(1), 'The running process must be the new version, not merely its on-disk file');
   await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible({ timeout: 60000 });
   await expect(page.getByRole('link', { name: 'Upgrade Story', exact: true }).first()).toBeVisible();
   const after = await records(); await writeFile(path.join(root, 'after.json'), JSON.stringify(after, null, 2));
@@ -155,32 +176,70 @@ try {
   assert.equal(settingsAfter.state.serverBaseUrl, backend); assert.equal(settingsAfter.state.themeMode, settingsBefore?.state.themeMode || 'light');
   const progress = await graphql('query($id:Int!){chapter(id:$id){isRead lastPageRead isBookmarked}}', { id: chapter.id });
   assert.deepEqual(progress.chapter, { isRead: false, lastPageRead: 1, isBookmarked: true });
-  report.checks.push('Real updater installed target release and relaunched; library membership, partial progress, bookmark, saved record, server profile and theme survived');
-  if (from === 'v1.0.25-beta.5') {
+  report.checks.push(`${candidate ? 'Candidate installed in place and launched' : 'Real updater installed target release and relaunched'}; library membership, partial progress, bookmark, saved record, server profile and theme survived`);
+  if (testNotes) {
     await page.goto(`http://tauri.localhost/manga/${book.id}`);
     await page.locator('summary').filter({ hasText: 'My notes' }).click();
     await expect(page.getByLabel('A note for Upgrade Story', { exact: true })).toHaveValue('Keep this unsynced upgrade-test note.');
-    report.checks.push('Unsynced note saved through the beta.5 UI survived the real update');
+    report.checks.push('The unsynced note saved through the earlier installed UI survived the upgrade');
   }
   report.checks.push('Every saved page retained its original SHA-256 and byte length');
   await page.screenshot({ path: path.join(root, 'after-upgrade.png') });
-  if (from === 'v1.0.25-beta.5') {
+  if (testNotes) {
     const started = Date.now(), samples = [];
     const chapters = details.fetchMangaAndChapters.chapters;
-    for (let cycle = 0; cycle < 8; cycle++) {
+    let cycle = 0, decodedPageVisits = 0, chapterVisits = 0;
+    while (candidate ? Date.now() - started < 10 * 60 * 1000 : cycle < 8) {
       for (const reading of chapters) {
         await page.goto(`http://tauri.localhost/reader/${reading.id}`);
+        chapterVisits++;
         for (const number of [1, 2, 3]) {
           await page.getByRole('button', { name: `Go to page ${number}`, exact: true }).click();
           await expect(page.locator('[id^="reader-page-"]').getByRole('img', { name: `Page ${number}`, exact: true })).toHaveCSS('opacity', '1', { timeout: 30000 });
+          decodedPageVisits++;
+          if (candidate) await delay(4000);
         }
       }
       samples.push({ cycle, elapsedMs: Date.now() - started, heapBytes: await page.evaluate(() => performance.memory?.usedJSHeapSize ?? null) });
+      cycle++;
     }
-    report.readingStress = { durationMs: Date.now() - started, chapterVisits: 16, decodedPageVisits: 48, samples, interpretation: 'bounded repetition only; no long-session memory guarantee' };
+    report.readingStress = { durationMs: Date.now() - started, chapterVisits, decodedPageVisits, samples, interpretation: 'two original chapters repeated, with WebView heap observations' };
     await page.goto(`http://tauri.localhost/manga/${book.id}`);
     const second = chapters.find((item) => item.id !== chapter.id); assert.ok(second);
-    await page.getByRole('button', { name: `Save ${second.name} for offline reading`, exact: true }).click();
+    const save = page.getByRole('button', { name: `Save ${second.name} for offline reading`, exact: true });
+    if (candidate) {
+      const retained = await cachedDigests();
+      await page.evaluate((chapterOrder) => {
+        const start = Cache.prototype.put;
+        window.downloadInjection = { mode: 'pause', entered: false };
+        Cache.prototype.put = async function (key, value) {
+          const address = new URL(key instanceof Request ? key.url : key);
+          if (address.pathname.includes(`/chapter/${chapterOrder}/page/`) && address.searchParams.has('__yomi_cache_attempt')) {
+            const rehearsal = window.downloadInjection;
+            rehearsal.entered = true;
+            if (rehearsal.mode === 'pause') await new Promise((resolve) => { rehearsal.release = resolve; });
+            if (rehearsal.mode === 'quota') throw new DOMException('Fixture cache is full', 'QuotaExceededError');
+          }
+          return start.call(this, key, value);
+        };
+        window.restoreDownloadStorage = () => { Cache.prototype.put = start; };
+      }, second.sourceOrder);
+      await save.click();
+      await until(() => page.evaluate(() => window.downloadInjection.entered));
+      await page.getByRole('button', { name: `Cancel download of ${second.name}`, exact: true }).click();
+      await page.evaluate(() => window.downloadInjection.release());
+      await expect(save).toBeVisible();
+      await until(async () => JSON.stringify(await cachedDigests()) === JSON.stringify(retained));
+      await page.evaluate(() => { window.downloadInjection.mode = 'quota'; });
+      await save.click();
+      const retry = page.getByRole('button', { name: `Retry download of ${second.name}`, exact: true });
+      await expect(retry).toBeVisible();
+      assert.ok(!(await records())['yomikura-offline'].chapters?.some((item) => item.id === second.id));
+      await until(async () => JSON.stringify(await cachedDigests()) === JSON.stringify(retained));
+      await page.evaluate(() => window.restoreDownloadStorage());
+      await retry.click();
+      report.checks.push('Cancelled an in-flight device save and simulated a full cache. The earlier download and its page checksums survived; the interrupted chapter could be retried.');
+    } else await save.click();
     await until(async () => (await records())['yomikura-offline'].chapters?.some((item) => item.id === second.id));
     backendProcess.kill(); await until(async () => !await fetch(backend + '/api/graphql', { signal: AbortSignal.timeout(1000) }).then(() => true, () => false));
     await page.goto(`http://tauri.localhost/reader/${second.id}`);
@@ -209,7 +268,7 @@ try {
       const result = await graphql('query($id:Int!){chapter(id:$id){isRead lastPageRead}}', { id: second.id });
       return result.chapter.isRead && result.chapter.lastPageRead === 1;
     });
-    report.checks.push('48 decoded page visits across 16 chapter visits, saved-page reading and a fresh app restart during server unavailability, then replay to the real reconnected server with completion retained');
+    report.checks.push(`${decodedPageVisits} decoded page visits across ${chapterVisits} chapter visits, saved-page reading and a fresh app restart during server unavailability, then replay to the real reconnected server with completion retained`);
   }
   report.result = 'PASS';
 } catch (error) {

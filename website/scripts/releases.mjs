@@ -36,15 +36,21 @@ export function validateAsset(asset, tag) {
 export function normalizeRelease(release) {
   assert.equal(release.draft, false); versionParts(release.tag_name);
   assert.equal(release.html_url, `https://github.com/${REPOSITORY}/releases/tag/${release.tag_name}`);
+  const version = release.tag_name.slice(1);
   const assets = release.assets.map((asset) => validateAsset(asset, release.tag_name));
   const select = (pattern) => assets.find((asset) => pattern.test(asset.name)) || null;
   const windows = select(/_x64-setup\.exe$/i), macos = select(/_aarch64\.dmg$/i), linux = select(/_amd64\.AppImage$/);
-  assert.ok(windows && macos && linux, `Public release ${release.tag_name} is missing a supported platform package`);
+  const zip = assets.find((asset) => asset.name === `Yomikura-web-${version}.zip`);
+  const checksum = assets.find((asset) => asset.name === `Yomikura-web-${version}.zip.sha256`);
+  assert.ok((!zip && !checksum) || (zip?.sha256 && checksum?.sha256), `Public release ${release.tag_name} needs both web files with digests`);
+  assert.ok(windows && ((macos && linux) || (release.prerelease && windows.sha256 && zip)), `Public release ${release.tag_name} is missing a supported package`);
+  const platform = (asset, architecture) => asset && { ...asset, architecture };
   return {
-    tag: release.tag_name, version: release.tag_name.slice(1), url: release.html_url,
+    tag: release.tag_name, version, url: release.html_url,
     publishedAt: release.published_at, prerelease: release.prerelease,
+    webPackage: zip ? { zip, checksum } : null,
     assets: {
-      windows: { ...windows, architecture: "x64" }, macos: { ...macos, architecture: "Apple silicon" }, linux: { ...linux, architecture: "x86_64" },
+      windows: platform(windows, "x64"), macos: platform(macos, "Apple silicon"), linux: platform(linux, "x86_64"),
       checksums: { windows: select(/^SHA256SUMS-windows-latest\.txt$/), macos: select(/^SHA256SUMS-macos-latest\.txt$/), linux: select(/^SHA256SUMS-ubuntu-22\.04\.txt$/) },
     },
   };
@@ -53,6 +59,7 @@ export function releaseHtml(html, metadata) {
   const escape = (value) => String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
   let updated = html.replace(/<a\b[^>]*>/g, (anchor) => {
     const platform = /\bdata-platform="(windows|macos|linux)"/.exec(anchor)?.[1];
+    if (platform && !metadata.primary.assets[platform]) return anchor.replace(/\s+href="[^"]*"/, " hidden");
     const destination = platform ? metadata.primary.assets[platform].url
       : /\bdata-web-download\b/.test(anchor) ? metadata.web.url
       : /\bdata-web-checksum\b/.test(anchor) ? metadata.web.checksumUrl

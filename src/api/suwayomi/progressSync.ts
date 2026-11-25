@@ -7,7 +7,14 @@ import { queueDownloadCleanup, runDownloadCleanup } from "./downloadCleanup";
 import { duplicateOriginValid, queueDuplicateReads } from "./duplicateRead";
 import { assertLibrarySession, rememberedLibrary } from "./librarySession";
 
-type RemoteChapter = { id: number; name: string; chapterNumber: number; mangaId: number; sourceOrder: number; pageCount: number; isRead: boolean; lastPageRead: number; manga?: { title: string } | null };
+type RemoteChapter = { id: number; name: string; chapterNumber: number; mangaId: number; sourceOrder: number; pageCount: number; isRead: boolean; lastPageRead: number; lastReadAt?: unknown; manga?: { title: string } | null };
+
+function serverReadTimestamp(value: unknown): number | undefined {
+  if (typeof value !== "number" && (typeof value !== "string" || !/^\d+$/.test(value))) return undefined;
+  const timestamp = Number(value);
+  return Number.isSafeInteger(timestamp) && timestamp >= 0 ? timestamp : undefined;
+}
+
 const inFlight = new Map<string, { promise: Promise<void>; rerun: boolean; libraryId?: string }>();
 
 export function isCurrentProgressBackend(backend: ProgressBackend) {
@@ -60,7 +67,7 @@ export async function saveProgressIntent(backend: ProgressBackend, intent: Progr
 
 export async function projectChapterProgress<T extends RemoteChapter>(backend: ProgressBackend, chapter: T, options: { offline?: boolean; observedVersion?: string } = {}) {
   const observation = options.offline || backend.isDemo ? { head: await getProgressHead(backend, chapter.id).catch(() => undefined), stale: false }
-    : await observeChapterProgress(backend, progressChapterIdentity(chapter), { isRead: chapter.isRead, lastPageRead: chapter.lastPageRead }, options.observedVersion).catch(() => ({ head: undefined, stale: false }));
+    : await observeChapterProgress(backend, progressChapterIdentity(chapter), { isRead: chapter.isRead, lastPageRead: chapter.lastPageRead }, options.observedVersion, serverReadTimestamp(chapter.lastReadAt)).catch(() => ({ head: undefined, stale: false }));
   const head = observation.head;
   const libraryId = backend.isDemo ? undefined : backend.libraryId ?? null;
   const matches = head && (head.libraryId ?? null) === (libraryId ?? null) && chapterIdentityMatches(head.chapter, progressChapterIdentity(chapter));
@@ -96,6 +103,12 @@ async function sendOperation(backend: ProgressBackend, operation: ProgressOperat
   }
   const head = await getProgressHead(backend, operation.chapter.chapterId);
   const state = { isRead: remote.isRead, lastPageRead: remote.lastPageRead };
+  const reviewed = operation.recoveryBaseline;
+  if (reviewed && (!sameState(state, reviewed) || remote.isBookmarked !== reviewed.isBookmarked || String(remote.lastReadAt ?? "") !== reviewed.lastReadAt)) {
+    await markProgressOperation(operation, owner, "blocked", "Server progress changed after recovery review. Compare the two positions before syncing.");
+    progressChanged(backend, "error");
+    return;
+  }
   const cancelledDuplicate = !await duplicateOriginValid(operation);
   const requestedFields = (operation.fields ?? ["isRead", "lastPageRead"]).filter((field) => !cancelledDuplicate || field === "isBookmarked");
   if (cancelledDuplicate && !requestedFields.length) {
@@ -117,7 +130,10 @@ async function sendOperation(backend: ProgressBackend, operation: ProgressOperat
     throw new Error("Suwayomi did not confirm the saved progress.");
   }
   if (acknowledged.isRead && (!remote.isRead || !operation.baseline.isRead)) await queueDuplicateReads(backend, operation, client(backend));
-  if (!await acknowledgeProgress(operation, owner, { ...operation.patch, isRead: acknowledged.isRead, lastPageRead: acknowledged.lastPageRead })) return;
+  const readAt = serverReadTimestamp(acknowledged.lastReadAt);
+  const sameAcknowledgedPage = head?.lastAcknowledged?.lastPageRead === acknowledged.lastPageRead && head?.lastAcknowledged?.lastReadAt === readAt;
+  const confirmedReadAt = patch.lastPageRead !== undefined || sameAcknowledgedPage ? readAt || undefined : undefined;
+  if (!await acknowledgeProgress(operation, owner, { ...operation.patch, isRead: acknowledged.isRead, lastPageRead: acknowledged.lastPageRead }, confirmedReadAt)) return;
   if (isCurrentProgressBackend(backend)) useSettingsStore.setState({ connectionStatus: "connected", errorMessage: "" });
   progressChanged(backend);
   const latest = await getProgressHead(backend, operation.chapter.chapterId);

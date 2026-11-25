@@ -84,7 +84,7 @@ async function seedCache(page: Page) {
 
 async function storedProgress(page: Page, server = first) {
   return page.evaluate(async (server) => {
-    const request = indexedDB.open("yomikura-progress", 1);
+    const request = indexedDB.open("yomikura-progress");
     const db = await new Promise<IDBDatabase>((resolve) => { request.onsuccess = () => resolve(request.result); });
     try {
       return await new Promise<{ patch: { lastPageRead: number; isRead: boolean }; epoch: number } | null>((resolve) => {

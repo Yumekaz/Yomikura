@@ -90,8 +90,23 @@ try {
   await page.goto(hosted.origin + PAGES_BASE);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await settledImages(page);
-  await expect(page.locator("[data-download-primary]").first()).toHaveAttribute("href", metadata.primary.assets.linux.url);
-  for (const platform of ["windows", "macos", "linux"]) await expect(page.locator(`[data-platform="${platform}"]`).first()).toHaveAttribute("href", metadata.primary.assets[platform].url);
+  await expect(page.locator("[data-download-primary]").first()).toHaveAttribute("href", metadata.primary.assets.linux?.url || metadata.primary.url);
+  for (const platform of ["windows", "macos", "linux"]) {
+    const link = page.locator(`[data-platform="${platform}"]`);
+    const asset = metadata.primary.assets[platform];
+    if (asset) {
+      await expect(link).toBeVisible();
+      await expect(link).toHaveAttribute("href", asset.url);
+    } else {
+      await expect(link).toBeHidden();
+      assert.equal(await link.getAttribute("href"), null);
+    }
+  }
+  const windows = await context({ userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/145.0.0.0" });
+  const windowsPage = await windows.newPage();
+  await windowsPage.goto(hosted.origin + PAGES_BASE);
+  await expect(windowsPage.locator("[data-download-primary]").first()).toHaveAttribute("href", metadata.primary.assets.windows.url);
+  await windows.close();
   await expect(page.locator("[data-stable-link]").first()).toHaveAttribute("href", metadata.stable.url);
   await expect(page.getByRole("link", { name: "Follow the browser guide", exact: true })).toHaveAttribute("href", "./setup/");
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, "Desktop homepage overflows horizontally");

@@ -1,10 +1,12 @@
 import { ThemedSelect } from "../ui/ThemedSelect";
-import type { ChangeEvent } from "react";
+import { lazy, Suspense, type ChangeEvent } from "react";
 import { Download, Layout, Loader2, Upload } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { SavedBackupsPanel } from "./SavedBackupsPanel";
 import { NotePortabilityPanel } from "./NotePortabilityPanel";
 import { Link } from "react-router-dom";
+
+const DeviceRecoveryPanel = lazy(async () => ({ default: (await import("./DeviceRecoveryPanel")).DeviceRecoveryPanel }));
 
 export type BackupMessage = {
   kind: "success" | "error" | "info";
@@ -102,6 +104,7 @@ export function BackupSettingsPanel({
 
       <button type="button" onClick={exportLibraryCsv} className="yomi-button yomi-button-secondary w-full sm:w-auto">Export library list as CSV</button>
       <SavedBackupsPanel busy={creatingBackup || restoringBackup} onRestore={restoreSavedBackup} />
+      <Suspense fallback={<p role="status" className="text-sm text-slate-400">Loading device recovery…</p>}><DeviceRecoveryPanel /></Suspense>
       <NotePortabilityPanel />
     </div>
   );

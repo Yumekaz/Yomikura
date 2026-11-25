@@ -6,6 +6,23 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      extension_migration:
+        description: Verify a populated extension library against the Suwayomi hotfix
+        type: boolean
+        default: false
+      candidate_upgrade:
+        description: Install this Windows build over the public stable app and exercise a sustained reader session
+        type: boolean
+        default: false
+      release_journey:
+        description: Exercise unseeded Windows onboarding and the matching self-hosted web package
+        type: boolean
+        default: false
+      staging_updater:
+        description: Verify the signed candidate through a runner-only HTTPS update feed
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -52,6 +69,8 @@ jobs:
         run: pnpm exec playwright test tests/e2e/reading-controls.spec.ts --grep "chapter actions remain inside the viewport"
       - name: Check offline reader continuity after completion
         run: pnpm exec playwright test tests/e2e/reader-continuity.spec.ts --grep "moving backward after completion"
+      - name: Check device recovery into a clean profile
+        run: pnpm exec playwright test tests/e2e/device-recovery.spec.ts
       - name: Desktop interaction tests
         run: pnpm run test:e2e
       - name: Preserve demo visual review screens
@@ -135,11 +154,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - name: Cache pinned smoke backend
+      - name: Cache current and baseline Suwayomi JARs
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/yomikura-smoke-deps
-          key: suwayomi-smoke-v2.3.2243-821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5
+          key: ${{ runner.os }}-suwayomi-smoke-${{ hashFiles('scripts/smoke-test-installer.ps1') }}
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Check release version synchronization
@@ -164,17 +183,38 @@ jobs:
           $installer = (Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1).FullName
           if (-not $installer) { throw "NSIS installer artifact was not found" }
           $userStorage = Join-Path $env:RUNNER_TEMP "yomikura-user-storage"
-          $backendJarCache = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.3.2243.jar"
+          $backendJarCache = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.4.2373.jar"
           # Fresh Windows runners can spend several minutes scanning the
           # verified 166 MB backend JAR. Keep the wait bounded, but allow a
           # realistic clean-install margin before declaring startup broken.
           ./scripts/smoke-test-installer.ps1 -InstallerPath $installer -PreservedStoragePath $userStorage -PreseedRuntime -JavaHomePath $env:YOMIKURA_PRIVATE_JAVA -BackendJarCachePath $backendJarCache -StartupTimeoutSeconds 240
-      - name: Verify identity across two isolated local libraries
+      - name: Verify library identity and Suwayomi hotfix migration
+        env:
+          YOMIKURA_PRIVATE_JAVA: ${{ steps.private-runtime.outputs.java_home }}
         shell: pwsh
         run: |
-          $backendJar = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.3.2243.jar"
-          $javaBinary = Join-Path $env:JAVA_HOME "bin\java.exe"
-          node scripts/verify-library-identity.mjs "--jar=$backendJar" "--java=$javaBinary"
+          $ErrorActionPreference = 'Stop'
+          $runtimeCache = Join-Path $env:RUNNER_TEMP 'yomikura-smoke-deps'
+          $baselineVersion = '2.3.2243'
+          $baselineName = "Suwayomi-Server-v$baselineVersion.jar"
+          $backendJar = Join-Path $runtimeCache $baselineName
+          $baselineDigest = '821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5'
+          if (!(Test-Path -LiteralPath $backendJar -PathType Leaf) -or
+              (Get-FileHash -LiteralPath $backendJar -Algorithm SHA256).Hash -ne $baselineDigest) {
+            Invoke-WebRequest -Uri "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v$baselineVersion/$baselineName" -OutFile $backendJar
+          }
+          if ((Get-FileHash -LiteralPath $backendJar -Algorithm SHA256).Hash -ne $baselineDigest) {
+            throw 'The baseline Suwayomi JAR does not match its official digest.'
+          }
+          $javaBinary = Join-Path $env:YOMIKURA_PRIVATE_JAVA "bin\java.exe"
+          $candidateVersion = '2.4.2373'
+          $candidateName = "Suwayomi-Server-v$candidateVersion.jar"
+          $candidateJar = Join-Path $runtimeCache $candidateName
+          $candidateDigest = (Get-FileHash -LiteralPath $candidateJar -Algorithm SHA256).Hash
+          if ($candidateDigest -ne 'dd05d523cc785b7acf90c9feac0bc84c53d5fb3af5ab2a33653646e2076e5217') {
+            throw 'The Suwayomi migration candidate does not match its official digest.'
+          }
+          node scripts/verify-library-identity.mjs "--jar=$backendJar" "--java=$javaBinary" "--candidate-jar=$candidateJar" "--candidate-version=$candidateVersion"
       - name: Preserve live identity evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -191,3 +231,292 @@ jobs:
           path: src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
           retention-days: 7
+      - name: Upload the candidate's Tauri signature
+        if: inputs.staging_updater
+        uses: actions/upload-artifact@v4
+        with:
+          name: yomikura-windows-updater-signature
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe.sig
+          if-no-files-found: error
+          retention-days: 7
+      - name: Preserve the installer build's browser interface for migration
+        if: inputs.extension_migration || inputs.release_journey
+        uses: actions/upload-artifact@v4
+        with:
+          name: yomikura-extension-migration-web
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  managed-extension-migration:
+    name: Managed Suwayomi extension migration (Windows)
+    if: github.event_name == 'workflow_dispatch' && inputs.extension_migration
+    needs: desktop-installer-windows
+    runs-on: windows-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: yomikura-windows-installer
+          path: ${{ runner.temp }}/yomikura-migration-installer
+      - uses: actions/download-artifact@v4
+        with:
+          name: yomikura-extension-migration-web
+          path: dist/
+      - name: Verify production private runtime
+        id: private-runtime
+        shell: pwsh
+        run: ./scripts/verify-private-runtime.ps1 -Destination (Join-Path $env:RUNNER_TEMP 'yomikura-private-runtime')
+      - name: Install build and enable Yomikura WebView inspection on this disposable runner
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $directory = Join-Path $env:RUNNER_TEMP 'yomikura-migration-installer'
+          $installers = @(Get-ChildItem -LiteralPath $directory -File -Filter '*-setup.exe')
+          if ($installers.Count -ne 1) { throw 'Expected exactly one Windows installer from this run.' }
+          $process = Start-Process -FilePath $installers[0].FullName -ArgumentList '/S' -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Yomikura installer exited with $($process.ExitCode)." }
+          $key = 'HKLM:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+          New-Item -Path $key -Force | Out-Null
+          foreach ($app in @('app.exe', 'Yomikura.exe')) {
+            New-ItemProperty -Path $key -Name $app -Value '--remote-debugging-port=9237 --remote-debugging-address=127.0.0.1' -PropertyType String -Force | Out-Null
+          }
+      - name: Migrate installed source, server download, device copy, and reading progress
+        run: node scripts/verify-extension-migration.mjs
+        env:
+          YOMIKURA_PRIVATE_JAVA: ${{ steps.private-runtime.outputs.java_home }}
+      - name: Preserve original-fixture evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-migration-evidence
+          path: |
+            .cache/extension-migration/**/*.json
+            .cache/extension-migration/**/*.log
+            .cache/extension-migration/**/*.png
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
+
+  candidate-upgrade-windows:
+    name: Candidate upgrade from v1.0.25 (Windows)
+    if: github.event_name == 'workflow_dispatch' && inputs.candidate_upgrade
+    needs: desktop-installer-windows
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: yomikura-windows-installer
+          path: ${{ runner.temp }}/yomikura-candidate-installer
+      - name: Permit loopback inspection of the installed app on this disposable runner
+        shell: pwsh
+        run: |
+          $key = 'HKLM:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+          New-Item -Path $key -Force | Out-Null
+          foreach ($app in @('app.exe', 'Yomikura.exe')) {
+            New-ItemProperty -Path $key -Name $app -Value '--remote-debugging-port=9237 --remote-debugging-address=127.0.0.1' -PropertyType String -Force | Out-Null
+          }
+      - name: Exercise in-place upgrade, offline restart, and sustained reading
+        shell: pwsh
+        env:
+          FROM_RELEASE: v1.0.25
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $directory = Join-Path $env:RUNNER_TEMP 'yomikura-candidate-installer'
+          $installers = @(Get-ChildItem -LiteralPath $directory -File -Filter '*-setup.exe')
+          if ($installers.Count -ne 1) { throw 'Expected one candidate installer from this run.' }
+          $env:YOMIKURA_CANDIDATE_INSTALLER = $installers[0].FullName
+          node scripts/released-windows-upgrade.mjs
+      - name: Preserve candidate upgrade evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-upgrade-evidence
+          path: |
+            .cache/released-upgrade/**/*.json
+            .cache/released-upgrade/**/*.txt
+            .cache/released-upgrade/**/*.log
+            .cache/released-upgrade/**/*.png
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
+
+  clean-setup-windows:
+    name: Clean Windows setup and first chapter
+    if: github.event_name == 'workflow_dispatch' && inputs.release_journey
+    needs: desktop-installer-windows
+    runs-on: windows-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: yomikura-windows-installer
+          path: ${{ runner.temp }}/yomikura-clean-installer
+      - name: Enable WebView inspection on this disposable runner
+        shell: pwsh
+        run: |
+          $key = 'HKLM:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+          New-Item -Path $key -Force | Out-Null
+          foreach ($app in @('app.exe', 'Yomikura.exe')) {
+            New-ItemProperty -Path $key -Name $app -Value '--remote-debugging-port=9237 --remote-debugging-address=127.0.0.1' -PropertyType String -Force | Out-Null
+          }
+      - name: Exercise the installed app without seeded Java or Suwayomi
+        run: node scripts/verify-clean-windows.mjs
+      - name: Preserve clean setup evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clean-windows-evidence
+          path: .cache/clean-windows/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
+
+  candidate-web:
+    name: Candidate self-hosted web package
+    if: github.event_name == 'workflow_dispatch' && inputs.release_journey
+    needs: desktop-installer-windows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: yomikura-extension-migration-web
+          path: dist/
+      - name: Package and extract the candidate web download
+        run: node scripts/prepare-candidate-web.mjs
+      - name: Exercise the extracted candidate on real Suwayomi
+        env:
+          YOMIKURA_CANDIDATE_WEB: '1'
+        run: node website/scripts/live-web-guide.mjs
+      - name: Preserve the matching web candidate and setup evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-web-evidence
+          path: |
+            .cache/candidate-web/*.zip
+            .cache/candidate-web/*.sha256
+            .cache/candidate-web/build.json
+            .cache/web-guide-live/**/*.json
+            .cache/web-guide-live/**/*.jpg
+            .cache/web-guide-live/**/failure.txt
+            .cache/web-guide-live/**/server.log
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
+
+  staging-updater-windows:
+    name: Windows signed update rehearsal
+    if: github.event_name == 'workflow_dispatch' && inputs.staging_updater
+    needs: desktop-installer-windows
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: installer
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: yomikura-windows-installer
+          path: ${{ runner.temp }}/yomikura-signed-installer
+      - uses: actions/download-artifact@v4
+        with:
+          name: yomikura-windows-updater-signature
+          path: ${{ runner.temp }}/yomikura-signed-installer
+      - name: Generate a temporary HTTPS endpoint and older client configuration
+        shell: pwsh
+        timeout-minutes: 2
+        run: ./scripts/prepare-staging-feed.ps1
+      - name: Build the unpublished bootstrap client
+        shell: pwsh
+        run: pnpm tauri build --bundles nsis --config (Join-Path $env:RUNNER_TEMP 'yomikura-test-feed\tauri.conf.json')
+      - name: Verify rejection and installation through the native updater
+        shell: pwsh
+        run: |
+          $key = 'HKLM:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+          New-Item -Path $key -Force | Out-Null
+          foreach ($app in @('app.exe', 'Yomikura.exe')) {
+            New-ItemProperty -Path $key -Name $app -Value '--remote-debugging-port=9237 --remote-debugging-address=127.0.0.1' -PropertyType String -Force | Out-Null
+          }
+          $candidates = @(Get-ChildItem -LiteralPath (Join-Path $env:RUNNER_TEMP 'yomikura-signed-installer') -Filter '*-setup.exe' -File)
+          $bootstrap = @(Get-ChildItem -Path 'src-tauri/target/release/bundle/nsis/*_1.0.25_*-setup.exe' -File)
+          if ($candidates.Count -ne 1 -or $bootstrap.Count -ne 1) { throw 'Expected one signed candidate and one staging bootstrap.' }
+          $env:YOMIKURA_CANDIDATE_INSTALLER = $candidates[0].FullName
+          $env:YOMIKURA_STAGING_INSTALLER = $bootstrap[0].FullName
+          node scripts/verify-clean-windows.mjs
+      - name: Preserve signed-update evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-updater-evidence
+          path: .cache/clean-windows/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14

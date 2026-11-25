@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createRequire } from "node:module";
-import { createHash } from "node:crypto";
-import { cp, mkdir, mkdtemp, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { checkoutRoot, websiteRoot, PAGES_BASE, readReleases, releaseHtml } from "./releases.mjs";
 import readerConfig from "../vite.reader.config.ts";
 import { generateLicenseNotices } from "../../scripts/generate-license-notices.mjs";
+import { copyReleasedWebReader, packageWebReader } from "./package-web-reader.mjs";
 
 const run = promisify(execFile);
 const source = path.resolve(process.env.READER_SOURCE || path.join(checkoutRoot, ".reader-source"));
@@ -29,19 +29,17 @@ const webRoot = path.join(working, "web");
 // Stable readers enforce bundled notices in their Vite config. Prepare the
 // source public asset before the programmatic build, just as pnpm build does.
 await generateLicenseNotices(source, path.join(source, "public/licenses/THIRD_PARTY_NPM.txt"));
-process.chdir(source);
-try { await build({ configFile: path.join(source, "vite.config.ts"), configLoader: "native", build: { outDir: webRoot, emptyOutDir: false } }); }
-finally { process.chdir(originalCwd); }
-for (const filename of ["LICENSE", "THIRD_PARTY_NOTICES.md"]) await cp(path.join(source, filename), path.join(webRoot, filename));
-assert.ok(await stat(path.join(webRoot, "licenses/THIRD_PARTY_NPM.txt")), "The browser build omitted runtime license notices");
-await writeFile(path.join(webRoot, "source.json"), JSON.stringify({ repository: "https://github.com/Yumekaz/Yomikura", ...metadata.reader }, null, 2) + "\n");
-await writeFile(path.join(webRoot, "README-Yomikura.txt"), `Yomikura web ${metadata.primary.version}\n\nThis is the built browser interface; no Git clone or frontend compilation is required.\n\nFollow the illustrated guide: https://yumekaz.github.io/Yomikura/setup/\n\nSuwayomi CUSTOM WebUI: stop your server, preserve any existing custom WebUI, and extract this archive's CONTENTS directly into the webUI folder inside Suwayomi's data directory. index.html and assets must sit directly in that folder, not in another nested folder. Choose CUSTOM as the WebUI flavor and restart Suwayomi. Your usual local Suwayomi address now opens Yomikura. Keep the server running while reading. Do not move or delete your database, downloads or other library data.\n\nFor another static HTTP server, enable index.html fallback for application routes. Opening index.html directly as a file is not supported.\n\nYour books and sources are managed by Suwayomi. No third-party sources or comic content are included.\n`);
 const downloads = path.join(output, "downloads"); await mkdir(downloads);
 const zipName = path.basename(metadata.web.url);
-await run(process.platform === "win32" ? "python" : "python3", ["-m", "zipfile", "-c", path.join(downloads, zipName), ...await readdir(webRoot)], { cwd: webRoot, maxBuffer: 1024 * 1024 });
-const zip = await readFile(path.join(downloads, zipName));
-metadata.web.sha256 = createHash("sha256").update(zip).digest("hex"); metadata.web.bytes = zip.length;
-await writeFile(path.join(downloads, zipName + ".sha256"), `${metadata.web.sha256}  ${zipName}\n`);
+const destination = path.join(downloads, zipName);
+if (metadata.primary.webPackage) {
+  Object.assign(metadata.web, await copyReleasedWebReader({ webPackage: metadata.primary.webPackage, webRoot, destination, reader: metadata.reader }));
+} else {
+  process.chdir(source);
+  try { await build({ configFile: path.join(source, "vite.config.ts"), configLoader: "native", build: { outDir: webRoot, emptyOutDir: false } }); }
+  finally { process.chdir(originalCwd); }
+  Object.assign(metadata.web, await packageWebReader({ source, webRoot, destination, version: metadata.primary.version, reader: metadata.reader }));
+}
 
 // Only the public hosted demo gets a hash router and base-aware public assets.
 const demoEntry = path.join(source, ".website-demo-entry");
@@ -74,4 +72,4 @@ await writeFile(path.join(output, "releases.json"), JSON.stringify(metadata, nul
 await writeFile(path.join(output, ".nojekyll"), "");
 await writeFile(path.join(working, "build.json"), JSON.stringify({ source, webRoot, output, reader: metadata.reader }, null, 2));
 await writeFile(path.join(checkoutRoot, ".cache/public-site-current-build.json"), JSON.stringify({ source, webRoot, output, working, reader: metadata.reader }, null, 2));
-console.log(`Built public homepage, scoped interactive demo and ${zipName} (${zip.length} bytes).`);
+console.log(`Built public homepage, scoped interactive demo and ${zipName} (${metadata.web.bytes} bytes).`);

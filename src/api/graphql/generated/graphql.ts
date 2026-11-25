@@ -4576,7 +4576,7 @@ export type UpdateChapterProgressMutationVariables = Exact<{
 }>;
 
 
-export type UpdateChapterProgressMutation = { updateChapter: { chapter: { id: number, isRead: boolean, isBookmarked: boolean, lastPageRead: number } } | null };
+export type UpdateChapterProgressMutation = { updateChapter: { chapter: { id: number, isRead: boolean, isBookmarked: boolean, lastPageRead: number, lastReadAt: unknown } } | null };
 
 export type GetRestoreStatusQueryVariables = Exact<{
   id: string;
@@ -4777,7 +4777,7 @@ export type GetChapterQueryVariables = Exact<{
 }>;
 
 
-export type GetChapterQuery = { chapter: { id: number, name: string, chapterNumber: number, isRead: boolean, isBookmarked: boolean, scanlator: string | null, uploadDate: unknown, lastPageRead: number, pageCount: number, sourceOrder: number, mangaId: number, manga: { title: string } } };
+export type GetChapterQuery = { chapter: { id: number, name: string, chapterNumber: number, isRead: boolean, isBookmarked: boolean, scanlator: string | null, uploadDate: unknown, lastPageRead: number, lastReadAt: unknown, pageCount: number, sourceOrder: number, mangaId: number, manga: { title: string } } };
 
 export type GetReadingChaptersQueryVariables = Exact<{
   mangaId: number;
@@ -5219,6 +5219,7 @@ export const UpdateChapterProgressDocument = gql`
       isRead
       isBookmarked
       lastPageRead
+      lastReadAt
     }
   }
 }
@@ -5724,6 +5725,7 @@ export const GetChapterDocument = gql`
     scanlator
     uploadDate
     lastPageRead
+    lastReadAt
     pageCount
     sourceOrder
     mangaId

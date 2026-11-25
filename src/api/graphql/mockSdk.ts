@@ -128,6 +128,7 @@ const mockImpl: any = {
         chapterNumber: 1,
         isRead: false,
         lastPageRead: 0,
+        lastReadAt: 0,
         pageCount: 2,
         sourceOrder: 1,
         mangaId: isGarden ? 10001 : 10002,
@@ -405,7 +406,7 @@ const mockImpl: any = {
   async SetServerDownloadPreferences({ input }: any) { Object.assign(demoDownloadPreferences, input.settings); return { setSettings: { settings: { ...demoDownloadPreferences } } }; },
   async UpdateChapterProgress({ input }: any) {
     if (typeof input.patch?.isBookmarked === "boolean") demoBookmarks.set(input.id, input.patch.isBookmarked);
-    return { updateChapter: { chapter: { id: input.id, isRead: !!input.patch?.isRead, isBookmarked: demoBookmarks.get(input.id) ?? false, lastPageRead: input.patch?.lastPageRead || 0 } } };
+    return { updateChapter: { chapter: { id: input.id, isRead: !!input.patch?.isRead, isBookmarked: demoBookmarks.get(input.id) ?? false, lastPageRead: input.patch?.lastPageRead || 0, lastReadAt: 0 } } };
   },
   async GetBookmarkedLibraryChapters() {
     const nodes = [...demoBookmarks].filter(([, marked]) => marked).map(([id]) => ({ id, mangaId: id === 20001 ? 10001 : 10002 }));

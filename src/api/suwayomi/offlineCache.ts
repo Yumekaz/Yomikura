@@ -273,7 +273,7 @@ export async function getCachedChapter(serverBaseUrl: string, id: number, isDemo
   return (await getCachedChapters(serverBaseUrl, isDemo, libraryId ?? "")).find((chapter) => chapter.id === id) ?? null;
 }
 
-export async function getCachedChapters(serverBaseUrl?: string, isDemo = false, libraryId = isDemo || !serverBaseUrl ? undefined : rememberedLibrary(serverBaseUrl)?.marker): Promise<CachedChapter[]> {
+export async function getCachedChapters(serverBaseUrl?: string, isDemo = false, libraryId = isDemo || !serverBaseUrl ? undefined : rememberedLibrary(serverBaseUrl)?.marker, strict = false): Promise<CachedChapter[]> {
   try {
     const chapters = await offlineTransaction([STORE_NAME], "readonly", (tx) => offlineRead<CachedChapter[]>(tx.objectStore(STORE_NAME).getAll()));
     const byIdentity = new Map<string, CachedChapter>();
@@ -284,7 +284,7 @@ export async function getCachedChapters(serverBaseUrl?: string, isDemo = false, 
       if (!older || (chapter.cachedAt ?? 0) > (older.cachedAt ?? 0) || chapter.cachedAt === older.cachedAt && chapter.cacheKey === key) byIdentity.set(key, { ...chapter, libraryId: chapter.libraryId });
     }
     return [...byIdentity.values()];
-  } catch (error) { console.error("IndexedDB error in getCachedChapters:", error); return []; }
+  } catch (error) { if (strict) throw error; console.error("IndexedDB error in getCachedChapters:", error); return []; }
 }
 
 export async function getCachedChaptersForManga(serverBaseUrl: string, mangaId: number, isDemo = false, libraryId = isDemo ? undefined : rememberedLibrary(serverBaseUrl)?.marker): Promise<CachedChapter[]> {
@@ -306,6 +306,19 @@ export async function saveCachedChapter(chapter: CachedChapter, signal?: AbortSi
     return (!!previous && isDemoCacheRecord(previous) !== isDemo) || JSON.stringify([previous?.pages, previous?.cachedUrls, previous?.networkUrls, previous?.pageTiles]) !== JSON.stringify([record.pages, record.cachedUrls, record.networkUrls, record.pageTiles]);
   }, signal);
   if (changed) invalidatePageIndexes(serverBaseUrl);
+}
+
+/** Recovery must never overwrite a newer download, including one from another tab. */
+export async function addMissingCachedChapter(chapter: CachedChapter) {
+  const key = storedKey(chapter.serverBaseUrl, chapter.id, isDemoCacheRecord(chapter), chapter.libraryId);
+  const added = await offlineTransaction([STORE_NAME], "readwrite", async (tx) => {
+    const store = tx.objectStore(STORE_NAME);
+    if (await offlineRead(store.getKey(key))) return false;
+    await offlineRead(store.add({ ...chapter, cacheKey: key }));
+    return true;
+  });
+  if (added) invalidatePageIndexes(chapter.serverBaseUrl);
+  return added;
 }
 
 export async function updateCachedChapterProgress(serverBaseUrl: string, chapterId: number, lastPageRead: number, isRead: boolean, isDemo = false, libraryId = isDemo ? undefined : rememberedLibrary(serverBaseUrl)?.marker): Promise<void> {

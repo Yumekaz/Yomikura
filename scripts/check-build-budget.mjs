@@ -9,6 +9,7 @@ const limits = {
   licenseNoticeBytes: 128 * 1024,
   identityBytes: 768 * 1024,
   javascriptBytes: 1024 * 1024 + 80 * 1024,
+  deviceRecoveryBytes: 32 * 1024,
   largestJavaScriptBytes: 350 * 1024,
 };
 
@@ -34,13 +35,15 @@ try {
   const identityBytes = sizes.filter((item) => item.file.includes(`${path.sep}identity${path.sep}`)).reduce((sum, item) => sum + item.bytes, 0);
   const javascript = sizes.filter((item) => item.file.endsWith(".js"));
   const javascriptBytes = javascript.reduce((sum, item) => sum + item.bytes, 0);
+  const deviceRecoveryBytes = javascript.filter(({ file }) => /^DeviceRecoveryPanel-[\w-]+\.js$/.test(path.basename(file))).reduce((sum, item) => sum + item.bytes, 0);
   const largestJavaScript = javascript.sort((a, b) => b.bytes - a.bytes)[0];
 
   const failures = [];
-  if (totalBytes - licenseNoticeBytes > limits.totalBytes) failures.push(`application output is ${totalBytes - licenseNoticeBytes} bytes`);
+  if (totalBytes - licenseNoticeBytes - deviceRecoveryBytes > limits.totalBytes) failures.push(`application output excluding device recovery is ${totalBytes - licenseNoticeBytes - deviceRecoveryBytes} bytes`);
   if (licenseNoticeBytes > limits.licenseNoticeBytes) failures.push(`runtime license notices are ${licenseNoticeBytes} bytes`);
   if (identityBytes > limits.identityBytes) failures.push(`identity artwork is ${identityBytes} bytes`);
-  if (javascriptBytes > limits.javascriptBytes) failures.push(`JavaScript output is ${javascriptBytes} bytes`);
+  if (javascriptBytes - deviceRecoveryBytes > limits.javascriptBytes) failures.push(`JavaScript output excluding device recovery is ${javascriptBytes - deviceRecoveryBytes} bytes`);
+  if (deviceRecoveryBytes > limits.deviceRecoveryBytes) failures.push(`device recovery is ${deviceRecoveryBytes} bytes`);
   if (largestJavaScript?.bytes > limits.largestJavaScriptBytes) {
     failures.push(`largest JavaScript chunk is ${largestJavaScript.bytes} bytes (${path.basename(largestJavaScript.file)})`);
   }
@@ -48,6 +51,7 @@ try {
   console.log(`Build budget: ${files.length} files, ${totalBytes} total bytes, ${javascriptBytes} JavaScript bytes`);
   console.log(`Identity artwork: ${identityBytes} bytes`);
   console.log(`Runtime license notices: ${licenseNoticeBytes} bytes (separate bounded text allowance)`);
+  console.log(`Device recovery: ${deviceRecoveryBytes} bytes (separately loaded from Backups)`);
   if (largestJavaScript) console.log(`Largest JavaScript chunk: ${path.basename(largestJavaScript.file)} (${largestJavaScript.bytes} bytes)`);
 
   if (failures.length) {

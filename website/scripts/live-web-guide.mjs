@@ -10,10 +10,13 @@ import { setTimeout as delay } from "node:timers/promises";
 import path from "node:path";
 import { checkoutRoot } from "./releases.mjs";
 
-const build = JSON.parse(await readFile(path.join(checkoutRoot, ".cache/public-site-current-build.json"), "utf8"));
+const candidate = process.env.YOMIKURA_CANDIDATE_WEB === '1';
+if (candidate) assert.equal(process.env.GITHUB_ACTIONS, 'true');
+const build = JSON.parse(await readFile(path.join(checkoutRoot, candidate ? '.cache/candidate-web/build.json' : '.cache/public-site-current-build.json'), 'utf8'));
 const require = createRequire(path.join(build.source, "package.json"));
 const { chromium, expect } = require("@playwright/test");
-const runtimes = JSON.parse(await readFile(new URL("./server-runtimes.json", import.meta.url), "utf8"));
+const runtimes = candidate ? [{ version: '2.4.2373', sha256: 'dd05d523cc785b7acf90c9feac0bc84c53d5fb3af5ab2a33653646e2076e5217' }]
+  : JSON.parse(await readFile(new URL("./server-runtimes.json", import.meta.url), "utf8"));
 for (const runtime of runtimes) await verifyRuntime(runtime);
 
 async function verifyRuntime({ version, sha256 }) {
