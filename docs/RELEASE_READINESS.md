@@ -27,8 +27,9 @@ On a clean Windows runner, the verification workflow must prove:
 7. Local-engine startup stays under three minutes and the combined application/backend working set stays below 1.5 GB on the clean runner.
 
 The test does not delete arbitrary user folders. It uses a temporary runner folder and an explicit sentinel file.
-The lifecycle gate pre-stages its runtime so a slow third-party download cannot be mistaken for an installer or startup regression. Clean-machine first-run downloads remain part of the manual beta matrix below.
-The runner independently downloads the production-pinned Windows Java archive, verifies its SHA-256, and starts that private launcher with system Java removed from its child environment. The installed-app smoke test then uses that verified private runtime. Native Rust unit tests also run on Windows. This covers the archive and runtime launch; it does not claim a fully automated first-run wizard or interrupted component-download interaction.
+The installer lifecycle gate pre-stages its runtime to isolate installation from third-party download delays. A separate **Verify** run with **release_journey** enabled exercises the installed Windows wizard from an empty profile with Java unavailable to the app. The same run packages the candidate web files and opens the extracted ZIP on a real Suwayomi server in a fresh browser. The public homepage and its released-reader workflow remain separate.
+
+The [v1.0.26 candidate verification](https://github.com/Yumekaz/Yomikura/actions/runs/45618038285) downloaded both pinned components through the Windows wizard, added an original-art book, and resumed page 3 after the app and managed server restarted. The packaged web reader passed setup, first reading, deep-link refresh, and resume across a server restart on Suwayomi v2.4.2373. The checks use disposable runners and synthetic books.
 
 The Windows uninstaller preserves reader data. To free chapter storage before uninstall, clear the selected library's device copies in **Settings → Offline storage**. Server downloads are managed separately by the connected library. The first release containing this installer change must tell v1.0.25 users to upgrade in place so they keep their existing data.
 
@@ -76,3 +77,5 @@ Record the result and the exact user-facing recovery message. A passing build is
 Windows and macOS platform trust still depend on external signing credentials. A successful CI build proves compilation and packaging, not SmartScreen or Gatekeeper trust.
 
 The configured updater endpoint follows GitHub's latest stable release. Draft and beta releases do not replace that stable channel. Beta testers should download the newer beta installer manually; an “up to date” result describes the stable channel. Forward automatic installation still requires a newer published stable version to exercise the production endpoint end to end.
+
+For an unpublished candidate, **Verify** accepts **staging_updater** to exercise the production-signed installer with a temporary HTTPS feed. The fresh Windows runner builds an older bootstrap using the existing updater public key. The test first checks rejection of changed installer bytes and then serves the original signed payload. The temporary trust root and bootstrap stay on the runner.

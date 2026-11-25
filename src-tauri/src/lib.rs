@@ -1,5 +1,5 @@
 use std::process::{Child, Command};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::menu::{MenuBuilder, MenuItem};
 use tauri::path::BaseDirectory;
@@ -26,7 +26,7 @@ struct DownloadedPage {
 }
 
 struct BackendState {
-    backend: Mutex<Option<RunningBackend>>,
+    backend: Arc<Mutex<Option<RunningBackend>>>,
     verified_jar: Mutex<Option<VerifiedJar>>,
 }
 
@@ -41,6 +41,32 @@ struct RunningBackend {
     child: Child,
     port: u16,
     data_path: std::path::PathBuf,
+}
+
+// The Windows updater clears Tauri resources and exits without a RunEvent::Exit.
+// Keep an exit guard in that table so the managed child releases its database
+// before the updated app opens the same library.
+#[cfg(windows)]
+struct ManagedBackendExit {
+    backend: Arc<Mutex<Option<RunningBackend>>>,
+    pid_file: Option<std::path::PathBuf>,
+}
+
+#[cfg(windows)]
+impl tauri::Resource for ManagedBackendExit {}
+
+#[cfg(windows)]
+impl Drop for ManagedBackendExit {
+    fn drop(&mut self) {
+        let mut state = self.backend.lock().unwrap_or_else(|err| err.into_inner());
+        if let Some(mut running) = state.take() {
+            let _ = running.child.kill();
+            let _ = running.child.wait();
+            if let Some(path) = &self.pid_file {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
 }
 
 const SUWAYOMI_JAR_NAME: &str = "Suwayomi-Server-v2.4.2373.jar";
@@ -999,7 +1025,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(BackendState {
-            backend: Mutex::new(None),
+            backend: Arc::new(Mutex::new(None)),
             verified_jar: Mutex::new(None),
         })
         .manage(desktop_preferences::DesktopState::default())
@@ -1027,6 +1053,11 @@ pub fn run() {
             local_import::import_local_archives
         ])
         .setup(|app| {
+            #[cfg(windows)]
+            app.resources_table().add(ManagedBackendExit {
+                backend: Arc::clone(&app.state::<BackendState>().backend),
+                pid_file: backend_pid_path(app.handle()).ok(),
+            });
             desktop_preferences::initialize(app.handle());
             if let Some(window) = app.get_webview_window("main") {
                 if let Err(error) = window_layout::fit_initial_window(&window) {
