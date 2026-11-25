@@ -7,6 +7,7 @@ import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium, expect } from '@playwright/test';
+import { installStagedUpdate, startStagingFeed } from './fixtures/staging-updater.mjs';
 
 // Official installers share a Windows application identity. Never run this
 // harness on a personal workstation, even if a caller supplies another path.
@@ -15,13 +16,14 @@ assert.equal(process.env.RUNNER_OS, 'Windows');
 assert.ok(process.env.RUNNER_TEMP && process.env.JAVA_HOME);
 const from = process.env.FROM_RELEASE;
 const candidate = process.env.YOMIKURA_CANDIDATE_INSTALLER;
-assert.ok(candidate ? from === 'v1.0.25' && path.isAbsolute(candidate) : ['v1.0.24', 'v1.0.25-beta.5'].includes(from));
+const stagingInstaller = process.env.YOMIKURA_STAGING_INSTALLER;
+assert.ok(stagingInstaller ? Boolean(candidate && path.isAbsolute(candidate) && path.isAbsolute(stagingInstaller)) : candidate ? from === 'v1.0.25' && path.isAbsolute(candidate) : ['v1.0.24', 'v1.0.25-beta.5'].includes(from));
 const target = candidate ? process.env.GITHUB_SHA : 'v1.0.25', run = promisify(execFile);
-const testNotes = from !== 'v1.0.24';
-const root = path.resolve('.cache/released-upgrade', from); await mkdir(root, { recursive: true });
-const report = { from, target, checks: [], failures: [], boundaries: ['fresh GitHub Windows runner', candidate ? 'manual in-place installation of the candidate artifact' : 'official unmodified installers and real updater', 'synthetic Local source and original artwork', 'no third-party tracker authentication', 'WebView automation, not physical input'] };
+const testNotes = Boolean(stagingInstaller) || from !== 'v1.0.24';
+const root = path.resolve('.cache/released-upgrade', stagingInstaller ? 'staging-feed' : from); await mkdir(root, { recursive: true });
+const report = { from: stagingInstaller ? '1.0.24 staging client' : from, target, checks: [], failures: [], boundaries: ['fresh GitHub Windows runner', stagingInstaller ? 'local HTTPS feed with an unpublished bootstrap client and the exact production-signed candidate' : candidate ? 'manual in-place installation of the candidate artifact' : 'official unmodified installers and real updater', 'synthetic Local source and original artwork', 'no third-party tracker authentication', 'WebView automation, not physical input'] };
 const backend = 'http://127.0.0.1:4596';
-let browser, page, backendProcess, appProcess;
+let browser, page, backendProcess, appProcess, stagingFeed;
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 async function ps(script, env = {}) {
   const result = await run('pwsh', ['-NoProfile', '-NonInteractive', '-Command', script], { env: { ...process.env, ...env }, windowsHide: true, timeout: 90000, maxBuffer: 1024 * 1024 });
@@ -62,17 +64,25 @@ async function records() {
   });
 }
 try {
-  const old = await github('releases/tags/' + from), current = candidate ? undefined : await github('releases/latest');
-  assert.equal(old.draft, false);
-  if (current) { assert.equal(current.tag_name, 'v1.0.25'); assert.equal(current.prerelease, false); }
-  const installer = old.assets.find((asset) => asset.name.endsWith('_x64-setup.exe')); assert.ok(installer);
-  assert.match(installer.digest, /^sha256:[a-f0-9]{64}$/);
-  assert.ok(installer.browser_download_url.startsWith(`https://github.com/Yumekaz/Yomikura/releases/download/${from}/`));
-  const response = await fetch(installer.browser_download_url); assert.equal(response.status, 200);
-  const bytes = Buffer.from(await response.arrayBuffer()); assert.equal(hash(bytes), installer.digest.slice(7));
-  const installerPath = path.join(root, 'old-setup.exe'); await writeFile(installerPath, bytes);
+  const current = candidate ? undefined : await github('releases/latest');
+  let installerPath = stagingInstaller, oldArtifact;
+  if (stagingInstaller) {
+    oldArtifact = { version: '1.0.24', sha256: hash(await readFile(stagingInstaller)) };
+    stagingFeed = await startStagingFeed(candidate);
+  } else {
+    const old = await github('releases/tags/' + from);
+    assert.equal(old.draft, false);
+    if (current) { assert.equal(current.tag_name, 'v1.0.25'); assert.equal(current.prerelease, false); }
+    const installer = old.assets.find((asset) => asset.name.endsWith('_x64-setup.exe')); assert.ok(installer);
+    assert.match(installer.digest, /^sha256:[a-f0-9]{64}$/);
+    assert.ok(installer.browser_download_url.startsWith(`https://github.com/Yumekaz/Yomikura/releases/download/${from}/`));
+    const response = await fetch(installer.browser_download_url); assert.equal(response.status, 200);
+    const bytes = Buffer.from(await response.arrayBuffer()); assert.equal(hash(bytes), installer.digest.slice(7));
+    installerPath = path.join(root, 'old-setup.exe'); await writeFile(installerPath, bytes);
+    oldArtifact = { tag: from, digest: installer.digest, bytes: bytes.length };
+  }
   const targetArtifact = candidate ? { commit: target, sha256: hash(await readFile(candidate)) } : { tag: target, commit: current.target_commitish };
-  await writeFile(path.join(root, 'releases.json'), JSON.stringify({ old: { tag: from, digest: installer.digest, bytes: bytes.length }, target: targetArtifact }, null, 2));
+  await writeFile(path.join(root, 'releases.json'), JSON.stringify({ old: oldArtifact, target: targetArtifact }, null, 2));
   const jarPath = path.join(process.env.RUNNER_TEMP, 'yomikura-reliability-deps/Suwayomi-Server-v2.3.2243.jar'); await mkdir(path.dirname(jarPath), { recursive: true });
   const jarDigest = '821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5';
   let jar = await readFile(jarPath).catch(() => null);
@@ -134,9 +144,20 @@ try {
   const savedBytes = await cachedDigests(); assert.ok(savedBytes.length >= 3, 'A saved record without page bytes is not a successful download');
   await writeFile(path.join(root, 'download-verified.json'), JSON.stringify({ count: savedBytes.length, pages: savedBytes }, null, 2));
   const settingsBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('yomikura-settings') || 'null'));
-  report.checks.push('Official old installer digest verified, real Local library loaded and chapter saved through UI');
+  report.checks.push(`${stagingFeed ? 'Staging installer' : 'Official old installer digest verified'}, real Local library loaded and chapter saved through UI`);
   await page.screenshot({ path: path.join(root, 'before-upgrade.png') });
-  if (candidate) {
+  if (stagingFeed) {
+    const beforeHash = hash(await readFile(installed));
+    assert.equal(await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('plugin:app|version')), '1.0.24');
+    await installStagedUpdate(page, stagingFeed, async () => assert.equal(hash(await readFile(installed)), beforeHash));
+    await until(async () => {
+      const output = await ps('(Get-Item -LiteralPath $env:UPGRADE_APP).VersionInfo.ProductVersion', { UPGRADE_APP: installed });
+      return output.startsWith(stagingFeed.version);
+    }, 300000);
+    assert.equal(stagingFeed.payloadRequests(), 2);
+    await browser?.close().catch(() => {});
+    report.checks.push('The native updater rejected altered bytes without replacing the app, then downloaded and installed the signed candidate from the HTTPS test feed.');
+  } else if (candidate) {
     const beforeHash = hash(await readFile(installed));
     await browser.close().catch(() => {});
     await ps(String.raw`$process = Get-Process -Id $env:UPGRADE_PID; if (!$process.CloseMainWindow()) { throw 'Could not close the released Yomikura window' }; if (!$process.WaitForExit(15000)) { throw 'The released app did not exit' }`, { UPGRADE_PID: String(appProcess.pid) });
@@ -162,6 +183,7 @@ try {
     await browser?.close().catch(() => {});
   }
   await attach(); await page.goto('http://tauri.localhost/library');
+  if (stagingFeed) assert.equal(await page.evaluate(() => window.__TAURI_INTERNALS__.invoke('plugin:app|version')), stagingFeed.version);
   if (candidate) {
     await page.goto('http://tauri.localhost/settings/backup');
     await expect(page.getByRole('button', { name: 'Export device recovery' })).toBeVisible();
@@ -176,7 +198,7 @@ try {
   assert.equal(settingsAfter.state.serverBaseUrl, backend); assert.equal(settingsAfter.state.themeMode, settingsBefore?.state.themeMode || 'light');
   const progress = await graphql('query($id:Int!){chapter(id:$id){isRead lastPageRead isBookmarked}}', { id: chapter.id });
   assert.deepEqual(progress.chapter, { isRead: false, lastPageRead: 1, isBookmarked: true });
-  report.checks.push(`${candidate ? 'Candidate installed in place and launched' : 'Real updater installed target release and relaunched'}; library membership, partial progress, bookmark, saved record, server profile and theme survived`);
+  report.checks.push(`${candidate && !stagingFeed ? 'Candidate installed in place and launched' : 'Real updater installed target release and relaunched'}; library membership, partial progress, bookmark, saved record, server profile and theme survived`);
   if (testNotes) {
     await page.goto(`http://tauri.localhost/manga/${book.id}`);
     await page.locator('summary').filter({ hasText: 'My notes' }).click();
@@ -185,7 +207,7 @@ try {
   }
   report.checks.push('Every saved page retained its original SHA-256 and byte length');
   await page.screenshot({ path: path.join(root, 'after-upgrade.png') });
-  if (testNotes) {
+  if (testNotes && !stagingFeed) {
     const started = Date.now(), samples = [];
     const chapters = details.fetchMangaAndChapters.chapters;
     let cycle = 0, decodedPageVisits = 0, chapterVisits = 0;
@@ -280,6 +302,8 @@ try {
 } finally {
   await writeFile(path.join(root, 'result.json'), JSON.stringify(report, null, 2));
   await browser?.close().catch(() => {});
+  stagingFeed?.server.closeAllConnections();
+  stagingFeed?.server.close();
   // Only this harness's own process handles are stopped; runner-only teardown.
   if (appProcess && appProcess.exitCode === null) appProcess.kill();
   if (backendProcess && backendProcess.exitCode === null) backendProcess.kill();
