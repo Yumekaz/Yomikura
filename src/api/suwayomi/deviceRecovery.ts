@@ -1,10 +1,12 @@
 import { createGraphqlClient } from "../graphql/client";
 import { captureNoteExport, importNoteExport, parseNoteExport } from "../../features/manga/notePortability";
+import { addMissingBookNotes, bookNoteScope } from "../../features/manga/bookNoteStorage";
 import { parseRecoveryPreferences, type RecoveryPreferences } from "../../stores/recoveryPreferences";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { chapterIdentityMatches, progressBackend, type ProgressBackend } from "./backendIdentity";
 import { createRecoveryFile, describeRecoveryPage, MAX_RECOVERY_BYTES, openRecoveryFile, verifyRecoveryPage, type RecoveryChapter, type RecoveryManifest } from "./deviceRecoveryFormat";
-import { checkpointRecovery, readRecoveryJob, runRecovery, stageRecoveryJob } from "./deviceRecoveryJournal";
+import { checkpointRecovery, readRecoveryJob, runRecovery, stageRecoveryJob, type RecoveryJob } from "./deviceRecoveryJournal";
+import { captureRecoveryKeys, createRecoveryMatcher } from "./deviceRecoveryMatching";
 import { assertLibrarySession } from "./librarySession";
 import { addMissingCachedChapter, cleanupUnreferencedCachedPages, getCachedChapter, getCachedChapters, getChapterCacheKey } from "./offlineCache";
 import { buildSuwayomiPageUrl } from "./pageUrls";
@@ -32,7 +34,7 @@ export function recoveryBackend() {
   return progressBackend(serverBaseUrl, mockMode);
 }
 
-export async function captureDeviceRecovery(backend: ProgressBackend, includePages: boolean) {
+export async function captureDeviceRecovery(backend: ProgressBackend, includePages: boolean, includeSourceKeys = false) {
   const libraryId = backend.isDemo ? null : backend.libraryId ?? null;
   if (includePages && !libraryId) throw new Error("Connect to the library that owns the saved chapters before including pages.");
   const preferences = captureRecoveryPreferences();
@@ -61,7 +63,13 @@ export async function captureDeviceRecovery(backend: ProgressBackend, includePag
     }
   }
   if (!isCurrentProgressBackend(backend)) throw new Error("The selected library changed during export. Start the export again.");
-  return createRecoveryFile({ id: crypto.randomUUID(), createdAt: new Date().toISOString(), libraryId, preferences, notes, progress, chapters }, pageBlobs);
+  const manifest: RecoveryManifest = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), libraryId, preferences, notes, progress, chapters };
+  if (includeSourceKeys) {
+    await confirmRecoveryLibrary(backend, libraryId);
+    manifest.sourceKeys = await captureRecoveryKeys(backend, manifest);
+    await confirmRecoveryLibrary(backend, libraryId);
+  }
+  return createRecoveryFile(manifest, pageBlobs);
 }
 
 export async function stageDeviceRecovery(file: Blob) {
@@ -104,31 +112,67 @@ function libraryClient(backend: ProgressBackend) {
   return createGraphqlClient(`${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null, signal: AbortSignal.timeout(20000) }, "live");
 }
 
+function checkRecoveryTarget(job: RecoveryJob, backend: ProgressBackend) {
+  if (job.target && job.target !== backend.serverBaseUrl) throw new Error("Reconnect to the library address used to start this import before retrying.");
+}
+
+export function selectRebuiltRecoveryLibrary(id: string, backend: ProgressBackend) {
+  return runRecovery(async () => {
+    const { job, archive: { manifest } } = await staged(id);
+    const keys = manifest.sourceKeys;
+    if (!keys?.books.length) throw new Error("This file has no source identifiers for a rebuilt library.");
+    if (job.target) throw new Error("This recovery file is already tied to a library. Finish that import or reopen the original file for another library.");
+    await confirmRecoveryLibrary(backend, backend.libraryId ?? null);
+    const matcher = createRecoveryMatcher(backend, keys);
+    let matched = false;
+    for (const entry of [...manifest.chapters, ...manifest.progress.map(({ chapter }) => chapter)]) {
+      if (await matcher.matchChapter(entry)) { matched = true; break; }
+    }
+    if (!matched) for (const note of manifest.notes) {
+      if (await matcher.matchBook(note.mangaId)) { matched = true; break; }
+    }
+    if (!matched) throw new Error("No books or chapters could be verified. Restore the matching Suwayomi backup and confirm the source entries before retrying.");
+    await confirmRecoveryLibrary(backend, backend.libraryId ?? null);
+    await checkpointRecovery(id, (current) => ({ ...current, target: backend.serverBaseUrl, rebuiltLibraryId: backend.libraryId }));
+  });
+}
+
 export function restoreDeviceRecords(id: string, backend: ProgressBackend) {
   return runRecovery(async () => {
     const { job, archive } = await staged(id);
     const { manifest } = archive;
     if (job.deviceRecordsRestored) return;
-    await confirmRecoveryLibrary(backend, manifest.libraryId);
+    const libraryId = job.rebuiltLibraryId ?? manifest.libraryId;
+    checkRecoveryTarget(job, backend);
+    await confirmRecoveryLibrary(backend, libraryId);
     const server = backend.serverBaseUrl;
-    if (job.target && job.target !== server) throw new Error("Reconnect to the library address used to start this import before retrying.");
     await checkpointRecovery(id, (current) => ({ ...current, target: server }));
+    const matcher = job.rebuiltLibraryId && manifest.sourceKeys ? createRecoveryMatcher(backend, manifest.sourceKeys) : undefined;
+    let unmatched = 0;
 
-    if (manifest.notes.length) {
+    if (matcher && manifest.notes.length) {
+      const drafts = [];
+      for (const note of manifest.notes) {
+        const book = await matcher.matchBook(note.mangaId);
+        if (!book) { unmatched++; continue; }
+        drafts.push({ key: bookNoteScope(backend, book.id, book.title), value: note.value, base: null, pending: true, revision: crypto.randomUUID() });
+      }
+      await confirmRecoveryLibrary(backend, libraryId);
+      await addMissingBookNotes(drafts);
+    } else if (manifest.notes.length) {
       const result = await importNoteExport(JSON.stringify({ format: "yomikura-notes", version: 1, notes: manifest.notes }), backend);
-      if (result.unmatched) throw new Error(`${result.unmatched} notes could not be matched. Restore the missing books, then retry the staged file.`);
+      unmatched += result.unmatched;
     }
 
     const cache = manifest.chapters.length ? await caches.open(pageCache) : undefined;
     for (const [index, chapter] of manifest.chapters.entries()) {
-      await confirmRecoveryLibrary(backend, manifest.libraryId);
-      if (await getCachedChapter(server, chapter.chapterId, false, backend.libraryId)) continue;
-      const { chapter: remote } = await libraryClient(backend).GetChapter({ id: chapter.chapterId });
-      if (!remote || !chapterIdentityMatches(chapter, progressChapterIdentity(remote)) || (remote.pageCount > 0 && remote.pageCount !== chapter.pageCount)) {
-        throw new Error(`“${chapter.chapterName}” could not be matched in this library. Restore the missing chapter, then retry.`);
-      }
+      await confirmRecoveryLibrary(backend, libraryId);
+      const remote = matcher ? await matcher.matchChapter(chapter) : (await libraryClient(backend).GetChapter({ id: chapter.chapterId })).chapter;
+      if (!remote || !matcher && !chapterIdentityMatches(chapter, progressChapterIdentity(remote)) ||
+          (remote.pageCount > 0 && remote.pageCount !== chapter.pageCount)) { unmatched++; continue; }
+      if (await getCachedChapter(server, remote.id, false, backend.libraryId)) continue;
       const pages = archive.pages[index];
-      const networkUrls = pages.map((_, pageIndex) => buildSuwayomiPageUrl({ serverBaseUrl: server, mangaId: chapter.mangaId, chapterSourceOrder: chapter.sourceOrder, pageIndex }));
+      const networkUrls = pages.map((_, pageIndex) => buildSuwayomiPageUrl({ serverBaseUrl: server, mangaId: remote.mangaId, chapterSourceOrder: remote.sourceOrder, pageIndex }));
       const cachedUrls = networkUrls.map((url) => {
         const address = new URL(url);
         // Stage under this job until the complete chapter has a visible cache record.
@@ -140,11 +184,11 @@ export function restoreDeviceRecords(id: string, backend: ProgressBackend) {
         await validatePageBlob(page.body, AbortSignal.timeout(30000));
         await cache!.put(cachedUrls[pageIndex], new Response(page.body, { headers: { "content-type": page.type, "x-content-type-options": "nosniff" } }));
       }
-      await confirmRecoveryLibrary(backend, manifest.libraryId);
+      await confirmRecoveryLibrary(backend, libraryId);
       await addMissingCachedChapter({
-        cacheKey: getChapterCacheKey(server, chapter.chapterId, false, backend.libraryId), libraryId: backend.libraryId, serverBaseUrl: server, isDemo: false,
-        id: chapter.chapterId, name: chapter.chapterName, chapterNumber: chapter.chapterNumber, mangaId: chapter.mangaId,
-        mangaTitle: chapter.mangaTitle, sourceOrder: chapter.sourceOrder, pageCount: pages.length,
+        cacheKey: getChapterCacheKey(server, remote.id, false, backend.libraryId), libraryId: backend.libraryId, serverBaseUrl: server, isDemo: false,
+        id: remote.id, name: remote.name, chapterNumber: remote.chapterNumber, mangaId: remote.mangaId,
+        mangaTitle: remote.manga.title, sourceOrder: remote.sourceOrder, pageCount: pages.length,
         pages: networkUrls, networkUrls, cachedUrls, totalSizeBytes: pages.reduce((total, page) => total + page.size, 0),
         // Imported page bytes must not seed an unreviewed reading update when
         // the offline reader records the first page it displays.
@@ -152,7 +196,8 @@ export function restoreDeviceRecords(id: string, backend: ProgressBackend) {
         isRead: remote.isRead, isBookmarked: remote.isBookmarked,
       });
     }
-    await confirmRecoveryLibrary(backend, manifest.libraryId);
+    await confirmRecoveryLibrary(backend, libraryId);
+    if (unmatched) throw new Error(`${unmatched} notes or chapters could not be matched safely. The file stays staged so you can recover them later.`);
     await checkpointRecovery(id, (current) => ({ ...current, deviceRecordsRestored: true }));
   });
 }
@@ -162,30 +207,33 @@ function serverProgress(chapter: { lastPageRead: number; isRead: boolean; isBook
 }
 
 export async function previewRecoveredProgress(id: string, chapterId: number, backend: ProgressBackend) {
-  const { archive } = await staged(id);
+  const { archive, job } = await staged(id);
   const entry = archive.manifest.progress.find((progress) => progress.chapter.chapterId === chapterId);
   if (!entry) throw new Error("This reading update is missing from the staged file.");
-  await confirmRecoveryLibrary(backend, archive.manifest.libraryId);
-  const { chapter } = await libraryClient(backend).GetChapter({ id: chapterId });
-  if (!chapter || !chapterIdentityMatches(entry.chapter, progressChapterIdentity(chapter))) throw new Error("This chapter could not be matched in the selected library.");
+  checkRecoveryTarget(job, backend);
+  const libraryId = job.rebuiltLibraryId ?? archive.manifest.libraryId;
+  const matcher = job.rebuiltLibraryId && archive.manifest.sourceKeys ? createRecoveryMatcher(backend, archive.manifest.sourceKeys) : undefined;
+  await confirmRecoveryLibrary(backend, libraryId);
+  const chapter = matcher ? await matcher.matchChapter(entry.chapter) : (await libraryClient(backend).GetChapter({ id: chapterId })).chapter;
+  if (!chapter || !matcher && !chapterIdentityMatches(entry.chapter, progressChapterIdentity(chapter))) throw new Error("This chapter could not be matched in the selected library.");
   if (entry.patch.lastPageRead !== undefined && entry.patch.lastPageRead >= chapter.pageCount && entry.patch.lastPageRead !== 0) throw new Error("The saved page does not exist in this copy of the chapter.");
-  await confirmRecoveryLibrary(backend, archive.manifest.libraryId);
-  return { entry, snapshot: serverProgress(chapter), identity: progressChapterIdentity(chapter), archiveId: archive.manifest.id };
+  await confirmRecoveryLibrary(backend, libraryId);
+  const before = await getProgressHead(backend, chapter.id);
+  return { entry, snapshot: serverProgress(chapter), identity: progressChapterIdentity(chapter), sequence: before?.sequence ?? 0, archiveId: archive.manifest.id };
 }
 
-export function applyRecoveredProgress(id: string, chapterId: number, backend: ProgressBackend, reviewed: ReturnType<typeof serverProgress>) {
+export function applyRecoveredProgress(id: string, chapterId: number, backend: ProgressBackend, reviewed: Awaited<ReturnType<typeof previewRecoveredProgress>>) {
   return runRecovery(async () => {
-    const before = await getProgressHead(backend, chapterId);
     const { entry, snapshot, identity, archiveId } = await previewRecoveredProgress(id, chapterId, backend);
-    if (JSON.stringify(snapshot) !== JSON.stringify(reviewed)) throw new Error("Server progress changed during review. Open the current update again.");
-    const recoveryKey = JSON.stringify([archiveId, backend.libraryId, chapterId]);
+    if (!chapterIdentityMatches(reviewed.identity, identity) || JSON.stringify(snapshot) !== JSON.stringify(reviewed.snapshot)) throw new Error("Server progress changed during review. Open the current update again.");
+    const recoveryKey = JSON.stringify([archiveId, backend.libraryId, identity.chapterId]);
     const saved = await saveProgressIntent(backend, { kind: "explicit", chapter: identity, baseline: snapshot,
-      patch: entry.patch, expectedSequence: before?.sequence ?? 0, recoveryKey, recoveryBaseline: snapshot }).catch((error: unknown) => {
+      patch: entry.patch, expectedSequence: reviewed.sequence, recoveryKey, recoveryBaseline: snapshot }).catch((error: unknown) => {
       if (error instanceof AlreadyRecoveredProgress) return undefined;
       throw error;
     });
     if (saved && !saved.accepted) throw new Error("This chapter has existing or changed device progress. Resolve it before applying this recovered update.");
-    await checkpointRecovery(id, (current) => ({ ...current, reviewedProgress: Array.from(new Set([...(current.reviewedProgress ?? []), chapterId])) }));
+    await checkpointRecovery(id, (current) => ({ ...current, target: backend.serverBaseUrl, reviewedProgress: Array.from(new Set([...(current.reviewedProgress ?? []), chapterId])) }));
     await synchronizeProgress(backend);
     return saved?.accepted ?? false;
   });

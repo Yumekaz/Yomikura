@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { applyRecoveredProgress, captureDeviceRecovery, previewRecoveredProgress, recoveryBackend, removeStagedRecovery, restoreDevicePreferences, restoreDeviceRecords, stageDeviceRecovery } from "../../api/suwayomi/deviceRecovery";
+import { applyRecoveredProgress, captureDeviceRecovery, previewRecoveredProgress, recoveryBackend, removeStagedRecovery, restoreDevicePreferences, restoreDeviceRecords, selectRebuiltRecoveryLibrary, stageDeviceRecovery } from "../../api/suwayomi/deviceRecovery";
 import { openRecoveryFile, type RecoveryManifest } from "../../api/suwayomi/deviceRecoveryFormat";
 import { readRecoveryJob, type RecoveryJob } from "../../api/suwayomi/deviceRecoveryJournal";
 import type { ProgressPatch } from "../../api/suwayomi/progressStorage";
 import { useDownloadStore } from "../../stores/useDownloadStore";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useFeedback } from "../ui/FeedbackProvider";
 
 function progressDescription(patch: Partial<ProgressPatch>) {
@@ -20,6 +21,8 @@ export function DeviceRecoveryPanel() {
   const [manifest, setManifest] = useState<RecoveryManifest>();
   const [busy, setBusy] = useState(false);
   const [includePages, setIncludePages] = useState(false);
+  const [includeSourceKeys, setIncludeSourceKeys] = useState(false);
+  const connected = useSettingsStore((state) => !state.mockMode && state.connectionStatus === "connected");
   const [feedback, setFeedback] = useState<{ text: string; error?: boolean }>();
 
   const reload = async () => {
@@ -57,9 +60,13 @@ export function DeviceRecoveryPanel() {
     <label className="flex items-center gap-2 text-sm text-slate-300">
       <input type="checkbox" checked={includePages} disabled={busy} onChange={(event) => setIncludePages(event.target.checked)} /> Include saved chapter pages from this device
     </label>
+    <label className="flex items-start gap-2 text-sm text-slate-300">
+      <input type="checkbox" checked={includeSourceKeys && connected} disabled={busy || !connected} onChange={(event) => setIncludeSourceKeys(event.target.checked)} />
+      <span>Include source identifiers for a rebuilt server <small className="block text-slate-400">Requires a connection. Keep this file with the Suwayomi backup for the same library.</small></span>
+    </label>
     <div className="flex flex-wrap gap-3">
       <button type="button" disabled={busy} className="yomi-button yomi-button-secondary" onClick={() => void run(async () => {
-        const file = await captureDeviceRecovery(recoveryBackend(), includePages);
+        const file = await captureDeviceRecovery(recoveryBackend(), includePages, includeSourceKeys && connected);
         const url = URL.createObjectURL(file), anchor = document.createElement("a");
         anchor.href = url;
         anchor.download = `yomikura-device-${new Date().toISOString().slice(0, 10)}.yomirecovery`;
@@ -82,7 +89,14 @@ export function DeviceRecoveryPanel() {
       <h4 className="font-semibold text-slate-200">Staged recovery</h4>
       {manifest && <>
         <p className="text-sm text-slate-400">{new Date(manifest.createdAt).toLocaleDateString()} · {count(manifest.notes.length, "note")} · {count(manifest.progress.length, "reading update")} · {count(manifest.chapters.length, "saved chapter")}</p>
+        {job.rebuiltLibraryId && <p className="text-sm text-slate-300">Rebuilt library selected at {job.target}. Only records with matching source identifiers can be recovered.</p>}
         <div className="flex flex-wrap gap-3">
+          {!!manifest.sourceKeys?.books.length && !job.target && <button type="button" disabled={busy || !connected} className="yomi-button yomi-button-secondary" onClick={() => void run(async () => {
+            const backend = recoveryBackend();
+            if (!await confirm({ title: "Use the rebuilt library?", detail: `Select this only after restoring the matching Suwayomi backup at ${backend.serverBaseUrl}. Yomikura matches books by source and matches chapters by their source links. You’ll review reading updates separately.`, confirmLabel: "Use this library" })) return;
+            await selectRebuiltRecoveryLibrary(job.id, backend);
+            return "This recovery file is tied to the rebuilt library.";
+          })}>Use rebuilt library</button>}
           <button type="button" disabled={busy} className="yomi-button yomi-button-secondary" onClick={() => void run(async () => {
             const undo = job.preferencesApplied === true;
             if (!await confirm({ title: undo ? "Restore earlier preferences?" : "Apply recovered preferences?", detail: undo ? "Restore the reading and appearance preferences saved before this import." : "Apply these reading and appearance preferences to this device. Your earlier preferences stay available here.", confirmLabel: undo ? "Restore preferences" : "Apply preferences" })) return;
@@ -105,9 +119,9 @@ export function DeviceRecoveryPanel() {
               return <li key={chapter.chapterId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 p-3 text-sm">
                 <span><strong>{chapter.mangaTitle}</strong> · {chapter.chapterName} · {progressDescription(patch)}</span>
                 <button type="button" aria-label={`Review progress for ${chapter.chapterName}`} disabled={busy || applied} className="yomi-button yomi-button-secondary" onClick={() => void run(async () => {
-                  const backend = recoveryBackend(), { snapshot } = await previewRecoveredProgress(job.id, chapter.chapterId, backend);
-                  if (!await confirm({ title: "Apply recovered progress?", detail: `${chapter.mangaTitle} · ${chapter.chapterName}. Current server: ${progressDescription(snapshot)}. Saved update: ${progressDescription(patch)}.`, confirmLabel: "Apply saved update" })) return;
-                  const added = await applyRecoveredProgress(job.id, chapter.chapterId, backend, snapshot);
+                  const backend = recoveryBackend(), reviewed = await previewRecoveredProgress(job.id, chapter.chapterId, backend);
+                  if (!await confirm({ title: "Apply recovered progress?", detail: `${reviewed.identity.mangaTitle} · ${reviewed.identity.chapterName}. Current server: ${progressDescription(reviewed.snapshot)}. Saved update: ${progressDescription(patch)}.`, confirmLabel: "Apply saved update" })) return;
+                  const added = await applyRecoveredProgress(job.id, chapter.chapterId, backend, reviewed);
                   return added ? "Saved update approved for synchronization." : "This recovered update was already queued for synchronization.";
                 })}>{applied ? "Reviewed" : "Review update"}</button>
               </li>;

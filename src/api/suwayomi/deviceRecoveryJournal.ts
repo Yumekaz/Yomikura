@@ -4,6 +4,7 @@ export type RecoveryJob = {
   id: string;
   file: Blob;
   target?: string;
+  rebuiltLibraryId?: string;
   previousPreferences?: RecoveryPreferences;
   preferencesApplied?: boolean;
   deviceRecordsRestored?: boolean;

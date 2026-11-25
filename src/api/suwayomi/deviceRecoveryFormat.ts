@@ -14,6 +14,8 @@ const imageTypes = ["image/jpeg", "image/png", "image/webp", "image/avif", "imag
 export type RecoveryPage = { size: number; type: string; digest: string };
 export type RecoveryChapter = ChapterProgressIdentity & { sourceOrder: number; pages: RecoveryPage[]; lastPageRead: number; isRead: boolean };
 export type RecoveryProgress = { chapter: ChapterProgressIdentity; patch: Partial<ProgressPatch> };
+export type RecoveryBookKey = { id: number; sourceId: string; url: string };
+export type RecoveryKeys = { books: RecoveryBookKey[]; chapters: { id: number; url: string }[] };
 export type RecoveryManifest = {
   id: string;
   createdAt: string;
@@ -22,6 +24,7 @@ export type RecoveryManifest = {
   notes: NoteExport["notes"];
   progress: RecoveryProgress[];
   chapters: RecoveryChapter[];
+  sourceKeys?: RecoveryKeys;
 };
 
 function invalid(): never { throw new Error("This recovery file has invalid or unsupported contents."); }
@@ -63,6 +66,22 @@ function progressPatch(value: unknown): Partial<ProgressPatch> {
   if (!Object.keys(patch).length) return invalid();
   return patch;
 }
+
+function sourceKeys(value: unknown): RecoveryKeys {
+  const data = object(value);
+  const recordKey = (item: unknown) => {
+    const row = object(item);
+    return { id: integer(row.id, 1, 2147483647), url: text(row.url, 4096) };
+  };
+  const books = items(data.books, 30000).map((item) => {
+    const sourceId = text(object(item).sourceId, 21);
+    if (!/^-?\d+$/.test(sourceId)) return invalid();
+    return { ...recordKey(item), sourceId };
+  });
+  const chapters = items(data.chapters, 20000).map(recordKey);
+  if (new Set(books.map(({ id }) => id)).size !== books.length || new Set(chapters.map(({ id }) => id)).size !== chapters.length) return invalid();
+  return { books, chapters };
+}
 function parseManifest(value: unknown): RecoveryManifest {
   const raw = object(value);
   if (!validLibraryMarker(raw.id) || raw.libraryId !== null && !validLibraryMarker(raw.libraryId)) return invalid();
@@ -89,7 +108,9 @@ function parseManifest(value: unknown): RecoveryManifest {
   if ((!raw.libraryId && notes.length + progress.length + chapters.length) ||
       new Set(progress.map(({ chapter }) => chapter.chapterId)).size !== progress.length ||
       new Set(chapters.map(({ chapterId }) => chapterId)).size !== chapters.length) return invalid();
-  return { id: raw.id, createdAt, libraryId: raw.libraryId, preferences, notes, progress, chapters };
+  const keys = raw.sourceKeys === undefined ? undefined : sourceKeys(raw.sourceKeys);
+  if (keys && !raw.libraryId) return invalid();
+  return { id: raw.id, createdAt, libraryId: raw.libraryId, preferences, notes, progress, chapters, sourceKeys: keys };
 }
 
 async function sha256(data: ArrayBuffer) {

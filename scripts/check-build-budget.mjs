@@ -9,7 +9,7 @@ const limits = {
   licenseNoticeBytes: 128 * 1024,
   identityBytes: 768 * 1024,
   javascriptBytes: 1024 * 1024 + 80 * 1024,
-  deviceRecoveryBytes: 24 * 1024,
+  deviceRecoveryBytes: 32 * 1024,
   largestJavaScriptBytes: 350 * 1024,
 };
 
