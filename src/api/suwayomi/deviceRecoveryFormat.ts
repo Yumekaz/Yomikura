@@ -107,6 +107,8 @@ export async function describeRecoveryPage(blob: Blob): Promise<RecoveryPage> {
 
 export async function createRecoveryFile(manifest: RecoveryManifest, pageBlobs: Blob[]) {
   const cleaned = parseManifest(manifest);
+  const pageIndex = cleaned.chapters.flatMap((chapter) => chapter.pages);
+  if (pageIndex.length !== pageBlobs.length || pageIndex.some((page, index) => page.size !== pageBlobs[index].size)) return invalid();
   const encoded = new TextEncoder().encode(JSON.stringify(cleaned));
   if (encoded.byteLength > maxManifestBytes) throw new Error("The recovery file has too many records.");
   const header = new Uint8Array(headerBytes);

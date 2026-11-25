@@ -8,7 +8,7 @@ import { checkpointRecovery, readRecoveryJob, runRecovery, stageRecoveryJob } fr
 import { assertLibrarySession } from "./librarySession";
 import { addMissingCachedChapter, cleanupUnreferencedCachedPages, getCachedChapter, getCachedChapters, getChapterCacheKey } from "./offlineCache";
 import { buildSuwayomiPageUrl } from "./pageUrls";
-import { getProgressHead, getProgressHeads } from "./progressStorage";
+import { AlreadyRecoveredProgress, getProgressHead, getProgressHeads } from "./progressStorage";
 import { cachedIdentity, isCurrentProgressBackend, progressChapterIdentity, saveProgressIntent, synchronizeProgress } from "./progressSync";
 import { validatePageBlob } from "./validatePageBlob";
 
@@ -163,11 +163,14 @@ export function applyRecoveredProgress(id: string, chapterId: number, backend: P
     if (JSON.stringify(snapshot) !== JSON.stringify(reviewed)) throw new Error("Server progress changed during review. Open the current update again.");
     const recoveryKey = JSON.stringify([archiveId, backend.libraryId, chapterId]);
     const saved = await saveProgressIntent(backend, { kind: "explicit", chapter: identity, baseline: snapshot,
-      patch: entry.patch, expectedSequence: before?.sequence ?? 0, recoveryKey, recoveryBaseline: snapshot });
-    if (!saved.accepted && saved.reason !== "already-recovered") throw new Error("This chapter has existing or changed device progress. Resolve it before applying this recovered update.");
+      patch: entry.patch, expectedSequence: before?.sequence ?? 0, recoveryKey, recoveryBaseline: snapshot }).catch((error: unknown) => {
+      if (error instanceof AlreadyRecoveredProgress) return undefined;
+      throw error;
+    });
+    if (saved && !saved.accepted) throw new Error("This chapter has existing or changed device progress. Resolve it before applying this recovered update.");
     await checkpointRecovery(id, (current) => ({ ...current, reviewedProgress: Array.from(new Set([...(current.reviewedProgress ?? []), chapterId])) }));
     await synchronizeProgress(backend);
-    return saved.accepted;
+    return saved?.accepted ?? false;
   });
 }
 

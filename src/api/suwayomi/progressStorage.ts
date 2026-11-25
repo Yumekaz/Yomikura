@@ -3,6 +3,7 @@ import { rememberedLibrary } from "./librarySession";
 
 export const PROGRESS_CHANGED_EVENT = "yomikura-progress-changed";
 const DATABASE = "yomikura-progress";
+export class AlreadyRecoveredProgress extends Error {}
 export type ProgressPatch = { isRead: boolean; lastPageRead: number; isBookmarked?: boolean };
 export type ProgressIntent = {
   libraryId?: string | null;
@@ -183,7 +184,7 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
     const key = entityKey(backend, intent.chapter.chapterId);
     const previous = await read<ProgressHead | undefined>(heads.get(key));
     if (intent.recoveryKey) {
-      if (await read(tx.objectStore("recovered").getKey(intent.recoveryKey))) return { head: previous, accepted: false, reason: "already-recovered" };
+      if (await read(tx.objectStore("recovered").getKey(intent.recoveryKey))) throw new AlreadyRecoveredProgress("This recovered update was already queued for synchronization.");
       if (previous && previous.sequence > previous.acknowledgedSequence) return { head: previous, accepted: false, reason: "pending-progress" };
     }
     if (previous && previous.sequence > previous.acknowledgedSequence && (previous.libraryId ?? null) !== (libraryId ?? null) && !(intent.kind === "explicit" && intent.reviewedLibrary)) return { head: previous, accepted: false, reason: "identity" };

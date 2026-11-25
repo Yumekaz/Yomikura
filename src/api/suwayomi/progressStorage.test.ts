@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
 import { chapterIdentityMatches, progressBackend } from "./backendIdentity";
-import { acknowledgeProgress, acquireProgressLease, enqueueProgress, getProgressHead, getProgressOperations, markProgressOperation, releaseProgressLease, type ProgressIntent } from "./progressStorage";
+import { acknowledgeProgress, acquireProgressLease, AlreadyRecoveredProgress, enqueueProgress, getProgressHead, getProgressOperations, markProgressOperation, releaseProgressLease, type ProgressIntent } from "./progressStorage";
 
 const server = progressBackend("http://localhost:4567");
 const second = progressBackend("http://localhost:4568");
@@ -29,6 +29,17 @@ describe("progress operation identity", () => {
 });
 
 describe("durable ordered progress", () => {
+  it("keeps a recovery receipt across acknowledgments and protects newer device progress on retry", async () => {
+    const recovery = { ...reading(2), kind: "explicit" as const, recoveryKey: "archive-fixture:chapter-12" };
+    await enqueueProgress(server, recovery);
+    const [first] = await getProgressOperations(server);
+    await acquireProgressLease(server, "worker");
+    await acknowledgeProgress(first, "worker", first.patch);
+    await enqueueProgress(server, reading(1, 1));
+    await expect(enqueueProgress(server, recovery)).rejects.toBeInstanceOf(AlreadyRecoveredProgress);
+    expect((await getProgressOperations(server)).map((operation) => operation.patch.lastPageRead)).toEqual([1]);
+  });
+
   it("persists a pending operation and coalesces unsent automatic positions", async () => {
     await enqueueProgress(server, reading(1));
     const saved = await enqueueProgress(server, reading(2));

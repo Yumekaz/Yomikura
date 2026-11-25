@@ -74,7 +74,7 @@ test("device recovery resumes a partial import and reviews progress in the match
   await page.getByLabel("Open recovery file").setInputFiles({ name: "recovery.yomirecovery", mimeType: file.type, buffer: Buffer.from(await file.arrayBuffer()) });
   await expect(page.getByRole("heading", { name: "Staged recovery" })).toBeVisible();
   await page.reload();
-  await expect(page.getByText("1 notes · 1 reading updates · 1 saved chapters", { exact: false })).toBeVisible();
+  await expect(page.getByText("1 note · 1 reading update · 1 saved chapter", { exact: false })).toBeVisible();
 
   await action(page, "Apply recovered preferences", "Apply preferences");
   await expect(page.getByRole("button", { name: "Restore earlier preferences", exact: true })).toBeVisible();

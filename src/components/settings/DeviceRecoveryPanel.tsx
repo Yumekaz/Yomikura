@@ -12,6 +12,8 @@ function progressDescription(patch: Partial<ProgressPatch>) {
     patch.isBookmarked === undefined ? null : patch.isBookmarked ? "bookmarked" : "bookmark removed"].filter(Boolean).join(", ");
 }
 
+const count = (total: number, name: string) => `${total} ${name}${total === 1 ? "" : "s"}`;
+
 export function DeviceRecoveryPanel() {
   const { confirm } = useFeedback();
   const [job, setJob] = useState<RecoveryJob>();
@@ -76,7 +78,7 @@ export function DeviceRecoveryPanel() {
     {job && <div className="rounded-xl border border-white/10 bg-ink-950/35 p-4 space-y-4">
       <h4 className="font-semibold text-slate-200">Staged recovery</h4>
       {manifest && <>
-        <p className="text-sm text-slate-400">{new Date(manifest.createdAt).toLocaleDateString()} · {manifest.notes.length} notes · {manifest.progress.length} reading updates · {manifest.chapters.length} saved chapters</p>
+        <p className="text-sm text-slate-400">{new Date(manifest.createdAt).toLocaleDateString()} · {count(manifest.notes.length, "note")} · {count(manifest.progress.length, "reading update")} · {count(manifest.chapters.length, "saved chapter")}</p>
         <div className="flex flex-wrap gap-3">
           <button type="button" disabled={busy} className="yomi-button yomi-button-secondary" onClick={() => void run(async () => {
             const undo = job.preferencesApplied === true;

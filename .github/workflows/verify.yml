@@ -57,6 +57,8 @@ jobs:
         run: pnpm exec playwright test tests/e2e/reading-controls.spec.ts --grep "chapter actions remain inside the viewport"
       - name: Check offline reader continuity after completion
         run: pnpm exec playwright test tests/e2e/reader-continuity.spec.ts --grep "moving backward after completion"
+      - name: Check device recovery into a clean profile
+        run: pnpm exec playwright test tests/e2e/device-recovery.spec.ts
       - name: Desktop interaction tests
         run: pnpm run test:e2e
       - name: Preserve demo visual review screens
