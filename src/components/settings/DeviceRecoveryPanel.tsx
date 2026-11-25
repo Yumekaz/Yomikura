@@ -41,7 +41,10 @@ export function DeviceRecoveryPanel() {
       await reload();
       if (text) setFeedback({ text });
     } catch (error) {
-      setFeedback({ text: error instanceof Error ? error.message : "Device recovery could not be completed. Try again.", error: true });
+      const text = error instanceof DOMException && error.name === "QuotaExceededError"
+        ? "There is too little free storage for this recovery. Free space and retry. A staged file remains available for retry."
+        : error instanceof Error ? error.message : "Device recovery could not be completed. Try again.";
+      setFeedback({ text, error: true });
       await reload().catch(() => undefined);
     } finally { setBusy(false); }
   };

@@ -82,7 +82,7 @@ test("device recovery resumes a partial import and reviews progress in the match
 
   await page.evaluate(() => localStorage.setItem("fixture-quota", "1"));
   await action(page, "Restore notes and saved chapters", "Restore device records");
-  await expect(page.getByRole("alert").filter({ hasText: "Fixture full storage" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "There is too little free storage" })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("button", { name: "Restore notes and saved chapters", exact: true })).toBeEnabled();
   await page.evaluate(() => localStorage.removeItem("fixture-quota"));

@@ -21,6 +21,7 @@ export function recoveryBackend() {
 
 export async function captureDeviceRecovery(backend: ProgressBackend, includePages: boolean) {
   const libraryId = backend.isDemo ? null : backend.libraryId ?? null;
+  if (includePages && !libraryId) throw new Error("Connect to the library that owns the saved chapters before including pages.");
   const preferences = captureRecoveryPreferences();
   const notes = libraryId ? parseNoteExport(await captureNoteExport(backend)).notes : [];
   const progress = libraryId ? (await getProgressHeads(backend)).filter((head) => head.sequence > head.acknowledgedSequence).map((head) => ({
