@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      extension_migration:
+        description: Verify a populated extension library against the Suwayomi hotfix
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -202,3 +207,75 @@ jobs:
           path: src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
           retention-days: 7
+      - name: Preserve the installer build's browser interface for migration
+        if: inputs.extension_migration
+        uses: actions/upload-artifact@v4
+        with:
+          name: yomikura-extension-migration-web
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  managed-extension-migration:
+    name: Managed Suwayomi extension migration (Windows)
+    if: github.event_name == 'workflow_dispatch' && inputs.extension_migration
+    needs: desktop-installer-windows
+    runs-on: windows-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: yomikura-windows-installer
+          path: ${{ runner.temp }}/yomikura-migration-installer
+      - uses: actions/download-artifact@v4
+        with:
+          name: yomikura-extension-migration-web
+          path: dist/
+      - name: Verify production private runtime
+        id: private-runtime
+        shell: pwsh
+        run: ./scripts/verify-private-runtime.ps1 -Destination (Join-Path $env:RUNNER_TEMP 'yomikura-private-runtime')
+      - name: Install build and enable Yomikura WebView inspection on this disposable runner
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $directory = Join-Path $env:RUNNER_TEMP 'yomikura-migration-installer'
+          $installers = @(Get-ChildItem -LiteralPath $directory -File -Filter '*-setup.exe')
+          if ($installers.Count -ne 1) { throw 'Expected exactly one Windows installer from this run.' }
+          $process = Start-Process -FilePath $installers[0].FullName -ArgumentList '/S' -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Yomikura installer exited with $($process.ExitCode)." }
+          $key = 'HKLM:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+          New-Item -Path $key -Force | Out-Null
+          foreach ($app in @('app.exe', 'Yomikura.exe')) {
+            New-ItemProperty -Path $key -Name $app -Value '--remote-debugging-port=9237 --remote-debugging-address=127.0.0.1' -PropertyType String -Force | Out-Null
+          }
+      - name: Migrate installed source, server download, device copy, and reading progress
+        run: node scripts/verify-extension-migration.mjs
+        env:
+          YOMIKURA_PRIVATE_JAVA: ${{ steps.private-runtime.outputs.java_home }}
+      - name: Preserve original-fixture evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-migration-evidence
+          path: |
+            .cache/extension-migration/**/*.json
+            .cache/extension-migration/**/*.log
+            .cache/extension-migration/**/*.png
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
