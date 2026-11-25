@@ -144,8 +144,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/yomikura-smoke-deps
-          key: suwayomi-smoke-v2.4.2373-dd05d523cc785b7acf90c9feac0bc84c53d5fb3af5ab2a33653646e2076e5217
-          restore-keys: suwayomi-smoke-v2.3.2243-821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5
+          key: suwayomi-smoke-v2.4.2373
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Check release version synchronization

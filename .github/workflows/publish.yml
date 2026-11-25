@@ -144,7 +144,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/yomikura-smoke-deps
-          key: suwayomi-smoke-v2.4.2373-dd05d523cc785b7acf90c9feac0bc84c53d5fb3af5ab2a33653646e2076e5217
+          key: suwayomi-smoke-v2.4.2373
       - name: Test the exact uploaded Windows installer
         if: matrix.platform == 'windows-latest'
         env:
@@ -191,7 +191,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/yomikura-smoke-deps
-          key: suwayomi-smoke-v2.4.2373-dd05d523cc785b7acf90c9feac0bc84c53d5fb3af5ab2a33653646e2076e5217
+          key: suwayomi-smoke-v2.4.2373
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:

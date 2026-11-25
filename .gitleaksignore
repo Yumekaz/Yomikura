@@ -4,3 +4,8 @@ dc9c1f03ccaeae05b85ca0b18bbfc5a75f708fea:.github/workflows/publish.yml:generic-a
 dc9c1f03ccaeae05b85ca0b18bbfc5a75f708fea:.github/workflows/verify.yml:generic-api-key:97
 # Public CI cache key, not a credential. Exact historical match only.
 fa86f1a4e9eba66ecf9aeecb2aac629996fea60f:.github/workflows/released-windows-reliability.yml:generic-api-key:32
+# Public Suwayomi v2.3.2243 and v2.4.2373 release checksums in historical cache labels.
+d84dd2e7d3fbb8f4fe3e382650c203f8ac1568ca:.github/workflows/publish.yml:generic-api-key:147
+d84dd2e7d3fbb8f4fe3e382650c203f8ac1568ca:.github/workflows/publish.yml:generic-api-key:194
+d84dd2e7d3fbb8f4fe3e382650c203f8ac1568ca:.github/workflows/verify.yml:generic-api-key:147
+d84dd2e7d3fbb8f4fe3e382650c203f8ac1568ca:.github/workflows/verify.yml:generic-api-key:148

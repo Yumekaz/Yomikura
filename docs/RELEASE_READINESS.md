@@ -20,7 +20,7 @@ On a clean Windows runner, the verification workflow must prove:
 
 1. The NSIS installer exists and is a realistic size.
 2. Installation registers Yomikura correctly.
-3. A seeded user-selected storage folder, using the same pinned and SHA-256-verified Suwayomi build plus Java 21, lets the installed app start its local engine and answer a real GraphQL health request.
+3. A seeded user-selected storage folder, using the same pinned and SHA-256-verified Suwayomi build plus Java 21, lets the installed app start its local engine and report the pinned version through GraphQL.
 4. The installed executable and its owned backend remain alive through the launch smoke window, then close cleanly.
 5. Uninstallation removes the application executable.
 6. The selected library, default library directory, and local settings survive uninstall. The installer also preserves unrelated files in the install directory and a neighboring directory reached through a junction.
@@ -32,7 +32,11 @@ The runner independently downloads the production-pinned Windows Java archive, v
 
 The Windows uninstaller preserves reader data. To free chapter storage before uninstall, clear the selected library's device copies in **Settings → Offline storage**. Server downloads are managed separately by the connected library. The first release containing this installer change must tell v1.0.25 users to upgrade in place so they keep their existing data.
 
-Managed local setup downloads a checksum-verified Java 21.0.13.1 runtime when no supported patched Java is available. Existing releases keep their original runtime until the app is updated. The [Adoptium advisory](https://adoptium.net/news/2026/11/temurin-november-2026-cspu-java4shell/) establishes the Java patch floor. Verify Suwayomi itself separately, including migration from the previous pin, before replacing the server JAR.
+Managed local setup downloads a checksum-verified Java 21.0.13.1 runtime when no supported patched Java is available. Existing releases keep their original runtime until the app is updated. The [Adoptium advisory](https://adoptium.net/news/2026/11/temurin-november-2026-cspu-java4shell/) establishes the Java patch floor.
+
+For a managed Suwayomi upgrade, dispatch **Verify** with **extension_migration** enabled. The Windows runner copies a library populated on the previous pin and checks the library identity, extension catalog, saved chapter data, and acknowledged reading position after migration. The browser must open the server download while the source is unavailable. The installed desktop reader must open its device copy while the server is stopped. The runner uses an original fixture extension and demo artwork.
+
+The v2.3.2243 → v2.4.2373 migration passed with patched Java 21. Mihon's restore work informed the check that readers can find and open retained pages. [Windows migration results](https://github.com/Yumekaz/Yomikura/actions/runs/45533669923) · [Suwayomi hotfix](https://github.com/Suwayomi/Suwayomi-Server/releases/tag/v2.4.2373) · [Mihon report](https://github.com/mihonapp/mihon/issues/2574) · [Mihon fix](https://github.com/mihonapp/mihon/pull/3096) · [Mihon restore implementation](https://github.com/mihonapp/mihon/blob/v0.21.3/app/src/main/java/eu/kanade/tachiyomi/data/backup/restore/BackupRestorer.kt)
 
 ## Manual beta matrix
 
