@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { expect } from '@playwright/test';
 
-async function progressHead(page, chapterId, origin) {
+export async function progressHead(page, chapterId, origin) {
   return page.evaluate(async ({ chapterId, origin }) => {
     const db = await new Promise((resolve, reject) => {
       const request = indexedDB.open('yomikura-progress');

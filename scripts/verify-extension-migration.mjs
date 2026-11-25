@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium, expect } from '@playwright/test';
 import { verifyProgressAfterStop } from './fixtures/verify-progress-after-stop.mjs';
+import { verifyDeviceRecovery } from './fixtures/verify-device-recovery.mjs';
 
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Use a disposable GitHub runner.');
 assert.equal(process.env.RUNNER_OS, 'Windows');
@@ -294,6 +295,13 @@ try {
       outcomes: report.abruptProgress,
     });
     report.checks.push('Both readers kept page 2 after each abrupt server stop. Pending writes reached Suwayomi after reconnecting.');
+
+    await verifyDeviceRecovery({
+      native, browser, origin, settings, mangaId: book.id, chapterId: chapter.id,
+      stopServer: () => stopProcess(backend), startServer: (name) => startBackend(name, newJar, migratedLibrary, mediaOrigin),
+      closeDesktop: () => stopProcess(desktop), chapterState, waitFor,
+    });
+    report.checks.push('The installed app exported preferences, a note draft, pending progress, and chapter pages offline. A fresh browser profile restored the file, reviewed the progress against real Suwayomi, and opened the saved chapter with API requests blocked.');
   } finally {
     await native.desktopBrowser.close().catch(() => {});
   }
