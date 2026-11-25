@@ -20,7 +20,7 @@ function captureRecoveryPreferences() {
 }
 
 function applyRecoveryPreferences({ reader, downloads, customKeybinds, ...settings }: RecoveryPreferences) {
-  useSettingsStore.setState((current) => ({
+  return useSettingsStore.setState((current) => ({
     ...settings,
     ...(customKeybinds ? { customKeybinds: { ...current.customKeybinds, ...customKeybinds } } : {}),
     experience: { ...current.experience, reader, downloads: { ...current.experience.downloads, ...downloads } },
@@ -87,7 +87,7 @@ export function restoreDevicePreferences(id: string, undo = false) {
     if (!undo && job.preferencesApplied) return;
     await checkpointRecovery(id, (current) => ({ ...current, previousPreferences: before }));
     // If interrupted between these writes, the before-copy remains available.
-    applyRecoveryPreferences(undo ? before : archive.manifest.preferences);
+    await applyRecoveryPreferences(undo ? before : archive.manifest.preferences);
     await checkpointRecovery(id, (current) => ({ ...current, preferencesApplied: !undo }));
   });
 }
@@ -146,7 +146,10 @@ export function restoreDeviceRecords(id: string, backend: ProgressBackend) {
         id: chapter.chapterId, name: chapter.chapterName, chapterNumber: chapter.chapterNumber, mangaId: chapter.mangaId,
         mangaTitle: chapter.mangaTitle, sourceOrder: chapter.sourceOrder, pageCount: pages.length,
         pages: networkUrls, networkUrls, cachedUrls, totalSizeBytes: pages.reduce((total, page) => total + page.size, 0),
-        cachedAt: Date.now(), lastPageRead: chapter.lastPageRead, isRead: chapter.isRead, isBookmarked: remote.isBookmarked,
+        // Imported page bytes must not seed an unreviewed reading update when
+        // the offline reader records the first page it displays.
+        cachedAt: Date.now(), lastPageRead: Math.max(0, Math.min(remote.lastPageRead, pages.length - 1)),
+        isRead: remote.isRead, isBookmarked: remote.isBookmarked,
       });
     }
     await confirmRecoveryLibrary(backend, manifest.libraryId);

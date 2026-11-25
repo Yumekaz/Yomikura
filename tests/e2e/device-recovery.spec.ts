@@ -89,6 +89,23 @@ test("device recovery resumes a partial import and reviews progress in the match
   await action(page, "Restore notes and saved chapters", "Restore device records");
   await expect(page.getByRole("button", { name: "Device records restored", exact: true })).toBeDisabled();
   expect(writes).toEqual([]);
+  // Opening the restored download while offline must not resurrect the
+  // archive's unreviewed progress through the reader's initial page save.
+  const initialOfflinePage = await page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("yomikura-offline");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      return await new Promise<number>((resolve, reject) => {
+        const request = db.transaction("chapters").objectStore("chapters").getAll();
+        request.onsuccess = () => resolve(request.result.find((record) => record.id === 12).lastPageRead);
+        request.onerror = () => reject(request.error);
+      });
+    } finally { db.close(); }
+  });
+  expect(initialOfflinePage).toBe(0);
 
   remote.marker = "33333333-3333-4333-8333-333333333333";
   await page.getByRole("button", { name: "Review progress for Recovery chapter", exact: true }).click();
