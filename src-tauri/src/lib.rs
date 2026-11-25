@@ -43,12 +43,12 @@ struct RunningBackend {
     data_path: std::path::PathBuf,
 }
 
-const SUWAYOMI_JAR_NAME: &str = "Suwayomi-Server-v2.3.2243.jar";
+const SUWAYOMI_JAR_NAME: &str = "Suwayomi-Server-v2.4.2373.jar";
 const SUWAYOMI_JAR_URL: &str =
-    "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.3.2243/Suwayomi-Server-v2.3.2243.jar";
+    "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.4.2373/Suwayomi-Server-v2.4.2373.jar";
 const SUWAYOMI_JAR_MIN_BYTES: u64 = 50_000_000;
 const SUWAYOMI_JAR_SHA256: &str =
-    "821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5";
+    "dd05d523cc785b7acf90c9feac0bc84c53d5fb3af5ab2a33653646e2076e5217";
 const MANAGED_STORAGE_MARKER: &str = ".yomikura-managed-storage";
 const MANAGED_STORAGE_MARKER_CONTENT: &str = "YOMIKURA_MANAGED_STORAGE_V1";
 const MANAGED_STORAGE_RECORD: &str = "managed-storage-path.txt";

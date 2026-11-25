@@ -13,9 +13,10 @@ $ErrorActionPreference = "Stop"
 $installer = (Resolve-Path -LiteralPath $InstallerPath).Path
 if ((Get-Item -LiteralPath $installer).Length -lt 1MB) { throw "Installer is unexpectedly small: $installer" }
 
-$backendJarName = "Suwayomi-Server-v2.3.2243.jar"
-$backendJarUrl = "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.3.2243/Suwayomi-Server-v2.3.2243.jar"
-$backendJarSha256 = "821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5"
+$backendVersion = "2.4.2373"
+$backendJarName = "Suwayomi-Server-v$backendVersion.jar"
+$backendJarUrl = "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v$backendVersion/$backendJarName"
+$backendJarSha256 = "dd05d523cc785b7acf90c9feac0bc84c53d5fb3af5ab2a33653646e2076e5217"
 $managedStorageMarker = ".yomikura-managed-storage"
 $managedStorageMarkerContent = "YOMIKURA_MANAGED_STORAGE_V1"
 
@@ -258,7 +259,12 @@ try {
     # has been satisfied so this test verifies uninstall preservation rather
     # than accidentally testing rejection of a non-empty folder.
     Set-Content -LiteralPath (Join-Path $PreservedStoragePath "smoke-sentinel.txt") -Value "Yomikura user data must survive an application uninstall." -NoNewline
-    Write-Host "Local Suwayomi GraphQL endpoint is ready on port $backendPort"
+    $about = Invoke-RestMethod -Uri "http://127.0.0.1:$backendPort/api/graphql" -Method Post -ContentType "application/json" -Body '{"query":"{ aboutServer { version } }"}' -TimeoutSec 10
+    $runningVersion = ([string]$about.data.aboutServer.version) -replace '^v', ''
+    if ($runningVersion -ne $backendVersion) {
+      throw "The installed app started Suwayomi '$runningVersion'. Expected '$backendVersion'."
+    }
+    Write-Host "Installed app started Suwayomi $runningVersion on port $backendPort"
   }
   Write-Host "Verifying the supported Suwayomi GraphQL contract"
   node (Join-Path $PSScriptRoot "verify-suwayomi-contract.mjs") "--base-url=http://127.0.0.1:$backendPort"

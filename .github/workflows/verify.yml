@@ -140,11 +140,12 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - name: Cache pinned smoke backend
+      - name: Cache current and baseline Suwayomi JARs
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/yomikura-smoke-deps
-          key: suwayomi-smoke-v2.3.2243-821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5
+          key: suwayomi-smoke-v2.4.2373-dd05d523cc785b7acf90c9feac0bc84c53d5fb3af5ab2a33653646e2076e5217
+          restore-keys: suwayomi-smoke-v2.3.2243-821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Check release version synchronization
@@ -169,7 +170,7 @@ jobs:
           $installer = (Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1).FullName
           if (-not $installer) { throw "NSIS installer artifact was not found" }
           $userStorage = Join-Path $env:RUNNER_TEMP "yomikura-user-storage"
-          $backendJarCache = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.3.2243.jar"
+          $backendJarCache = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.4.2373.jar"
           # Fresh Windows runners can spend several minutes scanning the
           # verified 166 MB backend JAR. Keep the wait bounded, but allow a
           # realistic clean-install margin before declaring startup broken.
@@ -180,12 +181,22 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $backendJar = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.3.2243.jar"
+          $runtimeCache = Join-Path $env:RUNNER_TEMP 'yomikura-smoke-deps'
+          $baselineVersion = '2.3.2243'
+          $baselineName = "Suwayomi-Server-v$baselineVersion.jar"
+          $backendJar = Join-Path $runtimeCache $baselineName
+          $baselineDigest = '821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5'
+          if (!(Test-Path -LiteralPath $backendJar -PathType Leaf) -or
+              (Get-FileHash -LiteralPath $backendJar -Algorithm SHA256).Hash -ne $baselineDigest) {
+            Invoke-WebRequest -Uri "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v$baselineVersion/$baselineName" -OutFile $backendJar
+          }
+          if ((Get-FileHash -LiteralPath $backendJar -Algorithm SHA256).Hash -ne $baselineDigest) {
+            throw 'The baseline Suwayomi JAR does not match its official digest.'
+          }
           $javaBinary = Join-Path $env:YOMIKURA_PRIVATE_JAVA "bin\java.exe"
           $candidateVersion = '2.4.2373'
           $candidateName = "Suwayomi-Server-v$candidateVersion.jar"
-          $candidateJar = Join-Path $env:RUNNER_TEMP $candidateName
-          Invoke-WebRequest -Uri "https://github.com/Suwayomi/Suwayomi-Server/releases/download/v$candidateVersion/$candidateName" -OutFile $candidateJar
+          $candidateJar = Join-Path $runtimeCache $candidateName
           $candidateDigest = (Get-FileHash -LiteralPath $candidateJar -Algorithm SHA256).Hash
           if ($candidateDigest -ne 'dd05d523cc785b7acf90c9feac0bc84c53d5fb3af5ab2a33653646e2076e5217') {
             throw 'The Suwayomi migration candidate does not match its official digest.'

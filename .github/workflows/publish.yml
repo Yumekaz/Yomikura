@@ -144,7 +144,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/yomikura-smoke-deps
-          key: suwayomi-smoke-v2.3.2243-821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5
+          key: suwayomi-smoke-v2.4.2373-dd05d523cc785b7acf90c9feac0bc84c53d5fb3af5ab2a33653646e2076e5217
       - name: Test the exact uploaded Windows installer
         if: matrix.platform == 'windows-latest'
         env:
@@ -154,7 +154,7 @@ jobs:
           $installers = @(Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe")
           if ($installers.Count -ne 1) { throw "Expected exactly one release installer" }
           $storage = Join-Path $env:RUNNER_TEMP "yomikura-exact-release-library"
-          $backend = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.3.2243.jar"
+          $backend = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.4.2373.jar"
           ./scripts/smoke-test-installer.ps1 -InstallerPath $installers[0].FullName -PreservedStoragePath $storage -PreseedRuntime -JavaHomePath $env:YOMIKURA_PRIVATE_JAVA -BackendJarCachePath $backend -StartupTimeoutSeconds 240
 
       - name: Create release checksums
@@ -191,7 +191,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/yomikura-smoke-deps
-          key: suwayomi-smoke-v2.3.2243-821141b32e170d4a02d3cbdfed577ed8f07bd22383ff5f4132ebb5ae40e98dd5
+          key: suwayomi-smoke-v2.4.2373-dd05d523cc785b7acf90c9feac0bc84c53d5fb3af5ab2a33653646e2076e5217
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -224,7 +224,7 @@ jobs:
           $installer = (Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1).FullName
           if (-not $installer) { throw "NSIS installer artifact was not found" }
           $userStorage = Join-Path $env:RUNNER_TEMP "yomikura-release-user-storage"
-          $backendJarCache = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.3.2243.jar"
+          $backendJarCache = Join-Path $env:RUNNER_TEMP "yomikura-smoke-deps\Suwayomi-Server-v2.4.2373.jar"
           ./scripts/smoke-test-installer.ps1 -InstallerPath $installer -PreservedStoragePath $userStorage -PreseedRuntime -JavaHomePath $env:YOMIKURA_PRIVATE_JAVA -BackendJarCachePath $backendJarCache -StartupTimeoutSeconds 240
       - name: Collect installer smoke diagnostics
         if: always()
