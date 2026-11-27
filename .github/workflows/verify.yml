@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      hosted_web_run:
+        description: Actions run ID supplying the web ZIP for the HTTPS sign-in check
+        required: false
+        type: string
       extension_migration:
         description: Verify a populated extension library against the Suwayomi hotfix
         type: boolean
@@ -30,6 +34,7 @@ permissions:
 jobs:
   frontend:
     name: Frontend
+    if: ${{ !inputs.hosted_web_run }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -97,6 +102,7 @@ jobs:
 
   desktop-windows:
     name: Desktop (Windows)
+    if: ${{ !inputs.hosted_web_run }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -134,7 +140,7 @@ jobs:
 
   desktop-installer-windows:
     name: Desktop installer (Windows)
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.hosted_web_run)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -453,6 +459,71 @@ jobs:
             .cache/web-guide-live/**/*.jpg
             .cache/web-guide-live/**/failure.txt
             .cache/web-guide-live/**/server.log
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
+
+  hosted-web:
+    name: Hosted web ZIP over trusted HTTPS
+    if: github.event_name == 'workflow_dispatch' && inputs.hosted_web_run
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify the source run and its web package job
+        id: source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          HOSTED_RUN: ${{ inputs.hosted_web_run }}
+        run: |
+          set -euo pipefail
+          [[ "$HOSTED_RUN" =~ ^[0-9]+$ ]]
+          run=$(gh api "repos/$GH_REPO/actions/runs/$HOSTED_RUN")
+          jq -e --arg repository "$GH_REPO" '
+            .repository.full_name == $repository and .head_repository.full_name == $repository
+            and .path == ".github/workflows/verify.yml" and .event == "workflow_dispatch"
+          ' <<< "$run" >/dev/null
+          gh api "repos/$GH_REPO/actions/runs/$HOSTED_RUN/jobs?per_page=100" \
+            | jq -e '.jobs | any(.name == "Candidate self-hosted web package" and .conclusion == "success")' >/dev/null
+          commit=$(jq -r .head_sha <<< "$run")
+          [[ "$commit" =~ ^[a-f0-9]{40}$ ]]
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          name: candidate-web-evidence
+          run-id: ${{ inputs.hosted_web_run }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/yomikura-hosted-candidate
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: sudo apt-get install -y libnss3-tools
+      - name: Verify browser sign-in, chapter pages and the server download queue
+        run: node scripts/verify-hosted-web.mjs
+        env:
+          YOMIKURA_HOSTED_COMMIT: ${{ steps.source.outputs.commit }}
+          YOMIKURA_HOSTED_ARTIFACT: ${{ runner.temp }}/yomikura-hosted-candidate/candidate-web
+      - name: Preserve sanitized HTTPS evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosted-web-evidence
+          path: .cache/hosted-web-verification/result.json
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
