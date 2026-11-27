@@ -133,7 +133,13 @@ test("a failed middle image allows a later position to save without reading comp
   await expect(failed).toHaveCount(0);
   await expect(page.locator('[id^="reader-page-"]').getByRole("img", { name: "Page 2", exact: true })).toHaveCSS("opacity", "1");
   await page.getByRole("button", { name: "Go to page 3", exact: true }).click();
+  // Wait for the thumbnail jump to finish before scrolling past the last page.
+  // Otherwise its next animation frame can undo the scroll to the ending.
+  await expect(page.getByRole("region", { name: "Reading surface", exact: true })).toHaveAttribute("aria-busy", "false");
   await ending.scrollIntoViewIfNeeded();
+  await page.mouse.move(640, 320);
+  await page.mouse.wheel(0, 100000);
+  await expect(ending.getByRole("heading", { name: "Chapter 59", exact: true })).toBeInViewport();
   await expect(ending.getByText("Finished", { exact: true })).toBeVisible();
   await expect.poll(() => data.patches.filter((patch) => patch.isRead === true)).toHaveLength(1);
 });

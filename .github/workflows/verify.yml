@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       hosted_web_run:
-        description: Actions run ID supplying the web ZIP for the HTTPS sign-in check
+        description: Actions run ID supplying the web ZIP for HTTPS and browser verification
         required: false
         type: string
       extension_migration:
@@ -464,10 +464,10 @@ jobs:
           retention-days: 14
 
   hosted-web:
-    name: Hosted web ZIP over trusted HTTPS
+    name: Verify the built web ZIP
     if: github.event_name == 'workflow_dispatch' && inputs.hosted_web_run
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 22
     permissions:
       contents: read
       actions: read
@@ -527,6 +527,20 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
+      - name: Run browser regressions against the same extracted ZIP
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp -a .cache/hosted-web-verification/library/webUI/. dist/
+          pnpm run test:e2e
+      - name: Preserve exact-ZIP browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exact-web-zip-browser-failure-evidence
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
   staging-updater-windows:
     name: Windows signed update rehearsal
