@@ -877,10 +877,17 @@ fn managed_backend_location(
         .join(MANAGED_STORAGE_RECORD);
     let registered = std::fs::read_to_string(record).map_err(|error| error.to_string())?;
     let sole_registered_root = registered.lines().any(|line| !line.trim().is_empty())
-        && registered.lines().filter(|line| !line.trim().is_empty()).all(|line| {
-            std::fs::canonicalize(line.trim()).as_ref().is_ok_and(|path| path == &root)
-        });
-    let root = root.into_os_string().into_string()
+        && registered
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .all(|line| {
+                std::fs::canonicalize(line.trim())
+                    .as_ref()
+                    .is_ok_and(|path| path == &root)
+            });
+    let root = root
+        .into_os_string()
+        .into_string()
         .map_err(|_| "The managed library folder could not be represented.".to_string())?;
     Ok((root, sole_registered_root))
 }

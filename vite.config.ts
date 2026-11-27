@@ -42,6 +42,13 @@ export default defineConfig({
     },
   },
   optimizeDeps: { entries: ["index.html"] },
+  build: {
+    minify: "terser",
+    terserOptions: {
+      compress: { passes: 2 },
+      format: { comments: false },
+    },
+  },
   // Complete notices ship separately; repeating banners in every lazy chunk
   // needlessly inflates executable assets after the patched Tauri API update.
   esbuild: { legalComments: "none" },
