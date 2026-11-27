@@ -1,23 +1,19 @@
-import { useMemo } from "react";
 import { Copy, ExternalLink } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
+import { validateServerBaseUrl } from "../../config/server";
 
 export function OpdsPanel() {
-  const { serverBaseUrl } = useSettingsStore();
+  const server = validateServerBaseUrl(useSettingsStore((state) => state.serverBaseUrl));
 
-  const opdsUrl = useMemo(() => {
-    const base = serverBaseUrl.replace(/\/$/, "");
-    return base ? `${base}/api/v1/opds` : "";
-  }, [serverBaseUrl]);
-
-  if (!opdsUrl) {
-    return <p className="text-xs text-slate-400">Connect to Suwayomi to expose OPDS.</p>;
+  if (!server.valid) {
+    return <p className="text-xs text-slate-400">Connect to Suwayomi to get your OPDS catalog address.</p>;
   }
+  const opdsUrl = `${server.normalizedUrl.replace(/\/+$/, "")}/api/opds/v1.2`;
 
   return (
     <div className="space-y-3 rounded-xl border border-white/5 bg-ink-950/30 p-4">
       <p className="text-xs text-slate-400">
-        Use this OPDS URL in compatible readers (Kavita, panels apps, etc.).
+        Use this address in a reader that supports OPDS 1.2.
       </p>
       <code className="block break-all rounded-lg bg-black/30 p-3 text-xs text-yomi-mint">
         {opdsUrl}

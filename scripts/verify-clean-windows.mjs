@@ -3,6 +3,7 @@ import { execFile, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:net';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
@@ -24,7 +25,7 @@ if (bootstrap) assert.ok(candidate && path.isAbsolute(bootstrap) && path.isAbsol
 const env = { ...process.env };
 for (const name of Object.keys(env)) if (/^(?:path|java_home|jdk_home|jre_home|java_tool_options|_java_options)$/i.test(name)) delete env[name];
 env.PATH = [path.join(process.env.SystemRoot, 'System32'), process.env.SystemRoot].join(';');
-let app, browser, page, executable, feed;
+let app, browser, page, executable, feed, occupiedPort;
 
 async function ps(script, variables = {}) {
   return (await exec('pwsh', ['-NoProfile', '-NonInteractive', '-Command', script], {
@@ -72,6 +73,19 @@ async function graphql(origin, document, variables) {
   const body = await response.json();
   assert.ok(response.ok && body.data && !body.errors, JSON.stringify(body.errors));
   return body.data;
+}
+
+async function savedPageHashes() {
+  return page.evaluate(async () => {
+    const cache = await caches.open('yomikura-page-cache');
+    const hashes = [];
+    for (const key of await cache.keys()) {
+      const response = await cache.match(key);
+      const digest = await crypto.subtle.digest('SHA-256', await response.arrayBuffer());
+      hashes.push(Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(''));
+    }
+    return hashes.sort();
+  });
 }
 
 async function closeWindow(pid = app.pid) {
@@ -128,14 +142,14 @@ try {
   await page.getByRole('button', { name: 'Add to Library', exact: true }).click();
   await page.getByRole('button', { name: 'Save to library', exact: true }).click();
   const bookPath = new URL(page.url()).pathname;
-  const note = 'Keep this note through the Windows update.';
-  if (feed) {
-    await page.getByText('My notes', { exact: false }).click();
-    await page.getByRole('textbox', { name: 'A note for First Reading', exact: true }).fill(note);
-    await expect(page.getByRole('status').filter({ hasText: 'Saved on this device' })).toBeVisible();
-    await page.getByRole('button', { name: /^Save .* for offline reading$/ }).click();
-    await expect(page.getByRole('button', { name: /^Remove offline download of / })).toBeVisible({ timeout: 60000 });
-  }
+  const note = 'Keep this draft when the library reopens.';
+  await page.getByText('My notes', { exact: false }).click();
+  await page.getByRole('textbox', { name: 'A note for First Reading', exact: true }).fill(note);
+  await expect(page.getByRole('status').filter({ hasText: 'Saved on this device' })).toBeVisible();
+  await page.getByRole('button', { name: /^Save .* for offline reading$/ }).click();
+  await expect(page.getByRole('button', { name: /^Remove offline download of / })).toBeVisible({ timeout: 60000 });
+  const originalHashes = await savedPageHashes();
+  assert.ok(originalHashes.length >= 4, 'The release should retain all four fixture pages before restart');
   await page.getByRole('link', { name: 'Resume', exact: true }).first().click();
   await page.getByRole('button', { name: 'Go to page 3', exact: true }).click();
   const pageThree = () => page.locator('[id^="reader-page-"]').getByRole('img', { name: 'Page 3', exact: true });
@@ -172,15 +186,27 @@ try {
     report.checks.push('The native updater rejected altered bytes and installed the signed candidate. The previous managed backend exited.');
   } else {
     await closeWindow();
+    // Occupy the managed engine's original port with a test-owned listener.
+    // The next installer launch must use its normal fallback and retain data.
+    occupiedPort = createServer((socket) => socket.destroy());
+    await new Promise((resolve, reject) => {
+      occupiedPort.once('error', reject);
+      occupiedPort.listen(Number(new URL(origin).port), '127.0.0.1', resolve);
+    });
     await launch();
+    await waitFor('local library answered on a different port', async () => {
+      const selected = await currentServer();
+      if (!selected || selected === origin) return false;
+      return (await graphql(selected, '{ aboutServer { version } }')).aboutServer.version === aboutServer.version;
+    });
   }
   await expect(page.getByRole('link', { name: 'First Reading', exact: true }).first()).toBeVisible({ timeout: 60000 });
-  if (feed) {
-    await page.goto(`${desktopOrigin}${bookPath}`);
-    await page.getByText('My notes', { exact: false }).click();
-    await expect(page.getByRole('textbox', { name: 'A note for First Reading', exact: true })).toHaveValue(note);
-    await expect(page.getByRole('button', { name: /^Remove offline download of / })).toBeVisible();
-  }
+  await page.goto(`${desktopOrigin}${bookPath}`);
+  await page.getByText('My notes', { exact: false }).click();
+  await expect(page.getByRole('textbox', { name: 'A note for First Reading', exact: true })).toHaveValue(note);
+  await expect(page.getByRole('button', { name: /^Remove offline download of / })).toBeVisible();
+  assert.deepEqual(await savedPageHashes(), originalHashes, 'Restart must preserve the original offline page bytes');
+  if (!feed) report.checks.push('The installed app retained its draft note and identical saved page bytes when an occupied port forced the managed library onto another address.');
   await page.goto(`${desktopOrigin}${readerPath}`);
   await expect(page.getByText('3 of 4 pages', { exact: true })).toBeVisible({ timeout: 60000 });
   await expect(pageThree()).toHaveCSS('opacity', '1');
@@ -203,6 +229,7 @@ try {
   if (app?.exitCode === null) app.kill();
   feed?.server.closeAllConnections();
   feed?.server.close();
+  if (occupiedPort?.listening) await new Promise((resolve) => occupiedPort.close(resolve));
   console.log(JSON.stringify(report));
   await writeFile(path.join(root, 'result.json'), JSON.stringify(report, null, 2));
 }

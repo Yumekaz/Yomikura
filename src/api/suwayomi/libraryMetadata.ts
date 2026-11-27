@@ -52,6 +52,51 @@ export async function saveCover(scope: string | undefined, url: string, blob: Bl
   try { await write("covers", JSON.stringify([scope, url]), blob); } catch { /* Reading remains usable if storage is full. */ }
 }
 
+export async function moveManagedLibraryMetadata(from: string, to: string, marker: string) {
+  const db = await database();
+  const fromScope = JSON.stringify([from, marker]);
+  const toScope = JSON.stringify([to, marker]);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(["snapshots", "covers"], "readwrite");
+      for (const name of ["snapshots", "covers"]) {
+        const store = tx.objectStore(name);
+        const entries = store.openKeyCursor();
+        entries.onsuccess = () => {
+          const cursor = entries.result;
+          if (!cursor) return;
+          let parts: unknown;
+          try { parts = JSON.parse(String(cursor.key)); } catch { /* Unrecognized records stay in place. */ }
+          if (!Array.isArray(parts) || parts[0] !== fromScope || typeof parts[1] !== "string") {
+            cursor.continue();
+            return;
+          }
+          const suffix = name === "covers" && parts[1].startsWith(`${from}/`)
+            ? `${to}${parts[1].slice(from.length)}` : parts[1];
+          const key = JSON.stringify([toScope, suffix]);
+          const existing = store.getKey(key);
+          existing.onsuccess = () => {
+            if (existing.result !== undefined) {
+              cursor.continue();
+              return;
+            }
+            const source = store.get(cursor.key);
+            source.onsuccess = () => {
+              store.add({ ...source.result, key });
+              store.delete(cursor.key);
+              cursor.continue();
+            };
+          };
+        };
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = tx.onabort = () => reject(tx.error ?? new Error("The saved library metadata could not be moved."));
+    });
+  } finally {
+    db.close();
+  }
+}
+
 /** Network first while connected; only transport outages may use a snapshot. */
 export async function metadataRead<T extends object>(scope: string | undefined, key: string, fetchValue: () => Promise<T>, options: { preferSaved?: boolean; signal?: AbortSignal | null } = {}): Promise<T> {
   options.signal?.throwIfAborted();

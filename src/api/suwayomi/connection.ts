@@ -1,8 +1,9 @@
 import { createGraphqlClient } from "../graphql/client";
 import { validateServerBaseUrl } from "../../config/server";
-import { establishLibraryIdentity } from "./libraryIdentity";
+import { establishLibraryIdentity, readLibraryIdentity } from "./libraryIdentity";
 import { rememberLibrary } from "./librarySession";
 import { pendingLibraryRestore } from "./restoreIdentity";
+import { assertManagedEngineSession, movingManagedLibrary, retiredManagedLibrary } from "./managedLibraryLocations";
 
 export class SuwayomiConnectionError extends Error {
   constructor(message: string) {
@@ -11,7 +12,7 @@ export class SuwayomiConnectionError extends Error {
   }
 }
 
-export async function testServerConnection(baseUrl: string): Promise<boolean> {
+export async function testServerConnection(baseUrl: string, expectedLibraryId?: string): Promise<boolean> {
   const validation = validateServerBaseUrl(baseUrl);
   if (!validation.valid) {
     throw new SuwayomiConnectionError(validation.message);
@@ -21,6 +22,7 @@ export async function testServerConnection(baseUrl: string): Promise<boolean> {
   const endpoint = `${cleanUrl}/api/graphql`;
 
   try {
+    await assertManagedEngineSession(cleanUrl);
     const sdk = createGraphqlClient(endpoint, { signal: AbortSignal.timeout(5000) });
     
     // Execute our generated connection test query
@@ -29,8 +31,14 @@ export async function testServerConnection(baseUrl: string): Promise<boolean> {
     // If it returns successfully and has a __typename of 'Query', the server is good
     if (data && data.__typename) {
       if (pendingLibraryRestore(cleanUrl)) throw new SuwayomiConnectionError("A restore needs confirmation. Open Backups to check its status; device updates remain paused.");
+      if (movingManagedLibrary(cleanUrl)) throw new SuwayomiConnectionError("Device data is still being moved for this local library. Let the managed library finish starting.");
       // An explicit connection establishes the current marker. Mutations only verify it.
-      rememberLibrary(cleanUrl, await establishLibraryIdentity(cleanUrl));
+      const identity = expectedLibraryId ? await readLibraryIdentity(cleanUrl) : await establishLibraryIdentity(cleanUrl);
+      if (!identity || expectedLibraryId && identity.marker !== expectedLibraryId) {
+        throw new SuwayomiConnectionError("The local library identity changed while it was starting. Retry with the original library folder.");
+      }
+      if (retiredManagedLibrary(cleanUrl, identity.marker)) throw new SuwayomiConnectionError("This local library has moved. Open its managed profile to connect to the new address.");
+      rememberLibrary(cleanUrl, identity);
       return true;
     }
 

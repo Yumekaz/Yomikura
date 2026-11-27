@@ -18,4 +18,11 @@ describe("backup restore lifecycle", () => {
   it("stops on an explicit server failure", async () => {
     await expect(waitForRestoreStatus(async () => ({ restoreStatus: { state: "FAILURE", mangaProgress: 1, totalManga: 3 } }), "job", { pause: noWait })).rejects.toThrow("restore failed");
   });
+
+  it("returns an unavailable outcome instead of continuing to wait on an expired status", async () => {
+    let attempts = 0;
+    const result = await waitForRestoreStatus(async () => { attempts++; return { restoreStatus: null }; }, "job", { pause: noWait });
+    expect(result).toEqual({ completed: false, status: null });
+    expect(attempts).toBe(1);
+  });
 });

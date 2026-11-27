@@ -12,7 +12,7 @@
     "fs:default",
     {
       "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "$APPCONFIG/yomikura-settings.json" }]
+      "allow": [{ "path": "$APPCONFIG/yomikura-settings.json.pending" }]
     },
     {
       "identifier": "fs:allow-write-file",
@@ -23,6 +23,8 @@
     {
       "identifier": "fs:allow-rename",
       "allow": [
+        { "path": "$APPCONFIG/yomikura-settings.json" },
+        { "path": "$APPCONFIG/yomikura-settings.json.pending" },
         { "path": "$APPLOCALDATA/library-backups/**" }
       ]
     },
@@ -30,6 +32,7 @@
       "identifier": "fs:allow-remove",
       "allow": [
         { "path": "$APPCONFIG/yomikura-settings.json" },
+        { "path": "$APPCONFIG/yomikura-settings.json.pending" },
         { "path": "$APPLOCALDATA/library-backups/**" }
       ]
     },

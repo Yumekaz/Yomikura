@@ -38,13 +38,14 @@ import { ReaderSettingsPanel } from "../components/settings/ReaderSettingsPanel"
 import { LibrarySettingsPanel } from "../components/settings/LibrarySettingsPanel";
 import { PrivacySettingsPanel } from "../components/settings/PrivacySettingsPanel";
 import { validateBackupFile } from "../components/settings/backupValidation";
-import { waitForRestoreStatus } from "../components/settings/backupRestore";
+import { RESTORE_BACKUP_MUTATION_KEY, waitForRestoreStatus } from "../components/settings/backupRestore";
 import { fetchAllLibrary } from "../api/library/fetchAllLibrary";
 import { backupErrorMessage, LibraryBackupError } from "../api/suwayomi/backupStorage";
 import { createLibraryBackup, exportLibraryBackup, restoreWithSafetyBackup } from "../api/suwayomi/libraryBackups";
 import { normalizeCacheServerUrl } from "../api/suwayomi/offlineCache";
-import { restoreBackupUpload } from "../api/suwayomi/backupUpload";
+import { restoreBackupUpload, validateBackupUpload } from "../api/suwayomi/backupUpload";
 import { progressBackend } from "../api/suwayomi/backendIdentity";
+import { verifyLibraryIdentity } from "../api/suwayomi/libraryIdentity";
 
 type SettingsTab = SettingsSection;
 const SETTINGS_TABS: SettingsTab[] = ["appearance", "reader", "library", "privacy", "browse", "offline", "backup", "connection", "advanced", "about"];
@@ -195,36 +196,68 @@ function SettingsPage() {
 
   // Mutation: Restore Backup
   const { mutateAsync: restoreBackup, isPending: restoringBackup } = useMutation({
-    mutationFn: async ({ file, server, endpoint, client }: { file: File; server: string; endpoint: string; client: typeof sdk }) => {
-      if (useSettingsStore.getState().mockMode) throw new LibraryBackupError("Connect to Suwayomi before restoring a backup.");
+    mutationKey: RESTORE_BACKUP_MUTATION_KEY,
+    mutationFn: async ({ file, server, endpoint, client, marker }: { file: File; server: string; endpoint: string; client: typeof sdk; marker: string }) => {
+      const checkSelectedLibrary = () => {
+        const current = useSettingsStore.getState();
+        if (current.mockMode || normalizeCacheServerUrl(current.serverBaseUrl) !== normalizeCacheServerUrl(server)) {
+          throw new LibraryBackupError("The selected server changed. Select the backup again for the current server.");
+        }
+      };
+      checkSelectedLibrary();
+      await verifyLibraryIdentity(server, { marker });
+      const validation = await validateBackupUpload(endpoint, file);
+      if (validation.missingSources.length || validation.missingTrackers.length) {
+        checkSelectedLibrary();
+        const describeMissing = (kind: string, entries: { name: string }[]) => {
+          if (!entries.length) return "";
+          const names = entries.slice(0, 5).map(({ name }) => name || "Unnamed").join(", ");
+          const more = entries.length > 5 ? ` and ${entries.length - 5} more` : "";
+          return `Missing ${kind} include ${names}${more}.`;
+        };
+        const detail = [
+          describeMissing("sources", validation.missingSources),
+          describeMissing("trackers", validation.missingTrackers),
+          "Some restored entries may remain unavailable until you set up these sources or trackers.",
+        ].filter(Boolean).join(" ");
+        if (!await confirm({ title: "Restore with missing sources or trackers?", detail, confirmLabel: "Back up and restore anyway", danger: true })) return null;
+      }
+      checkSelectedLibrary();
+      await verifyLibraryIdentity(server, { marker });
+      setBackupMessage({ kind: "info", text: "Saving and verifying a safety backup before restore…" });
       return restoreWithSafetyBackup(
         () => createLibraryBackup(client, server, "safety"),
         async (safetyBackup) => {
-          if (!safetyBackup.libraryId) throw new LibraryBackupError("The safety copy has no verified library identity. Restore stopped.");
-          const { verifyLibraryIdentity } = await import("../api/suwayomi/libraryIdentity");
-          await verifyLibraryIdentity(server, { marker: safetyBackup.libraryId });
+          checkSelectedLibrary();
+          if (safetyBackup.libraryId !== marker) throw new LibraryBackupError("The safety copy belongs to a different library. Restore stopped.");
+          await verifyLibraryIdentity(server, { marker });
+          checkSelectedLibrary();
           if (normalizeCacheServerUrl(useSettingsStore.getState().serverBaseUrl) === normalizeCacheServerUrl(server)) {
             setBackupMessage({ kind: "info", text: "Safety backup saved and verified. Restoring the selected file…" });
           }
           const token = beginLibraryRestore(server);
           const restore = await restoreBackupUpload(endpoint, file);
           recordLibraryRestore(server, token, restore.id);
-          const result = await waitForRestoreStatus((id) => client.GetRestoreStatus({ id }), restore.id);
+          const result = await waitForRestoreStatus((id) => client.GetRestoreStatus({ id }, undefined, AbortSignal.timeout(10000)), restore.id);
           if (result.completed) { await finishLibraryRestore(server, token); if (normalizeCacheServerUrl(useSettingsStore.getState().serverBaseUrl) === normalizeCacheServerUrl(server) && !useSettingsStore.getState().mockMode) useSettingsStore.setState({ connectionStatus: "connected", errorMessage: "" }); }
           return result;
         },
       );
     },
     onMutate: () => {
-      setBackupMessage({ kind: "info", text: "Saving and verifying a safety backup before restore…" });
+      setBackupMessage({ kind: "info", text: "Checking the backup with Suwayomi…" });
     },
-    onSuccess: ({ result, safetyBackup }) => {
+    onSuccess: (restored) => {
+      if (!restored) { setBackupMessage(null); return; }
+      const { result, safetyBackup } = restored;
       if (normalizeCacheServerUrl(useSettingsStore.getState().serverBaseUrl) !== safetyBackup.serverBaseUrl) return;
       setBackupMessage({
         kind: result.completed ? "success" : "info",
         text: result.completed
           ? `Backup restored successfully${result.status?.totalManga ? ` (${result.status.mangaProgress}/${result.status.totalManga} titles processed)` : ""}. The safety backup is retained in Saved backups.`
-          : "Restore is still running in Suwayomi. Keep the server running; refresh the library after it completes. The safety backup is retained in Saved backups.",
+          : result.status
+            ? "Restore is still running in Suwayomi. Keep the server running. The safety backup is retained in Saved backups."
+            : "Suwayomi no longer has a restore result. Review the current library in Restore recovery. The safety backup is retained in Saved backups.",
       });
       if (result.completed) queryClient.invalidateQueries();
       if (result.completed) notify("Backup restored successfully. Earlier device updates are kept separate; the safety backup is retained.", "success");
@@ -244,6 +277,11 @@ function SettingsPage() {
       setBackupMessage({ kind: "error", text: validationError });
       return;
     }
+    const marker = progressBackend(server).libraryId;
+    if (!marker) {
+      setBackupMessage({ kind: "error", text: "Reconnect to verify the library before restoring a backup." });
+      return;
+    }
 
     const confirmRestore = await confirm({ title: "Restore this backup?", detail: `Check that “${file.name}” is the backup you intend to restore. A server address can be reused by a different library. Yomikura will first save and verify a safety backup on this device. Library, history, and categories may change.`, confirmLabel: "Back up and restore", danger: true });
 
@@ -252,7 +290,7 @@ function SettingsPage() {
         setBackupMessage({ kind: "error", text: "The selected server changed. Select the backup again for the current server." });
         return;
       }
-      await restoreBackup({ file, server, endpoint: graphqlEndpoint, client: sdk }).catch(() => undefined);
+      await restoreBackup({ file, server, endpoint: graphqlEndpoint, client: sdk, marker }).catch(() => undefined);
     }
   };
 

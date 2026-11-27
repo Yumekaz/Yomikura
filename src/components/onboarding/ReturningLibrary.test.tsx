@@ -6,6 +6,9 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import AppShell from "../layout/AppShell";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { rememberLibrary } from "../../api/suwayomi/librarySession";
+import { readLibraryIdentity } from "../../api/suwayomi/libraryIdentity";
+import { recordManagedLibraryLocation } from "../../api/suwayomi/managedLibraryLocations";
+import { beginLibraryRestore, pendingLibraryRestore } from "../../api/suwayomi/restoreIdentity";
 import { render, waitForRender } from "../../test/render";
 
 const mocks = vi.hoisted(() => ({
@@ -16,6 +19,10 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => {} }));
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({ setTheme: async () => {} }) }));
 vi.mock("../../stores/settingsStorage", () => ({ createSettingsStorage: () => localStorage }));
+vi.mock("../../api/suwayomi/libraryIdentity", async (original) => ({
+  ...await original<typeof import("../../api/suwayomi/libraryIdentity")>(),
+  readLibraryIdentity: vi.fn(async () => undefined),
+}));
 vi.mock("../../stores/useDownloadStore", () => ({ useDownloadStore: Object.assign(() => mocks.downloads, { getState: () => mocks.downloads }) }));
 vi.mock("../../api/suwayomi/offlineCache", () => ({ getCachedChapters: async () => [], normalizeCacheServerUrl: (value: string) => value.replace(/\/+$/, "") }));
 vi.mock("../../api/suwayomi/libraryMetadata", () => ({ hasLibraryMetadata: async () => true }));
@@ -38,6 +45,7 @@ const calls = (command: string) => mocks.invoke.mock.calls.filter(([name]) => na
 
 beforeEach(() => {
   vi.clearAllMocks(); localStorage.clear(); mocks.jar = undefined;
+  vi.mocked(readLibraryIdentity).mockResolvedValue(undefined);
   Object.defineProperty(window, "isTauri", { value: true, configurable: true });
   Object.defineProperty(window, "matchMedia", { configurable: true, value: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }) });
   mocks.connection.mockResolvedValue(false);
@@ -46,6 +54,7 @@ beforeEach(() => {
     if (command === "check_java_installed") return true;
     if (command === "download_suwayomi_jar") return mocks.jar ?? "verified.jar";
     if (command === "start_backend") return 4567;
+    if (command === "managed_backend_location") return ["C:/ReturningFixture/library", true];
     if (command === "stop_backend") return;
     throw new Error(`Unexpected native command: ${command}`);
   });
@@ -84,5 +93,25 @@ it("a library identity event refreshes route content without restarting or aband
   await act(async () => release("verified.jar"));
   await waitForRender(() => expect(calls("start_backend")).toHaveLength(1));
   expect(calls("download_suwayomi_jar")).toHaveLength(1);
+  expect(calls("stop_backend")).toHaveLength(0);
+});
+
+it("stops a copied managed library before connecting or replaying changes against it", async () => {
+  const marker = "8ba96cab-7676-4c6c-bbe2-d542a49391e9";
+  recordManagedLibraryLocation({ root: "C:/OriginalFixture/library", server: "http://127.0.0.1:4567", marker });
+  vi.mocked(readLibraryIdentity).mockResolvedValue({ marker });
+
+  await openReturningLibrary();
+  await waitForRender(() => expect(calls("stop_backend")).toHaveLength(1));
+  expect(useSettingsStore.getState().errorMessage).toContain("copy of another managed library");
+  expect(mocks.connection).not.toHaveBeenCalled();
+});
+
+it("opens the local engine on its existing port so a paused restore can be reviewed", async () => {
+  beginLibraryRestore("http://127.0.0.1:4567");
+  await openReturningLibrary();
+  await waitForRender(() => expect(useSettingsStore.getState().errorMessage).toContain("restore still needs confirmation"));
+  expect(pendingLibraryRestore("http://127.0.0.1:4567")).toBeDefined();
+  expect(mocks.connection).not.toHaveBeenCalled();
   expect(calls("stop_backend")).toHaveLength(0);
 });

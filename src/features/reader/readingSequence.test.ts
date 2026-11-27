@@ -5,6 +5,7 @@ import { progressBackend } from "../../api/suwayomi/backendIdentity";
 import { enqueueProgress } from "../../api/suwayomi/progressStorage";
 import { DEFAULT_CHAPTER_POLICY } from "../manga/chapterPolicy";
 import { loadReadingSequence } from "./readingSequence";
+import { DEFAULT_SEQUENCE_CHOICES } from "./readerSequencePolicy";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 const transport = vi.hoisted(() => ({ read: vi.fn() }));
 vi.mock("../../api/graphql/client", () => ({ createGraphqlClient: () => ({ GetReadingChapters: transport.read }) }));
@@ -48,4 +49,17 @@ it("keeps future unsaved chapters available for download-ahead despite the downl
 it("rejects duplicate IDs and repeated pagination cursors", async () => {
   transport.read.mockResolvedValueOnce(connection([12], "next", 3)).mockResolvedValueOnce(connection([13], "next", 3));
   await expect(loadReadingSequence(backend, 42, "Fixture", 12, DEFAULT_CHAPTER_POLICY)).rejects.toThrow("pagination");
+});
+
+it("keeps the same season order for reader navigation, confirmed chapters, and download-ahead", async () => {
+  const data = connection([12, 13, 14, 15, 16]);
+  for (const [index, chapter] of data.chapters.nodes.entries()) {
+    chapter.chapterNumber = [1, 2, 1, 1, 2][index];
+    chapter.scanlator = index === 2 ? "B" : "A";
+  }
+  transport.read.mockResolvedValue(data);
+  const result = await loadReadingSequence(backend, 42, "Fixture", 15, DEFAULT_CHAPTER_POLICY, undefined, { ...DEFAULT_SEQUENCE_CHOICES, skipDuplicates: true });
+  expect(result.knownChapterIds).toEqual([12, 13, 14, 15, 16]);
+  expect(result.chapters.map((chapter) => chapter.id)).toEqual([12, 13, 15, 16]);
+  expect(result.downloadChapters.map((chapter) => chapter.id)).toEqual([12, 13, 15, 16]);
 });

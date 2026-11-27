@@ -41,6 +41,7 @@ struct RunningBackend {
     child: Child,
     port: u16,
     data_path: std::path::PathBuf,
+    canonical_data_path: std::path::PathBuf,
 }
 
 // The Windows updater clears Tauri resources and exits without a RunEvent::Exit.
@@ -726,6 +727,8 @@ fn start_backend(
     drop(lock);
 
     prepare_managed_storage(&app_handle, &data_dir)?;
+    let canonical_data_path = std::fs::canonicalize(&data_dir)
+        .map_err(|error| format!("Failed to verify the managed library folder: {error}"))?;
     let local_jar = data_dir.join(SUWAYOMI_JAR_NAME);
     let jar_path = state
         .verified_jar
@@ -793,6 +796,7 @@ fn start_backend(
             child,
             port,
             data_path: data_dir,
+            canonical_data_path,
         });
     }
 
@@ -843,6 +847,42 @@ fn start_backend(
         }
         std::thread::sleep(Duration::from_millis(250));
     }
+}
+
+/// Prove which data directory belongs to the child Yomikura started.
+#[tauri::command]
+fn managed_backend_location(
+    app_handle: tauri::AppHandle,
+    state: State<'_, BackendState>,
+    port: u16,
+) -> Result<(String, bool), String> {
+    let mut backend = state.backend.lock().map_err(|error| error.to_string())?;
+    let running = backend
+        .as_mut()
+        .filter(|child| child.port == port)
+        .ok_or("Yomikura does not own a local engine on this port.")?;
+    if !matches!(running.child.try_wait(), Ok(None))
+        || !has_valid_storage_marker(&running.data_path)
+    {
+        return Err("The managed library could not be verified.".to_string());
+    }
+    let root = std::fs::canonicalize(&running.data_path).map_err(|error| error.to_string())?;
+    if root != running.canonical_data_path {
+        return Err("The managed library folder changed after the engine started.".to_string());
+    }
+    let record = app_handle
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?
+        .join(MANAGED_STORAGE_RECORD);
+    let registered = std::fs::read_to_string(record).map_err(|error| error.to_string())?;
+    let sole_registered_root = registered.lines().any(|line| !line.trim().is_empty())
+        && registered.lines().filter(|line| !line.trim().is_empty()).all(|line| {
+            std::fs::canonicalize(line.trim()).as_ref().is_ok_and(|path| path == &root)
+        });
+    let root = root.into_os_string().into_string()
+        .map_err(|_| "The managed library folder could not be represented.".to_string())?;
+    Ok((root, sole_registered_root))
 }
 
 #[tauri::command]
@@ -1042,6 +1082,7 @@ pub fn run() {
             select_directory,
             check_java_installed,
             start_backend,
+            managed_backend_location,
             stop_backend,
             get_backend_status,
             download_and_install_jre,

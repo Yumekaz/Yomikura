@@ -9,6 +9,10 @@ const mocks = vi.hoisted(() => ({ invoke: vi.fn(), complete: vi.fn(), hasJava: t
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
 vi.mock("@tauri-apps/api/path", () => ({ appLocalDataDir: async () => "C:/OwnedPreview/app.yomikura.firstlaunch/" }));
 vi.mock("../../stores/settingsStorage", () => ({ createSettingsStorage: () => localStorage }));
+vi.mock("../../api/suwayomi/libraryIdentity", async (original) => ({
+  ...await original<typeof import("../../api/suwayomi/libraryIdentity")>(),
+  readLibraryIdentity: vi.fn(async () => undefined),
+}));
 let view: Awaited<ReturnType<typeof render>> | undefined;
 function Harness() {
   const [done, setDone] = useState(false);
@@ -26,6 +30,7 @@ beforeEach(() => {
     if (command === "download_and_install_jre") { mocks.hasJava = true; return; }
     if (command === "download_suwayomi_jar") return mocks.jar ?? "verified.jar";
     if (command === "start_backend") { if (mocks.failStart) throw new Error("Local engine could not start"); return 4568; }
+    if (command === "managed_backend_location") return ["C:/OwnedPreview/app.yomikura.firstlaunch/server-data", true];
     if (command === "stop_backend") return;
     throw new Error(`Unexpected native command: ${command}`);
   });

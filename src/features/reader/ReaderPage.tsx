@@ -112,7 +112,6 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
   const [progressSaveError, setProgressSaveError] = useState("");
   const failedProgressRef = useRef<{ backend: ProgressBackend; progress: ProgressSnapshot } | null>(null);
   const scrollRef = useRef<number | null>(null);
-  const autoScrollEndTriggered = useRef(false);
   const bingeLoadingRef = useRef(false);
 
   type StreamChapter = ReaderChapter;
@@ -370,7 +369,6 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
       const root = streamRef.current[0];
       if (root && (next.mangaId !== root.mangaId || next.mangaTitle !== root.mangaTitle)) throw new Error("The title changed while loading the next chapter. Reopen the reader to continue.");
       setStreamChapters((prev) => prev.some((item) => item.id === nextId) ? prev : [...prev, next]);
-      autoScrollEndTriggered.current = false;
     } catch (err) {
       if (signal?.aborted) return;
       console.error("Failed to append binge chapter:", err);
@@ -381,19 +379,31 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
     }
   }, [streamChapters, getNextSiblingId, progressTarget]);
 
+  const chapterEndAvailability = useCallback((streamChapter: StreamChapter) => {
+    const lastKey = pageIdentity(streamChapter.id, streamChapter.pages.length - 1);
+    const ready = readyPagesRef.current.has(lastKey)
+      && ![...completionParts.current].some(([part, settled]) => part.startsWith(`${lastKey}:`) && !settled);
+    const failed = streamChapter.pages.some((_, index) => failedPagesRef.current.has(pageIdentity(streamChapter.id, index)));
+    return { ready, failed };
+  }, [pageIdentity]);
+
   // Commit immediately. Only network synchronization is debounced by the app shell.
   const saveProgress = useCallback((streamChapter: StreamChapter, pageIndex: number, canComplete = true) => {
     const gesture = zoomProgressFence.current;
     if (gesture?.pinching.current || Date.now() < (gesture?.suppressUntil.current ?? 0)) return;
     if (!readyPagesRef.current.has(pageIdentity(streamChapter.id, pageIndex))) return;
-    const complete = canComplete && ![...completionParts.current].some(([part, ready]) => part.startsWith(`${pageIdentity(streamChapter.id, pageIndex)}:`) && !ready);
+    let complete = false;
+    if (canComplete && pageIndex === streamChapter.pages.length - 1) {
+      const { ready, failed } = chapterEndAvailability(streamChapter);
+      complete = ready && !failed;
+    }
     const savedKey = `${pageIndex}:${complete}`;
     if (lastSavedPagesRef.current.get(streamChapter.id) === savedKey) return;
     lastSavedPagesRef.current.set(streamChapter.id, savedKey);
 
     const progress = createProgressSnapshot(streamChapter, streamChapter.mangaTitle, pageIndex);
     void updateProgress(progressTarget, { ...progress, canComplete: complete });
-  }, [updateProgress, pageIdentity, progressTarget]);
+  }, [updateProgress, pageIdentity, progressTarget, chapterEndAvailability]);
 
   const publishCursor = useCallback((cursor: ReaderCursor, ready: boolean, endVisible = true) => {
     const owner = streamRef.current.find((item) => item.id === cursor.chapterId);
@@ -622,11 +632,12 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
   }, [currentPage, pages, activeChapter, mockMode, serverBaseUrl, preloadCount]);
 
   // Webtoon infinite-scroll binge (append chapters or navigate)
+  const autoAdvanceReadiness = infiniteChapterReading ? 0 : readyPageVersion;
   useEffect(() => {
     if (readerMode !== "WEBTOON") return;
     const tail = streamChapters[streamChapters.length - 1];
     const nextId = tail ? getNextSiblingId(tail.id) : undefined;
-    if (!nextId || webtoon.target) return;
+    if (!tail || !nextId || webtoon.target) return;
     if (readerPreferences.pauseBetweenChapters) return;
 
     if (infiniteChapterReading && !readerPreferences.pauseBetweenChapters) {
@@ -639,18 +650,29 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
     }
 
     let nextTimer: ReturnType<typeof setTimeout> | undefined;
+    const canAdvance = () => {
+      const gesture = zoomProgressFence.current;
+      if (gesture?.pinching.current || Date.now() < (gesture?.suppressUntil.current ?? 0)) return false;
+      if (window.innerHeight + window.scrollY < document.documentElement.scrollHeight - 80) return false;
+      const { ready, failed } = chapterEndAvailability(tail);
+      return ready && !failed;
+    };
     const handleWebtoonScroll = () => {
-      const isNearBottom =
-        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 80;
-      if (!isNearBottom || autoScrollEndTriggered.current) return;
-
-      autoScrollEndTriggered.current = true;
+      if (!canAdvance()) {
+        clearTimeout(nextTimer);
+        nextTimer = undefined;
+        return;
+      }
+      if (nextTimer !== undefined) return;
       setIsAutoScrolling(false);
-
-      nextTimer = setTimeout(() => { if (isCurrentProgressBackend(progressTarget)) navigate(`/reader/${nextId}`); }, 800);
+      nextTimer = setTimeout(() => {
+        nextTimer = undefined;
+        if (canAdvance() && isCurrentProgressBackend(progressTarget)) navigate(`/reader/${nextId}`);
+      }, 800);
     };
 
     window.addEventListener("scroll", handleWebtoonScroll, { passive: true });
+    handleWebtoonScroll();
     return () => { window.removeEventListener("scroll", handleWebtoonScroll); clearTimeout(nextTimer); };
   }, [
     readerMode,
@@ -663,6 +685,8 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
     webtoon.target,
     progressTarget,
     readerPreferences.pauseBetweenChapters,
+    chapterEndAvailability,
+    autoAdvanceReadiness,
   ]);
 
   // Auto-scroll loop
@@ -859,9 +883,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
   // Determine transition animations
   const endingChapter = readerMode === "WEBTOON" ? streamChapters[streamChapters.length - 1] : activeChapter;
   const endingIndex = endingChapter.pages.length - 1;
-  const endingKey = pageIdentity(endingChapter.id, endingIndex);
-  const endingFailed = endingChapter.pages.some((_, index) => failedPagesRef.current.has(pageIdentity(endingChapter.id, index)));
-  const endingReady = readyPagesRef.current.has(endingKey) && ![...completionParts.current].some(([key, ready]) => key.startsWith(`${endingKey}:`) && !ready);
+  const { ready: endingReady, failed: endingFailed } = chapterEndAvailability(endingChapter);
   const endState = deriveReaderEndState({ chapterId: endingChapter.id, nextChapterId: getNextSiblingId(endingChapter.id), knownChapterIds: readingSequence.data?.knownChapterIds, listStatus: readingSequence.isError ? "error" : readingSequence.data ? "confirmed" : "loading", offline: readingSequence.data?.offline || connectionStatus === "error" });
   const ending = <ReaderEndStatus chapterName={endingChapter.name} mangaId={endingChapter.mangaId} state={endState} finished={readerMode === "WEBTOON" ? reachedEnds.has(endingChapter.id) : pageIndices.includes(endingIndex)} pagesReady={endingReady} pagesFailed={endingFailed} checking={readingSequence.isFetching} onCheck={() => void readingSequence.refetch()} onNext={() => { const id = getNextSiblingId(endingChapter.id); if (id) navigate(`/reader/${id}`); }} />;
 
@@ -990,10 +1012,8 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
                 <ChapterEndBoundary readiness={readyPageVersion} bottomInset={visibleFooterInset} onReached={() => {
                   const gesture = zoomProgressFence.current;
                   if (gesture?.pinching.current || Date.now() < (gesture?.suppressUntil.current ?? 0)) return;
-                  const lastKey = pageIdentity(streamCh.id, streamCh.pages.length - 1);
-                  const failed = streamCh.pages.some((_, index) => failedPagesRef.current.has(pageIdentity(streamCh.id, index)));
-                  const lastReady = readyPagesRef.current.has(lastKey) && ![...completionParts.current].some(([key, ready]) => key.startsWith(`${lastKey}:`) && !ready);
-                  if (lastReady && !failed) { setReachedEnds((current) => current.has(streamCh.id) ? current : new Set([...current, streamCh.id])); saveProgress(streamCh, streamCh.pages.length - 1, true); }
+                  const { ready, failed } = chapterEndAvailability(streamCh);
+                  if (ready && !failed) { setReachedEnds((current) => current.has(streamCh.id) ? current : new Set([...current, streamCh.id])); saveProgress(streamCh, streamCh.pages.length - 1, true); }
                 }} />
               </div>
             ))}

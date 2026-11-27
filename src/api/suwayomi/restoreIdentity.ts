@@ -1,5 +1,6 @@
 import { establishLibraryIdentity, replaceLibraryIdentity, verifyLibraryIdentity, validLibraryMarker } from "./libraryIdentity";
 import { rememberLibrary } from "./librarySession";
+import { assertManagedEngineSession, movingManagedLibrary } from "./managedLibraryLocations";
 const KEY = "yomikura-library-restores-v1";
 type Restore = { token: string; id?: string; completedMarker?: string };
 export const LIBRARY_RESTORE_EVENT = "yomikura-library-restore-changed";
@@ -20,6 +21,7 @@ export function pendingLibraryRestore(server: string) {
 }
 export function beginLibraryRestore(server: string) {
   const values = records(), key = address(server);
+  if (movingManagedLibrary(key)) throw new Error("Let the local library finish moving to its new address before starting a restore.");
   if (values[key] && !values[key].completedMarker) throw new Error("A previous restore still needs confirmation. Open Backups to check its status.");
   const checkpoint = { token: crypto.randomUUID() }; values[key] = checkpoint;
   localStorage.setItem(KEY, JSON.stringify(values)); changed(); return checkpoint.token;
@@ -34,6 +36,7 @@ const finishing = new Map<string, Promise<void>>();
 export function finishLibraryRestore(server: string, token: string) {
   const key = address(server), running = finishing.get(key); if (running) return running;
   const job = (async () => {
+    await assertManagedEngineSession(key);
     const checkpoint = records()[key];
     if (checkpoint?.token !== token) throw new Error("Restore recovery information changed. Writes remain paused.");
     if (checkpoint.completedMarker) { await verifyLibraryIdentity(server, { marker: checkpoint.completedMarker }); return; }

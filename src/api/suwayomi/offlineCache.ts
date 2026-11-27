@@ -1,4 +1,5 @@
 import { rememberedLibrary } from "./librarySession";
+import { assertManagedDeviceDataAddress } from "./managedLibraryLocations";
 export type CachedPageTiles = { index: number; width: number; height: number; tiles: { url: string; height: number }[] };
 export const cachedPageUrls = (chapter: CachedChapter) => [...chapter.cachedUrls, ...(chapter.pageTiles ?? []).flatMap((page) => page.tiles.map((tile) => tile.url))];
 export interface CachedChapter {
@@ -152,6 +153,7 @@ export async function saveDownloadJob(job: Omit<DownloadJob, "jobKey" | "serverB
   const libraryId = recordLibrary(job, serverBaseUrl, isDemo);
   const record: DownloadJob = { ...job, serverBaseUrl, isDemo, libraryId, jobKey: storedKey(serverBaseUrl, job.chapterId, isDemo, libraryId) };
   await offlineTransaction([DOWNLOAD_JOB_STORE_NAME], "readwrite", async (tx) => {
+    if (!isDemo) assertManagedDeviceDataAddress(serverBaseUrl, libraryId);
     const store = tx.objectStore(DOWNLOAD_JOB_STORE_NAME);
     const previous = await offlineRead<DownloadJob | undefined>(store.get(record.jobKey));
     if (previous && isDemoCacheRecord(previous) !== isDemo) {
@@ -176,6 +178,7 @@ export async function getDownloadJobs(serverBaseUrl?: string, isDemo = false, li
 
 export async function deleteDownloadJob(serverBaseUrl: string, chapterId: number, isDemo = false, libraryId = isDemo ? undefined : rememberedLibrary(serverBaseUrl)?.marker): Promise<void> {
   await offlineTransaction([DOWNLOAD_JOB_STORE_NAME], "readwrite", async (tx) => {
+    if (!isDemo) assertManagedDeviceDataAddress(normalizeCacheServerUrl(serverBaseUrl), libraryId);
     const store = tx.objectStore(DOWNLOAD_JOB_STORE_NAME);
     for (const job of await offlineRead<DownloadJob[]>(store.getAll())) if (job.chapterId === chapterId && normalizeCacheServerUrl(job.serverBaseUrl) === normalizeCacheServerUrl(serverBaseUrl) && isDemoCacheRecord(job) === isDemo && (job.libraryId ?? "") === (libraryId ?? "")) store.delete(job.jobKey);
   });
@@ -201,12 +204,9 @@ export async function recordReadingActivity(
 }
 
 async function saveReadingHistoryEvent(event: ReadingHistoryEvent): Promise<void> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(HISTORY_STORE_NAME, "readwrite");
-    const request = transaction.objectStore(HISTORY_STORE_NAME).put(event);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
+  await offlineTransaction([HISTORY_STORE_NAME], "readwrite", async (tx) => {
+    if (!isDemoCacheRecord(event)) assertManagedDeviceDataAddress(event.serverBaseUrl, event.libraryId);
+    await offlineRead(tx.objectStore(HISTORY_STORE_NAME).put(event));
   });
 }
 
@@ -233,6 +233,7 @@ export async function getReadingHistory(serverBaseUrl?: string, libraryId = serv
 }
 
 export async function deleteReadingHistoryItem(serverBaseUrl: string, chapterId: number, libraryId = rememberedLibrary(serverBaseUrl)?.marker): Promise<void> {
+  assertManagedDeviceDataAddress(normalizeCacheServerUrl(serverBaseUrl), libraryId);
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(HISTORY_STORE_NAME, "readwrite");
@@ -296,6 +297,7 @@ export async function saveCachedChapter(chapter: CachedChapter, signal?: AbortSi
   const libraryId = recordLibrary(chapter, serverBaseUrl, isDemo);
   const record = { ...chapter, serverBaseUrl, isDemo, libraryId, cacheKey: storedKey(serverBaseUrl, chapter.id, isDemo, libraryId) };
   const changed = await offlineTransaction([STORE_NAME], "readwrite", async (tx) => {
+    if (!isDemo) assertManagedDeviceDataAddress(serverBaseUrl, libraryId);
     const store = tx.objectStore(STORE_NAME);
     const previous = await offlineRead<CachedChapter | undefined>(store.get(record.cacheKey));
     if (previous && isDemoCacheRecord(previous) !== isDemo) {
@@ -312,6 +314,7 @@ export async function saveCachedChapter(chapter: CachedChapter, signal?: AbortSi
 export async function addMissingCachedChapter(chapter: CachedChapter) {
   const key = storedKey(chapter.serverBaseUrl, chapter.id, isDemoCacheRecord(chapter), chapter.libraryId);
   const added = await offlineTransaction([STORE_NAME], "readwrite", async (tx) => {
+    if (!isDemoCacheRecord(chapter)) assertManagedDeviceDataAddress(normalizeCacheServerUrl(chapter.serverBaseUrl), chapter.libraryId);
     const store = tx.objectStore(STORE_NAME);
     if (await offlineRead(store.getKey(key))) return false;
     await offlineRead(store.add({ ...chapter, cacheKey: key }));
@@ -321,6 +324,47 @@ export async function addMissingCachedChapter(chapter: CachedChapter) {
   return added;
 }
 
+/** Change ownership keys without moving any of the saved page bytes. */
+export async function moveManagedOfflineRecords(from: string, to: string, marker: string) {
+  const ownsRecord = (record: { serverBaseUrl: string; libraryId?: string; isDemo?: boolean; mangaTitle?: string }) =>
+    normalizeCacheServerUrl(record.serverBaseUrl) === from && record.libraryId === marker && !isDemoCacheRecord(record);
+  const rebasePage = (url: string) => url.startsWith(`${from}/`) ? `${to}${url.slice(from.length)}` : url;
+  const stores = [STORE_NAME, DOWNLOAD_JOB_STORE_NAME, HISTORY_STORE_NAME];
+  await offlineTransaction(stores, "readwrite", async (tx) => {
+    const moveRecords = async <T,>(name: string, migrate: (record: T) => { before: string; after: string; value: T } | undefined) => {
+      const store = tx.objectStore(name);
+      for (const record of await offlineRead<T[]>(store.index("serverBaseUrl").getAll(from))) {
+        const move = migrate(record);
+        // Retain a conflicting earlier copy for review.
+        if (move && await offlineRead(store.getKey(move.after)) === undefined) {
+          await offlineRead(store.add(move.value));
+          await offlineRead(store.delete(move.before));
+        }
+      }
+    };
+    await moveRecords<CachedChapter>(STORE_NAME, (record) => {
+      if (!ownsRecord(record)) return;
+      const key = storedKey(to, record.id, false, marker);
+      return { before: record.cacheKey, after: key, value: {
+        ...record, cacheKey: key, serverBaseUrl: to, networkUrls: (record.networkUrls ?? record.pages).map(rebasePage),
+      } };
+    });
+    await moveRecords<DownloadJob>(DOWNLOAD_JOB_STORE_NAME, (record) => {
+      if (!ownsRecord(record)) return;
+      const key = storedKey(to, record.chapterId, false, marker);
+      return { before: record.jobKey, after: key, value: { ...record, jobKey: key, serverBaseUrl: to } };
+    });
+    await moveRecords<ReadingHistoryEvent>(HISTORY_STORE_NAME, (record) => {
+      if (!ownsRecord(record)) return;
+      const key = record.hideMangaBefore !== undefined
+        ? `${to}::hidden-title::${JSON.stringify([false, record.mangaId, record.mangaTitle, marker])}`
+        : storedKey(to, record.chapterId, false, marker);
+      return { before: record.historyKey, after: key, value: { ...record, historyKey: key, serverBaseUrl: to } };
+    });
+  });
+  invalidatePageIndexes();
+}
+
 export async function updateCachedChapterProgress(serverBaseUrl: string, chapterId: number, lastPageRead: number, isRead: boolean, isDemo = false, libraryId = isDemo ? undefined : rememberedLibrary(serverBaseUrl)?.marker): Promise<void> {
   const chapter = await getCachedChapter(serverBaseUrl, chapterId, isDemo, libraryId ?? ""); if (!chapter) return;
   await saveCachedChapter({ ...chapter, lastPageRead, isRead });
@@ -328,6 +372,7 @@ export async function updateCachedChapterProgress(serverBaseUrl: string, chapter
 
 export async function deleteCachedChapter(serverBaseUrl: string, chapterId: number, isDemo = false, libraryId = isDemo ? undefined : rememberedLibrary(serverBaseUrl)?.marker): Promise<void> {
   const urls = await offlineTransaction([STORE_NAME], "readwrite", async (tx) => {
+    if (!isDemo) assertManagedDeviceDataAddress(normalizeCacheServerUrl(serverBaseUrl), libraryId);
     const store = tx.objectStore(STORE_NAME); const removed: string[] = [];
     for (const chapter of await offlineRead<CachedChapter[]>(store.getAll())) {
       if (chapter.id === chapterId && normalizeCacheServerUrl(chapter.serverBaseUrl) === normalizeCacheServerUrl(serverBaseUrl) && isDemoCacheRecord(chapter) === isDemo && (chapter.libraryId ?? "") === (libraryId ?? "")) { removed.push(...cachedPageUrls(chapter)); store.delete(chapter.cacheKey); }

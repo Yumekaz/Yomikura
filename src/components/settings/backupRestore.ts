@@ -1,5 +1,7 @@
 export type RestoreStatus = { state: string; mangaProgress: number; totalManga: number };
 
+export const RESTORE_BACKUP_MUTATION_KEY = ["restore-library-backup"] as const;
+
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 export async function waitForRestoreStatus(
@@ -15,6 +17,7 @@ export async function waitForRestoreStatus(
     lastStatus = result.restoreStatus ?? null;
     if (lastStatus?.state === "SUCCESS") return { completed: true, status: lastStatus };
     if (lastStatus?.state === "FAILURE") throw new Error("Suwayomi reported that the restore failed.");
+    if (result.restoreStatus === null) return { completed: false, status: null };
     if (attempt < attempts - 1) await pause(750);
   }
   return { completed: false, status: lastStatus };

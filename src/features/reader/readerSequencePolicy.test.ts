@@ -24,3 +24,34 @@ it("does not remove an opened chapter hidden by both filters and read status", (
   const selected = selectReaderSequence(chapters, { ...DEFAULT_CHAPTER_POLICY, scanlator: "B", filter: "bookmarked" }, new Set(), 1, { ...DEFAULT_SEQUENCE_CHOICES, skipRead: true });
   expect(selected.map((chapter) => chapter.id)).toEqual([1]);
 });
+
+it("keeps later seasons in source order when chapter numbers restart", () => {
+  const seasons = [1, 2, 1, 1, 2].map((chapterNumber, index) => ({
+    id: index + 1, sourceOrder: index + 1, chapterNumber, scanlator: index === 2 ? "B" : "A",
+  }));
+  const choices = { ...DEFAULT_SEQUENCE_CHOICES, skipDuplicates: true };
+  for (const sort of ["source", "number"] as const) {
+    const selected = selectReaderSequence([...seasons].reverse(), { ...DEFAULT_CHAPTER_POLICY, sort }, new Set(), 4, choices);
+    expect(selected.map((chapter) => chapter.id)).toEqual([1, 2, 4, 5]);
+  }
+});
+
+it("does not join separate chapter runs when a chapter between them is filtered out", () => {
+  const seasons = [
+    { id: 1, sourceOrder: 1, chapterNumber: 1, isBookmarked: true },
+    { id: 2, sourceOrder: 2, chapterNumber: 2, isBookmarked: false },
+    { id: 3, sourceOrder: 3, chapterNumber: 1, isBookmarked: true },
+  ];
+  const selected = selectReaderSequence(seasons, { ...DEFAULT_CHAPTER_POLICY, sort: "source", filter: "bookmarked" }, new Set(), 3, { ...DEFAULT_SEQUENCE_CHOICES, skipDuplicates: true });
+  expect(selected.map((chapter) => chapter.id)).toEqual([1, 3]);
+});
+
+it("preserves adjacent repeated chapter numbers when their volume labels differ", () => {
+  const volumes = [
+    { id: 1, sourceOrder: 1, chapterNumber: 1, name: "Vol. 1 Chapter 1", scanlator: "B" },
+    { id: 2, sourceOrder: 2, chapterNumber: 1, name: "Volume 01 Chapter 1", scanlator: "A" },
+    { id: 3, sourceOrder: 3, chapterNumber: 1, name: "Volume 2 Chapter 1", scanlator: "A" },
+  ];
+  const selected = selectReaderSequence(volumes, DEFAULT_CHAPTER_POLICY, new Set(), 3, { ...DEFAULT_SEQUENCE_CHOICES, skipDuplicates: true });
+  expect(selected.map((chapter) => chapter.id)).toEqual([2, 3]);
+});

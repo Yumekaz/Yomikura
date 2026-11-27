@@ -41,8 +41,8 @@ export function BackupSettingsPanel({
           Backup & Restore
         </h2>
         <p className="mt-2 text-sm text-slate-400">
-          Export your library metadata, history, and categories from Suwayomi, or restore an
-          existing backup file.
+          Export your library metadata, history, and categories from Suwayomi, or restore a
+          compatible .tachibk library backup.
         </p>
       </div>
 
@@ -92,7 +92,7 @@ export function BackupSettingsPanel({
           Upload & Restore Backup
           <input
             type="file"
-            accept=".zip,.tachibk,.json"
+            accept=".tachibk"
             onChange={handleFileChange}
             className="hidden"
             disabled={creatingBackup || restoringBackup || mockMode || connectionStatus !== "connected"}

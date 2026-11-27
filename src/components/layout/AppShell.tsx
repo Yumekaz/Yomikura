@@ -28,6 +28,8 @@ import { pendingLibraryRestore, LIBRARY_RESTORE_EVENT } from "../../api/suwayomi
 import { RestoreRecoveryPanel } from "../settings/RestoreRecoveryPanel";
 import { hasLibraryMetadata } from "../../api/suwayomi/libraryMetadata";
 import { rememberedLibrary } from "../../api/suwayomi/librarySession";
+import { readLibraryIdentity } from "../../api/suwayomi/libraryIdentity";
+import { allowManagedEngineSession } from "../../api/suwayomi/managedLibraryLocations";
 import { ExtensionUpdateNotice, ExtensionUpdatesBadge } from "../../features/extensions/ExtensionUpdateNotice";
 
 function ProfileSwitcher() {
@@ -113,6 +115,7 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
     managedLibraryProfileId,
     activeProfileId,
   } = useSettingsStore();
+  const ownsLocalProfile = isTauri() && !!serverDataPath && (managedLibraryProfileId === activeProfileId || !managedLibraryProfileId && activeProfileId === "default" && /^https?:\/\/(?:127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(serverBaseUrl));
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -177,10 +180,10 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
   useEffect(() => {
     // Demo mode is an explicit user choice. A healthy local server must not
     // silently switch the application back to live data on the next load.
-    if (hasHydrated && !mockMode) {
+    if (hasHydrated && !mockMode && !ownsLocalProfile) {
       void testConnection();
     }
-  }, [hasHydrated, mockMode, serverBaseUrl, testConnection]);
+  }, [hasHydrated, mockMode, ownsLocalProfile, serverBaseUrl, testConnection]);
 
   useEffect(() => {
     if (!hasHydrated || (!mockMode && connectionStatus !== "connected")) return;
@@ -231,7 +234,6 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
   if (checkOfflineCache && !offlineChapters.isFetching && (offlineChapters.isSuccess || offlineChapters.isError)) cacheDecisionServer.current = serverBaseUrl;
   // A refresh must not tear down an open setup form or its native engine owner.
   const checkingOfflineCache = checkOfflineCache && offlineChapters.isFetching && !canOpenOffline && cacheDecisionServer.current !== serverBaseUrl;
-  const ownsLocalProfile = isTauri() && !!serverDataPath && (managedLibraryProfileId === activeProfileId || !managedLibraryProfileId && activeProfileId === "default" && /^https?:\/\/(?:127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(serverBaseUrl));
   const restoringLibrary = validateServerBaseUrl(serverBaseUrl).valid && !!pendingLibraryRestore(serverBaseUrl);
   const showOnboarding = !restoringLibrary && !mockMode && !isSettingsRoute && !isGuideRoute && (setupActive || isUnconnected && !canOpenOffline && !ownsLocalProfile);
 
@@ -253,7 +255,7 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
     );
   }
 
-  const backgroundStartup = ownsLocalProfile && !mockMode && !setupActive && !restoringLibrary
+  const backgroundStartup = ownsLocalProfile && !mockMode && !setupActive
     ? <WelcomeOnboarding key={`${activeProfileId}:${serverDataPath}`} background serverBaseUrl={serverBaseUrl} setServerBaseUrl={setServerBaseUrl} testConnection={testConnection} errorMessage={errorMessage} setMockMode={setMockMode} onBeginSetup={() => {}} onConnected={() => { void queryClient.invalidateQueries(); }} />
     : null;
 
@@ -415,7 +417,7 @@ export function WelcomeOnboarding({
 }: {
   serverBaseUrl: string;
   setServerBaseUrl: (url: string) => void;
-  testConnection: () => Promise<boolean>;
+  testConnection: (expectedLibraryId?: string) => Promise<boolean>;
   errorMessage: string;
   setMockMode: (mock: boolean) => void;
   onBeginSetup: () => void;
@@ -436,6 +438,7 @@ export function WelcomeOnboarding({
 
   const friendlyStartupError = (error: string) => {
     const normalized = error.toLowerCase();
+    if (normalized.startsWith("local library continuity: ")) return error.slice("Local library continuity: ".length);
     if (normalized.includes("access is denied") || normalized.includes("permission denied") || normalized.includes("not writable")) {
       return "Yomikura cannot write to the selected storage folder. Choose a different folder that belongs to your Windows account, then try again.";
     }
@@ -464,14 +467,23 @@ export function WelcomeOnboarding({
   useEffect(() => {
     if (currentStep !== "backend") return;
 
+    const launch = useSettingsStore.getState();
     let active = true;
+    let selectionAddress = launch.serverBaseUrl;
+    const isSelectedAttempt = () => {
+      const current = useSettingsStore.getState();
+      return active && !current.mockMode && current.activeProfileId === launch.activeProfileId
+        && current.serverDataPath === serverDataPath && current.serverBaseUrl === selectionAddress;
+    };
     let backendLaunchRequested = false;
     let transitioningToReady = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let finishTimer: ReturnType<typeof setTimeout> | undefined;
+    let revokeEngineSession: (() => void) | undefined;
     const stopOwnedAttempt = async () => {
       if (!backendLaunchRequested || transitioningToReady) return;
       backendLaunchRequested = false;
+      revokeEngineSession?.();
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("stop_backend");
     };
@@ -515,49 +527,90 @@ export function WelcomeOnboarding({
 
         backendLaunchRequested = true;
         const port = await invoke<number>("start_backend", { dataPath: serverDataPath });
-        if (!active) return;
-
-        setServerBaseUrl(`http://127.0.0.1:${port}`);
+        if (!isSelectedAttempt()) return;
+        const [root, soleRegisteredRoot] = await invoke<[string, boolean]>("managed_backend_location", { port });
+        if (!isSelectedAttempt()) return;
+        const server = `http://127.0.0.1:${port}`;
+        const { prepareManagedLibraryAddress, confirmManagedLibraryLocation } = await import("../../api/suwayomi/managedLibraryContinuity");
 
         let attempts = 0;
+        let addressPrepared = false;
+        let expectedLibraryId: string | undefined;
         const checkConnection = async () => {
           attempts++;
-          try {
-            const ok = await testConnection();
-            if (ok && active) {
-              setServerStatus("running");
-              finishTimer = setTimeout(() => {
-                if (active) {
-                  transitioningToReady = true;
-                  onConnected();
-                }
-              }, 1000);
-              return true;
+          if (!addressPrepared) {
+            // The TCP port can open before GraphQL is ready. Retry only this probe,
+            // never a failed identity check or storage move disguised as a timeout.
+            let identity: Awaited<ReturnType<typeof readLibraryIdentity>>;
+            try { identity = await readLibraryIdentity(server); }
+            catch (error) {
+              if (attempts <= 12 && isSelectedAttempt()) return false;
+              throw error;
             }
-          } catch {
-            // silent retry
+            if (!isSelectedAttempt()) return true;
+            try {
+              await prepareManagedLibraryAddress({ root, soleRegisteredRoot, returning: background, previousServer: launch.serverBaseUrl, server }, identity);
+            } catch (error) {
+              throw new Error(`Local library continuity: ${error instanceof Error ? error.message : String(error)}`);
+            }
+            if (!isSelectedAttempt()) return true;
+            expectedLibraryId = identity?.marker;
+            revokeEngineSession = allowManagedEngineSession({ profileId: launch.activeProfileId, dataPath: serverDataPath, server });
+            selectionAddress = server;
+            setServerBaseUrl(server);
+            addressPrepared = true;
+          }
+          const pausedRestore = !!pendingLibraryRestore(server);
+          let ok = pausedRestore;
+          if (!pausedRestore) {
+            try { ok = await testConnection(expectedLibraryId); } catch { /* Retry while startup is in progress. */ }
+          }
+          if (ok && isSelectedAttempt()) {
+            if (pausedRestore) {
+              useSettingsStore.setState({ connectionStatus: "error", errorMessage: "A restore still needs confirmation. Open Backups to review its status." });
+            } else {
+              const identity = rememberedLibrary(server);
+              if (identity) confirmManagedLibraryLocation(root, server, identity);
+            }
+            setServerStatus("running");
+            finishTimer = setTimeout(() => {
+              if (isSelectedAttempt()) {
+                transitioningToReady = true;
+                onConnected();
+              }
+            }, 1000);
+            return true;
           }
 
-          if (attempts > 12 && active) {
-            setServerStatus("error");
-            setLocalError("Suwayomi opened its local port but did not answer the application health check. Retry once, then open the logs from Settings if it continues.");
-            return true;
+          if (attempts > 12 && isSelectedAttempt()) {
+            throw new Error(useSettingsStore.getState().errorMessage || "Suwayomi opened its local port but did not answer the application health check. Retry once, then open the logs from Settings if it continues.");
           }
           return false;
         };
 
         const pollConnection = async () => {
-          const done = await checkConnection();
-          if (!done && active) {
-            retryTimer = setTimeout(pollConnection, 1000);
+          try {
+            if (!isSelectedAttempt()) { await stopOwnedAttempt(); return; }
+            const done = await checkConnection();
+            if (!isSelectedAttempt()) { await stopOwnedAttempt(); return; }
+            if (!done && isSelectedAttempt()) retryTimer = setTimeout(pollConnection, 1000);
+          } catch (error) {
+            if (isSelectedAttempt()) {
+              const message = error instanceof Error ? error.message : String(error);
+              setServerStatus("error");
+              setLocalError(message);
+              useSettingsStore.setState({ connectionStatus: "error", errorMessage: message });
+            }
+            await stopOwnedAttempt().catch(() => undefined);
           }
         };
         await pollConnection();
       } catch (err: any) {
-        if (active) {
+        if (isSelectedAttempt()) {
           setServerStatus("error");
           setLocalError(err.message || String(err));
         }
+        await stopOwnedAttempt().catch(() => undefined);
       }
     };
 

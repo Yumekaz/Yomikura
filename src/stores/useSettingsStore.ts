@@ -132,7 +132,7 @@ interface SettingsState {
   // Actions
   setHasHydrated: (hydrated: boolean) => void;
   setServerBaseUrl: (url: string) => void;
-  testConnection: () => Promise<boolean>;
+  testConnection: (expectedLibraryId?: string) => Promise<boolean>;
   setReaderMode: (mode: ReaderMode) => void;
   setFitMode: (mode: FitMode) => void;
   setPageSpread: (spread: PageSpread) => void;
@@ -284,7 +284,7 @@ export const useSettingsStore = create<SettingsState>()(
         });
       },
 
-      testConnection: async () => {
+      testConnection: async (expectedLibraryId) => {
         const { serverBaseUrl, mockMode: requestedMockMode } = get();
         const stillCurrent = () => get().serverBaseUrl === serverBaseUrl && get().mockMode === requestedMockMode;
         if (!serverBaseUrl) {
@@ -295,7 +295,9 @@ export const useSettingsStore = create<SettingsState>()(
         set({ connectionStatus: "testing", errorMessage: "" });
 
         try {
-          const success = await testServerConnection(serverBaseUrl);
+          const success = expectedLibraryId
+            ? await testServerConnection(serverBaseUrl, expectedLibraryId)
+            : await testServerConnection(serverBaseUrl);
           if (!stillCurrent()) return false;
           if (success) {
             set({ connectionStatus: "connected", errorMessage: "", mockMode: false });

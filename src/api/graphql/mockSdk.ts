@@ -8,6 +8,8 @@ import type { TrackerRecordFieldsFragment } from "./generated/graphql";
 const recentDemoTimestamp = () => new Date(Date.now() - 13 * 60_000).toISOString();
 const demoCover = (name: string) => new URL(`/demo/${name}.webp`, typeof window === "undefined" ? "http://localhost" : window.location.origin).href;
 const demoMembership = new Map<number, boolean>();
+const demoCategoryMembership = new Map<number, number[]>();
+const demoCategoryNodes = (id: number) => (demoCategoryMembership.get(id) ?? [1]).map((id) => ({ id }));
 const demoBookmarks = new Map<number, boolean>();
 const demoNotes = new Map<number, string>();
 const demoSignedOut = new Set<number>();
@@ -53,7 +55,7 @@ const mockImpl: any = {
             downloadCount: 0,
             sourceId: "mock-source", status: "COMPLETED", chapters: { totalCount: 1 }, inLibraryAt: "1780272000000",
             lastReadChapter: null,
-            categories: { nodes: [{ id: 1 }] },
+            categories: { nodes: demoCategoryNodes(10001) },
           },
           {
             id: 10002,
@@ -63,7 +65,7 @@ const mockImpl: any = {
             downloadCount: 0,
             sourceId: "mock-source", status: "COMPLETED", chapters: { totalCount: 2 }, inLibraryAt: "1780272000001",
             lastReadChapter: { id: 20002 },
-            categories: { nodes: [{ id: 1 }] },
+            categories: { nodes: demoCategoryNodes(10002) },
           },
         ],
       },
@@ -94,7 +96,7 @@ const mockImpl: any = {
         status: "COMPLETED",
         genre: ["Demo", "Fantasy", "Indie"],
         inLibrary: demoMembership.get(id) ?? true,
-        categories: { edges: [{ node: { id: 1 } }] },
+        categories: { nodes: demoCategoryNodes(id), edges: demoCategoryNodes(id).map((node) => ({ node })) },
         source: { name: "Yomikura Playground" },
         chapters: {
           edges: [
@@ -343,7 +345,11 @@ const mockImpl: any = {
     return { updateCategoryOrder: { categories: demoCollections.map((item) => ({ ...item })) } };
   },
   async UpdateMangaCategories({ input }: any) {
-    return { updateMangaCategories: { manga: { id: input.mangaId } } };
+    const categories = new Set(input.patch.clearCategories ? [] : demoCategoryNodes(input.id).map(({ id }) => id));
+    for (const id of input.patch.removeFromCategories ?? []) categories.delete(id);
+    for (const id of input.patch.addToCategories ?? []) categories.add(id);
+    demoCategoryMembership.set(input.id, [...categories]);
+    return { updateMangaCategories: { manga: { id: input.id } } };
   },
   async AddExtensionStore({ input }: any) {
     return { addExtensionStore: { extensionStore: { name: "Demo Store", indexUrl: input.indexUrl, isLegacy: false, signingKey: "demo", badgeLabel: "DEMO" } } };

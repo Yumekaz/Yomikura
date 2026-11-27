@@ -1,5 +1,6 @@
 import { chapterIdentityMatches, type ChapterProgressIdentity, type ProgressBackend } from "./backendIdentity";
 import { rememberedLibrary } from "./librarySession";
+import { assertManagedDeviceDataAddress } from "./managedLibraryLocations";
 
 export const PROGRESS_CHANGED_EVENT = "yomikura-progress-changed";
 const DATABASE = "yomikura-progress";
@@ -133,6 +134,7 @@ export function progressHeadVersion(head: ProgressHead | undefined) {
 /** Only a fresh response with no pending local edits may replace an observed server baseline. */
 export async function observeChapterProgress(backend: ProgressBackend, chapter: ChapterProgressIdentity, state: ProgressIntent["baseline"], expectedVersion?: string, serverReadAt?: number) {
   return transaction(["heads"], "readwrite", async (tx) => {
+    if (!backend.isDemo) assertManagedDeviceDataAddress(backend.serverBaseUrl, backend.libraryId);
     const store = tx.objectStore("heads");
     const head = await read<ProgressHead | undefined>(store.get(entityKey(backend, chapter.chapterId)));
     if (head && !backend.isDemo && head.libraryId !== rememberedLibrary(backend.serverBaseUrl)?.marker) return { head, stale: false };
@@ -161,6 +163,7 @@ export async function observeChapterProgress(backend: ProgressBackend, chapter: 
 
 export async function setProgressHistoryHidden(backend: ProgressBackend, chapterId: number) {
   await transaction(["heads"], "readwrite", async (tx) => {
+    if (!backend.isDemo) assertManagedDeviceDataAddress(backend.serverBaseUrl, backend.libraryId);
     const store = tx.objectStore("heads");
     const head = await read<ProgressHead | undefined>(store.get(entityKey(backend, chapterId)));
     if (head) store.put({ ...head, hideHistory: true });
@@ -179,6 +182,7 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
   const libraryId = backend.isDemo ? undefined : Object.prototype.hasOwnProperty.call(intent, "libraryId") ? intent.libraryId : rememberedLibrary(backend.serverBaseUrl)?.marker;
   const storeNames = ["heads", "operations", ...(intent.recoveryKey ? ["recovered"] : [])];
   const result = await transaction(storeNames, "readwrite", async (tx) => {
+    if (!backend.isDemo) assertManagedDeviceDataAddress(backend.serverBaseUrl, libraryId);
     const heads = tx.objectStore("heads");
     const operations = tx.objectStore("operations");
     const key = entityKey(backend, intent.chapter.chapterId);
@@ -257,6 +261,33 @@ export async function enqueueProgress(backend: ProgressBackend, intent: Progress
   return result;
 }
 
+/** Keep the acknowledged baseline, order and review rules of the original queued writes. */
+export async function moveManagedProgress(from: string, to: string, marker: string) {
+  const fromKey = JSON.stringify(["live", from]);
+  const backend: ProgressBackend = { key: JSON.stringify(["live", to]), serverBaseUrl: to, isDemo: false, libraryId: marker };
+  await transaction(["heads", "operations"], "readwrite", async (tx) => {
+    const heads = tx.objectStore("heads");
+    const operations = tx.objectStore("operations");
+    for (const head of await read<ProgressHead[]>(heads.index("backend").getAll(fromKey))) {
+      if (head.libraryId !== marker || head.backend.serverBaseUrl !== from || head.backend.isDemo) continue;
+      const key = entityKey(backend, head.chapter.chapterId);
+      const pending = await read<ProgressOperation[]>(operations.index("entity").getAll(head.entityKey));
+      // Preserve a destination head or op from either library for explicit review.
+      if (await read(heads.getKey(key)) !== undefined
+        || await read(operations.index("entity").getKey(key)) !== undefined
+        || pending.some((operation) => operation.libraryId !== marker || operation.backend.key !== fromKey)) continue;
+      await read(heads.add({ ...head, backend, entityKey: key }));
+      for (const operation of pending) {
+        await read(operations.put({
+          ...operation, backend, entityKey: key,
+          status: operation.status === "sending" ? "pending" : operation.status,
+        }));
+      }
+      await read(heads.delete(head.entityKey));
+    }
+  });
+}
+
 export async function acquireProgressLease(backend: ProgressBackend, owner: string, exclusiveBrowserLock = false) {
   return transaction(["leases"], "readwrite", async (tx) => {
     const store = tx.objectStore("leases");
@@ -281,7 +312,7 @@ export async function markProgressOperation(operation: ProgressOperation, owner:
     const lease = await read<Lease | undefined>(tx.objectStore("leases").get(operation.backend.key));
     if (lease?.owner !== owner || lease.expires <= Date.now()) return false;
     const existing = await read<ProgressOperation | undefined>(tx.objectStore("operations").get(operation.sequence));
-    if (!existing) return false;
+    if (!existing || existing.entityKey !== operation.entityKey) return false;
     tx.objectStore("operations").put({ ...existing, status, error });
     return true;
   });
@@ -291,7 +322,8 @@ export async function acknowledgeProgress(operation: ProgressOperation, owner: s
   return transaction(["heads", "operations", "leases"], "readwrite", async (tx) => {
     const lease = await read<Lease | undefined>(tx.objectStore("leases").get(operation.backend.key));
     if (lease?.owner !== owner || lease.expires <= Date.now()) return false;
-    const head = await read<ProgressHead>(tx.objectStore("heads").get(operation.entityKey));
+    const head = await read<ProgressHead | undefined>(tx.objectStore("heads").get(operation.entityKey));
+    if (!head) return false;
     if (operation.sequence > head.acknowledgedSequence) {
       const isLatest = head.sequence === operation.sequence;
       const completed = (operation.kind === "reading" && !operation.duplicateOf || operation.trackCompletion) && acknowledged.isRead && head.patch.isRead && operation.epoch === head.epoch

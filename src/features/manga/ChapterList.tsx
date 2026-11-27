@@ -77,6 +77,10 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
       return true;
     });
   }, [cachedChapterIds, policy.sort, policy.descending, filter, query, scanlator, sortedChapters]);
+  const visibleIds = new Set(visibleChapters.map((chapter) => Number(chapter.id)));
+  const visibleSelection = [...visibleIds].filter((id) => selected.has(id));
+  const hiddenSelectionCount = selected.size - visibleSelection.length;
+  const allVisibleSelected = visibleIds.size > 0 && visibleIds.size === visibleSelection.length;
 
   const toggleSelected = (chapterId: number) => setSelected((current) => {
     const next = new Set(current);
@@ -84,36 +88,60 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
     return next;
   });
 
-  const updateSelected = async (patch: { isRead?: boolean; isBookmarked?: boolean; lastPageRead?: number }, ids: Set<number> = selected) => {
-    if (!ids.size) return;
+  const clearApplied = (ids: number[]) => {
+    const remaining = new Set(selected);
+    for (const id of ids) remaining.delete(id);
+    setSelected(remaining);
+    if (!remaining.size) setSelecting(false);
+  };
+
+  const updateSelected = async (patch: { isRead?: boolean; isBookmarked?: boolean; lastPageRead?: number }, ids = visibleSelection) => {
+    if (bulkBusy || !ids.length) return;
     setBulkBusy(true);
     try {
-      let pending = 0;
-      const backend = progressBackend(serverBaseUrl, mockMode);
-      await Promise.all([...ids].map(async (id) => {
-          const chapter = chapters.find((item) => Number(item.id) === id);
-          const result = await writeChapterProgress(backend, id, patch, { fallback: chapter && mangaId !== undefined && mangaTitle ? { chapterId: id, chapterName: chapter.name, chapterNumber: chapter.chapterNumber, mangaId, mangaTitle, pageCount: chapter.pageCount ?? 0, sourceOrder: chapter.sourceOrder } : undefined });
-          if (!result.acknowledged) pending += 1;
+      const target = progressBackend(serverBaseUrl, mockMode);
+      const results = await Promise.allSettled(ids.map(async (id) => {
+        const chapter = visibleChapters.find((item) => Number(item.id) === id);
+        if (!chapter) throw new Error("This chapter is no longer visible.");
+        return writeChapterProgress(target, id, patch, { fallback: mangaId !== undefined && mangaTitle ? { chapterId: id, chapterName: chapter.name, chapterNumber: chapter.chapterNumber, mangaId, mangaTitle, pageCount: chapter.pageCount ?? 0, sourceOrder: chapter.sourceOrder } : undefined });
       }));
-      setSelected(new Set());
-      setSelecting(false);
+      const applied = ids.filter((_, index) => results[index].status === "fulfilled");
+      const pending = results.filter((result) => result.status === "fulfilled" && !result.value.acknowledged).length;
+      clearApplied(applied);
       await invalidateChapterState(queryClient);
-      notify(pending ? `${ids.size} chapter${ids.size === 1 ? "" : "s"} saved on this device; ${pending} waiting to synchronize.` : `${ids.size} chapter${ids.size === 1 ? "" : "s"} updated.`, pending ? "info" : "success");
-    } catch (error: any) {
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed) {
+        const message = failed.reason instanceof Error ? failed.reason.message : "Chapter update failed.";
+        notify(applied.length ? `${applied.length} of ${ids.length} changes saved. ${message}` : message, "error");
+      } else {
+        notify(pending ? `${ids.length} chapter${ids.length === 1 ? "" : "s"} saved on this device. ${pending} waiting to synchronize.` : `${ids.length} chapter${ids.length === 1 ? "" : "s"} updated.`, pending ? "info" : "success");
+      }
+    } catch (error) {
       await invalidateChapterState(queryClient);
-      notify(error?.message || "Chapter update failed.", "error");
+      notify(error instanceof Error ? error.message : "Chapter update failed.", "error");
     } finally {
       setBulkBusy(false);
     }
   };
 
   const downloadSelected = async () => {
+    if (bulkBusy || !visibleSelection.length) return;
     if (offline && !mockMode) { notify("Reconnect before downloading new chapters. Your saved chapters are ready to read.", "info"); return; }
-    const target = progressBackend(serverBaseUrl, mockMode);
-    for (const id of selected) await downloadChapter(id, mangaTitle, target);
-    notify(`${selected.size} chapters added to the persistent download queue.`, "success");
-    setSelected(new Set());
-    setSelecting(false);
+    setBulkBusy(true);
+    const queued: number[] = [];
+    try {
+      const target = progressBackend(serverBaseUrl, mockMode);
+      for (const id of visibleSelection) {
+        await downloadChapter(id, mangaTitle, target);
+        queued.push(id);
+      }
+      notify(`${queued.length} chapters added to the persistent download queue.`, "success");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Chapter download could not be started.", "error");
+    } finally {
+      clearApplied(queued);
+      setBulkBusy(false);
+    }
   };
 
   return (
@@ -121,15 +149,30 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
       <div className="yomi-chapter-controls space-y-3 border-b border-white/10 px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><h3 className="text-lg font-semibold text-slate-100">{chapters.length} {chapters.length === 1 ? "Chapter" : "Chapters"}</h3>{missingCount > 0 && <p className="mt-1 text-xs text-amber-300">{missingCount} possible missing chapter{missingCount === 1 ? "" : "s"} detected</p>}</div>
-          {visibleChapters.length > 0 && (selecting ? <div className="flex items-center gap-2" role="group" aria-label="Chapter selection"><button type="button" className="yomi-button yomi-button-secondary" onClick={() => setSelected(selected.size === visibleChapters.length ? new Set() : new Set(visibleChapters.map((chapter) => Number(chapter.id))))}>{selected.size === visibleChapters.length ? "Clear selection" : "Select visible"}</button><button type="button" className="yomi-button yomi-button-primary" onClick={() => { setSelecting(false); setSelected(new Set()); }}>Done</button></div> : <button type="button" className="yomi-button yomi-button-secondary" onClick={() => setSelecting(true)}>Select chapters</button>)}
+          {selecting ? <div className="flex items-center gap-2" role="group" aria-label="Chapter selection">
+            <button type="button" disabled={bulkBusy || !visibleIds.size} className="yomi-button yomi-button-secondary" onClick={() => setSelected((current) => {
+              const next = new Set(current);
+              for (const id of visibleIds) {
+                if (allVisibleSelected) next.delete(id); else next.add(id);
+              }
+              return next;
+            })}>{allVisibleSelected ? "Deselect visible" : "Select visible"}</button>
+            <button type="button" disabled={bulkBusy} className="yomi-button yomi-button-primary" onClick={() => { setSelecting(false); setSelected(new Set()); }}>Done</button>
+          </div> : visibleChapters.length > 0 && <button type="button" disabled={bulkBusy} className="yomi-button yomi-button-secondary" onClick={() => setSelecting(true)}>Select chapters</button>}
         </div>
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_150px_170px]">
           <label className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><span className="sr-only">Search chapters</span><input className="yomi-field w-full !pl-10" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search chapters…" /></label>
-          <ThemedSelect className="yomi-field" aria-label="Filter chapter status" value={filter} onValueChange={(value) => changePolicy({ filter: value as ChapterFilter })}><option value="all">All chapters</option><option value="unread">Unread</option><option value="bookmarked">Bookmarked</option><option value="downloaded">Downloaded</option></ThemedSelect>
-          <ThemedSelect className="yomi-field" aria-label="Filter scanlator" value={scanlator} onValueChange={(value) => changePolicy({ scanlator: value })}><option value="all">All scanlators</option>{scanlators.map((name) => <option key={name} value={name}>{name}</option>)}</ThemedSelect>
+          <ThemedSelect disabled={bulkBusy} className="yomi-field" aria-label="Filter chapter status" value={filter} onValueChange={(value) => changePolicy({ filter: value as ChapterFilter })}><option value="all">All chapters</option><option value="unread">Unread</option><option value="bookmarked">Bookmarked</option><option value="downloaded">Downloaded</option></ThemedSelect>
+          <ThemedSelect disabled={bulkBusy} className="yomi-field" aria-label="Filter scanlator" value={scanlator} onValueChange={(value) => changePolicy({ scanlator: value })}><option value="all">All scanlators</option>{scanlators.map((name) => <option key={name} value={name}>{name}</option>)}</ThemedSelect>
         </div>
-        <div className="flex flex-wrap items-center gap-2"><ThemedSelect className="yomi-field !w-auto" aria-label="Chapter reading order" value={policy.sort} onValueChange={(value) => changePolicy({ sort: value as typeof policy.sort })}><option value="number">Chapter number</option><option value="source">Source order</option><option value="date">Publication date</option></ThemedSelect><button type="button" className="yomi-button yomi-button-secondary" aria-pressed={policy.descending} onClick={() => changePolicy({ descending: !policy.descending })}>{policy.descending ? "Descending chapters" : "Ascending chapters"}</button><span className="text-xs text-slate-400">Resume starts at the first unread chapter.</span></div>
-        {selected.size > 0 && <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-ink-950/50 p-3"><span className="mr-2 text-xs font-semibold text-slate-300">{selected.size} selected</span><button type="button" disabled={bulkBusy} className="yomi-button yomi-button-secondary" onClick={() => void updateSelected({ isRead: true })}>Mark read</button><button type="button" disabled={bulkBusy} className="yomi-button yomi-button-secondary" onClick={() => void updateSelected({ isRead: false, lastPageRead: 0 })}>Mark unread</button><button type="button" disabled={bulkBusy} className="yomi-button yomi-button-secondary" onClick={() => void updateSelected({ isBookmarked: true })}><Bookmark />Bookmark</button><button type="button" disabled={bulkBusy} className="yomi-button yomi-button-primary" onClick={() => void downloadSelected()}><Download />Download</button></div>}
+        <div className="flex flex-wrap items-center gap-2"><ThemedSelect disabled={bulkBusy} className="yomi-field !w-auto" aria-label="Chapter reading order" value={policy.sort} onValueChange={(value) => changePolicy({ sort: value as typeof policy.sort })}><option value="number">Chapter number</option><option value="source">Source order</option><option value="date">Publication date</option></ThemedSelect><button type="button" disabled={bulkBusy} className="yomi-button yomi-button-secondary" aria-pressed={policy.descending} onClick={() => changePolicy({ descending: !policy.descending })}>{policy.descending ? "Descending chapters" : "Ascending chapters"}</button><span className="text-xs text-slate-400">Resume starts at the first unread chapter.</span></div>
+        {selected.size > 0 && <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-ink-950/50 p-3">
+          <span role="status" className="mr-2 text-xs font-semibold text-slate-300">{hiddenSelectionCount ? `${visibleSelection.length} visible selected · ${hiddenSelectionCount} hidden and excluded from actions` : `${visibleSelection.length} selected`}</span>
+          <button type="button" disabled={bulkBusy || !visibleSelection.length} className="yomi-button yomi-button-secondary" onClick={() => void updateSelected({ isRead: true })}>Mark read</button>
+          <button type="button" disabled={bulkBusy || !visibleSelection.length} className="yomi-button yomi-button-secondary" onClick={() => void updateSelected({ isRead: false, lastPageRead: 0 })}>Mark unread</button>
+          <button type="button" disabled={bulkBusy || !visibleSelection.length} className="yomi-button yomi-button-secondary" onClick={() => void updateSelected({ isBookmarked: true })}><Bookmark />Bookmark</button>
+          <button type="button" disabled={bulkBusy || !visibleSelection.length} className="yomi-button yomi-button-primary" onClick={() => void downloadSelected()}><Download />Download</button>
+        </div>}
       </div>
 
       <div className="flex flex-col divide-y divide-white/5">
@@ -140,9 +183,9 @@ export function ChapterList({ chapters, mangaTitle, mangaId, offline = false }: 
           const content = <><span className={`block truncate font-medium ${chapter.isRead ? "text-slate-400" : "text-slate-200"}`}>{chapter.name}</span><span className="yomi-chapter-meta">{chapter.isRead && <span className="yomi-chapter-read"><Check aria-hidden="true" />Read</span>}{!chapter.isRead && chapterProgressLabel(chapter) && <span>{chapterProgressLabel(chapter)}</span>}<span>{formatChapterDate(chapter.uploadDate)}</span>{chapter.scanlator && <><span aria-hidden="true">·</span><span className="truncate">{chapter.scanlator}</span></>}</span></>;
           return (
             <ChapterRowFrame key={chapter.id} name={chapter.name} selected={selected.has(chapterId)} selecting={selecting} read={chapter.isRead} bookmarked={chapter.isBookmarked} busy={bulkBusy}
-              onRead={() => void updateSelected(chapter.isRead ? { isRead: false, lastPageRead: 0 } : { isRead: true }, new Set([chapterId]))} onBookmark={() => void updateSelected({ isBookmarked: !chapter.isBookmarked }, new Set([chapterId]))} onSelect={() => { setSelecting(true); setSelected(new Set([chapterId])); }}>
-              {selecting && <label className="yomi-chapter-check"><input type="checkbox" checked={selected.has(chapterId)} onChange={() => toggleSelected(chapterId)} aria-label={`Select ${chapter.name}`} /><span aria-hidden="true"><Check /></span></label>}
-              {selecting ? <button type="button" onClick={() => toggleSelected(chapterId)} className="yomi-chapter-content" aria-label={`Toggle selection for ${chapter.name}`}>{content}</button> : <Link to={`/reader/${chapter.id}`} className="yomi-chapter-content">{content}</Link>}
+              onRead={() => void updateSelected(chapter.isRead ? { isRead: false, lastPageRead: 0 } : { isRead: true }, [chapterId])} onBookmark={() => void updateSelected({ isBookmarked: !chapter.isBookmarked }, [chapterId])} onSelect={() => { if (!bulkBusy) { setSelecting(true); setSelected(new Set([chapterId])); } }}>
+              {selecting && <label className="yomi-chapter-check"><input type="checkbox" disabled={bulkBusy} checked={selected.has(chapterId)} onChange={() => toggleSelected(chapterId)} aria-label={`Select ${chapter.name}`} /><span aria-hidden="true"><Check /></span></label>}
+              {selecting ? <button type="button" disabled={bulkBusy} aria-pressed={selected.has(chapterId)} onClick={() => toggleSelected(chapterId)} className="yomi-chapter-content" aria-label={`Toggle selection for ${chapter.name}`}>{content}</button> : <Link to={`/reader/${chapter.id}`} className="yomi-chapter-content">{content}</Link>}
               {!selecting && <div className="flex shrink-0 items-center gap-2">
                 {chapter.isBookmarked && <Bookmark className="h-4 w-4 fill-current text-amber-300" aria-label="Bookmarked" />}
                 {chapter.isDownloaded && <span className="grid h-8 w-8 place-items-center rounded-full bg-white/5 text-slate-400" title="Downloaded on server"><Download className="h-4 w-4" /></span>}

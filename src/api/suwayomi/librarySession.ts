@@ -1,6 +1,7 @@
 import { validateServerBaseUrl } from "../../config/server";
 import { readLibraryIdentity, replaceLibraryIdentity, type LibraryIdentity, validLibraryMarker } from "./libraryIdentity";
 import { pendingLibraryRestore } from "./restoreIdentity";
+import { assertManagedEngineSession, movingManagedLibrary, retiredManagedLibrary } from "./managedLibraryLocations";
 
 const KEY = "yomikura-library-sessions-v1";
 export const LIBRARY_SESSION_EVENT = "yomikura-library-session-changed";
@@ -29,6 +30,10 @@ export function rememberLibrary(server: string, identity: LibraryIdentity) {
 /** Never adopt a replacement marker as part of a mutation or replay. */
 export async function assertLibrarySession(server: string, expected = rememberedLibrary(server)?.marker) {
   if (pendingLibraryRestore(server)) throw new Error("A restore still needs confirmation. Updates are paused; open Backups to review its status.");
+  const key = address(server);
+  await assertManagedEngineSession(key);
+  if (movingManagedLibrary(key)) throw new Error("Device data is being moved to the local library’s new address. Updates will resume after the move.");
+  if (retiredManagedLibrary(key, expected)) throw new Error("This local library has moved to another address. Open its managed profile before making changes.");
   if (!expected) return;
   const remote = await readLibraryIdentity(server);
   if (remote?.marker !== expected) throw new Error("This address now points to a different library. Pending updates are kept on this device. Reconnect and review them before syncing.");

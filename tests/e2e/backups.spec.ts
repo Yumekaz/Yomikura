@@ -8,8 +8,9 @@ import { mockSdk } from "../../src/api/graphql/mockSdk";
 const backend = "http://127.0.0.1:45679";
 const archive = gzipSync("Synthetic library backup fixture");
 
-async function connectFixture(context: BrowserContext, options: { offline?: boolean; failStorage?: boolean; restoreFails?: boolean } = {}) {
-  const state = { restores: 0, safetyVerifiedBeforeRestore: false, exports: 0, marker: "11111111-1111-4111-8111-111111111111" };
+async function connectFixture(context: BrowserContext, options: { offline?: boolean; failStorage?: boolean; restoreFails?: boolean; expiredStatus?: boolean; missingSource?: string; invalidBackup?: boolean } = {}) {
+  const state = { validations: 0, restores: 0, safetyVerifiedBeforeRestore: false, exports: 0, marker: "11111111-1111-4111-8111-111111111111",
+    restoreState: options.expiredStatus ? null : options.restoreFails ? "FAILURE" : "SUCCESS" };
   await context.addInitScript(({ backend, failStorage }) => {
     if (!localStorage.getItem("yomikura-library-sessions-v1")) localStorage.setItem("yomikura-library-sessions-v1", JSON.stringify({ [backend]: { marker: "11111111-1111-4111-8111-111111111111" } }));
     if (!localStorage.getItem("yomikura-settings")) {
@@ -28,6 +29,11 @@ async function connectFixture(context: BrowserContext, options: { offline?: bool
     if (route.request().url().includes("/export/")) return route.fulfill({ contentType: "application/gzip", body: archive });
     if (new URL(route.request().url()).pathname !== "/api/graphql") return route.fulfill({ status: 404, body: "No fixture resource" });
     if (route.request().headers()["content-type"]?.startsWith("multipart/form-data")) {
+      if (route.request().postData()?.includes("query ValidateBackup")) {
+        state.validations++;
+        if (options.invalidBackup) return route.fulfill({ json: { errors: [{ message: "Invalid backup content" }] } });
+        return route.fulfill({ json: { data: { validateBackup: { missingSources: options.missingSource ? [{ name: options.missingSource }] : [], missingTrackers: [] } } } });
+      }
       state.restores += 1;
       state.safetyVerifiedBeforeRestore = await route.request().frame().evaluate(async () => {
         const db = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -58,7 +64,7 @@ async function connectFixture(context: BrowserContext, options: { offline?: bool
       state.exports += 1;
       data = { createBackup: { url: `/export/temporary-${state.exports}.tachibk` } };
     } else if (name === "GetRestoreStatus") {
-      data = { restoreStatus: { state: options.restoreFails ? "FAILURE" : "SUCCESS", mangaProgress: 1, totalManga: 1 } };
+      data = { restoreStatus: state.restoreState === null ? null : { state: state.restoreState, mangaProgress: 1, totalManga: 1 } };
     } else {
       const method = (mockSdk as unknown as Record<string, (variables: unknown) => Promise<unknown>>)[name];
       if (!method) throw new Error(`Unhandled backup fixture operation: ${name}`);
@@ -132,7 +138,7 @@ test("a retained backup survives Chrome restart and exports with the server unav
 test("a failed safety-copy write blocks restore and cannot report automatic backup success", async ({ context, page }) => {
   const state = await connectFixture(context, { failStorage: true });
   await page.goto("/settings/backup");
-  await page.locator('input[type="file"][accept=".zip,.tachibk,.json"]').setInputFiles({ name: "fixture.tachibk", mimeType: "application/gzip", buffer: archive });
+  await page.locator('input[type="file"][accept=".tachibk"]').setInputFiles({ name: "fixture.tachibk", mimeType: "application/gzip", buffer: archive });
   await page.getByRole("button", { name: "Back up and restore", exact: true }).click();
   await expect(page.getByText(/Restore stopped because its safety backup could not be saved and verified/)).toBeVisible();
   expect(state.restores).toBe(0);
@@ -163,7 +169,7 @@ for (const restoreFails of [false, true]) {
   test(`restore ${restoreFails ? "failure" : "success"} retains a verified safety copy before upload`, async ({ context, page }) => {
     const state = await connectFixture(context, { restoreFails });
     await page.goto("/settings/backup");
-    await page.locator('input[type="file"][accept=".zip,.tachibk,.json"]').setInputFiles({ name: "fixture.tachibk", mimeType: "application/gzip", buffer: archive });
+    await page.locator('input[type="file"][accept=".tachibk"]').setInputFiles({ name: "fixture.tachibk", mimeType: "application/gzip", buffer: archive });
     await page.getByRole("button", { name: "Back up and restore", exact: true }).click();
     await expect(page.getByText(restoreFails ? /Restore could not be confirmed\. The safety backup/ : /Backup restored successfully/)).toBeVisible();
     expect(state.restores).toBe(1);
@@ -171,3 +177,55 @@ for (const restoreFails of [false, true]) {
     await expect(page.getByRole("region", { name: "Saved backups" }).getByText(/Safety copy/)).toBeVisible();
   });
 }
+
+test("rejects a server-invalid backup before making a safety copy or uploading a restore", async ({ context, page }) => {
+  const state = await connectFixture(context, { invalidBackup: true });
+  await page.goto("/settings/backup");
+  await page.locator('input[type="file"][accept=".tachibk"]').setInputFiles({ name: "fixture.tachibk", mimeType: "application/gzip", buffer: archive });
+  await page.getByRole("button", { name: "Back up and restore", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Suwayomi could not validate this backup" })).toBeVisible();
+  expect(state.validations).toBe(1);
+  expect(state.exports).toBe(0);
+  expect(state.restores).toBe(0);
+});
+
+test("makes missing sources visible before restoring", async ({ context, page }) => {
+  const state = await connectFixture(context, { missingSource: "Fixture source" });
+  await page.goto("/settings/backup");
+  await page.locator('input[type="file"][accept=".tachibk"]').setInputFiles({ name: "fixture.tachibk", mimeType: "application/gzip", buffer: archive });
+  await page.getByRole("button", { name: "Back up and restore", exact: true }).click();
+  const review = page.getByRole("alertdialog", { name: "Restore with missing sources or trackers?" });
+  await expect(review.getByText(/Fixture source/)).toBeVisible();
+  expect(state.exports).toBe(0);
+  expect(state.restores).toBe(0);
+  await review.getByRole("button", { name: "Back up and restore anyway", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Saved backups" }).getByText(/Safety copy/)).toBeVisible();
+  await expect.poll(() => state.restores).toBe(1);
+});
+
+test("keeps writes paused after restore status expires and rechecks before explicit recovery", async ({ context, page }) => {
+  const state = await connectFixture(context, { expiredStatus: true });
+  const oldMarker = state.marker;
+  await page.goto("/settings/backup");
+  await page.locator('input[type="file"][accept=".tachibk"]').setInputFiles({ name: "fixture.tachibk", mimeType: "application/gzip", buffer: archive });
+  await page.getByRole("button", { name: "Back up and restore", exact: true }).click();
+  const recovery = page.getByRole("region", { name: "Restore recovery" });
+  await expect(recovery.getByText(/Suwayomi no longer has a result/)).toBeVisible();
+  await page.reload();
+  await expect(recovery.getByText(/Device updates remain paused/)).toBeVisible();
+  expect(state.marker).toBe(oldMarker);
+
+  await recovery.getByRole("button", { name: "Keep current library and resume" }).click();
+  state.restoreState = "RESTORING_MANGA";
+  await page.getByRole("button", { name: "Keep current library", exact: true }).click();
+  await expect(recovery.getByText(/Suwayomi is restoring your library/)).toBeVisible();
+  expect(state.marker).toBe(oldMarker);
+
+  state.restoreState = null;
+  await recovery.getByRole("button", { name: "Check restore status" }).click();
+  await recovery.getByRole("button", { name: "Keep current library and resume" }).click();
+  await page.getByRole("button", { name: "Keep current library", exact: true }).click();
+  await expect(recovery).toHaveCount(0);
+  expect(state.marker).not.toBe(oldMarker);
+  await expect(page.getByRole("region", { name: "Saved backups" }).getByText(/Safety copy/)).toBeVisible();
+});

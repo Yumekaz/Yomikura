@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { restoreBackupUpload } from "./backupUpload";
+import { restoreBackupUpload, validateBackupUpload } from "./backupUpload";
 
 describe("Suwayomi backup upload contract", () => {
   it("places the upload in a top-level variable supported by the server parser", async () => {
@@ -21,5 +21,28 @@ describe("Suwayomi backup upload contract", () => {
     const file = new File(["fixture"], "fixture.tachibk");
     await expect(restoreBackupUpload("http://localhost/api/graphql", file, async () => new Response(JSON.stringify({ data: { restoreBackup: {} } })))).rejects.toThrow("job ID");
     await expect(restoreBackupUpload("http://localhost/api/graphql", file, async () => new Response(JSON.stringify({ errors: [{ message: "Upload rejected" }] })))).rejects.toThrow("Upload rejected");
+  });
+
+  it("preflights with a query that reports dependencies without requesting a restore", async () => {
+    const file = new File(["fixture"], "fixture.tachibk");
+    const data = { missingSources: [{ name: "Test catalog" }], missingTrackers: [] };
+    const request = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ data: { validateBackup: data } })));
+    await expect(validateBackupUpload("http://localhost/api/graphql", file, request)).resolves.toEqual(data);
+    const options = request.mock.calls[0][1]!;
+    const form = options.body as FormData;
+    expect(options.redirect).toBe("error");
+    expect(JSON.parse(form.get("operations") as string)).toMatchObject({ variables: { backup: null } });
+    expect(JSON.parse(form.get("operations") as string).query).toContain("query ValidateBackup");
+    expect(JSON.parse(form.get("map") as string)).toEqual({ "0": ["variables.backup"] });
+  });
+
+  it("requires a confirmed validation result", async () => {
+    const file = new File(["fixture"], "fixture.tachibk");
+    await expect(validateBackupUpload("http://localhost/api/graphql", file,
+      async () => new Response(JSON.stringify({ data: { validateBackup: { missingSources: [] } } })),
+    )).rejects.toThrow("did not confirm backup validation");
+    await expect(validateBackupUpload("http://localhost/api/graphql", file,
+      async () => new Response(JSON.stringify({ errors: [{ message: "Invalid backup" }] })),
+    )).rejects.toThrow("could not validate");
   });
 });

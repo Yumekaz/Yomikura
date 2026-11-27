@@ -13,7 +13,7 @@ import { BulkCategoryModal } from "../../components/library/BulkCategoryModal";
 import { LibraryList } from "./LibraryList";
 import { ContinueReading } from "./ContinueReading";
 import { invalidateChapterState } from "../../api/suwayomi/chapterState";
-import { progressBackend } from "../../api/suwayomi/backendIdentity";
+import { progressBackend, type ProgressBackend } from "../../api/suwayomi/backendIdentity";
 import { writeChapterProgress } from "../../api/suwayomi/progressSync";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { availabilityCounts, deviceChapterCounts, isAvailabilityFilter, matchesAvailability } from "./downloadAvailability";
@@ -22,6 +22,13 @@ import { activeLibraryFilterCount, compareLibraryBooks, librarySortScope, librar
 import { fetchBookmarkMembership } from "../../api/library/fetchBookmarkMembership";
 import { parseHistoryTimestamp } from "../history/historyModel";
 import { isMetadataSnapshot, markMetadataSnapshot } from "../../api/suwayomi/libraryMetadata";
+import { isSelectedLibrary } from "../../api/suwayomi/libraryUpdateState";
+
+interface BulkCategorySelection {
+  backend: ProgressBackend;
+  books: { id: number; title: string; categoryIds: number[] }[];
+  categories: { id: number; name: string }[];
+}
 
 export default function LibraryPage() {
   const { notify } = useFeedback();
@@ -48,7 +55,7 @@ export default function LibraryPage() {
   // Bulk Select States
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedMangaIds, setSelectedMangaIds] = useState<Set<string | number>>(new Set());
-  const [isBulkCatOpen, setIsBulkCatOpen] = useState(false);
+  const [bulkCategories, setBulkCategories] = useState<BulkCategorySelection | null>(null);
 
   useEffect(() => {
     loadCachedChapters();
@@ -109,6 +116,27 @@ export default function LibraryPage() {
   }, [catData]);
 
   const isOfflineMode = isMetadataSnapshot(libData) || !!(libError && cachedChapters.length > 0);
+  const openBulkCategories = () => {
+    if (isOfflineMode || !libData || !catData || isMetadataSnapshot(catData)) {
+      notify("Reconnect to load your current collections before editing them.", "info");
+      return;
+    }
+    const ids = new Set(Array.from(selectedMangaIds, Number));
+    const books = libData.mangas.nodes.filter((book) => ids.has(book.id)).map((book) => ({
+      id: book.id,
+      title: book.title,
+      categoryIds: book.categories.nodes.map((category) => category.id),
+    }));
+    if (!books.length || books.length !== ids.size) {
+      notify("Select titles that are still in your library before editing collections.", "info");
+      return;
+    }
+    setBulkCategories({
+      backend: progressBackend(serverBaseUrl, mockMode),
+      books,
+      categories: categories.map(({ id, name }) => ({ id: Number(id), name })).filter(({ id }) => id > 0),
+    });
+  };
   const downloadedFallback = isOfflineMode && !libData;
   const bookmarks = useQuery({ queryKey: ["library-bookmarks", backendKey], queryFn: ({ signal }) => fetchBookmarkMembership(sdk, signal), enabled: filterChoices.bookmarked !== "any" && !isOfflineMode, retry: false });
   const localDownloadCounts = useMemo(() => deviceChapterCounts(cachedChapters), [cachedChapters]);
@@ -395,7 +423,8 @@ export default function LibraryPage() {
               Download
             </button>
             <button
-              onClick={() => setIsBulkCatOpen(true)}
+              onClick={openBulkCategories}
+              disabled={selectedMangaIds.size === 0}
               className="rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 px-3 py-2 text-xs font-bold text-slate-200 transition"
             >
               Categories
@@ -424,14 +453,13 @@ export default function LibraryPage() {
       />
 
       {/* Bulk category modal */}
-      <BulkCategoryModal
-        isOpen={isBulkCatOpen}
+      {bulkCategories && isSelectedLibrary(bulkCategories.backend) && <BulkCategoryModal
+        {...bulkCategories}
         onClose={() => {
-          setIsBulkCatOpen(false);
+          setBulkCategories(null);
           handleClearSelection();
         }}
-        mangaIds={Array.from(selectedMangaIds).map(Number)}
-      />
+      />}
     </div>
   );
 }
