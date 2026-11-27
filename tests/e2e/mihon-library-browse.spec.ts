@@ -2,7 +2,11 @@ import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mockSdk } from "../../src/api/graphql/mockSdk";
 const backend = "http://127.0.0.1:45679";
-async function fixture(page: Page, options: { hideLibrary?: boolean; bookmarkError?: boolean } = {}) {
+async function fixture(page: Page, options: {
+  hideLibrary?: boolean;
+  bookmarkError?: boolean;
+  search?: (source: string, query: string) => Promise<{ id: number; title: string }[]>;
+} = {}) {
   const requests: { name: string; variables: any }[] = [];
   const books = [
     { id: 1, title: "Active story", unreadCount: 1, downloadCount: 1, sourceId: "a", status: "ONGOING", chapters: { totalCount: 3 } },
@@ -23,13 +27,22 @@ async function fixture(page: Page, options: { hideLibrary?: boolean; bookmarkErr
       data = { chapters: { totalCount: 1, nodes: [{ id: 11, mangaId: 1 }], pageInfo: { hasNextPage: false, endCursor: null } } };
     } else if (name === "GetSources") data = { sources: { totalCount: 2, pageInfo: { hasNextPage: !variables.after, endCursor: variables.after ? null : "page2" }, nodes: [{ id: variables.after ? "fr" : "6247824327199706550", name: variables.after ? "French source" : "English source", lang: variables.after ? "fr" : "en", supportsLatest: true, isNsfw: false, isConfigurable: false, iconUrl: null, extension: { pkgName: "multi", isInstalled: true } }] } };
     else if (name === "GetSourceFilters") data = { aboutServer: { version: "v2.3.2243" }, source: { id: variables.id, name: "French source", filters: [] } };
-    else if (name === "FetchSourceManga") data = { fetchSourceManga: { hasNextPage: variables.input.page === 1, mangas: variables.input.page === 1 ? [{ id: 1, title: "Active story", thumbnailUrl: null, inLibrary: true }] : [{ id: 8, title: "Undiscovered story", thumbnailUrl: null, inLibrary: false }] } };
+    else if (name === "FetchSourceManga") {
+      const { source, query, page } = variables.input;
+      const mangas = options.search ? await options.search(source, query)
+        : page === 1 ? [{ id: 1, title: "Active story", thumbnailUrl: null, inLibrary: true }]
+          : [{ id: 8, title: "Undiscovered story", thumbnailUrl: null, inLibrary: false }];
+      data = { fetchSourceManga: { hasNextPage: !options.search && page === 1, mangas } };
+    }
     else if (name === "GetHistory") data = { chapters: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } };
     else {
       const method = (mockSdk as unknown as Record<string, (args: unknown) => Promise<unknown>>)[name];
       data = method ? await method(variables) : { __typename: "Query" };
     }
-    await route.fulfill({ json: { data } });
+    await route.fulfill({ json: { data } }).catch((error) => {
+      if (name !== "FetchSourceManga" || !options.search) throw error;
+      // A deliberately delayed search may have been aborted by the browser.
+    });
   });
   return requests;
 }
@@ -95,7 +108,53 @@ test("a hidden library-only result page can still advance to new books", async (
 test("global search honors the same hide-library preference", async ({ page }) => {
   await fixture(page, { hideLibrary: true }); await page.goto("/browse/search?q=story");
   await expect(page.getByRole("heading", { name: "Global search" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Searched 2 sources" })).toBeVisible();
   await expect(page.getByRole("link").filter({ hasText: "Active story" })).toHaveCount(0);
+});
+
+test("global search shows fast results and cancels the earlier query when a slow source is still pending", async ({ page }) => {
+  let releaseSlow!: () => void;
+  const slowResponse = new Promise<void>((resolve) => { releaseSlow = resolve; });
+  const requests = await fixture(page, { search: async (source, query) => {
+    if (source === "fr" && query === "first") {
+      await slowResponse;
+      return [{ id: 8, title: "Obsolete result" }];
+    }
+    return source === "fr" ? [{ id: 10, title: `${query} result from French source` }]
+      : [{ id: 9, title: `${query} result from English source` }];
+  } });
+  try {
+    await page.goto("/browse/search?q=first");
+    const first = page.getByRole("link").filter({ hasText: "first result from English source" });
+    await expect(first).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: "1 of 2 sources finished" })).toBeVisible();
+    await expect.poll(() => requests.some(({ name, variables }) => name === "FetchSourceManga" && variables.input.source === "fr")).toBe(true);
+    const aborted = page.waitForEvent("requestfailed", (request) => request.url().endsWith("/api/graphql")
+      && request.postDataJSON()?.variables?.input?.query === "first" && request.postDataJSON()?.variables?.input?.source === "fr");
+    await page.getByRole("textbox", { name: "Search manga title globally" }).fill("second");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await aborted;
+    releaseSlow();
+    await expect(page.getByRole("link").filter({ hasText: "second result from English source" })).toBeVisible();
+    await expect(page.getByRole("link").filter({ hasText: "second result from French source" })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: "Searched 2 sources" })).toBeVisible();
+    await expect(page.getByText("Obsolete result")).toHaveCount(0);
+    await expect(first).toHaveCount(0);
+  } finally { releaseSlow(); }
+});
+
+test("global search applies the language filter before calling extensions", async ({ page }) => {
+  const requests = await fixture(page);
+  await page.goto("/browse/search");
+  await page.getByRole("button", { name: "EN", exact: true }).click();
+  await page.getByRole("textbox", { name: "Search manga title globally" }).fill("story");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Searched 1 source for" })).toBeVisible();
+  expect(requests.filter(({ name }) => name === "FetchSourceManga").map(({ variables }) => variables.input.source)).toEqual(["6247824327199706550"]);
+  await page.getByRole("button", { name: "Sources: All", exact: true }).click();
+  await page.getByRole("checkbox", { name: /French source/ }).check();
+  await expect(page.getByRole("status").filter({ hasText: "No sources match the current filters." })).toBeVisible();
+  expect(requests.filter(({ name }) => name === "FetchSourceManga")).toHaveLength(1);
 });
 test("filter sheet fits a narrow viewport and supports keyboard dismissal", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 }); await fixture(page); await page.goto("/library"); await openFilters(page);

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft, Globe, Loader2, Search } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
@@ -8,9 +8,11 @@ import { FetchSourceMangaType } from "../../api/graphql/generated/graphql";
 import { classifySourceProblem, getErrorMessage } from "../../api/suwayomi/errors";
 import { buildSourceBrowsePath } from "./sourceBrowseRoute";
 import { fetchAllSources } from "../../api/library/fetchAllSources";
-import { progressBackend } from "../../api/suwayomi/backendIdentity";
+import { useProgressBackend } from "../../hooks/useProgressSynchronization";
 
 const GLOBAL_SEARCH_CONCURRENCY = 6;
+const SOURCE_SEARCH_TIMEOUT_MS = 20_000;
+const SEARCH_CACHE_MS = 5 * 60 * 1000;
 
 type MangaSearchResult = {
   id: string | number;
@@ -80,19 +82,23 @@ async function searchSourcesWithLimit({
   query,
   sdk,
   sources,
+  signal,
+  onResult,
 }: {
   query: string;
   sdk: ReturnType<typeof createGraphqlClient>;
   sources: SearchSource[];
-}): Promise<SourceSearchOutcome[]> {
-  const outcomes: SourceSearchOutcome[] = [];
+  signal: AbortSignal;
+  onResult: (outcome: SourceSearchOutcome) => void;
+}): Promise<void> {
   let nextIndex = 0;
 
   async function worker() {
-    while (nextIndex < sources.length) {
+    while (!signal.aborted && nextIndex < sources.length) {
       const source = sources[nextIndex];
       nextIndex += 1;
-
+      const timeout = AbortSignal.timeout(SOURCE_SEARCH_TIMEOUT_MS);
+      const requestSignal = AbortSignal.any([signal, timeout]);
       try {
         const result = await sdk.FetchSourceManga({
           input: {
@@ -101,17 +107,11 @@ async function searchSourcesWithLimit({
             type: FetchSourceMangaType.Search,
             query,
           },
-        });
-
-        outcomes.push({
-          source,
-          mangas: result.fetchSourceManga?.mangas || [],
-        });
+        }, undefined, requestSignal);
+        if (!signal.aborted) onResult({ source, mangas: result.fetchSourceManga?.mangas ?? [] });
       } catch (error) {
-        outcomes.push({
-          source,
-          mangas: [],
-          error: getErrorMessage(error),
+        if (!signal.aborted) onResult({
+          source, mangas: [], error: timeout.aborted ? "Source search timed out." : getErrorMessage(error),
         });
       }
     }
@@ -120,8 +120,6 @@ async function searchSourcesWithLimit({
   await Promise.all(
     Array.from({ length: Math.min(GLOBAL_SEARCH_CONCURRENCY, sources.length) }, () => worker())
   );
-
-  return outcomes.sort((a, b) => a.source.name.localeCompare(b.source.name));
 }
 
 function GlobalSourceSearchResults({
@@ -165,20 +163,24 @@ function GlobalSourceSearchResults({
 export default function GlobalSearchPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { serverBaseUrl, mockMode, experience, showNsfw } = useSettingsStore();
-  const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
-  const urlQuery = searchParams.get("q") || "";
+  const { serverBaseUrl, experience, showNsfw } = useSettingsStore();
+  const backend = useProgressBackend();
+  const queryClient = useQueryClient();
+  const activeQuery = searchParams.get("q")?.trim() ?? "";
 
-  const [searchInput, setSearchInput] = useState(urlQuery);
-  const [activeQuery, setActiveQuery] = useState(urlQuery);
+  const [searchInput, setSearchInput] = useState(activeQuery);
 
-  const sdk = useMemo(() => {
-    const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-    return createGraphqlClient(`${cleanUrl}/api/graphql`, undefined, mockMode ? "demo" : "live");
-  }, [serverBaseUrl, mockMode]);
-
-  const sourceList = useQuery({ queryKey: ["sources", backend.key], queryFn: ({ signal }) => fetchAllSources(sdk, signal), enabled: !!serverBaseUrl });
-  const loadingSources = sourceList.isPending;
+  const sdk = useMemo(() => backend && createGraphqlClient(
+    `${backend.serverBaseUrl}/api/graphql`, { libraryId: backend.libraryId ?? null }, backend.isDemo ? "demo" : "live",
+  ), [backend]);
+  const sourceList = useQuery({
+    queryKey: ["sources", backend?.key, backend?.libraryId],
+    queryFn: ({ signal }) => {
+      if (!sdk) throw new Error("Connect to a library before searching sources.");
+      return fetchAllSources(sdk, signal);
+    },
+    enabled: !!sdk,
+  });
   const sources = useMemo(() => sourceList.data?.sources.nodes.filter((source) => source.extension?.isInstalled !== false && (!experience.applyContentFilterToInstalled || showNsfw || !source.isNsfw)).map((source) => ({ ...source, id: String(source.id) })), [sourceList.data, experience.applyContentFilterToInstalled, showNsfw]);
 
   // Global Search V2 Filters States
@@ -189,42 +191,42 @@ export default function GlobalSearchPage() {
   const [sourceSearchInput, setSourceSearchInput] = useState("");
 
   const scopedSources = useMemo(() => {
-    if (!sources) return [];
-    let list = sources;
-    // Filter NSFW sources early if hideNsfw is true
-    if (hideNsfw) {
-      list = list.filter(s => !s.isNsfw);
-    }
-    // Filter by source scoping selection
-    if (selectedSourceIds.length > 0) {
-      list = list.filter(s => selectedSourceIds.includes(s.id));
-    }
-    return list;
-  }, [sources, selectedSourceIds, hideNsfw]);
+    const selected = new Set(selectedSourceIds);
+    return (sources ?? []).filter((source) =>
+      (!hideNsfw || !source.isNsfw) && (!selected.size || selected.has(source.id))
+      && (selectedLanguage === "all" || source.lang === selectedLanguage),
+    );
+  }, [sources, selectedSourceIds, selectedLanguage, hideNsfw]);
 
-  const {
-    data: searchOutcomes,
-    isLoading: searchingSources,
-    isError: searchFailed,
-    error: searchError,
-  } = useQuery({
-    queryKey: ["global-search-batch", backend.key, activeQuery, scopedSources.map((source) => source.id).join("|")],
-    queryFn: () => searchSourcesWithLimit({ query: activeQuery, sdk, sources: scopedSources }),
-    enabled: !!serverBaseUrl && !!activeQuery && scopedSources.length > 0,
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  });
+  const searchKey = JSON.stringify([backend?.key, backend?.libraryId, activeQuery, scopedSources.map((source) => source.id)]);
+  const [search, setSearch] = useState<{ key: string; outcomes: SourceSearchOutcome[] }>();
+  useEffect(() => {
+    if (!sdk || !activeQuery || !scopedSources.length) return;
+    const cacheKey = ["global-search-batch", searchKey];
+    const cached = queryClient.getQueryState<SourceSearchOutcome[]>(cacheKey);
+    if (cached?.data && Date.now() - cached.dataUpdatedAt < SEARCH_CACHE_MS) {
+      setSearch({ key: searchKey, outcomes: cached.data });
+      return;
+    }
+    const controller = new AbortController();
+    const completed: SourceSearchOutcome[] = [];
+    setSearch({ key: searchKey, outcomes: [] });
+    void searchSourcesWithLimit({
+      query: activeQuery, sdk, sources: scopedSources, signal: controller.signal,
+      onResult: (outcome) => {
+        completed.push(outcome);
+        setSearch({ key: searchKey, outcomes: [...completed] });
+      },
+    }).then(() => {
+      if (!controller.signal.aborted) queryClient.setQueryData(cacheKey, completed);
+    });
+    return () => controller.abort();
+  }, [activeQuery, queryClient, scopedSources, sdk, searchKey]);
 
-  const outcomes = searchOutcomes || [];
+  const outcomes = search?.key === searchKey ? search.outcomes : [];
+  const searchingSources = outcomes.length < scopedSources.length;
 
   const processedOutcomes = useMemo(() => {
-    let filtered = outcomes;
-
-    // Filter by language
-    if (selectedLanguage !== "all") {
-      filtered = filtered.filter(outcome => outcome.source.lang === selectedLanguage);
-    }
-
     // Relevance scoring function
     const getRelevanceScore = (title: string, query: string): number => {
       const t = title.toLowerCase();
@@ -237,7 +239,7 @@ export default function GlobalSearchPage() {
     };
 
     // Process each outcome: sort mangas inside by relevance
-    const processed = filtered.map(outcome => {
+    const processed = outcomes.map(outcome => {
       const sortedMangas = outcome.mangas.filter((manga) => !experience.hideLibraryEntries || !manga.inLibrary).sort((a, b) => {
         const scoreA = getRelevanceScore(a.title, activeQuery);
         const scoreB = getRelevanceScore(b.title, activeQuery);
@@ -251,8 +253,9 @@ export default function GlobalSearchPage() {
     });
 
     // Sort the outcomes themselves so that sources with higher relevance scores appear first
-    return processed.sort((a, b) => b.maxScore - a.maxScore);
-  }, [outcomes, selectedLanguage, activeQuery, experience.hideLibraryEntries]);
+    return processed.sort((a, b) => b.maxScore - a.maxScore || a.source.name.localeCompare(b.source.name)
+      || a.source.id.localeCompare(b.source.id));
+  }, [outcomes, activeQuery, experience.hideLibraryEntries]);
 
   const resultOutcomes = processedOutcomes.filter((outcome) => outcome.mangas.length > 0);
   const failedOutcomes = processedOutcomes.filter((outcome) => outcome.error);
@@ -262,14 +265,12 @@ export default function GlobalSearchPage() {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const queryTrimmed = searchInput.trim();
-    setActiveQuery(queryTrimmed);
     setSearchParams(queryTrimmed ? { q: queryTrimmed } : {});
   };
 
   useEffect(() => {
-    setSearchInput(urlQuery);
-    setActiveQuery(urlQuery);
-  }, [urlQuery]);
+    setSearchInput(activeQuery);
+  }, [activeQuery]);
 
   return (
     <div className="min-h-screen bg-transparent pb-24 text-slate-100">
@@ -318,6 +319,7 @@ export default function GlobalSearchPage() {
               {/* NSFW Toggle */}
               <button
                 type="button"
+                aria-pressed={hideNsfw}
                 onClick={() => setHideNsfw(!hideNsfw)}
                 className={`rounded-lg border px-3 py-1.5 font-bold transition flex items-center gap-1.5 ${
                   hideNsfw
@@ -398,6 +400,7 @@ export default function GlobalSearchPage() {
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none max-w-full">
               <button
                 type="button"
+                aria-pressed={selectedLanguage === "all"}
                 onClick={() => setSelectedLanguage("all")}
                 className={`rounded-full px-3 py-1 font-bold transition flex-shrink-0 ${
                   selectedLanguage === "all"
@@ -414,6 +417,7 @@ export default function GlobalSearchPage() {
                   <button
                     key={lang}
                     type="button"
+                    aria-pressed={isSelected}
                     onClick={() => setSelectedLanguage(lang)}
                     className={`rounded-full px-3 py-1 font-bold transition flex-shrink-0 ${
                       isSelected
@@ -436,14 +440,25 @@ export default function GlobalSearchPage() {
           <div className="yomi-route-empty"><div><Search /><h2>Search your installed sources</h2><p>Searches run in measured batches so one source does not overwhelm the rest.</p></div></div>
         )}
 
-        {activeQuery && loadingSources && (
+        {activeQuery && sourceList.isLoading && (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400">
             <Loader2 className="h-8 w-8 animate-spin text-yomi-jade mb-3" />
             <span className="text-sm">Discovering installed sources...</span>
           </div>
         )}
 
-        {activeQuery && sources && sources.length === 0 && (
+        {activeQuery && sourceList.isError && !sources && (
+          <div role="alert" className="yomi-route-empty"><div>
+            <p>Couldn’t load your sources. {getErrorMessage(sourceList.error)}</p>
+            <button type="button" className="yomi-button yomi-button-secondary" onClick={() => void sourceList.refetch()}>Retry</button>
+          </div></div>
+        )}
+
+        {activeQuery && !backend && (
+          <p>Connect to a library before searching sources. <Link to="/setup">Open setup</Link></p>
+        )}
+
+        {activeQuery && sources?.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-slate-500 text-center">
             <Globe className="h-12 w-12 text-slate-600 mb-4 opacity-50" />
             <p className="font-semibold">No Sources Installed</p>
@@ -453,46 +468,41 @@ export default function GlobalSearchPage() {
           </div>
         )}
 
-        {activeQuery && sources && sources.length > 0 && (
+        {activeQuery && !!sources?.length && !scopedSources.length && (
+          <p role="status" className="yomi-route-empty">No sources match the current filters.</p>
+        )}
+
+        {activeQuery && scopedSources.length > 0 && (
           <div className="space-y-6">
             <div className="flex flex-col gap-2 border-b border-white/5 pb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
                 <Globe className="h-4 w-4 text-yomi-jade" />
-                <span>
+                <span role="status">
                   {searchingSources
-                    ? `Searching ${sources.length} sources in batches of ${GLOBAL_SEARCH_CONCURRENCY}`
-                    : `Searched ${outcomes.length || sources.length} sources for "${activeQuery}"`}
+                    ? `${outcomes.length} of ${scopedSources.length} sources finished`
+                    : `Searched ${outcomes.length} ${outcomes.length === 1 ? "source" : "sources"} for “${activeQuery}”`}
                 </span>
               </div>
-              {!searchingSources && outcomes.length > 0 && (
+              {outcomes.length > 0 && (
                 <span className="text-slate-400">
                   {resultOutcomes.length} with results / {failedOutcomes.length} failed / {emptyOutcomes.length} empty
                 </span>
               )}
             </div>
 
-            {searchingSources && (
+            {searchingSources && !outcomes.length && (
               <div className="flex flex-col items-center justify-center py-16 text-slate-400">
                 <Loader2 className="h-8 w-8 animate-spin text-yomi-jade mb-3" />
-                <span className="text-sm">Querying source extensions without flooding upstream sites...</span>
+                <span className="text-sm">Waiting for the first source…</span>
               </div>
             )}
 
-            {searchFailed && (
-              <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-200">
-                Search failed before source results could be collected: {getErrorMessage(searchError)}
-              </div>
-            )}
-
-            {!searchingSources && failedOutcomes.length > 0 && (
+            {failedOutcomes.length > 0 && (
               <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-300" />
                   <div>
-                    <p className="font-semibold">Some sources failed during search.</p>
-                    <p className="mt-1 text-amber-100/80">
-                      Source/network failures are normal with extension-backed catalogs. Try results from working sources first.
-                    </p>
+                    <p className="font-semibold">{failedOutcomes.length === scopedSources.length ? "No sources completed this search." : "Some sources failed during search."}</p>
                     <p className="mt-2 text-xs text-amber-100/70">
                       Failed: {failedReasons.join(", ")}
                       {failedOutcomes.length > 5 ? `, and ${failedOutcomes.length - 5} more` : ""}
@@ -502,7 +512,7 @@ export default function GlobalSearchPage() {
               </div>
             )}
 
-            {!searchingSources && outcomes.length > 0 && resultOutcomes.length === 0 && (
+            {!searchingSources && emptyOutcomes.length > 0 && resultOutcomes.length === 0 && (
               <div className="flex flex-col items-center justify-center py-20 text-center text-slate-500">
                 <Search className="mb-4 h-12 w-12 text-slate-600" />
                 <p className="font-semibold text-slate-300">No matching titles from working sources.</p>
@@ -512,7 +522,7 @@ export default function GlobalSearchPage() {
               </div>
             )}
 
-            {!searchingSources && resultOutcomes.length > 0 && (
+            {resultOutcomes.length > 0 && (
               <div className="divide-y divide-white/5">
                 {resultOutcomes.map((outcome) => (
                   <GlobalSourceSearchResults
