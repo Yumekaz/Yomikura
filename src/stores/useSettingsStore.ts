@@ -632,8 +632,9 @@ export const useSettingsStore = create<SettingsState>()(
           serverBaseUrl: mergedBaseUrl,
           profiles: mergedProfiles,
           activeProfileId: mergedActiveId,
+          // The desktop queue must wait for this launch's connection check.
           connectionStatus:
-            persisted?.connectionStatus === "testing"
+            isTauri() || persisted?.connectionStatus === "testing"
               ? "disconnected"
               : persisted?.connectionStatus || currentState.connectionStatus,
           errorMessage: persisted?.errorMessage || "",

@@ -329,6 +329,13 @@ try {
   if (page && !page.isClosed()) {
     await page.screenshot({ path: path.join(root, 'failed.png') }).catch(() => {});
     await writeFile(path.join(root, 'failed-view.txt'), await page.locator('body').innerText().catch(() => '')).catch(() => {});
+    const offline = await downloadRecords().catch(() => null);
+    if (offline) report.downloadState = {
+      saved: offline.chapters.map(({ id, pageCount }) => ({ id, pageCount })),
+      jobs: offline.jobs.map(({ chapterId, status, error, attempts, checkpoint }) => ({
+        chapterId, status, error, attempts, verifiedPages: Object.keys(checkpoint?.pages ?? {}).length,
+      })),
+    };
   }
   await copyFile(path.join(serverData, 'suwayomi.log'), path.join(root, 'suwayomi.log')).catch(() => {});
   process.exitCode = 1;

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createSettingsStorage } from "./settingsStorage";
+import { useSettingsStore } from "./useSettingsStore";
 const fs = vi.hoisted(() => ({ files: new Map<string, string>(), write: vi.fn(), remove: vi.fn(), read: vi.fn(), rename: vi.fn() }));
 vi.mock("@tauri-apps/plugin-fs", () => ({ BaseDirectory: { AppConfig: 13 }, exists: async (name: string) => !name || fs.files.has(name), mkdir: vi.fn(), writeTextFile: fs.write, remove: fs.remove, readTextFile: fs.read, rename: fs.rename }));
 const snapshot = (serverBaseUrl: string) => JSON.stringify({ state: { serverBaseUrl }, version: 0 });
@@ -20,6 +21,25 @@ beforeEach(() => {
   });
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+it.each([
+  { native: true, profile: "local", managed: "local", expected: "disconnected" },
+  { native: true, profile: "default", managed: null, expected: "disconnected" },
+  { native: true, profile: "remote", managed: "local", expected: "disconnected" },
+  { native: false, profile: "local", managed: "local", expected: "connected" },
+])("waits for a new connection check on desktop startup ($profile, native=$native)", async ({ native, profile, managed, expected }) => {
+  vi.stubGlobal("isTauri", native);
+  localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: {
+    serverBaseUrl: profile === "remote" ? "https://library.example" : "http://127.0.0.1:4567",
+    serverDataPath: "C:/Fixture/library",
+    activeProfileId: profile,
+    managedLibraryProfileId: managed,
+    connectionStatus: "connected",
+  } }));
+  await useSettingsStore.persist.rehydrate();
+  expect(useSettingsStore.getState().connectionStatus).toBe(expected);
+});
+
 it("prefers the retained current copy over a stale native file after a failed mirror", async () => {
   localStorage.setItem("settings", current);
   fs.files.set("settings.json", old);
