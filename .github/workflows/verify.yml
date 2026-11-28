@@ -15,6 +15,10 @@ on:
         description: Actions run ID supplying the installer for another clean Windows verification
         required: false
         type: string
+      hosting_journey:
+        description: Check authenticated downloads, web subpath hosting and Windows remote sign-in on existing artifacts
+        type: boolean
+        default: false
       extension_migration:
         description: Verify a populated extension library against the Suwayomi hotfix
         type: boolean
@@ -380,7 +384,7 @@ jobs:
           retention-days: 14
 
   clean-setup-windows:
-    name: Clean Windows setup and first chapter
+    name: ${{ inputs.clean_windows_run && inputs.hosting_journey && 'Windows remote sign-in' || 'Clean Windows setup and first chapter' }}
     if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && (inputs.clean_windows_run || (inputs.release_journey && needs.desktop-installer-windows.result == 'success')) }}
     needs: desktop-installer-windows
     runs-on: windows-latest
@@ -419,6 +423,11 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - uses: actions/setup-java@v5
+        if: inputs.clean_windows_run && inputs.hosting_journey
+        with:
+          distribution: temurin
+          java-version: '21'
       - uses: actions/download-artifact@v4
         with:
           name: yomikura-windows-installer
@@ -434,11 +443,26 @@ jobs:
             New-ItemProperty -Path $key -Name $app -Value '--remote-debugging-port=9237 --remote-debugging-address=127.0.0.1' -PropertyType String -Force | Out-Null
           }
       - name: Exercise the installed app without seeded Java or Suwayomi
+        if: ${{ !(inputs.clean_windows_run && inputs.hosting_journey) }}
         run: node scripts/verify-clean-windows.mjs
         env:
           YOMIKURA_TESTED_COMMIT: ${{ steps.installer-source.outputs.commit || github.sha }}
+      - name: Verify HTTPS remote access in the installed app
+        if: inputs.clean_windows_run && inputs.hosting_journey
+        run: node scripts/verify-remote-windows.mjs
+        env:
+          YOMIKURA_TESTED_COMMIT: ${{ steps.installer-source.outputs.commit }}
+      - name: Preserve sanitized Windows remote sign-in evidence
+        if: always() && inputs.clean_windows_run && inputs.hosting_journey
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-remote-evidence
+          path: .cache/remote-windows-verification/result.json
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
       - name: Preserve clean setup evidence
-        if: always()
+        if: always() && !(inputs.clean_windows_run && inputs.hosting_journey)
         uses: actions/upload-artifact@v4
         with:
           name: clean-windows-evidence
@@ -545,11 +569,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: sudo apt-get install -y libnss3-tools
-      - name: Verify browser sign-in, chapter pages and the server download queue
+      - name: Verify hosted sign-in and open a completed server download
         run: node scripts/verify-hosted-web.mjs
         env:
           YOMIKURA_HOSTED_COMMIT: ${{ steps.source.outputs.commit }}
           YOMIKURA_HOSTED_ARTIFACT: ${{ runner.temp }}/yomikura-hosted-candidate/candidate-web
+          YOMIKURA_HOSTING_JOURNEY: ${{ inputs.hosting_journey && '1' || '0' }}
       - name: Preserve sanitized HTTPS evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -560,13 +585,14 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
       - name: Run browser regressions against the same extracted ZIP
+        if: ${{ !inputs.hosting_journey }}
         shell: bash
         run: |
           mkdir -p dist
           cp -a .cache/hosted-web-verification/library/webUI/. dist/
           pnpm run test:e2e
       - name: Preserve exact-ZIP browser failure evidence
-        if: failure()
+        if: failure() && !inputs.hosting_journey
         uses: actions/upload-artifact@v4
         with:
           name: exact-web-zip-browser-failure-evidence
