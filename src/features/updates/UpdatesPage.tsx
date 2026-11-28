@@ -1,3 +1,4 @@
+import { resolveBackendUrl } from "../../api/suwayomi/pageUrls";
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -48,7 +49,7 @@ export default function UpdatesPage() {
     <div className="space-y-9">{["Today", "Yesterday", "This Week", "Older", "Unknown Date"].map((name) => {
       const items = groups.get(name); if (!items?.length) return null;
       return <section key={name}><h2 className="yomi-section-label">{name}</h2><div className="yomi-surface">{items.map((item) => {
-        const cover = item.manga.thumbnailUrl ? /^https?:\/\//i.test(item.manga.thumbnailUrl) ? item.manga.thumbnailUrl : `${backend.serverBaseUrl}${item.manga.thumbnailUrl.startsWith("/") ? "" : "/"}${item.manga.thumbnailUrl}` : "/placeholder-cover.svg";
+        const cover = item.manga.thumbnailUrl ? resolveBackendUrl(backend.serverBaseUrl, item.manga.thumbnailUrl) : "placeholder-cover.svg";
         const time = updateTimestamp(item, mode);
         const saved = local.data?.find((head) => head.chapter.chapterId === item.id && head.chapter.mangaId === item.mangaId && head.chapter.mangaTitle === item.manga.title && head.chapter.chapterName === item.name && head.chapter.chapterNumber === item.chapterNumber);
         const projected = saved && (backend.isDemo || saved.sequence > saved.acknowledgedSequence) ? { ...item, ...(saved.dirtyFields.includes("isRead") ? { isRead: saved.patch.isRead } : {}), ...(saved.dirtyFields.includes("lastPageRead") ? { lastPageRead: saved.patch.lastPageRead } : {}) } : item;

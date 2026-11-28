@@ -1,3 +1,4 @@
+import { resolveBackendUrl } from "../../api/suwayomi/pageUrls";
 import { LibraryCover } from "../../components/library/LibraryCover";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
@@ -69,7 +70,7 @@ export function ContinueReading({ books, offline = false, cachedChapterIds }: { 
   } : experience.downloadedOnly ? undefined : candidates.unfinished : latest;
   if (!item) return null;
   const needsConnection = offline && !cachedChapterIds?.has(item.chapterId);
-  const cover = item.thumbnailUrl ? (item.thumbnailUrl.startsWith("http") || item.thumbnailUrl.startsWith("blob:") ? item.thumbnailUrl : `${serverBaseUrl.replace(/\/$/, "")}${item.thumbnailUrl}`) : "/placeholder-cover.svg";
+  const cover = item.thumbnailUrl ? resolveBackendUrl(serverBaseUrl, item.thumbnailUrl) : "placeholder-cover.svg";
   const page = Math.max(1, item.lastPageRead + 1);
   return <section className="yomi-continue" aria-label="Continue reading">
     <div className="yomi-section-heading"><h2>{needsConnection ? "Last read" : "Continue reading"}</h2><Link to="/history">View history<ChevronRight aria-hidden="true" /></Link></div>

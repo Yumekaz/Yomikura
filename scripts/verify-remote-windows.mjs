@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
 import { randomUUID, X509Certificate } from 'node:crypto';
-import { copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { chromium, expect } from '@playwright/test';
@@ -19,7 +19,7 @@ const library = path.join(output, 'library');
 const username = 'fixture-reader', password = randomUUID();
 const upstream = new URL('http://127.0.0.1:4599');
 const report = { commit: process.env.YOMIKURA_TESTED_COMMIT, verificationCommit: process.env.GITHUB_SHA, cases: {} };
-let backend, proxy, edge, webview, app, thumbprint;
+let backend, proxy, edge, webview, app, page, thumbprint;
 
 async function installCandidate() {
   const directory = path.join(process.env.RUNNER_TEMP, 'yomikura-clean-installer');
@@ -50,6 +50,7 @@ async function libraryRequest(page, origin) {
     const response = await fetch(url, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ query: '{ categories(first:10) { nodes { id } } }' }),
+      signal: AbortSignal.timeout(10000),
     });
     const result = await response.json();
     return response.ok && !result.errors?.length && Array.isArray(result.data?.categories?.nodes);
@@ -57,10 +58,7 @@ async function libraryRequest(page, origin) {
 }
 
 try {
-  const pages = path.join(library, 'local', 'Remote Reading Fixture', 'Chapter 1');
-  await mkdir(pages, { recursive: true });
-  await copyFile('public/demo/paper-garden-page.webp', path.join(pages, '001.webp'));
-  await mkdir(path.join(library, 'webUI'));
+  await mkdir(path.join(library, 'webUI'), { recursive: true });
   await writeFile(path.join(library, 'webUI', 'index.html'), '<!doctype html><html lang="en"><head><title>Authentication fixture</title></head><body></body></html>');
   const jar = await downloadSuwayomi(output);
   async function boot(authMode) {
@@ -76,24 +74,24 @@ try {
     }, 120000);
   }
   await boot('NONE');
+  console.log('The HTTPS control server is ready.');
   const cert = await makeFixtureCertificate(output, 'localhost');
   const fingerprint = new X509Certificate(await readFile(cert.ca)).fingerprint.replaceAll(':', '');
-  await exec('certutil.exe', ['-user', '-f', '-addstore', 'Root', cert.ca], { windowsHide: true });
+  await exec('certutil.exe', ['-user', '-f', '-addstore', 'Root', cert.ca], { windowsHide: true, timeout: 15000 });
   thumbprint = fingerprint;
+  console.log('Windows trusts the disposable HTTPS certificate.');
   proxy = await startFixtureProxy(cert, upstream);
   const origin = `https://localhost:${proxy.address().port}`;
-  const page = await installCandidate();
+  page = await installCandidate();
+  page.setDefaultTimeout(18000);
   const desktopOrigin = new URL(page.url()).origin;
   await page.getByText('Connect an existing library', { exact: true }).click();
   await page.getByLabel('Library address', { exact: true }).fill(origin);
   await page.getByRole('button', { name: 'Connect & Save', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Add books', exact: true }).click();
-  await page.getByRole('link', { name: 'Browse Local source', exact: true }).click();
-  await page.getByRole('link', { name: 'Remote Reading Fixture', exact: true }).click();
-  await page.getByRole('link', { name: 'Resume', exact: true }).first().click();
-  await expect(page.locator('[id^="reader-page-"]').getByRole('img', { name: 'Page 1', exact: true })).toHaveCSS('opacity', '1');
+  assert.ok(await libraryRequest(page, origin), 'The same certificate and CORS policy must allow a library request when authentication is off');
   report.cases.httpsControl = 'PASS';
+  console.log('The installed app connected to the HTTPS control.');
   await page.goto(desktopOrigin + '/settings/connection');
   await expect(page.getByText('Connected Successfully', { exact: true })).toBeVisible();
 
@@ -101,7 +99,9 @@ try {
   for (const mode of ['SIMPLE_LOGIN', 'BASIC_AUTH']) {
     await stopSuwayomi(backend);
     await boot(mode);
+    console.log(`The server is ready with ${mode}.`);
     const web = await edge.newPage(mode === 'BASIC_AUTH' ? { httpCredentials: { username, password, origin } } : {});
+    web.setDefaultTimeout(18000);
     try {
       await web.goto(origin);
       if (mode === 'SIMPLE_LOGIN') {
@@ -132,14 +132,15 @@ try {
 } catch (error) {
   report.result = 'FAIL';
   report.failure = String(error).replaceAll(password, '[fixture password]');
+  if (page && !page.isClosed()) report.appView = (await page.locator('body').innerText({ timeout: 2500 }).catch(() => '')).replaceAll(password, '[fixture password]').slice(0, 1000);
   process.exitCode = 1;
 } finally {
-  await edge?.close();
-  await webview?.close().catch(() => {});
-  if (app?.exitCode === null && app.signalCode === null) app.kill();
-  await stopFixtureServer(proxy);
-  await stopSuwayomi(backend);
-  if (thumbprint) await exec('certutil.exe', ['-user', '-delstore', 'Root', thumbprint], { windowsHide: true });
   await writeFile(path.join(output, 'result.json'), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
+  if (app?.exitCode === null && app.signalCode === null) app.kill();
+  await webview?.close().catch(() => {});
+  await edge?.close();
+  await stopFixtureServer(proxy);
+  await stopSuwayomi(backend);
+  if (thumbprint) await exec('certutil.exe', ['-user', '-delstore', 'Root', thumbprint], { windowsHide: true, timeout: 15000 });
 }

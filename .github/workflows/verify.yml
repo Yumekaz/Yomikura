@@ -449,6 +449,7 @@ jobs:
           YOMIKURA_TESTED_COMMIT: ${{ steps.installer-source.outputs.commit || github.sha }}
       - name: Verify HTTPS remote access in the installed app
         if: inputs.clean_windows_run && inputs.hosting_journey
+        timeout-minutes: 8
         run: node scripts/verify-remote-windows.mjs
         env:
           YOMIKURA_TESTED_COMMIT: ${{ steps.installer-source.outputs.commit }}

@@ -34,7 +34,7 @@ export function DuplicateScanner() {
       {duplicates.map((group, index) => <div key={index} className="space-y-3 rounded-xl border border-white/5 bg-ink-950/20 p-4">
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Title: “{group[0].title}”</h3>
         <div className="grid gap-3 sm:grid-cols-2">{group.map((manga) => <div key={manga.id} className="flex items-center justify-between gap-4 rounded-lg border border-white/5 bg-ink-950/40 p-3">
-          <div className="flex min-w-0 items-center gap-2.5"><img src={manga.thumbnailUrl || "/placeholder-cover.svg"} alt="" className="h-10 w-7 rounded object-cover" /><span className="truncate text-xs font-semibold text-slate-200">{manga.title}</span></div>
+          <div className="flex min-w-0 items-center gap-2.5"><img src={manga.thumbnailUrl || "placeholder-cover.svg"} alt="" className="h-10 w-7 rounded object-cover" /><span className="truncate text-xs font-semibold text-slate-200">{manga.title}</span></div>
           <div className="flex flex-col gap-2">{group.filter((other) => other.id !== manga.id).map((other) => <button type="button" key={other.id} onClick={() => setSelection({ source: manga, target: other })} className="rounded border border-yomi-jade/20 bg-yomi-jade/10 px-2.5 py-1 text-xs font-bold text-yomi-mint">Review merge into {other.id}</button>)}</div>
         </div>)}</div>
       </div>)}

@@ -15,7 +15,7 @@ test.beforeAll(async () => {
       const file = resolve(dist, `.${pathname}`); if (file !== dist && !file.startsWith(`${dist}${sep}`)) { response.writeHead(403); response.end(); return; }
       const target = pathname === "/" || !extname(pathname) ? resolve(dist, "index.html") : file;
       let bytes = await readFile(target);
-      if (pathname === "/sw.js") bytes = Buffer.from(bytes.toString().replace(/const BUILD_ID = "([^"]+)";/, `const BUILD_ID = "$1-${revision}";`));
+      if (pathname === "/sw.js") bytes = Buffer.from(bytes.toString().replace(/(\bBUILD_ID\s*=\s*")([^"]+)"/, `$1$2-${revision}"`));
       const type: Record<string, string> = { ".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".woff2": "font/woff2", ".webmanifest": "application/manifest+json" };
       response.writeHead(200, { "content-type": type[extname(target)] ?? "application/octet-stream", "cache-control": "no-store" }); response.end(bytes);
     } catch { response.writeHead(404); response.end(); }

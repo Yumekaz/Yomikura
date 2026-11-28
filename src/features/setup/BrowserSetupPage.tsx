@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useHref, useNavigate } from "react-router-dom";
 import { ArrowDown, ArrowRight, BookOpen, Check, CheckCircle2, Download, ExternalLink, HardDrive, Laptop, Link2, Loader2, Monitor, Play, Puzzle, Search, Server, WifiOff } from "lucide-react";
 import { BrandLogo, ReadingSpirit } from "../../components/Brand";
 import { DesktopDownloadLink } from "../../components/onboarding/DesktopDownloadLink";
@@ -26,6 +26,7 @@ function Diagram({ label, children }: { label: string; children: ReactNode }) {
 
 export default function BrowserSetupPage() {
   const navigate = useNavigate();
+  const guideHref = useHref("/setup");
   const connectionStatus = useSettingsStore((state) => state.connectionStatus);
   const mockMode = useSettingsStore((state) => state.mockMode);
   const [address, setAddress] = useState("");
@@ -76,8 +77,8 @@ export default function BrowserSetupPage() {
       <section className="yomi-guide-browser" aria-labelledby="guide-browser-title">
         <Monitor aria-hidden="true" /><h2 id="guide-browser-title">Prefer reading in your browser?</h2>
         <p>Suwayomi keeps your books and fetches chapters. Yomikura is where you browse, organize and read them.</p>
-        <a href="#guide-install" className="yomi-button yomi-button-secondary">Start the browser guide<ArrowDown aria-hidden="true" /></a>
-        <a href="#guide-connect" className="yomi-guide-text-link">I already have Suwayomi<Link2 aria-hidden="true" /></a>
+        <a href={guideHref + "#guide-install"} className="yomi-button yomi-button-secondary">Start the browser guide<ArrowDown aria-hidden="true" /></a>
+        <a href={guideHref + "#guide-connect"} className="yomi-guide-text-link">I already have Suwayomi<Link2 aria-hidden="true" /></a>
       </section>
     </div>
 
@@ -103,12 +104,12 @@ export default function BrowserSetupPage() {
       </li>
 
       <li id="guide-sources" className="yomi-guide-step">
-        <div className="yomi-guide-step-copy"><span className="yomi-guide-step-number" aria-hidden="true">03</span><h2>Choose where your stories come from.</h2><p>Open <strong>Discover → Extensions → Stores</strong>. Add a store you trust, review its publisher information, then install the source you want from Extensions.</p><p>An extension is the connector for a reading source. Yomikura includes no third-party sources or comic content; you choose what to add.</p><div className="yomi-guide-actions">{connected ? <><Link to="/browse/extension-repos" className="yomi-button yomi-button-secondary">Choose a store<Puzzle aria-hidden="true" /></Link><Link to="/extensions" className="yomi-guide-text-link">Browse extensions<ArrowRight aria-hidden="true" /></Link></> : <a className="yomi-guide-text-link" href="#guide-connect">Connect your library first<ArrowRight aria-hidden="true" /></a>}</div><details><summary>My source is missing or shows an error.</summary><p>Confirm it is installed in this Suwayomi library, check your connection, and look for extension updates. A source can be unavailable even while your library is working. Your other sources and saved books remain separate.</p></details></div>
+        <div className="yomi-guide-step-copy"><span className="yomi-guide-step-number" aria-hidden="true">03</span><h2>Choose where your stories come from.</h2><p>Open <strong>Discover → Extensions → Stores</strong>. Add a store you trust, review its publisher information, then install the source you want from Extensions.</p><p>An extension is the connector for a reading source. Yomikura includes no third-party sources or comic content; you choose what to add.</p><div className="yomi-guide-actions">{connected ? <><Link to="/browse/extension-repos" className="yomi-button yomi-button-secondary">Choose a store<Puzzle aria-hidden="true" /></Link><Link to="/extensions" className="yomi-guide-text-link">Browse extensions<ArrowRight aria-hidden="true" /></Link></> : <a className="yomi-guide-text-link" href={guideHref + "#guide-connect"}>Connect your library first<ArrowRight aria-hidden="true" /></a>}</div><details><summary>My source is missing or shows an error.</summary><p>Confirm it is installed in this Suwayomi library, check your connection, and look for extension updates. A source can be unavailable even while your library is working. Your other sources and saved books remain separate.</p></details></div>
         <Diagram label="Choose a store, then install a source"><div className="yomi-guide-source-visual"><div><Puzzle aria-hidden="true" /><span>Trusted store</span><small>Review the publisher</small></div><ArrowDown aria-hidden="true" /><div><BookOpen aria-hidden="true" /><span>Your chosen source</span><span className="yomi-guide-example-label">Install</span></div></div></Diagram>
       </li>
 
       <li id="guide-read" className="yomi-guide-step">
-        <div className="yomi-guide-step-copy"><span className="yomi-guide-step-number" aria-hidden="true">04</span><h2>Find a story. Make yourself at home.</h2><p>Open your installed source in <strong>Discover</strong>, search for a title, then open a chapter. Add books you want to keep to your Library and choose their collections.</p><p>Reading history remembers your latest position even for books you have not added. Come back to your library or History when you want to continue.</p><div className="yomi-guide-actions">{connected ? <button type="button" className="yomi-button yomi-button-primary" onClick={() => navigate("/browse/sources")}>Discover books<ArrowRight aria-hidden="true" /></button> : <a className="yomi-guide-text-link" href="#guide-connect">Connect, then discover books<ArrowRight aria-hidden="true" /></a>}</div></div>
+        <div className="yomi-guide-step-copy"><span className="yomi-guide-step-number" aria-hidden="true">04</span><h2>Find a story. Make yourself at home.</h2><p>Open your installed source in <strong>Discover</strong>, search for a title, then open a chapter. Add books you want to keep to your Library and choose their collections.</p><p>Reading history remembers your latest position even for books you have not added. Come back to your library or History when you want to continue.</p><div className="yomi-guide-actions">{connected ? <button type="button" className="yomi-button yomi-button-primary" onClick={() => navigate("/browse/sources")}>Discover books<ArrowRight aria-hidden="true" /></button> : <a className="yomi-guide-text-link" href={guideHref + "#guide-connect"}>Connect, then discover books<ArrowRight aria-hidden="true" /></a>}</div></div>
         <Diagram label="Your next chapter is waiting"><div className="yomi-guide-shelf-visual" aria-hidden="true"><Search /><span>Find your next story…</span><div className="yomi-guide-mini-books"><i /><i /><i /></div><div className="yomi-guide-reading-card"><BookOpen /><span>Pick up where you left off</span><ArrowRight /></div></div></Diagram>
       </li>
     </ol>

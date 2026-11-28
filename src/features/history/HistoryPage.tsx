@@ -1,3 +1,4 @@
+import { resolveBackendUrl } from "../../api/suwayomi/pageUrls";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -171,7 +172,7 @@ export default function HistoryPage() {
             <div className="yomi-timeline-date"><Clock3 aria-hidden="true" /><span>{dateLabel(group.timestamp)}</span></div>
             <div className="yomi-timeline-list">
               {group.items.map((item) => {
-                const cover = item.manga.thumbnailUrl ? (item.manga.thumbnailUrl.startsWith("http") ? item.manga.thumbnailUrl : `${serverBaseUrl.replace(/\/$/, "")}${item.manga.thumbnailUrl}`) : "/placeholder-cover.svg";
+                const cover = item.manga.thumbnailUrl ? resolveBackendUrl(serverBaseUrl, item.manga.thumbnailUrl) : "placeholder-cover.svg";
                 const percentage = item.isRead ? 100 : item.pageCount && item.pageCount > 0 ? Math.min(100, Math.round(((item.lastPageRead + 1) / item.pageCount) * 100)) : undefined;
                 return (
                   <article key={item.mangaId} className="yomi-history-row">

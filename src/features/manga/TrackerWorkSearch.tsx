@@ -40,7 +40,7 @@ export function TrackerWorkSearch({ backend, mangaId, mangaTitle, trackerId, sup
     </form>
     {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
     <div className="max-h-72 space-y-2 overflow-y-auto" aria-label="Tracker search results">{results.map((work) => <button type="button" key={`${work.trackerId}:${String(work.remoteId)}`} aria-pressed={selected?.remoteId === work.remoteId} disabled={!!busy} onClick={() => { setSelected(work); setPrivateTrack(work.private); }} className={`flex w-full gap-3 rounded-lg border p-3 text-left ${selected?.remoteId === work.remoteId ? "border-yomi-jade bg-yomi-jade/10" : "border-white/10 bg-ink-900/30"}`}>
-      <img src={trackerExternalUrl(work.coverUrl, backend.serverBaseUrl) || "/placeholder-cover.svg"} alt="" className="h-16 w-11 rounded object-cover" />
+      <img src={trackerExternalUrl(work.coverUrl, backend.serverBaseUrl) || "placeholder-cover.svg"} alt="" className="h-16 w-11 rounded object-cover" />
       <span className="min-w-0"><span className="block text-sm font-semibold text-slate-200">{work.title}</span><span className="mt-1 block text-xs text-slate-400">{work.totalChapters || "Unknown"} chapters · {work.publishingType} · {work.publishingStatus}</span>{work.summary && <span className="mt-1 line-clamp-3 block text-xs text-slate-400">{work.summary}</span>}</span>
     </button>)}</div>
     {searched && !results.length && <p className="text-xs text-slate-400">No matching tracker works found. Refine the title and search again.</p>}

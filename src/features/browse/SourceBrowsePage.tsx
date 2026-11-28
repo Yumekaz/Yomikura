@@ -19,7 +19,7 @@ type Manga = NonNullable<FetchSourceMangaMutation["fetchSourceManga"]>["mangas"]
 function MangaCard({ manga, serverBaseUrl }: { manga: Manga; serverBaseUrl: string }) {
   const thumbnail = manga.thumbnailUrl ? resolveBackendUrl(serverBaseUrl, manga.thumbnailUrl) : undefined;
   return <Link to={`/manga/${manga.id}`} aria-label={manga.title} className="group relative flex flex-col gap-2">
-    <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-ink-900 shadow-md"><img src={thumbnail || "/placeholder-cover.svg"} alt={manga.title} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" /><div className="absolute inset-0 bg-black/10 transition duration-200 group-hover:bg-black/0" /></div>
+    <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-ink-900 shadow-md"><img src={thumbnail || "placeholder-cover.svg"} alt={manga.title} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" /><div className="absolute inset-0 bg-black/10 transition duration-200 group-hover:bg-black/0" /></div>
     <span className="line-clamp-2 text-xs font-semibold leading-snug text-slate-200 transition-colors group-hover:text-yomi-mint">{manga.title}</span>
   </Link>;
 }

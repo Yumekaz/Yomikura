@@ -33,7 +33,7 @@ if ("serviceWorker" in navigator && runningInTauri) {
 } else if ("serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/sw.js", { updateViaCache: "none" })
+      .register("sw.js", { updateViaCache: "none" })
       .then((reg) => {
         console.log("ServiceWorker registered successfully: ", reg.scope);
         window.dispatchEvent(new Event("yomikura:sw-ready"));
@@ -46,7 +46,7 @@ if ("serviceWorker" in navigator && runningInTauri) {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={new URL(document.baseURI).pathname}>
       <App />
     </BrowserRouter>
   </React.StrictMode>,

@@ -6,6 +6,7 @@ import { ArrowLeft, Copy, ExternalLink, Loader2, Play, RefreshCw } from "lucide-
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { applyCoverAccentFromImage, useCoverAccentEnabled } from "../../hooks/useCoverAccent";
 import { createGraphqlClient } from "../../api/graphql/client";
+import { resolveBackendUrl } from "../../api/suwayomi/pageUrls";
 import { SourceRecoveryPanel } from "../../components/source/SourceRecoveryPanel";
 import { ChapterList, Chapter } from "./ChapterList";
 import { MangaCategoryModal } from "./MangaCategoryModal";
@@ -225,10 +226,8 @@ export default function MangaDetailPage() {
   const firstUnreadChapter = continuation.unread;
 
   const imageUrl = useMemo(() => {
-    if (!manga?.thumbnailUrl) return "/placeholder-cover.svg";
-    return manga.thumbnailUrl.startsWith("http")
-      ? manga.thumbnailUrl
-      : `${serverBaseUrl.replace(/\/$/, "")}${manga.thumbnailUrl.startsWith("/") ? "" : "/"}${manga.thumbnailUrl}`;
+    if (!manga?.thumbnailUrl) return "placeholder-cover.svg";
+    return resolveBackendUrl(serverBaseUrl, manga.thumbnailUrl);
   }, [manga?.thumbnailUrl, serverBaseUrl]);
 
   useEffect(() => {

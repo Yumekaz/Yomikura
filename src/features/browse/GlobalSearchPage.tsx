@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowLeft, Globe, Loader2, Search } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { createGraphqlClient } from "../../api/graphql/client";
 import { FetchSourceMangaType } from "../../api/graphql/generated/graphql";
+import { resolveBackendUrl } from "../../api/suwayomi/pageUrls";
 import { classifySourceProblem, getErrorMessage } from "../../api/suwayomi/errors";
 import { buildSourceBrowsePath } from "./sourceBrowseRoute";
 import { fetchAllSources } from "../../api/library/fetchAllSources";
@@ -38,11 +39,7 @@ type SourceSearchOutcome = {
 
 // Compact MangaCard for horizontal scrolling lists
 function MangaCard({ manga, serverBaseUrl }: { manga: MangaSearchResult; serverBaseUrl: string }) {
-  const thumbnailUrl = manga.thumbnailUrl
-    ? manga.thumbnailUrl.startsWith("http")
-      ? manga.thumbnailUrl
-      : `${serverBaseUrl.replace(/\/$/, "")}${manga.thumbnailUrl}`
-    : undefined;
+  const thumbnailUrl = manga.thumbnailUrl ? resolveBackendUrl(serverBaseUrl, manga.thumbnailUrl) : undefined;
 
   return (
     <Link to={`/manga/${manga.id}`} className="group flex-shrink-0 w-28 sm:w-32 flex flex-col gap-1.5">

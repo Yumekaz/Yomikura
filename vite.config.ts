@@ -2,9 +2,12 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
+import { minify } from "terser";
 import { compactGraphqlSdk } from "./src/api/graphql/compactSdkBuild.ts";
 
 export default defineConfig({
+  // Suwayomi can inject its own base element when it serves Custom WebUI under a path.
+  base: "./",
   plugins: [react(), {
     name: "compact-library-documents", enforce: "pre",
     transform(code, id) {
@@ -13,7 +16,7 @@ export default defineConfig({
     },
   }, {
     name: "yomikura-offline-shell", apply: "build",
-    generateBundle(_options, bundle) {
+    async generateBundle(_options, bundle) {
       // Full dependency notices must accompany builds whose minified chunks
       // omit repeated inline license banners. pnpm build creates this file.
       const notices = readFileSync(new URL("./public/licenses/THIRD_PARTY_NPM.txt", import.meta.url), "utf8");
@@ -29,7 +32,10 @@ export default defineConfig({
       hash.update(readFileSync(new URL("./public/manifest.webmanifest", import.meta.url)));
       for (const asset of artwork) hash.update(readFileSync(new URL(`./public${asset}`, import.meta.url)));
       const version = hash.digest("hex").slice(0, 20);
-      this.emitFile({ type: "asset", fileName: "sw.js", source: template.replace('"__YOMIKURA_BUILD_ID__"', JSON.stringify(version)).replace("/*__YOMIKURA_PRECACHE__*/[]", JSON.stringify(assets)) });
+      const worker = template.replace('"__YOMIKURA_BUILD_ID__"', JSON.stringify(version)).replace("/*__YOMIKURA_PRECACHE__*/[]", JSON.stringify(assets));
+      const { code } = await minify(worker, { compress: false, mangle: false, format: { comments: false } });
+      if (!code) throw new Error("The offline shell worker could not be generated");
+      this.emitFile({ type: "asset", fileName: "sw.js", source: code });
     },
   }],
   server: {

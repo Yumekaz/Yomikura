@@ -1,8 +1,10 @@
 // The production build replaces these markers with its complete asset list.
 const BUILD_ID = "__YOMIKURA_BUILD_ID__";
-const PRECACHE_ASSETS = /*__YOMIKURA_PRECACHE__*/[];
-const CACHE_NAME = `yomikura-shell-${BUILD_ID}`;
-const INDEX_URL = "/index.html";
+const SCOPE = new URL(self.registration.scope).pathname;
+const CACHE_PREFIX = SCOPE === "/" ? "yomikura-shell-" : `yomikura-subpath-${encodeURIComponent(SCOPE)}-`;
+const CACHE_NAME = CACHE_PREFIX + BUILD_ID;
+const PRECACHE_ASSETS = /*__YOMIKURA_PRECACHE__*/[].map((asset) => SCOPE + asset.slice(1));
+const INDEX_URL = SCOPE + "index.html";
 
 self.addEventListener("install", (event) => {
   // A worker waits until its entire generation is available. Existing tabs keep
@@ -12,14 +14,16 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     for (const name of await caches.keys()) {
-      if (name !== CACHE_NAME && (name.startsWith("yomikura-shell-") || /^yomikura-v\d+$/.test(name))) await caches.delete(name);
+      if (name !== CACHE_NAME && (name.startsWith(CACHE_PREFIX) || SCOPE === "/" && /^yomikura-v\d+$/.test(name))) await caches.delete(name);
     }
     await self.clients.claim();
   })());
 });
 self.addEventListener("fetch", (event) => {
   const request = event.request, url = new URL(request.url);
-  if (request.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/") || url.pathname.includes("@vite") || url.pathname === "/sw.js") return;
+  if (request.method !== "GET" || url.origin !== self.location.origin || !url.pathname.startsWith(SCOPE)) return;
+  const relativePath = url.pathname.slice(SCOPE.length);
+  if (relativePath.startsWith("api/") || relativePath === "sw.js" || relativePath === "login.html") return;
   if (request.mode === "navigate") {
     event.respondWith((async () => {
       // Keep index and lazy chunks in the same generation, including a never

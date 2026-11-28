@@ -3,7 +3,7 @@ export function normalizeServerUrl(serverBaseUrl: string) {
 }
 
 export function resolveBackendUrl(serverBaseUrl: string, url: string) {
-  if (url.startsWith("http")) {
+  if (/^(?:https?:|blob:|data:)/i.test(url)) {
     return url;
   }
 

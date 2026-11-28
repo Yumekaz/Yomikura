@@ -1,7 +1,7 @@
 import { ThemedSelect } from "../ui/ThemedSelect";
 import { useEffect, useRef, useState } from "react";
 import { BookOpen, Server, ShieldCheck, ArrowRight, Loader2, Sparkles, FolderOpen, HardDrive, RefreshCw, AlertTriangle, CloudOff } from "lucide-react";
-import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useHref, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { primaryNav, utilityNav, type NavItem } from "../../app/navigation";
 import { useSettingsStore, isTauri } from "../../stores/useSettingsStore";
@@ -117,6 +117,7 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
   } = useSettingsStore();
   const ownsLocalProfile = isTauri() && !!serverDataPath && (managedLibraryProfileId === activeProfileId || !managedLibraryProfileId && activeProfileId === "default" && /^https?:\/\/(?:127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(serverBaseUrl));
   const location = useLocation();
+  const mainContentHref = useHref({ pathname: location.pathname, search: location.search, hash: "#main-content" });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -265,7 +266,7 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
 
   return (
     <>{backgroundStartup}<div className="yomi-app-shell text-slate-100">
-      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-ink-950">Skip to content</a>
+      <a href={mainContentHref} className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-ink-950">Skip to content</a>
       <aside className="yomi-sidebar">
         <BrandLockup />
         

@@ -1,3 +1,4 @@
+import { resolveBackendUrl } from "../../api/suwayomi/pageUrls";
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Check } from "lucide-react";
@@ -84,7 +85,7 @@ export function LibraryGrid({ mangas, serverBaseUrl, isSelectMode = false, selec
       <div style={{ height: startRow * rowHeight }} aria-hidden="true" />
       <div className="yomi-book-grid" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap }}>
         {visibleMangas.map((manga) => {
-          const imageUrl = manga.thumbnailUrl ? (manga.thumbnailUrl.startsWith("http") || manga.thumbnailUrl.startsWith("blob:") || manga.thumbnailUrl.startsWith("data:") ? manga.thumbnailUrl : `${serverBaseUrl.replace(/\/$/, "")}${manga.thumbnailUrl}`) : "/placeholder-cover.svg";
+          const imageUrl = manga.thumbnailUrl ? resolveBackendUrl(serverBaseUrl, manga.thumbnailUrl) : "placeholder-cover.svg";
           const selected = selectedMangaIds.has(manga.id);
           const body = <>
             <div className={`yomi-book-cover ${selected ? "is-selected" : ""}`}>

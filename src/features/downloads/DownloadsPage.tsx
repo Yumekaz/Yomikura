@@ -8,6 +8,7 @@ import { getErrorMessage } from "../../api/suwayomi/errors";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { useDownloadStore } from "../../stores/useDownloadStore";
 import type { CachedChapter } from "../../api/suwayomi/offlineCache";
+import { resolveBackendUrl } from "../../api/suwayomi/pageUrls";
 import { progressBackend, type ProgressBackend } from "../../api/suwayomi/backendIdentity";
 import { ReadingSpirit } from "../../components/Brand";
 
@@ -179,12 +180,7 @@ export default function DownloadsPage() {
       ) : (
         <div className="yomi-surface">
           {queue.map((item) => {
-            let coverUrl = "/placeholder-cover.svg";
-            if (item.manga.thumbnailUrl) {
-              coverUrl = item.manga.thumbnailUrl.startsWith("http")
-                ? item.manga.thumbnailUrl
-                : `${serverBaseUrl.replace(/\/$/, "")}${item.manga.thumbnailUrl}`;
-            }
+            const coverUrl = item.manga.thumbnailUrl ? resolveBackendUrl(serverBaseUrl, item.manga.thumbnailUrl) : "placeholder-cover.svg";
 
             return (
               <div

@@ -79,6 +79,7 @@ async function queryFromReader(page, base, query, variables) {
 
 async function openHostedReader(base) {
   const page = await browser.newPage({ reducedMotion: 'reduce' });
+  page.setDefaultTimeout(18000);
   await page.goto(base + '/setup');
   await expect(page.locator('form input[name="user"]')).toBeVisible();
   await page.locator('form input[name="user"]').fill(username);
@@ -208,10 +209,24 @@ try {
     assert.ok(!rejected.ok, 'The fixture must expose its API under the subpath');
     checks.subpath = { path: subpath + '/', result: 'FAIL' };
     const mounted = await openHostedReader(root);
+    const logo = mounted.locator('img.yomi-logo-image').first();
+    await expect.poll(() => logo.evaluate((image) => image.naturalWidth)).toBeGreaterThan(0);
+    assert.match(await logo.evaluate((image) => new URL(image.src).pathname), /^\/yomikura\/identity\//);
+    await mounted.getByRole('link', { name: 'Start the browser guide', exact: true }).click();
+    await expect(mounted).toHaveURL(root + '/setup#guide-install');
+    await mounted.getByRole('link', { name: 'Library', exact: true }).click();
+    await expect(mounted).toHaveURL(root + '/library');
+    await expect(mounted.getByRole('link', { name: 'Migration Story', exact: true })).toBeVisible();
     assert.ok((await chapterState(mounted, root)).isDownloaded);
     await expectSavedPages(mounted, root, chapterId, expected);
     await mounted.reload();
     await expect(mounted.locator('[id^="reader-page-"]').getByRole('img', { name: 'Page 1', exact: true })).toBeVisible();
+    const scope = await waitForFixture('the scoped service worker', () => mounted.evaluate(async () => {
+      const registration = await navigator.serviceWorker.getRegistration();
+      return registration?.active ? registration.scope : null;
+    }), 18000);
+    assert.equal(scope, root + '/');
+    checks.subpath.serviceWorkerScope = new URL(scope).pathname;
     checks.subpath.result = 'PASS';
     checks.passed.push('The exact ZIP signed in, navigated, loaded saved images and refreshed a reader deep link under Suwayomi’s subpath');
   }

@@ -61,12 +61,13 @@ export async function makeFixtureCertificate(output, hostname) {
   const key = path.join(output, 'server.key'), cert = path.join(output, 'server.crt');
   const ca = path.join(output, 'ca.crt'), caKey = path.join(output, 'ca.key');
   const csr = path.join(output, 'server.csr'), extensions = path.join(output, 'tls-ext.cnf');
+  const options = { windowsHide: true, timeout: 15000 };
   await exec(openssl, ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
-    '-subj', '/CN=Yomikura test CA', '-addext', 'basicConstraints=critical,CA:TRUE', '-keyout', caKey, '-out', ca], { windowsHide: true });
-  await exec(openssl, ['req', '-new', '-newkey', 'rsa:2048', '-nodes', '-subj', `/CN=${hostname}`, '-keyout', key, '-out', csr], { windowsHide: true });
+    '-subj', '/CN=Yomikura test CA', '-addext', 'basicConstraints=critical,CA:TRUE', '-keyout', caKey, '-out', ca], options);
+  await exec(openssl, ['req', '-new', '-newkey', 'rsa:2048', '-nodes', '-subj', `/CN=${hostname}`, '-keyout', key, '-out', csr], options);
   await writeFile(extensions, `subjectAltName=DNS:${hostname}\nextendedKeyUsage=serverAuth\nbasicConstraints=CA:FALSE\n`);
   await exec(openssl, ['x509', '-req', '-in', csr, '-CA', ca, '-CAkey', caKey,
-    '-CAcreateserial', '-days', '1', '-extfile', extensions, '-out', cert], { windowsHide: true });
+    '-CAcreateserial', '-days', '1', '-extfile', extensions, '-out', cert], options);
   return { ca, key: await readFile(key), cert: await readFile(cert) };
 }
 

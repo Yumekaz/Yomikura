@@ -27,9 +27,9 @@ export function AppearanceSettingsPanel() {
           const tokens = themeMode === "light" ? palette.light : palette.dark;
           return <button key={palette.id} type="button" className="yomi-palette-card" aria-label={palette.name} aria-pressed={selected.id === palette.id} onClick={() => setColorPalette(palette.id)}>
             <div className="yomi-palette-art" style={{ background: tokens.surface, color: tokens.strong }}>
-              <img src={`/identity/logo-${palette.id}.webp`} width={50} height={50} alt="" />
+              <img src={`identity/logo-${palette.id}.webp`} width={50} height={50} alt="" />
               <span style={{ color: tokens.accent }}>Yomikura</span>
-              <img className="yomi-palette-spirit" src={`/identity/spirit-reading-${palette.id}.webp`} width={72} height={72} alt="" />
+              <img className="yomi-palette-spirit" src={`identity/spirit-reading-${palette.id}.webp`} width={72} height={72} alt="" />
             </div>
             <div className="yomi-palette-copy"><strong>{palette.name}</strong><span>{palette.description}</span><div className="yomi-palette-swatches" aria-hidden="true">{palette.swatches.map((color) => <i key={color} style={{ background: color }} />)}</div></div>
             <span className="yomi-palette-selection" aria-hidden="true">{selected.id === palette.id ? "Selected" : "Choose palette"}</span>

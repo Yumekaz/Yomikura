@@ -10,7 +10,7 @@ async function demo(page: Page, palette = "ember", mode = "dark") {
   await page.route("**/api/graphql", (route) => route.abort());
   await page.goto("/library");
   await expect(page.getByRole("heading", { name: "Library", exact: true })).toBeVisible();
-  await expect(page.locator(".yomi-logo-image").first()).toHaveAttribute("src", `/identity/logo-${palette}.webp`);
+  await expect(page.locator(".yomi-logo-image").first()).toHaveJSProperty("src", new URL(`/identity/logo-${palette}.webp`, page.url()).href);
   await page.evaluate(() => document.fonts.ready);
   await mkdir(evidence, { recursive: true });
 }
@@ -24,7 +24,7 @@ for (const palette of ["ember", "sakura", "forest", "moonstone"]) for (const mod
     await demo(page, palette, mode);
     await expect(page.locator("html")).toHaveAttribute("data-palette", palette);
     const scene = page.locator(".yomi-sidebar-companion img:visible");
-    await expect(scene).toHaveAttribute("src", `/identity/sidebar-${palette}-${mode}.webp`);
+    await expect(scene).toHaveJSProperty("src", new URL(`/identity/sidebar-${palette}-${mode}.webp`, page.url()).href);
     await expect.poll(() => scene.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
     await noSeriousViolations(page);
     await page.screenshot({ path: `${evidence}/library-${palette}-${mode}.png` });
@@ -48,7 +48,7 @@ test("palette and companion preferences persist after reload without changing th
   await expect(page.getByRole("checkbox", { name: "Show reading spirit", exact: true })).not.toBeChecked();
   await expect(page.locator(".yomi-sidebar-companion img")).toHaveCount(0);
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", icon!);
-  await expect(page.locator(".yomi-logo-image").first()).toHaveAttribute("src", "/identity/logo-forest.webp");
+  await expect(page.locator(".yomi-logo-image").first()).toHaveJSProperty("src", new URL("/identity/logo-forest.webp", page.url()).href);
 });
 for (const height of [600, 683]) test(`sidebar scene leaves utility navigation visible at ${height}px`, async ({ page }) => {
   await page.setViewportSize({ width: 1234, height });

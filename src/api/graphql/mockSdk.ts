@@ -6,7 +6,7 @@ import type { TrackerRecordFieldsFragment } from "./generated/graphql";
 // calendar date made an otherwise healthy history view look as if it were using
 // stale server time.
 const recentDemoTimestamp = () => new Date(Date.now() - 13 * 60_000).toISOString();
-const demoCover = (name: string) => new URL(`/demo/${name}.webp`, typeof window === "undefined" ? "http://localhost" : window.location.origin).href;
+const demoCover = (name: string) => new URL(`demo/${name}.webp`, typeof document === "undefined" ? "http://localhost/" : document.baseURI).href;
 const demoMembership = new Map<number, boolean>();
 const demoCategoryMembership = new Map<number, number[]>();
 const demoCategoryNodes = (id: number) => (demoCategoryMembership.get(id) ?? [1]).map((id) => ({ id }));
