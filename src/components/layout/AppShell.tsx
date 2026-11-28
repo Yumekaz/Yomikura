@@ -261,7 +261,7 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
     : null;
 
   if (location.pathname.startsWith("/reader/")) {
-    return <>{backgroundStartup}<main id="main-content" className="min-h-screen bg-ink-950" tabIndex={-1}><ErrorBoundary key={`${serverBaseUrl}::${mockMode}::${libraryRevision}`}><Outlet /></ErrorBoundary></main></>;
+    return <>{backgroundStartup}<main id="main-content" className="min-h-screen bg-ink-950" tabIndex={-1}><ErrorBoundary key={`${serverBaseUrl}::${mockMode}::${libraryRevision}`} resetKey={location.key}><Outlet /></ErrorBoundary></main></>;
   }
 
   return (
@@ -309,7 +309,7 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
           </div>
         )}
         {!isGuideRoute && <RestoreRecoveryPanel />}
-        <ErrorBoundary key={isGuideRoute ? "browser-setup-guide" : `${serverBaseUrl}::${mockMode}::${libraryRevision}`}>
+        <ErrorBoundary key={isGuideRoute ? "browser-setup-guide" : `${serverBaseUrl}::${mockMode}::${libraryRevision}`} resetKey={location.key}>
           <Outlet />
         </ErrorBoundary>
       </main>

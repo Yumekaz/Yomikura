@@ -151,6 +151,11 @@ test("global search applies the language filter before calling extensions", asyn
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "Searched 1 source for" })).toBeVisible();
   expect(requests.filter(({ name }) => name === "FetchSourceManga").map(({ variables }) => variables.input.source)).toEqual(["6247824327199706550"]);
+  const result = page.getByRole("link").filter({ hasText: "Active story" });
+  await result.click();
+  await page.getByRole("link", { name: "Back to search", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Searched 1 source for" })).toBeVisible();
+  await expect(result).toBeFocused();
   await page.getByRole("button", { name: "Sources: All", exact: true }).click();
   await page.getByRole("checkbox", { name: /French source/ }).check();
   await expect(page.getByRole("status").filter({ hasText: "No sources match the current filters." })).toBeVisible();

@@ -14,19 +14,20 @@ import { activeCatalogFilterCount, buildCatalogFilterModel, CatalogFilterError, 
 import { CatalogFilterForm } from "./CatalogFilterForm";
 import { buildSourceBrowsePath, readSourceBrowseQuery } from "./sourceBrowseRoute";
 import { fetchAllSources } from "../../api/library/fetchAllSources";
+import { BookLink } from "../../app/BookNavigation";
 
 type Manga = NonNullable<FetchSourceMangaMutation["fetchSourceManga"]>["mangas"][number];
 function MangaCard({ manga, serverBaseUrl }: { manga: Manga; serverBaseUrl: string }) {
   const thumbnail = manga.thumbnailUrl ? resolveBackendUrl(serverBaseUrl, manga.thumbnailUrl) : undefined;
-  return <Link to={`/manga/${manga.id}`} aria-label={manga.title} className="group relative flex flex-col gap-2">
+  return <BookLink bookId={manga.id} aria-label={manga.title} className="group relative flex flex-col gap-2">
     <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-ink-900 shadow-md"><img src={thumbnail || "placeholder-cover.svg"} alt={manga.title} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" /><div className="absolute inset-0 bg-black/10 transition duration-200 group-hover:bg-black/0" /></div>
     <span className="line-clamp-2 text-xs font-semibold leading-snug text-slate-200 transition-colors group-hover:text-yomi-mint">{manga.title}</span>
-  </Link>;
+  </BookLink>;
 }
 
 export default function SourceBrowsePage() {
   const { sourceId = "" } = useParams<{ sourceId: string }>();
-  const [params] = useSearchParams(); const navigate = useNavigate();
+  const [params, setParams] = useSearchParams(); const navigate = useNavigate();
   const query = readSourceBrowseQuery(params); const rawFilters = params.get("filters");
   const { serverBaseUrl, mockMode, savedSearches, addSavedSearch, experience, updateExperience, recordSourceVisit } = useSettingsStore();
   const backend = useMemo(() => progressBackend(serverBaseUrl, mockMode), [serverBaseUrl, mockMode]);
@@ -37,7 +38,8 @@ export default function SourceBrowsePage() {
   const setListing = (value: "popular" | "latest") => {
     const next = new URLSearchParams(params);
     if (value === "latest") next.set("listing", value); else next.delete("listing");
-    navigate(`/browse/${sourceId}${next.size ? `?${next.toString()}` : ""}`);
+    next.delete("page");
+    setParams(next);
   };
   const [editor, setEditor] = useState<{ signature: string; values: FilterValues }>();
   const client = useQueryClient();
@@ -67,9 +69,8 @@ export default function SourceBrowsePage() {
   const activeCount = model && restored.values ? activeCatalogFilterCount(model, restored.values) : 0;
   const type = query.trim() || hasEnvelope ? FetchSourceMangaType.Search : listing === "latest" && source?.supportsLatest ? FetchSourceMangaType.Latest : FetchSourceMangaType.Popular;
   const scope = JSON.stringify([backend.key, sourceId, query, rawFilters, type]);
-  const [pagination, setPagination] = useState({ scope, page: 1 });
-  const page = pagination.scope === scope ? pagination.page : 1;
-  useEffect(() => { setPagination({ scope, page: 1 }); }, [scope]);
+  const requestedPage = Number(params.get("page"));
+  const page = Number.isInteger(requestedPage) && requestedPage > 0 && requestedPage <= 2147483647 ? requestedPage : 1;
   const ready = !!sourceId && (listing !== "latest" || sources.isSuccess) && (!hasEnvelope || !!model && !!restored.values && !restored.error);
   const catalog = useQuery({
     queryKey: ["source-browse", scope, page], enabled: ready, retry: false,
@@ -91,8 +92,8 @@ export default function SourceBrowsePage() {
   const openFilters = () => {
     if (model) setEditor({ signature: model.signature, values: { ...(restored.values ?? model.defaults) } }); else void metadata.refetch();
   };
-  const apply = (serialized: string) => { setEditor(undefined); setPagination({ scope, page: 1 }); if (page === 1 && input === query && serialized === rawFilters && ready) void catalog.refetch(); navigate(buildSourceBrowsePath(sourceId, input, serialized)); };
-  const clear = () => { setEditor(undefined); setPagination({ scope, page: 1 }); navigate(buildSourceBrowsePath(sourceId, query)); };
+  const apply = (serialized: string) => { setEditor(undefined); if (page === 1 && input === query && serialized === rawFilters && ready) void catalog.refetch(); navigate(buildSourceBrowsePath(sourceId, input, serialized)); };
+  const clear = () => { setEditor(undefined); navigate(buildSourceBrowsePath(sourceId, query)); };
   const isPinned = savedSearches.some((saved) => saved.sourceId === sourceId && saved.query === query && (saved.filters || "{}") === restored.serialized);
   const pin = async () => {
     const name = await requestText({ title: "Save this search", detail: "Give this source search a short, recognizable name.", initialValue: `${sourceName} — ${query || "Filtered search"}`, confirmLabel: "Save search" });
@@ -103,7 +104,11 @@ export default function SourceBrowsePage() {
   const mangas = (payload?.mangas ?? []).filter((manga) => !experience.hideLibraryEntries || !manga.inLibrary);
   const onlyLibraryMatches = experience.hideLibraryEntries && !!payload?.mangas.length && !mangas.length;
   const problem = catalog.isError ? classifySourceProblem(catalog.error) : null;
-  const changePage = (next: number) => { setPagination({ scope, page: next }); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const changePage = (pageNumber: number) => {
+    const next = new URLSearchParams(params);
+    if (pageNumber > 1) next.set("page", String(pageNumber)); else next.delete("page");
+    setParams(next);
+  };
   return <div className="min-h-screen bg-transparent pb-24">
     <div className="z-20 mb-6 border-b border-white/5 bg-ink-950/40 px-4 py-4 backdrop-blur-xl sm:px-6 lg:sticky lg:top-0">
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
@@ -111,7 +116,7 @@ export default function SourceBrowsePage() {
           {(query.trim() || hasEnvelope) && <button type="button" disabled={isPinned || !ready} onClick={() => void pin()} className="yomi-button yomi-button-secondary shrink-0"><Pin />{isPinned ? "Pinned" : "Pin Search"}</button>}
         </div>
         <form className="flex gap-2" onSubmit={(event) => {
-          event.preventDefault(); setPagination({ scope, page: 1 });
+          event.preventDefault();
           const nextFilters = hasEnvelope ? restored.serialized : undefined;
           if (page === 1 && input === query && nextFilters === (rawFilters ?? undefined) && ready) void catalog.refetch();
           navigate(buildSourceBrowsePath(sourceId, input, nextFilters));
@@ -120,7 +125,7 @@ export default function SourceBrowsePage() {
           <button type="button" disabled={metadata.isLoading || !!model && !model.nodes.length} aria-expanded={!!editor} onClick={() => editor ? setEditor(undefined) : openFilters()} className="yomi-button yomi-button-secondary"><SlidersHorizontal />{metadata.isError ? "Retry filters" : hasEnvelope ? `Filters applied${activeCount ? ` (${activeCount})` : ""}` : "Filters"}</button>
           {hasEnvelope && <button type="button" onClick={clear} className="text-xs text-yomi-jade underline">Clear filters</button>}
           {model && !model.nodes.length && <span className="text-xs text-slate-400">This source has no catalog filters.</span>}
-          {source?.supportsLatest && !query.trim() && !hasEnvelope && <>{(["popular", "latest"] as const).map((item) => <button type="button" key={item} onClick={() => { setListing(item); setPagination({ scope, page: 1 }); }} aria-pressed={listing === item} className={`yomi-button ${listing === item ? "yomi-button-primary" : "yomi-button-secondary"}`}>{item === "popular" ? "Popular" : "Latest"}</button>)}</>}
+          {source?.supportsLatest && !query.trim() && !hasEnvelope && <>{(["popular", "latest"] as const).map((item) => <button type="button" key={item} onClick={() => setListing(item)} aria-pressed={listing === item} className={`yomi-button ${listing === item ? "yomi-button-primary" : "yomi-button-secondary"}`}>{item === "popular" ? "Popular" : "Latest"}</button>)}</>}
         </div>
         {editor && model && <>{editor.signature !== model.signature && <p role="status" className="text-xs text-amber-200">The available filters changed. Review the provided defaults before applying.</p>}<CatalogFilterForm key={`${sourceId}:${model.signature}`} model={model} initialValues={editor.signature === model.signature ? editor.values : model.defaults} onApply={apply} onCancel={() => setEditor(undefined)} /></>}
       </div>

@@ -21,6 +21,7 @@ import { AddToLibraryDialog } from "../../components/library/AddToLibraryDialog"
 import { libraryInventoryKey, loadLibraryInventory } from "../../components/library/libraryEntry";
 import { LibraryCover } from "../../components/library/LibraryCover";
 import { useProgressBackend } from "../../hooks/useProgressSynchronization";
+import { BookLink, useBookListView } from "../../app/BookNavigation";
 export { parseHistoryTimestamp, shouldShowReadingEvent } from "./historyModel";
 
 export function localDateKey(timestamp: number): string {
@@ -42,10 +43,8 @@ function dateLabel(timestamp: number): string {
 export default function HistoryPage() {
   const { confirm, notify } = useFeedback();
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [{ searchQuery, pageBudget, titleTarget }, setView] = useBookListView({ searchQuery: "", pageBudget: 5, titleTarget: 20 });
   const [openingNextId, setOpeningNextId] = useState<string | null>(null);
-  const [pageBudget, setPageBudget] = useState(5);
-  const [titleTarget, setTitleTarget] = useState(20);
   const [adding, setAdding] = useState<{ mangaId: number; title: string }>();
   const { serverBaseUrl, mockMode, chapterPolicies, connectionStatus } = useSettingsStore();
   const queryClient = useQueryClient();
@@ -162,11 +161,11 @@ export default function HistoryPage() {
     <section className="yomi-page yomi-history">
       <header className="yomi-page-header">
         <div><span className="yomi-eyebrow">Reading activity</span><h1>History</h1><p>{items.length} comic{items.length === 1 ? "" : "s"} recently read</p></div>
-        <div className="flex w-full max-w-xs flex-col gap-2"><label className="yomi-search !w-full"><Search aria-hidden="true" /><span className="sr-only">Search reading history</span><input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search history…" /></label>{serverHistory.isError && <div className="yomi-status-chip" title={getErrorMessage(serverHistory.error)}><span className="yomi-status-dot is-warning" /> Local history shown</div>}</div>
+        <div className="flex w-full max-w-xs flex-col gap-2"><label className="yomi-search !w-full"><Search aria-hidden="true" /><span className="sr-only">Search reading history</span><input type="search" value={searchQuery} onChange={(event) => setView({ searchQuery: event.target.value })} placeholder="Search history…" /></label>{serverHistory.isError && <div className="yomi-status-chip" title={getErrorMessage(serverHistory.error)}><span className="yomi-status-dot is-warning" /> Local history shown</div>}</div>
       </header>
 
       <div className="yomi-timeline">
-        {items.length === 0 && <div className="yomi-route-empty"><h2>No comics match your search</h2><p>Try a comic title or its most recently read chapter.</p><button className="yomi-button yomi-button-secondary" onClick={() => setSearchQuery("")}>Clear search</button></div>}
+        {items.length === 0 && <div className="yomi-route-empty"><h2>No comics match your search</h2><p>Try a comic title or its most recently read chapter.</p><button className="yomi-button yomi-button-secondary" onClick={() => setView({ searchQuery: "" })}>Clear search</button></div>}
         {groups.map((group) => (
           <section key={localDateKey(group.timestamp)} className="yomi-timeline-group">
             <div className="yomi-timeline-date"><Clock3 aria-hidden="true" /><span>{dateLabel(group.timestamp)}</span></div>
@@ -179,7 +178,7 @@ export default function HistoryPage() {
                     {item.isRead ? <button type="button" className="yomi-history-cover" disabled={openingNextId === item.id} onClick={() => void openNextChapter(item, true)} aria-label={`Continue ${item.manga.title}`}><LibraryCover src={cover} alt="" /><span><BookOpen /></span></button> : <Link to={`/reader/${item.id}`} className="yomi-history-cover" aria-label={`Continue ${item.manga.title}`}><LibraryCover src={cover} alt="" /><span><BookOpen /></span></Link>}
                     <div className="yomi-history-copy">
                       <div className="yomi-history-meta"><time dateTime={new Date(item.readAt).toISOString()}>{new Date(item.readAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>{item.isLocal && <span>saved locally</span>}</div>
-                      <Link to={`/manga/${item.manga.id}`} className="yomi-history-title">{item.manga.title}</Link>
+                      <BookLink bookId={item.manga.id} className="yomi-history-title">{item.manga.title}</BookLink>
                       <p>{item.name || `Chapter ${item.chapterNumber}`}</p>
                       {percentage !== undefined && <div className="yomi-progress-line"><span style={{ width: `${percentage}%` }} /></div>}
                       <small>{item.isRead ? "Chapter read" : percentage !== undefined ? `${percentage}% read` : `Last page ${item.lastPageRead + 1}`}</small>
@@ -198,7 +197,7 @@ export default function HistoryPage() {
           </section>
         ))}
       </div>
-      {serverHistory.hasNextPage && <button className="yomi-button yomi-button-secondary mx-auto" disabled={serverHistory.isFetchingNextPage} onClick={() => { setPageBudget((value) => value + 5); setTitleTarget((value) => value + 20); void serverHistory.fetchNextPage(); }}>{serverHistory.isFetchingNextPage ? <Loader2 className="animate-spin" /> : null} Load older activity</button>}
+      {serverHistory.hasNextPage && <button className="yomi-button yomi-button-secondary mx-auto" disabled={serverHistory.isFetchingNextPage} onClick={() => { setView({ pageBudget: pageBudget + 5, titleTarget: titleTarget + 20 }); void serverHistory.fetchNextPage(); }}>{serverHistory.isFetchingNextPage ? <Loader2 className="animate-spin" /> : null} Load older activity</button>}
       {adding && <AddToLibraryDialog mangaId={adding.mangaId} mangaTitle={adding.title} onClose={() => setAdding(undefined)} />}
     </section>
   );

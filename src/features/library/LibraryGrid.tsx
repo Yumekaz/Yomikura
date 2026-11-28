@@ -1,6 +1,6 @@
 import { resolveBackendUrl } from "../../api/suwayomi/pageUrls";
 import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { BookLink } from "../../app/BookNavigation";
 import { Check } from "lucide-react";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { LibraryEmptyState } from "./LibraryEmptyState";
@@ -97,7 +97,7 @@ export function LibraryGrid({ mangas, serverBaseUrl, isSelectMode = false, selec
               <p>{manga.unreadCount > 0 ? `${manga.unreadCount} unread chapter${manga.unreadCount === 1 ? "" : "s"}` : manga.hasStartedReading ? "All caught up" : "Ready to read"}</p>
             </div>
           </>;
-          return isSelectMode ? <button key={manga.id} type="button" aria-label={manga.title} aria-pressed={selected} onClick={() => onToggleSelectManga?.(manga.id)} className="yomi-book">{body}</button> : <Link key={manga.id} aria-label={manga.title} to={`/manga/${manga.id}`} onContextMenu={(event) => { event.preventDefault(); onToggleSelectManga?.(manga.id); }} className="yomi-book">{body}</Link>;
+          return isSelectMode ? <button key={manga.id} type="button" aria-label={manga.title} aria-pressed={selected} onClick={() => onToggleSelectManga?.(manga.id)} className="yomi-book">{body}</button> : <BookLink key={manga.id} aria-label={manga.title} bookId={manga.id} onContextMenu={(event) => { event.preventDefault(); onToggleSelectManga?.(manga.id); }} className="yomi-book">{body}</BookLink>;
         })}
       </div>
       <div style={{ height: Math.max(0, (totalRows - endRow) * rowHeight) }} aria-hidden="true" />

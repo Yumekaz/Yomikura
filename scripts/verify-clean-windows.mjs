@@ -216,7 +216,16 @@ try {
   for (let i = 1; i <= 4; i++) await copyFile(`public/demo/${i % 2 ? 'paper-garden-page' : 'moonlit-courier-page'}.webp`, path.join(chapter, `00${i}.webp`));
   await page.getByRole('link', { name: 'Add books', exact: true }).click();
   await page.getByRole('link', { name: 'Browse Local source', exact: true }).click();
-  await page.getByRole('link', { name: 'First Reading', exact: true }).click({ timeout: 45000 });
+  const catalogUrl = page.url();
+  const book = page.getByRole('link', { name: 'First Reading', exact: true });
+  await book.click({ timeout: 45000 });
+  if (!bootstrap) {
+    await page.getByRole('link', { name: 'Back to source', exact: true }).click();
+    await expect(page).toHaveURL(catalogUrl);
+    await expect(book).toBeFocused();
+    await book.press('Enter');
+    report.checks.push('The installed app returned to the source catalog and restored focus to the opened book.');
+  }
   await page.getByRole('button', { name: 'Add to Library', exact: true }).click();
   await page.getByRole('button', { name: 'Save to library', exact: true }).click();
   const bookPath = new URL(page.url()).pathname;
@@ -331,7 +340,14 @@ try {
   assert.equal((await graphql(await currentServer(), 'query($id:Int!){chapter(id:$id){lastPageRead}}', { id: chapterId })).chapter.lastPageRead, 2);
   report.checks.push('The installed app added the original-art book, read page 3, and resumed there after the app and managed server restarted.');
   await page.screenshot({ path: path.join(root, 'resume.png') });
-  if (!bootstrap) await verifyProgressiveSearch(desktopOrigin);
+  if (!bootstrap) {
+    await verifyProgressiveSearch(desktopOrigin);
+    await page.goto(`${desktopOrigin}/retired/reading-page`);
+    await expect(page.getByRole('heading', { name: 'Page not found', exact: true })).toBeVisible();
+    await page.getByRole('link', { name: 'Open library', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible({ timeout: 60000 });
+    report.checks.push('An obsolete deep link offered a working return to Library in the installed app.');
+  }
   await closeWindow(updatedAppPid);
   report.result = 'PASS';
 } catch (error) {

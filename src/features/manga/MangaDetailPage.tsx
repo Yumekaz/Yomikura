@@ -23,6 +23,7 @@ import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { AddToLibraryDialog } from "../../components/library/AddToLibraryDialog";
 import { LibraryCover } from "../../components/library/LibraryCover";
 import { isMetadataSnapshot } from "../../api/suwayomi/libraryMetadata";
+import { BookBackLink } from "../../app/BookNavigation";
 
 
 const FETCH_CHAPTERS_DOCUMENT = gql`
@@ -259,9 +260,7 @@ export default function MangaDetailPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-ink-950 text-slate-300">
         <p className="text-lg">Failed to load manga details.</p>
-        <Link to="/library" className="mt-4 text-yomi-jade hover:underline">
-          Return to Library
-        </Link>
+        <BookBackLink className="mt-4 text-yomi-jade hover:underline">Go back</BookBackLink>
       </div>
     );
   }
@@ -277,7 +276,7 @@ export default function MangaDetailPage() {
   return (
     <div className="yomi-manga-detail min-h-screen overflow-x-clip pb-20 lg:pb-0">
       <div className="yomi-book-toolbar">
-        <Link to="/library" className="yomi-icon-button" aria-label="Back to library" title="Back to library"><ArrowLeft /></Link>
+        <BookBackLink className="yomi-icon-button"><ArrowLeft aria-hidden="true" /></BookBackLink>
         <span className={stickyResume ? "" : "is-quiet"}>{manga.title}</span>
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {stickyResume && (firstUnreadChapter || continuation.first) && <Link to={`/reader/${(firstUnreadChapter || continuation.first)!.id}`} aria-label={`Resume ${manga.title}`} className="yomi-button yomi-button-primary"><Play />{firstUnreadChapter ? "Resume" : "Read again"}</Link>}

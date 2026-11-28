@@ -1,14 +1,13 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { lazy, Suspense } from "react";
-import { routeCopy } from "./navigation";
+import { lazy, Suspense, type ReactNode } from "react";
 import { FeedbackProvider } from "../components/ui/FeedbackProvider";
 import { NavigationScroll } from "./NavigationScroll";
+import { BookNavigation } from "./BookNavigation";
 import { PrivacyGuard } from "../components/PrivacyGuard";
 
 const AppShell = lazy(() => import("../components/layout/AppShell"));
 const SettingsPage = lazy(() => import("../pages/SettingsPage"));
-const RouteShell = lazy(() => import("../pages/RouteShell"));
 const LibraryPage = lazy(() => import("../features/library/LibraryPage"));
 const MangaDetailPage = lazy(() => import("../features/manga/MangaDetailPage"));
 const ReaderPage = lazy(() => import("../features/reader/ReaderPage"));
@@ -28,11 +27,23 @@ const BrowserSetupPage = lazy(() => import("../features/setup/BrowserSetupPage")
 // reports offline. Let the actual request and each feature's fallback decide.
 const queryClient = new QueryClient({ defaultOptions: { queries: { networkMode: "always" }, mutations: { networkMode: "always" } } });
 
+function MissingPage({ title = "Page not found" }: { title?: string }) {
+  return <section className="yomi-route-empty"><h1>{title}</h1><p>Check the link or return to your library.</p>
+    <Link to="/library" className="yomi-button yomi-button-primary">Open library</Link>
+  </section>;
+}
+
+function ReadingRoute({ parameter, children }: { parameter: "mangaId" | "chapterId"; children: ReactNode }) {
+  const id = useParams()[parameter];
+  if (id && /^\d+$/.test(id) && Number(id) <= 2147483647) return children;
+  return <MissingPage title={parameter === "mangaId" ? "Invalid book link" : "Invalid chapter link"} />;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <NavigationScroll />
-      <PrivacyGuard><FeedbackProvider>
+      <PrivacyGuard><FeedbackProvider><BookNavigation>
       <Suspense fallback={<div className="yomi-route-loading"><span className="yomi-skeleton h-8 w-40" /><span className="yomi-skeleton h-24 w-full" /></div>}>
       <Routes>
         <Route path="/" element={<Navigate to="/library" replace />} />
@@ -40,61 +51,28 @@ function App() {
           <Route path="/setup" element={<BrowserSetupPage />} />
           <Route path="/upcoming" element={<InsightsPage />} />
           <Route path="/statistics" element={<InsightsPage />} />
-          {Object.entries(routeCopy).map(([path, copy]) => {
-            if (path === "/settings") {
-              return <Route key={path} path={path} element={<SettingsPage />} />;
-            }
-            if (path === "/library") {
-              return <Route key={path} path={path} element={<LibraryPage />} />;
-            }
-            if (path === "/updates") {
-              return <Route key={path} path={path} element={<UpdatesPage />} />;
-            }
-            if (path === "/history") {
-              return <Route key={path} path={path} element={<HistoryPage />} />;
-            }
-            if (path === "/downloads") {
-              return <Route key={path} path={path} element={<DownloadsPage />} />;
-            }
-            if (path === "/browse" || path === "/browse/sources") {
-              return <Route key={path} path={path} element={<SourcesPage />} />;
-            }
-            if (path === "/extensions") {
-              return <Route key={path} path={path} element={<ExtensionsPage />} />;
-            }
-            if (path === "/browse/extensions") {
-              return <Route key={path} path={path} element={<ExtensionsPage />} />;
-            }
-            if (path === "/browse/extension-repos") {
-              return <Route key={path} path={path} element={<ReposPage />} />;
-            }
-            if (path === "/browse/search") {
-              return <Route key={path} path={path} element={<GlobalSearchPage />} />;
-            }
-            return (
-              <Route
-                key={path}
-                path={path}
-                element={<RouteShell title={copy.title} detail={copy.detail} />}
-              />
-            );
-          })}
-          <Route
-            path="/manga/:mangaId"
-            element={<MangaDetailPage />}
-          />
+          <Route path="/library" element={<LibraryPage />} />
+          <Route path="/updates" element={<UpdatesPage />} />
+          <Route path="/history" element={<HistoryPage />} />
+          <Route path="/downloads" element={<DownloadsPage />} />
+          <Route path="/browse" element={<SourcesPage />} />
+          <Route path="/browse/sources" element={<SourcesPage />} />
+          <Route path="/browse/search" element={<GlobalSearchPage />} />
+          <Route path="/extensions" element={<ExtensionsPage />} />
+          <Route path="/browse/extensions" element={<ExtensionsPage />} />
+          <Route path="/browse/extension-repos" element={<ReposPage />} />
+          <Route path="/manga/:mangaId" element={<ReadingRoute parameter="mangaId"><MangaDetailPage /></ReadingRoute>} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/:section" element={<SettingsPage />} />
           <Route path="/browse/:sourceId" element={<SourceBrowsePage />} />
           <Route path="/browse/source/:sourceId/settings" element={<SourcePrefsPage />} />
           <Route path="/extensions/repos" element={<ReposPage />} />
-          <Route
-            path="/reader/:chapterId"
-            element={<ReaderPage />}
-          />
+          <Route path="/reader/:chapterId" element={<ReadingRoute parameter="chapterId"><ReaderPage /></ReadingRoute>} />
         </Route>
+        <Route path="*" element={<main><MissingPage /></main>} />
       </Routes>
       </Suspense>
-      </FeedbackProvider></PrivacyGuard>
+      </BookNavigation></FeedbackProvider></PrivacyGuard>
     </QueryClientProvider>
   );
 }

@@ -23,6 +23,7 @@ import { fetchBookmarkMembership } from "../../api/library/fetchBookmarkMembersh
 import { parseHistoryTimestamp } from "../history/historyModel";
 import { isMetadataSnapshot, markMetadataSnapshot } from "../../api/suwayomi/libraryMetadata";
 import { isSelectedLibrary } from "../../api/suwayomi/libraryUpdateState";
+import { useBookListView } from "../../app/BookNavigation";
 
 interface BulkCategorySelection {
   backend: ProgressBackend;
@@ -37,8 +38,7 @@ export default function LibraryPage() {
   const { cachedChapters, cachedChapterIds, loadCachedChapters, downloadChapter } = useDownloadStore();
   const queryClient = useQueryClient();
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeCategoryId, setActiveCategoryId] = useState<string | number | null>(null);
+  const [{ searchQuery, activeCategoryId }, setView] = useBookListView({ searchQuery: "", activeCategoryId: null as string | number | null });
   const filterChoices = normalizeLibraryFilters(experience.libraryFilters[backendKey]);
   if (experience.downloadedOnly) filterChoices.downloaded = "include";
   const activeFilterCount = activeLibraryFilterCount(filterChoices);
@@ -49,7 +49,7 @@ export default function LibraryPage() {
   const sortDescending = savedSort?.descending ?? librarySortDescending;
   const changeSortMode = (mode: typeof librarySortMode) => experience.perCategorySort ? updateExperience((current) => ({ categorySorts: { ...current.categorySorts, [sortScope]: { mode, descending: sortDescending } } })) : setLibrarySortMode(mode);
   const changeSortDirection = (descending: boolean) => experience.perCategorySort ? updateExperience((current) => ({ categorySorts: { ...current.categorySorts, [sortScope]: { mode: sortMode, descending } } })) : setLibrarySortDescending(descending);
-  const clearLibraryFilters = () => { setSearchQuery(""); setActiveCategoryId(null); changeFilters({ ...EMPTY_LIBRARY_FILTERS }); };
+  const clearLibraryFilters = () => { setView({ searchQuery: "", activeCategoryId: null }); changeFilters({ ...EMPTY_LIBRARY_FILTERS }); };
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
 
   // Bulk Select States
@@ -356,7 +356,7 @@ export default function LibraryPage() {
           <h1>Library</h1>
           <p>{isOfflineMode && activeCategoryId === "smart:on_server" ? "Reconnect to check server availability. Select On this device to read saved copies." : `${displayMangas.length} book${displayMangas.length === 1 ? "" : "s"}${searchQuery.trim() || activeCategoryId !== null || activeFilterCount > 0 ? " shown" : downloadedFallback ? " saved on this device" : " in your collection"}`}</p>
         </div>
-        <div className="yomi-library-header-actions"><label className="yomi-search"><Search aria-hidden="true" /><input type="search" aria-label="Search library" placeholder="Search library..." value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label><Link className="yomi-button yomi-button-primary" to="/browse/sources"><Plus aria-hidden="true" />Add books</Link></div>
+        <div className="yomi-library-header-actions"><label className="yomi-search"><Search aria-hidden="true" /><input type="search" aria-label="Search library" placeholder="Search library..." value={searchQuery} onChange={(event) => setView({ searchQuery: event.target.value })} /></label><Link className="yomi-button yomi-button-primary" to="/browse/sources"><Plus aria-hidden="true" />Add books</Link></div>
       </header>
       {!isSelectMode && !searchQuery && activeCategoryId === null && <ContinueReading offline={isOfflineMode} cachedChapterIds={cachedChapterIds} books={downloadedFallback ? [...new Map(cachedChapters.map((chapter) => [Number(chapter.mangaId), { id: Number(chapter.mangaId), title: chapter.mangaTitle }])).values()] : (libData?.mangas.nodes ?? []).map((manga) => ({ id: Number(manga.id), title: manga.title, thumbnailUrl: manga.thumbnailUrl }))} />}
       {/* Filters Bar */}
@@ -369,7 +369,7 @@ export default function LibraryPage() {
         downloadCounts={downloadCounts}
         categories={categories}
         activeCategoryId={activeCategoryId}
-        onCategorySelect={setActiveCategoryId}
+        onCategorySelect={(activeCategoryId) => setView({ activeCategoryId })}
         onManageCategories={() => isOfflineMode ? notify("Reconnect to change your collections. Your saved collections remain available.", "info") : setIsCategoryDialogOpen(true)}
         isSelectMode={isSelectMode}
         selectedCount={selectedMangaIds.size}

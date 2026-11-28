@@ -31,7 +31,7 @@ const chapter: CachedChapter = {
 let view: Awaited<ReturnType<typeof render>> | undefined;
 let client: QueryClient;
 
-async function open(path: string) {
+async function open(path: string, route = <div data-testid="route">Route content</div>) {
   view = await render(
     <QueryClientProvider client={client}>
       <FeedbackProvider>
@@ -39,7 +39,7 @@ async function open(path: string) {
         <Routes>
           <Route element={<AppShell />}>
             <Route path="/library" element={<div data-testid="route">Library route</div>} />
-            <Route path="*" element={<div data-testid="route">Route content</div>} />
+            <Route path="*" element={route} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -67,6 +67,19 @@ afterEach(async () => {
 });
 
 describe("offline shell access", () => {
+  it("recovers to the library in the same shell after an outlet throws", async () => {
+    function BrokenRoute(): never { throw new Error("Fixture route failed"); }
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      useSettingsStore.setState({ mockMode: true });
+      await open("/broken", <BrokenRoute />);
+      expect(view!.container.textContent).toContain("We couldn’t open this screen");
+      const back = [...view!.container.querySelectorAll("a")].find((link) => link.textContent === "Open library");
+      expect(back).toBeDefined();
+      await act(async () => back!.click());
+      expect(view!.container.querySelector('[data-testid="route"]')?.textContent).toBe("Library route");
+    } finally { errors.mockRestore(); }
+  });
   it("keeps onboarding mounted while a first connection establishes its library marker", async () => {
     vi.mocked(getCachedChapters).mockResolvedValue([]);
     await open("/library");

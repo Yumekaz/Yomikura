@@ -24,7 +24,7 @@ function definitions(): any[] {
     ] },
   ];
 }
-async function fixture(page: Page, options: { none?: boolean; hold?: string } = {}) {
+async function fixture(page: Page, options: { none?: boolean; hold?: string; longCatalog?: boolean } = {}) {
   const state = { definitions: options.none ? [] : definitions(), calls: [] as any[], held: false, release: undefined as (() => void) | undefined };
   await page.addInitScript(({ backend }) => {
     if (!localStorage.getItem("yomikura-settings")) localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: backend, mockMode: false, connectionStatus: "connected" } }));
@@ -39,7 +39,12 @@ async function fixture(page: Page, options: { none?: boolean; hold?: string } = 
     else if (name === "FetchSourceManga") {
       const input = variables.input; state.calls.push(structuredClone(input));
       if (options.hold !== undefined && input.query === options.hold && !state.held) { state.held = true; await new Promise<void>((resolve) => { state.release = resolve; }); }
-      data = { fetchSourceManga: { hasNextPage: input.page < 3, mangas: [{ id: 1000 + input.page, title: `Result ${input.type} ${input.query || "all"} page ${input.page}`, thumbnailUrl: "", inLibrary: false }] } };
+      const mangas = Array.from({ length: options.longCatalog ? 30 : 1 }, (_, index) => ({
+        id: 1000 + input.page + index * 10,
+        title: `Result ${input.type} ${input.query || "all"} page ${input.page}${index ? ` entry ${index + 1}` : ""}`,
+        thumbnailUrl: "", inLibrary: false,
+      }));
+      data = { fetchSourceManga: { hasNextPage: input.page < 3, mangas } };
     } else {
       const method = (mockSdk as unknown as Record<string, (args: unknown) => Promise<unknown>>)[name]; data = method ? await method(variables) : { __typename: "Query" };
     }
@@ -102,6 +107,28 @@ test("pagination retains applied filters and a new query always starts at page o
   await page.getByRole("textbox", { name: "Search manga in source", exact: true }).fill("Moonlit Courier"); await page.getByRole("textbox", { name: "Search manga in source", exact: true }).press("Enter");
   await expect(page.getByRole("link", { name: "Result SEARCH Moonlit Courier page 1", exact: true })).toBeVisible();
   expect(state.calls.filter((input) => input.query === "Moonlit Courier").map((input) => input.page)).toEqual([1]); expect(last(state.calls).filters).toEqual(applied);
+});
+
+test("book Back restores the filtered source page, scroll position and focused card", async ({ page }) => {
+  const state = await fixture(page, { longCatalog: true });
+  await page.goto("/browse/100");
+  const form = await openFilters(page);
+  await form.getByRole("checkbox", { name: "Fantasy", exact: true }).check();
+  await form.getByRole("button", { name: "Apply filters", exact: true }).click();
+  await page.getByRole("button", { name: "Next Page", exact: true }).click();
+  const book = page.getByRole("link", { name: "Result SEARCH all page 2 entry 28", exact: true });
+  await book.focus();
+  await expect(book).toBeInViewport();
+  const position = await page.evaluate(() => window.scrollY);
+  expect(position).toBeGreaterThan(150);
+  const from = page.url();
+  expect(new URL(from).searchParams.get("page")).toBe("2");
+  await book.press("Enter");
+  await page.getByRole("link", { name: "Back to source", exact: true }).click();
+  await expect(page).toHaveURL(from);
+  await expect(book).toBeFocused();
+  await expect.poll(async () => Math.abs(await page.evaluate(() => window.scrollY) - position)).toBeLessThan(5);
+  expect(last(state.calls)).toMatchObject({ page: 2, filters: expect.arrayContaining([{ position: 7, groupChange: { position: 1, checkBoxState: true } }]) });
 });
 
 test("pinned filter-only searches retain choices through catalog navigation and reload", async ({ page }) => {

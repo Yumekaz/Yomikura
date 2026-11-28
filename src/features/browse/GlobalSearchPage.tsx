@@ -10,6 +10,7 @@ import { classifySourceProblem, getErrorMessage } from "../../api/suwayomi/error
 import { buildSourceBrowsePath } from "./sourceBrowseRoute";
 import { fetchAllSources } from "../../api/library/fetchAllSources";
 import { useProgressBackend } from "../../hooks/useProgressSynchronization";
+import { BookLink, useBookListView } from "../../app/BookNavigation";
 
 const GLOBAL_SEARCH_CONCURRENCY = 6;
 const SOURCE_SEARCH_TIMEOUT_MS = 20_000;
@@ -42,7 +43,7 @@ function MangaCard({ manga, serverBaseUrl }: { manga: MangaSearchResult; serverB
   const thumbnailUrl = manga.thumbnailUrl ? resolveBackendUrl(serverBaseUrl, manga.thumbnailUrl) : undefined;
 
   return (
-    <Link to={`/manga/${manga.id}`} className="group flex-shrink-0 w-28 sm:w-32 flex flex-col gap-1.5">
+    <BookLink bookId={manga.id} className="group flex-shrink-0 w-28 sm:w-32 flex flex-col gap-1.5">
       <div className="aspect-[2/3] w-full overflow-hidden rounded-lg bg-ink-900 shadow-md border border-white/5 relative">
         {thumbnailUrl ? (
           <img
@@ -71,7 +72,7 @@ function MangaCard({ manga, serverBaseUrl }: { manga: MangaSearchResult; serverB
           </span>
         )}
       </div>
-    </Link>
+    </BookLink>
   );
 }
 
@@ -180,10 +181,7 @@ export default function GlobalSearchPage() {
   });
   const sources = useMemo(() => sourceList.data?.sources.nodes.filter((source) => source.extension?.isInstalled !== false && (!experience.applyContentFilterToInstalled || showNsfw || !source.isNsfw)).map((source) => ({ ...source, id: String(source.id) })), [sourceList.data, experience.applyContentFilterToInstalled, showNsfw]);
 
-  // Global Search V2 Filters States
-  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
-  const [selectedLanguage, setSelectedLanguage] = useState<string>("all");
-  const [hideNsfw, setHideNsfw] = useState<boolean>(true); // Hide NSFW by default
+  const [{ selectedSourceIds, selectedLanguage, hideNsfw }, setView] = useBookListView({ selectedSourceIds: [] as string[], selectedLanguage: "all", hideNsfw: true });
   const [showSourceDropdown, setShowSourceDropdown] = useState(false);
   const [sourceSearchInput, setSourceSearchInput] = useState("");
 
@@ -317,7 +315,7 @@ export default function GlobalSearchPage() {
               <button
                 type="button"
                 aria-pressed={hideNsfw}
-                onClick={() => setHideNsfw(!hideNsfw)}
+                onClick={() => setView({ hideNsfw: !hideNsfw })}
                 className={`rounded-lg border px-3 py-1.5 font-bold transition flex items-center gap-1.5 ${
                   hideNsfw
                     ? "bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20"
@@ -349,7 +347,7 @@ export default function GlobalSearchPage() {
                         <span className="text-xs font-bold text-white">Filter Sources</span>
                         <button
                           type="button"
-                          onClick={() => setSelectedSourceIds([])}
+                          onClick={() => setView({ selectedSourceIds: [] })}
                           className="text-xs text-yomi-jade hover:underline font-bold"
                         >
                           Reset
@@ -374,9 +372,9 @@ export default function GlobalSearchPage() {
                                   checked={isChecked}
                                   onChange={() => {
                                     if (isChecked) {
-                                      setSelectedSourceIds(selectedSourceIds.filter(id => id !== source.id));
+                                      setView({ selectedSourceIds: selectedSourceIds.filter(id => id !== source.id) });
                                     } else {
-                                      setSelectedSourceIds([...selectedSourceIds, source.id]);
+                                      setView({ selectedSourceIds: [...selectedSourceIds, source.id] });
                                     }
                                   }}
                                   className="rounded border-white/15 bg-ink-950 text-yomi-jade focus:ring-0 h-3.5 w-3.5"
@@ -398,7 +396,7 @@ export default function GlobalSearchPage() {
               <button
                 type="button"
                 aria-pressed={selectedLanguage === "all"}
-                onClick={() => setSelectedLanguage("all")}
+                onClick={() => setView({ selectedLanguage: "all" })}
                 className={`rounded-full px-3 py-1 font-bold transition flex-shrink-0 ${
                   selectedLanguage === "all"
                     ? "bg-yomi-jade text-ink-950 shadow-glow"
@@ -415,7 +413,7 @@ export default function GlobalSearchPage() {
                     key={lang}
                     type="button"
                     aria-pressed={isSelected}
-                    onClick={() => setSelectedLanguage(lang)}
+                    onClick={() => setView({ selectedLanguage: lang })}
                     className={`rounded-full px-3 py-1 font-bold transition flex-shrink-0 ${
                       isSelected
                         ? "bg-yomi-jade/80 text-ink-950 shadow-glow"

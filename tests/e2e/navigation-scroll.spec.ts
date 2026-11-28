@@ -20,3 +20,39 @@ test("switching settings sections starts at their heading after a long preferenc
   await page.getByRole("link", { name: "Settings", exact: true }).click();
   await expect(page.getByRole("button", { name: "Appearance", exact: true })).toBeInViewport(); await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 });
+
+test("the book Back control restores the library's active search", async ({ page }) => {
+  await page.goto("/library");
+  const search = page.getByRole("searchbox", { name: "Search library", exact: true });
+  await search.fill("Paper Garden");
+  const book = page.locator(".yomi-book").and(page.getByRole("link", { name: "[Demo] The Paper Garden", exact: true }));
+  await book.click();
+  await page.getByRole("link", { name: "Back to library", exact: true }).click();
+  await expect(search).toHaveValue("Paper Garden");
+  await expect(book).toBeFocused();
+});
+
+test("the book Back control restores a filtered History list", async ({ page }) => {
+  await page.goto("/reader/20001");
+  await page.getByRole("button", { name: "Go to page 2", exact: true }).click();
+  await page.getByRole("link", { name: "Back to manga details", exact: true }).click();
+  await page.getByRole("link", { name: "History", exact: true }).click();
+  const search = page.getByRole("searchbox", { name: "Search reading history", exact: true });
+  const book = page.locator(".yomi-history-title").filter({ hasText: "Paper Garden" });
+  await search.fill("Paper Garden");
+  await book.click();
+  await page.getByRole("link", { name: "Back to history", exact: true }).click();
+  await expect(search).toHaveValue("Paper Garden");
+  await expect(book).toBeFocused();
+});
+
+for (const [path, title] of [
+  ["/retired/reading-page", "Page not found"],
+  ["/manga/10001-old", "Invalid book link"],
+  ["/reader/2147483648", "Invalid chapter link"],
+]) test(`an obsolete or malformed link can recover from ${path}`, async ({ page }) => {
+  await page.goto(path);
+  await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Open library", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Library", exact: true })).toBeVisible();
+});
