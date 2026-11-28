@@ -1,3 +1,4 @@
+import { LibraryCover } from "../../components/library/LibraryCover";
 import { useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -192,7 +193,7 @@ export default function DownloadsPage() {
                   to={`/manga/${item.manga.id}`}
                   className="yomi-cover-sm"
                 >
-                  <img src={coverUrl} alt={item.manga.title} className="h-full w-full object-cover" />
+                  <LibraryCover cache={false} loading="lazy" src={coverUrl} alt={item.manga.title} className="h-full w-full object-cover" />
                 </Link>
 
                 {/* Info & Progress */}

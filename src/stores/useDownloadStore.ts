@@ -16,6 +16,7 @@ import { validatePageBlob } from "../api/suwayomi/validatePageBlob";
 import { splitTallImage } from "../api/suwayomi/tallImageTiles";
 import { assertLibrarySession, rememberedLibrary, LIBRARY_SESSION_EVENT } from "../api/suwayomi/librarySession";
 import { downloadChecksum, readVerifiedDownloadPage } from "../api/suwayomi/downloadCheckpoint";
+import { protectedResponse } from "../api/suwayomi/desktopAuth";
 
 export interface DownloadProgress { progress: number; total: number; status: "queued" | "downloading" | "error" | "success"; mangaTitle?: string; chapterName?: string; attempts?: number; error?: string; waitingForNetwork?: boolean }
 interface DownloadState {
@@ -45,6 +46,8 @@ let nativeCore: Promise<typeof import("@tauri-apps/api/core")> | undefined;
 async function fetchCachedPage(url: string, entry: Entry): Promise<Response> {
   if (entry.controller.signal.aborted) throw new DOMException("Download cancelled", "AbortError");
   if (!entry.native || entry.backend.isDemo) return fetch(url, { mode: "cors", signal: entry.controller.signal });
+  const protectedPage = await protectedResponse(url, entry.backend.serverBaseUrl, entry.controller.signal);
+  if (protectedPage) return protectedPage;
   const { invoke } = await (nativeCore ??= import("@tauri-apps/api/core"));
   const page = await invoke<{ bytes: number[]; contentType: string }>("fetch_local_page", { url, serverBaseUrl: entry.backend.serverBaseUrl });
   if (entry.controller.signal.aborted) throw new DOMException("Download cancelled", "AbortError");

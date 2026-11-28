@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState, useMemo } from "react";
+import { FormEvent, lazy, Suspense, useEffect, useState, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
@@ -15,7 +15,7 @@ import {
   Server,
   AlertCircle,
 } from "lucide-react";
-import { useSettingsStore, ServerProfile } from "../stores/useSettingsStore";
+import { isTauri, useSettingsStore, ServerProfile } from "../stores/useSettingsStore";
 import { createGraphqlClient } from "../api/graphql/client";
 import { getErrorMessage } from "../api/suwayomi/errors";
 import { useDownloadStore } from "../stores/useDownloadStore";
@@ -46,6 +46,9 @@ import { normalizeCacheServerUrl } from "../api/suwayomi/offlineCache";
 import { restoreBackupUpload, validateBackupUpload } from "../api/suwayomi/backupUpload";
 import { progressBackend } from "../api/suwayomi/backendIdentity";
 import { verifyLibraryIdentity } from "../api/suwayomi/libraryIdentity";
+import { hasDesktopAuth } from "../api/suwayomi/desktopAuth";
+
+const DesktopSignIn = lazy(() => import("../components/settings/DesktopSignIn"));
 
 type SettingsTab = SettingsSection;
 const SETTINGS_TABS: SettingsTab[] = ["appearance", "reader", "library", "privacy", "browse", "offline", "backup", "connection", "advanced", "about"];
@@ -205,6 +208,7 @@ function SettingsPage() {
         }
       };
       checkSelectedLibrary();
+      if (hasDesktopAuth(server)) throw new LibraryBackupError("Open the signed-in Suwayomi web interface to upload and restore a backup.");
       await verifyLibraryIdentity(server, { marker });
       const validation = await validateBackupUpload(endpoint, file);
       if (validation.missingSources.length || validation.missingTrackers.length) {
@@ -646,6 +650,8 @@ function SettingsPage() {
                     </div>
                   )}
                 </div>
+                {isTauri() && !mockMode && /^https:\/\//i.test(serverBaseUrl) &&
+                  <Suspense fallback={null}><DesktopSignIn key={activeProfileId + serverBaseUrl} profileId={activeProfileId} address={serverBaseUrl} /></Suspense>}
               </div>
 
               <LibraryIdentityPanel />

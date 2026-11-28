@@ -15,6 +15,7 @@ mod local_import;
 mod native_folders;
 mod reader_exports;
 mod reader_platform;
+mod remote_auth;
 mod runtime_setup;
 mod window_layout;
 
@@ -1076,6 +1077,7 @@ pub fn run() {
             verified_jar: Mutex::new(None),
         })
         .manage(desktop_preferences::DesktopState::default())
+        .manage(remote_auth::RemoteLibraryAuth::default())
         .invoke_handler(tauri::generate_handler![
             desktop_preferences::get_desktop_preferences,
             desktop_preferences::set_desktop_preferences,
@@ -1097,6 +1099,9 @@ pub fn run() {
             get_portable_data_path,
             open_logs_folder,
             fetch_local_page,
+            remote_auth::sign_in_suwayomi,
+            remote_auth::clear_suwayomi_session,
+            remote_auth::request_suwayomi,
             local_import::get_local_import_target,
             local_import::import_local_archives
         ])

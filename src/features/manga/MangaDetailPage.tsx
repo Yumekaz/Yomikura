@@ -22,6 +22,7 @@ import { refreshBookFromSource, safeSourceUrl } from "./bookActions";
 import { useFeedback } from "../../components/ui/FeedbackProvider";
 import { AddToLibraryDialog } from "../../components/library/AddToLibraryDialog";
 import { LibraryCover } from "../../components/library/LibraryCover";
+import { isProtectedLibraryImage, useDesktopAuthRevision } from "../../api/suwayomi/desktopAuth";
 import { isMetadataSnapshot } from "../../api/suwayomi/libraryMetadata";
 import { BookBackLink } from "../../app/BookNavigation";
 
@@ -231,9 +232,14 @@ export default function MangaDetailPage() {
     return resolveBackendUrl(serverBaseUrl, manga.thumbnailUrl);
   }, [manga?.thumbnailUrl, serverBaseUrl]);
 
+  const authRevision = useDesktopAuthRevision();
+  const [decodedCover, setDecodedCover] = useState<{ key: string; url: string }>();
+  const coverKey = JSON.stringify([imageUrl, serverBaseUrl, authRevision]);
+  const needsAuth = !mockMode && isProtectedLibraryImage(imageUrl, serverBaseUrl);
+  const coverArt = needsAuth ? decodedCover?.key === coverKey ? decodedCover.url : "" : imageUrl;
   useEffect(() => {
-    return applyCoverAccentFromImage(imageUrl, coverAccentEnabled);
-  }, [imageUrl, coverAccentEnabled]);
+    return applyCoverAccentFromImage(coverArt, coverAccentEnabled);
+  }, [coverArt, coverAccentEnabled]);
   useEffect(() => { setSynopsisOpen(false); setStickyResume(false); }, [mangaId, policyBackend.key]);
   useEffect(() => {
     const node = actionsRef.current; if (!node) return;
@@ -292,7 +298,7 @@ export default function MangaDetailPage() {
         {/* Blurred background */}
         <div
           className="yomi-manga-backdrop absolute inset-0 z-0 h-full w-full bg-cover bg-center"
-          style={{ backgroundImage: `url(${imageUrl})` }}
+          style={{ backgroundImage: coverArt ? `url(${coverArt})` : undefined }}
         />
 
         {/* Content Container */}
@@ -300,7 +306,7 @@ export default function MangaDetailPage() {
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
             {/* Cover Image */}
             <div className="yomi-manga-cover relative mx-auto w-44 aspect-[2/3] shrink-0 overflow-hidden sm:mx-0 sm:w-48 md:w-52">
-              <LibraryCover src={imageUrl} alt={manga.title} className="absolute inset-0 h-full w-full object-cover" />
+              <LibraryCover src={imageUrl} alt={manga.title} className="absolute inset-0 h-full w-full object-cover" onLoad={needsAuth ? (event) => setDecodedCover({ key: coverKey, url: event.currentTarget.currentSrc }) : undefined} />
             </div>
 
             {/* Manga Info */}

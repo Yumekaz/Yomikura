@@ -1,6 +1,7 @@
 import { validateServerBaseUrl } from "../../config/server";
 import { resolveBackendUrl } from "./pageUrls";
 import { establishLibraryIdentity, verifyLibraryIdentity } from "./libraryIdentity";
+import { libraryFetch } from "./desktopAuth";
 import {
   LibraryBackupError, MAX_LIBRARY_BACKUP_BYTES, readLibraryBackup, saveLibraryBackup,
   validateLibraryBackupBytes, type BackupPurpose, type LibraryBackup,
@@ -34,7 +35,7 @@ export async function createLibraryBackup(
   }
   let bytes: Uint8Array;
   try {
-    const response = await (dependencies.fetch ?? fetch)(url, { redirect: "error", signal: AbortSignal.timeout(120_000) });
+    const response = await (dependencies.fetch ?? libraryFetch)(url, { redirect: "error", signal: AbortSignal.timeout(120_000) });
     if (!response.ok) throw new LibraryBackupError(`The backup download failed (HTTP ${response.status}).`);
     if (Number(response.headers.get("content-length")) > MAX_LIBRARY_BACKUP_BYTES) {
       throw new LibraryBackupError("The backup exceeds the 512 MB safety limit.");

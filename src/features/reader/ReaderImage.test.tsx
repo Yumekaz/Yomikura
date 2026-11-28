@@ -3,6 +3,15 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, waitForRender } from "../../test/render";
 import { ReaderImage } from "./ReaderImage";
+import { LibraryCover } from "../../components/library/LibraryCover";
+import { useSettingsStore } from "../../stores/useSettingsStore";
+
+const media = vi.hoisted(() => ({ match: vi.fn(), read: vi.fn(), revision: 0 }));
+vi.mock("../../api/suwayomi/desktopAuth", () => ({
+  isProtectedLibraryImage: media.match,
+  protectedImage: media.read,
+  useDesktopAuthRevision: () => media.revision,
+}));
 
 type Observation = {
   target?: Element;
@@ -13,6 +22,9 @@ let observations: Observation[];
 let view: Awaited<ReturnType<typeof render>> | undefined;
 
 beforeEach(() => {
+  media.match.mockReset().mockReturnValue(false);
+  media.read.mockReset();
+  media.revision = 0;
   observations = [];
   vi.stubGlobal("caches", { open: async () => ({ match: async () => undefined }) });
   vi.stubGlobal("IntersectionObserver", class {
@@ -24,6 +36,43 @@ beforeEach(() => {
     observe(target: Element) { this.observation.target = target; }
     disconnect() { this.observation.disconnect(); }
   });
+});
+
+it("uses only session-bound blobs for protected pages and lazy covers", async () => {
+  const serverBaseUrl = "https://books.example/yomikura";
+  const page = serverBaseUrl + "/api/v1/manga/4/chapter/2/page/0";
+  const cover = serverBaseUrl + "/api/v1/manga/4/thumbnail";
+  const prior = useSettingsStore.getState();
+  const next = { serverBaseUrl, mockMode: false, connectionStatus: "connected" as const };
+  media.match.mockImplementation((url: string, base: string) => base === serverBaseUrl && url.startsWith(base + "/api/"));
+  const pageBlob = new Blob(["page"], { type: "image/png" });
+  const coverBlob = new Blob(["cover"], { type: "image/png" });
+  media.read.mockImplementation((url: string) => Promise.resolve(url === page ? pageBlob : coverBlob));
+  const objectUrl = vi.spyOn(URL, "createObjectURL").mockImplementation((blob) => blob === pageBlob ? "blob:authenticated-page" : "blob:authenticated-cover");
+  const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  const screen = <><ReaderImage url={page} pageNumber={0} /><LibraryCover cache={false} src={cover} loading="lazy" alt="Cover" /></>;
+  try {
+    useSettingsStore.setState(next);
+    view = await render(screen);
+    await waitForRender(() => expect(view!.container.querySelector('[alt="Page 1"]')?.getAttribute("src")).toBe("blob:authenticated-page"));
+    const thumb = view.container.querySelector('[alt="Cover"]');
+    expect(thumb?.getAttribute("src")).toBeNull();
+    expect(media.read.mock.calls.map(([url]) => url)).toEqual([page]);
+    await act(async () => intersect(observations.find((entry) => entry.target === thumb)!));
+    await waitForRender(() => expect(thumb?.getAttribute("src")).toBe("blob:authenticated-cover"));
+    expect(media.read).toHaveBeenLastCalledWith(cover, serverBaseUrl, expect.any(AbortSignal));
+    media.revision++;
+    media.match.mockReturnValue(false);
+    await view.rerender(<><ReaderImage url={page} pageNumber={0} /><LibraryCover cache={false} src={cover} loading="lazy" alt="Cover" /></>);
+    expect(revoke).toHaveBeenCalledWith("blob:authenticated-page");
+    expect(revoke).toHaveBeenCalledWith("blob:authenticated-cover");
+  } finally {
+    await view?.unmount();
+    view = undefined;
+    useSettingsStore.setState(prior);
+    objectUrl.mockRestore();
+    revoke.mockRestore();
+  }
 });
 
 describe("reader image readiness", () => {

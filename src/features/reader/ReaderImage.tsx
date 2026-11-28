@@ -62,7 +62,7 @@ export function ReaderImage({
   const cropBorders = cropBordersProp ?? storeCrop;
 
   const imageUrl = usingFallback && fallbackUrl ? fallbackUrl : url;
-  const { url: displayUrl, tiles, reload } = useReaderImageSource(imageUrl);
+  const { url: displayUrl, tiles, failed, reload } = useReaderImageSource(imageUrl);
   const usingTiles = mode === "webtoon" && !!tiles && !cropBorders && experience.reader.rotation === 0 && failedTiles !== displayUrl;
   const loaded = !!displayUrl && !error && (usingTiles ? tileLoaded?.source === displayUrl && tileLoaded.urls.size > 0 : loadedUrl === displayUrl);
   const completionReady = loaded && (!usingTiles || !!tileLoaded?.urls.has(tiles!.tiles[tiles!.tiles.length - 1].url));
@@ -135,6 +135,9 @@ export function ReaderImage({
 
     setError(true);
   };
+  const nativeLoadError = useRef(handleError);
+  nativeLoadError.current = handleError;
+  useEffect(() => { if (failed) nativeLoadError.current(); }, [failed]);
 
   const handleRetry = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();

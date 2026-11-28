@@ -1,4 +1,5 @@
 import { validateServerBaseUrl } from "../../config/server";
+import { libraryFetch } from "./desktopAuth";
 
 export const LIBRARY_MARKER = "yomikura.library.identity.v1";
 export type LibraryIdentity = { marker: string };
@@ -9,7 +10,7 @@ export const validLibraryMarker = (value: unknown): value is string => typeof va
 async function request(server: string, query: string, variables?: unknown) {
   const validation = validateServerBaseUrl(server);
   if (!validation.valid) throw new Error(validation.message);
-  const response = await fetch(`${validation.normalizedUrl.replace(/\/+$/, "")}/api/graphql`, {
+  const response = await libraryFetch(`${validation.normalizedUrl.replace(/\/+$/, "")}/api/graphql`, {
     method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ query, variables, operationName: /(?:query|mutation)\s+(\w+)/.exec(query)?.[1] }), signal: AbortSignal.timeout(10000),
   });

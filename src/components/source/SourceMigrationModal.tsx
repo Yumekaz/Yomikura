@@ -1,3 +1,5 @@
+import { LibraryCover } from "../library/LibraryCover";
+import { resolveBackendUrl } from "../../api/suwayomi/pageUrls";
 import { ThemedSelect } from "../ui/ThemedSelect";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -135,7 +137,7 @@ export function SourceMigrationModal({ isOpen, onClose, mangaId, mangaTitle, sou
         {phase === "results" && <div className="space-y-3">
           <div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-slate-300">Choose a title to review its chapters</p><button type="button" className="text-xs text-yomi-jade underline" onClick={() => setPhase("search")}>Change search</button></div>
           {results.map((manga) => <button type="button" key={manga.id} disabled={manga.id === mangaId} onClick={() => void prepare({ id: manga.id, title: manga.title }, sourceId)} className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-ink-950/40 p-3 text-left disabled:opacity-40">
-            <img src={manga.thumbnailUrl || "placeholder-cover.svg"} alt="" className="h-12 w-9 rounded-md object-cover" /><span className="text-sm text-slate-200">{manga.title}{manga.id === mangaId ? " (current title)" : ""}</span>
+            <LibraryCover cache={false} loading="lazy" src={manga.thumbnailUrl ? resolveBackendUrl(serverBaseUrl, manga.thumbnailUrl) : "placeholder-cover.svg"} alt="" className="h-12 w-9 rounded-md object-cover" /><span className="text-sm text-slate-200">{manga.title}{manga.id === mangaId ? " (current title)" : ""}</span>
           </button>)}
           {!results.length && <p className="p-6 text-center text-sm text-slate-400">No matching titles found. Refine the search query.</p>}
         </div>}

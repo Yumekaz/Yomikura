@@ -1,18 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
 import { isTauri, useSettingsStore } from "../../stores/useSettingsStore";
 import { getOwnedCachedPage, getOwnedCachedPageTiles, normalizeCacheServerUrl } from "../../api/suwayomi/offlineCache";
+import { isProtectedLibraryImage, protectedImage, useDesktopAuthRevision } from "../../api/suwayomi/desktopAuth";
+import { useVisibleImage } from "../../hooks/useVisibleImage";
 export type ReaderTiles = { width: number; height: number; tiles: { url: string; height: number }[] };
 
 /** Resolve full pages and previews through the same device cache. */
-export function useReaderImageSource(source: string) {
+export function useReaderImageSource(source: string, lazy = false) {
   const { serverBaseUrl, mockMode } = useSettingsStore();
-  const scope = JSON.stringify([normalizeCacheServerUrl(serverBaseUrl), mockMode]);
+  const authRevision = useDesktopAuthRevision();
+  const needsAuth = !mockMode && isProtectedLibraryImage(source, serverBaseUrl);
+  const { ref, ready } = useVisibleImage(lazy && needsAuth);
+  const scope = JSON.stringify([normalizeCacheServerUrl(serverBaseUrl), mockMode, authRevision]);
   const [attempt, setAttempt] = useState(0);
-  const [resolved, setResolved] = useState<{ source: string; scope: string; attempt: number; url: string; tiles?: ReaderTiles }>({ source: "", scope: "", attempt: -1, url: "" });
+  const [resolved, setResolved] = useState<{ source: string; scope: string; attempt: number; url: string; tiles?: ReaderTiles; failed?: boolean }>({ source: "", scope: "", attempt: -1, url: "" });
   const reload = useCallback(() => setAttempt((value) => value + 1), []);
 
   useEffect(() => {
+    if (!ready) return;
     let active = true;
+    const abort = new AbortController();
     const objectUrls: string[] = [];
     const publish = (url: string, tiles?: ReaderTiles) => {
       if (active) setResolved({ source, scope, attempt, url, tiles });
@@ -49,14 +56,26 @@ export function useReaderImageSource(source: string) {
           return;
         }
       } catch { /* An online page can still work when device storage is unavailable. */ }
-      publish(source);
+      if (!active) return;
+      if (!needsAuth) { publish(source); return; }
+      try {
+        const blob = await protectedImage(source, serverBaseUrl, abort.signal);
+        if (!active) return;
+        if (!blob) throw new Error("The library sign-in changed.");
+        const url = URL.createObjectURL(blob);
+        objectUrls.push(url);
+        publish(url);
+      } catch {
+        if (active) setResolved({ source, scope, attempt, url: "", failed: true });
+      }
     })();
     return () => {
       active = false;
+      abort.abort();
       objectUrls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [source, scope, attempt]);
+  }, [source, scope, attempt, needsAuth, ready, serverBaseUrl, mockMode]);
 
   const current = resolved.source === source && resolved.scope === scope && resolved.attempt === attempt;
-  return { url: current ? resolved.url : "", tiles: current ? resolved.tiles : undefined, reload };
+  return { url: current ? resolved.url : "", tiles: current ? resolved.tiles : undefined, failed: current && resolved.failed, reload, ref };
 }

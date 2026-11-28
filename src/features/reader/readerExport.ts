@@ -2,6 +2,7 @@ import { isTauri, useSettingsStore } from "../../stores/useSettingsStore";
 import { progressBackend, type ProgressBackend } from "../../api/suwayomi/backendIdentity";
 import { getOwnedCachedPage } from "../../api/suwayomi/offlineCache";
 import { validatePageBlob } from "../../api/suwayomi/validatePageBlob";
+import { protectedImage } from "../../api/suwayomi/desktopAuth";
 export function safeExportName(value: string, maxBytes = 100) {
   let clean = value.normalize("NFKC").replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().replace(/[. ]+$/, "") || "Yomikura";
   if (/^(?:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM\d|LPT\d)(?:\.|$)/i.test(clean)) clean = `_${clean}`;
@@ -20,8 +21,12 @@ export async function readExportPage(source: string, backend: ProgressBackend, s
   let blob: Blob;
   if (cached) blob = await cached.blob();
   else if (isTauri() && !backend.isDemo) {
-    const { invoke } = await import("@tauri-apps/api/core"), page = await invoke<{ bytes: number[]; contentType: string }>("fetch_local_page", { url: source, serverBaseUrl: backend.serverBaseUrl });
-    blob = new Blob([new Uint8Array(page.bytes)], { type: page.contentType });
+    const image = await protectedImage(source, backend.serverBaseUrl, signal);
+    if (image) blob = image;
+    else {
+      const { invoke } = await import("@tauri-apps/api/core"), page = await invoke<{ bytes: number[]; contentType: string }>("fetch_local_page", { url: source, serverBaseUrl: backend.serverBaseUrl });
+      blob = new Blob([new Uint8Array(page.bytes)], { type: page.contentType });
+    }
   } else {
     const response = await fetch(source, { signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]) });
     if (!response.ok) throw new Error("The page is unavailable. Nothing was exported.");

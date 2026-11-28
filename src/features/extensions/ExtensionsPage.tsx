@@ -1,3 +1,4 @@
+import { LibraryCover } from "../../components/library/LibraryCover";
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { useState, useMemo, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -421,7 +422,7 @@ export default function ExtensionsPage() {
                 <div key={ext.pkgName} className="yomi-catalog-item">
                   <div className="yomi-catalog-icon">
                     {ext.iconUrl ? (
-                      <img
+                      <LibraryCover cache={false} loading="lazy"
                         src={ext.iconUrl.startsWith("http") ? ext.iconUrl : `${serverBaseUrl.replace(/\/$/, "")}${ext.iconUrl}`}
                         alt={ext.name}
                         className="h-full w-full object-cover"

@@ -128,8 +128,8 @@ function AppShell({ libraryRevision = 0 }: { libraryRevision?: number; restoreRe
   useEffect(() => {
     if (connectionStatus === "error") setWasOffline(true);
     if (connectionStatus === "connected" || mockMode) setWasOffline(false);
-    if (mockMode) setSetupActive(false);
-  }, [connectionStatus, mockMode]);
+    if (mockMode || connectionStatus === "connected" && location.pathname === "/settings/connection") setSetupActive(false);
+  }, [connectionStatus, mockMode, location.pathname]);
 
   useDeviceProfileBootstrap();
   useScheduledBackup();
@@ -783,6 +783,7 @@ export function WelcomeOnboarding({
                 <button type="submit" disabled={testStatus === "testing"} className="yomi-button yomi-button-secondary">{testStatus === "testing" ? <><Loader2 className="animate-spin" />Connecting…</> : <><Server />Connect & Save</>}</button>
                 {testStatus === "error" && <p role="alert">We couldn’t reach your library. Check its address and connection, then try again.</p>}
               </form>
+              {inTauri && testStatus === "error" && /^https:\/\//i.test(inputUrl) && <Link to="/settings/connection" className="yomi-text-link">Sign in from connection settings</Link>}
               {testStatus === "error" && localError && <details className="yomi-error-details"><summary>Technical details</summary><pre>{localError}</pre></details>}
             </details>
             <Link to="/setup" className="yomi-button yomi-button-secondary">Read the browser setup guide<ArrowRight aria-hidden="true" /></Link>

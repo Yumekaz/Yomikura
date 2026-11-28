@@ -1,3 +1,4 @@
+import { LibraryCover } from "../../components/library/LibraryCover";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -22,7 +23,7 @@ export default function SourcesPage() {
     const icon = source.iconUrl ? source.iconUrl.startsWith("http") ? source.iconUrl : `${backend.serverBaseUrl}${source.iconUrl.startsWith("/") ? "" : "/"}${source.iconUrl}` : undefined;
     return <div key={id} className="yomi-catalog-item">
       <Link to={`/browse/${id}`} className="flex min-w-0 flex-1 items-center gap-4" aria-label={`Browse ${source.name}`}>
-        <div className="yomi-catalog-icon">{icon ? <img src={icon} alt="" className="h-full w-full object-cover" loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} /> : <Globe aria-hidden="true" />}</div>
+        <div className="yomi-catalog-icon">{icon ? <LibraryCover cache={false} src={icon} alt="" className="h-full w-full object-cover" loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} /> : <Globe aria-hidden="true" />}</div>
         <div className="yomi-catalog-copy"><strong>{source.name}</strong><small>{source.lang === "localsourcelang" ? "Your local books" : source.lang === "all" ? "Multiple languages" : source.lang.toUpperCase()}</small></div>
       </Link>
       {source.supportsLatest && <Link className="yomi-utility-button yomi-source-latest" to={`/browse/${id}?listing=latest`} aria-label={`Latest from ${source.name}`}>Latest</Link>}

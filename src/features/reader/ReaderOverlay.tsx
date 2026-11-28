@@ -7,10 +7,10 @@ import { useReaderImageSource } from "./useReaderImageSource";
 import { ProgressSyncStatus } from "../../components/ProgressSyncStatus";
 
 function ReaderThumbnail({ url, number }: { url: string; number: number }) {
-  const { url: resolvedUrl } = useReaderImageSource(url);
+  const { url: resolvedUrl, failed, ref } = useReaderImageSource(url, true);
   const [failedUrl, setFailedUrl] = useState<string>();
-  if (failedUrl && failedUrl === resolvedUrl) return <span role="img" aria-label={`Page ${number} preview unavailable`} className="grid h-full w-full place-items-center bg-ink-900 text-xs text-slate-400">{number}</span>;
-  return <img src={resolvedUrl || undefined} alt={`Page ${number}`} className="h-full w-full object-cover" loading="lazy" draggable={false} onError={() => setFailedUrl(resolvedUrl)} />;
+  if (failed || (failedUrl && failedUrl === resolvedUrl)) return <span role="img" aria-label={`Page ${number} preview unavailable`} className="grid h-full w-full place-items-center bg-ink-900 text-xs text-slate-400">{number}</span>;
+  return <img ref={ref} src={resolvedUrl || undefined} alt={`Page ${number}`} className="h-full w-full object-cover" loading="lazy" draggable={false} onError={() => setFailedUrl(resolvedUrl)} />;
 }
 
 interface ReaderOverlayProps {

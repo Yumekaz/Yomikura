@@ -1,3 +1,4 @@
+import { LibraryCover } from "../../components/library/LibraryCover";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -46,7 +47,7 @@ function MangaCard({ manga, serverBaseUrl }: { manga: MangaSearchResult; serverB
     <BookLink bookId={manga.id} className="group flex-shrink-0 w-28 sm:w-32 flex flex-col gap-1.5">
       <div className="aspect-[2/3] w-full overflow-hidden rounded-lg bg-ink-900 shadow-md border border-white/5 relative">
         {thumbnailUrl ? (
-          <img
+          <LibraryCover cache={false}
             src={thumbnailUrl}
             alt={manga.title}
             className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"

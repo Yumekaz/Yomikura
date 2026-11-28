@@ -92,6 +92,7 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
  "tauri-plugin-window-state",
+ "uuid",
  "windows 0.61.3",
  "windows-future 0.2.1",
  "zip",

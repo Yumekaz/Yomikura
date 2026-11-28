@@ -285,8 +285,8 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       testConnection: async (expectedLibraryId) => {
-        const { serverBaseUrl, mockMode: requestedMockMode } = get();
-        const stillCurrent = () => get().serverBaseUrl === serverBaseUrl && get().mockMode === requestedMockMode;
+        const { activeProfileId, serverBaseUrl, mockMode: requestedMockMode } = get();
+        const stillCurrent = () => get().activeProfileId === activeProfileId && get().serverBaseUrl === serverBaseUrl && get().mockMode === requestedMockMode;
         if (!serverBaseUrl) {
           set({ connectionStatus: "error", errorMessage: "Server URL cannot be empty." });
           return false;

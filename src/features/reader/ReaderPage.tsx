@@ -31,6 +31,7 @@ import { allowDeviceDownload, allowedPreloadPages } from "../../api/suwayomi/net
 import { useConnectionInformation } from "../../hooks/useConnectionInformation";
 import { ReaderZoomContext, useReaderZoom, type ReaderZoom } from "./useReaderZoom";
 import { ReaderEndStatus } from "./ReaderEndStatus";
+import { hasDesktopAuth, useDesktopAuthRevision } from "../../api/suwayomi/desktopAuth";
 import { deriveReaderEndState } from "./readerEndState";
 
 export default function ReaderPage() {
@@ -600,9 +601,12 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
     changePageWithTransition(target);
   }, [pages.length, changePageWithTransition]);
 
-  // Preload next 3 images dynamically
+  const prefetchDirectly = mockMode || !hasDesktopAuth(serverBaseUrl);
+  const authRevision = useDesktopAuthRevision();
+  // Protected webtoon pages prefetch through their viewport. Direct browser
+  // preloads cannot use the native session.
   useEffect(() => {
-    if (pages.length === 0 || !activeChapter || !serverBaseUrl) return;
+    if (!prefetchDirectly || pages.length === 0 || !activeChapter || !serverBaseUrl) return;
 
     const preloadedImages: HTMLImageElement[] = [];
 
@@ -629,7 +633,7 @@ function ReaderSession({ startChapterId: chapterId, sessionToken, incognitoAtEnt
         img.src = "";
       });
     };
-  }, [currentPage, pages, activeChapter, mockMode, serverBaseUrl, preloadCount]);
+  }, [currentPage, pages, activeChapter, mockMode, serverBaseUrl, preloadCount, prefetchDirectly, authRevision]);
 
   // Webtoon infinite-scroll binge (append chapters or navigate)
   const autoAdvanceReadiness = infiniteChapterReading ? 0 : readyPageVersion;

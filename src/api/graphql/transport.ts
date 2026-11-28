@@ -1,5 +1,6 @@
 export type GraphqlOptions = Omit<RequestInit, "body" | "method"> & { libraryId?: string | null };
 import { assertLibrarySession, rememberedLibrary } from "../suwayomi/librarySession";
+import { libraryFetch } from "../suwayomi/desktopAuth";
 type Request = { document: string; variables?: unknown; requestHeaders?: HeadersInit; signal?: AbortSignal | null };
 export class GraphqlError extends Error {
   constructor(readonly response: { status: number; errors?: { message: string }[] }) {
@@ -34,7 +35,7 @@ export class LibraryGraphqlTransport {
     for (const signal of signals) { signal.addEventListener("abort", abort, { once: true }); if (signal.aborted) controller.abort(); }
     try {
       const operationName = /\b(?:query|mutation)\s+([_A-Za-z]\w*)/.exec(value.document)?.[1];
-      const response = await fetch(this.endpoint, { ...this.options, method: "POST", headers, signal: controller.signal, body: JSON.stringify({ query: value.document, variables: value.variables, operationName }) });
+      const response = await libraryFetch(this.endpoint, { ...this.options, method: "POST", headers, signal: controller.signal, body: JSON.stringify({ query: value.document, variables: value.variables, operationName }) });
       let result: { data?: T; errors?: { message: string }[] };
       try { result = await response.json(); } catch { throw new GraphqlError({ status: response.status }); }
       if (!response.ok || !result || result.errors?.length || result.data === undefined) throw new GraphqlError({ status: response.status, errors: result?.errors?.filter((error) => typeof error.message === "string") });
