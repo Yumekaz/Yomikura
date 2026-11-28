@@ -18,7 +18,7 @@ const root = path.resolve('.cache/clean-windows');
 await mkdir(root, { recursive: true });
 const data = path.join(process.env.LOCALAPPDATA, 'app.yomikura');
 const serverData = path.join(data, 'server-data');
-const report = { commit: process.env.GITHUB_SHA, checks: [] };
+const report = { commit: process.env.YOMIKURA_TESTED_COMMIT || process.env.GITHUB_SHA, verificationCommit: process.env.GITHUB_SHA, checks: [] };
 const bootstrap = process.env.YOMIKURA_STAGING_INSTALLER;
 const candidate = process.env.YOMIKURA_CANDIDATE_INSTALLER;
 if (bootstrap) assert.ok(candidate && path.isAbsolute(bootstrap) && path.isAbsolute(candidate));
@@ -106,8 +106,14 @@ async function downloadRecords() {
   });
 }
 
-async function verifyProgressiveSearch(desktopOrigin, server) {
-  const endpoint = `${server}/api/graphql`;
+async function verifyProgressiveSearch(desktopOrigin) {
+  // A document navigation restarts the managed-connection check. Enter search
+  // through the app once that check has completed.
+  await page.goto(`${desktopOrigin}/library`);
+  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
+  await waitFor('desktop library connection', () => page.evaluate(() =>
+    JSON.parse(localStorage.getItem('yomikura-settings') ?? '{}').state?.connectionStatus === 'connected'));
+  const endpoint = `${await currentServer()}/api/graphql`;
   const sources = [
     { id: '1', name: 'Fast fixture source', lang: 'en' },
     { id: '2', name: 'Slow fixture source', lang: 'fr' },
@@ -131,7 +137,12 @@ async function verifyProgressiveSearch(desktopOrigin, server) {
   };
   await page.route(endpoint, routeSearch);
   try {
-    await page.goto(`${desktopOrigin}/browse/search?q=first`);
+    await page.getByRole('link', { name: 'Discover', exact: true }).click();
+    await page.getByRole('link', { name: 'Search all', exact: true }).click();
+    const input = page.getByRole('textbox', { name: 'Search manga title globally' });
+    const search = page.getByRole('button', { name: 'Search', exact: true });
+    await input.fill('first');
+    await search.click();
     await waitFor('slow search in flight', () => slowStarted, 10000);
     await expect(page.getByRole('link', { name: /first fixture result 1/ })).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('status').filter({ hasText: '1 of 2 sources finished' })).toBeVisible();
@@ -141,8 +152,8 @@ async function verifyProgressiveSearch(desktopOrigin, server) {
       timeout: 10000,
     });
     await Promise.all([aborted, (async () => {
-      await page.getByRole('textbox', { name: 'Search manga title globally' }).fill('second');
-      await page.getByRole('button', { name: 'Search', exact: true }).click();
+      await input.fill('second');
+      await search.click();
     })()]);
     release();
     await expect(page.getByRole('link', { name: /second fixture result 1/ })).toBeVisible();
@@ -320,7 +331,7 @@ try {
   assert.equal((await graphql(await currentServer(), 'query($id:Int!){chapter(id:$id){lastPageRead}}', { id: chapterId })).chapter.lastPageRead, 2);
   report.checks.push('The installed app added the original-art book, read page 3, and resumed there after the app and managed server restarted.');
   await page.screenshot({ path: path.join(root, 'resume.png') });
-  if (!bootstrap) await verifyProgressiveSearch(desktopOrigin, await currentServer());
+  if (!bootstrap) await verifyProgressiveSearch(desktopOrigin);
   await closeWindow(updatedAppPid);
   report.result = 'PASS';
 } catch (error) {

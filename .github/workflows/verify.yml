@@ -11,6 +11,10 @@ on:
         description: Actions run ID supplying the web ZIP for HTTPS and browser verification
         required: false
         type: string
+      clean_windows_run:
+        description: Actions run ID supplying the installer for another clean Windows verification
+        required: false
+        type: string
       extension_migration:
         description: Verify a populated extension library against the Suwayomi hotfix
         type: boolean
@@ -34,7 +38,7 @@ permissions:
 jobs:
   frontend:
     name: Frontend
-    if: ${{ !inputs.hosted_web_run }}
+    if: ${{ !inputs.hosted_web_run && !inputs.clean_windows_run }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -102,7 +106,7 @@ jobs:
 
   desktop-windows:
     name: Desktop (Windows)
-    if: ${{ !inputs.hosted_web_run }}
+    if: ${{ !inputs.hosted_web_run && !inputs.clean_windows_run }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -140,7 +144,7 @@ jobs:
 
   desktop-installer-windows:
     name: Desktop installer (Windows)
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.hosted_web_run)
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.hosted_web_run && !inputs.clean_windows_run)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -377,12 +381,36 @@ jobs:
 
   clean-setup-windows:
     name: Clean Windows setup and first chapter
-    if: github.event_name == 'workflow_dispatch' && inputs.release_journey
+    if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && (inputs.clean_windows_run || (inputs.release_journey && needs.desktop-installer-windows.result == 'success')) }}
     needs: desktop-installer-windows
     runs-on: windows-latest
     timeout-minutes: 24
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v5
+      - name: Verify the source run for the existing installer
+        if: inputs.clean_windows_run
+        id: installer-source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_RUN: ${{ inputs.clean_windows_run }}
+        run: |
+          if ($env:SOURCE_RUN -notmatch '^\d+$') { throw 'Expected a numeric Actions run ID.' }
+          $api = "repos/$env:GH_REPO/actions/runs/$env:SOURCE_RUN"
+          $run = gh api $api | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $run.repository.full_name -cne $env:GH_REPO -or $run.head_repository.full_name -cne $env:GH_REPO -or
+              $run.path -ne '.github/workflows/verify.yml' -or $run.event -ne 'workflow_dispatch' -or $run.head_sha -notmatch '^[a-f0-9]{40}$') {
+            throw 'The installer must come from a Verify workflow in this repository.'
+          }
+          $jobs = gh api "$api/jobs?per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or -not ($jobs.jobs | Where-Object { $_.name -eq 'Desktop installer (Windows)' -and $_.conclusion -eq 'success' })) {
+            throw 'The source run did not pass the Windows installer job.'
+          }
+          "commit=$($run.head_sha)" >> $env:GITHUB_OUTPUT
       - uses: pnpm/action-setup@v4
         with:
           version: 11.1.2
@@ -395,6 +423,8 @@ jobs:
         with:
           name: yomikura-windows-installer
           path: ${{ runner.temp }}/yomikura-clean-installer
+          run-id: ${{ inputs.clean_windows_run || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Enable WebView inspection on this disposable runner
         shell: pwsh
         run: |
@@ -405,6 +435,8 @@ jobs:
           }
       - name: Exercise the installed app without seeded Java or Suwayomi
         run: node scripts/verify-clean-windows.mjs
+        env:
+          YOMIKURA_TESTED_COMMIT: ${{ steps.installer-source.outputs.commit || github.sha }}
       - name: Preserve clean setup evidence
         if: always()
         uses: actions/upload-artifact@v4
