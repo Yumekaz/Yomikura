@@ -6,7 +6,7 @@ import { progressBackend } from "../api/suwayomi/backendIdentity";
 import * as cache from "../api/suwayomi/offlineCache";
 import * as progress from "../api/suwayomi/progressStorage";
 import { DEFAULT_DOWNLOAD_EXPERIENCE, type DownloadExperience } from "./downloadExperience";
-import { rememberLibrary } from "../api/suwayomi/librarySession";
+import { assertLibrarySession, rememberLibrary } from "../api/suwayomi/librarySession";
 vi.mock("../api/suwayomi/librarySession", async (original) => ({ ...await original<typeof import("../api/suwayomi/librarySession")>(), assertLibrarySession: vi.fn(async () => undefined) }));
 
 const mocks = vi.hoisted(() => ({
@@ -23,11 +23,15 @@ vi.mock("../api/suwayomi/validatePageBlob", () => ({ validatePageBlob: vi.fn(asy
 vi.mock("../api/suwayomi/tallImageTiles", () => ({ splitTallImage: (...args: unknown[]) => mocks.tiles(...args) }));
 
 const first = progressBackend("http://first.example"); const second = progressBackend("http://second.example");
+const marker = "11111111-1111-4111-8111-111111111111";
 const liveUrl = (target = first, index = 0) => `${target.serverBaseUrl}/api/v1/manga/42/chapter/1/page/${index}`;
+const identifyLibrary = (server = first.serverBaseUrl, id = marker) => { rememberLibrary(server, { marker: id }); return progressBackend(server); };
 const png = (value: string) => ({ bytes: [...new TextEncoder().encode(value)], contentType: "image/png" });
 let store: ReturnType<typeof createDownloadStore>;
 let objects: Map<string, Response>;
 let releases: (() => void)[];
+let livePages: string[];
+let beforeCacheWrite: (key: string) => void;
 const switchTo = (target: ReturnType<typeof progressBackend>) => { const previous = mocks.settings; mocks.settings = { ...previous, serverBaseUrl: target.serverBaseUrl, mockMode: target.isDemo }; for (const listener of mocks.listeners) listener(mocks.settings, previous); };
 const saved = (target = first) => cache.getCachedChapter(target.serverBaseUrl, 12, target.isDemo);
 const fixtureChapter = (target = first): cache.CachedChapter => ({ cacheKey: cache.getChapterCacheKey(target.serverBaseUrl, 12, target.isDemo), serverBaseUrl: target.serverBaseUrl, isDemo: target.isDemo, id: 12, name: "Chapter 12", chapterNumber: 1, mangaId: 42, mangaTitle: target.key === first.key ? "First title" : "Second title", sourceOrder: 1, pageCount: 2, pages: [liveUrl(target), liveUrl(target, 1)], cachedUrls: [liveUrl(target), liveUrl(target, 1)], totalSizeBytes: 6, cachedAt: 1 });
@@ -42,16 +46,18 @@ beforeEach(() => {
   localStorage.clear();
   vi.restoreAllMocks(); vi.resetAllMocks(); mocks.listeners.clear(); mocks.native = true; mocks.settings = { serverBaseUrl: first.serverBaseUrl, mockMode: false, downloadConcurrency: 2 };
   vi.stubGlobal("indexedDB", new IDBFactory()); releases = []; objects = new Map();
+  livePages = [0, 1].map((index) => new URL(liveUrl(first, index)).pathname);
+  beforeCacheWrite = () => {};
   mocks.tiles.mockResolvedValue(undefined);
-  vi.stubGlobal("caches", { open: async () => ({ match: async (key: string) => objects.get(String(key))?.clone(), put: async (key: string, value: Response) => { objects.set(String(key), value.clone()); }, delete: async (key: string) => objects.delete(String(key)), keys: async () => [...objects.keys()].map((url) => new Request(url)) }), delete: async () => { objects.clear(); return true; } });
+  vi.stubGlobal("caches", { open: async () => ({ match: async (key: string) => objects.get(String(key))?.clone(), put: async (key: string, value: Response) => { beforeCacheWrite(key); objects.set(String(key), value.clone()); }, delete: async (key: string) => objects.delete(String(key)), keys: async () => [...objects.keys()].map((url) => new Request(url)) }), delete: async () => { objects.clear(); return true; } });
   mocks.invoke.mockImplementation(async (_command, args) => png(args.serverBaseUrl));
   vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(`demo:${url}`, { headers: { "content-type": "image/png" } })));
   mocks.client.mockImplementation((endpoint, _options, mode) => {
     const base = endpoint.replace(/\/api\/graphql$/, "");
-    const target = progressBackend(base, mode === "demo"); const title = target.isDemo ? "[Demo] Sample title" : base === first.serverBaseUrl ? "First title" : "Second title";
+    const target = progressBackend(base, mode === "demo"); const title = target.isDemo ? "[Demo] Sample title" : new URL(base).hostname === new URL(first.serverBaseUrl).hostname ? "First title" : "Second title";
     return {
       GetChapter: vi.fn(async () => ({ chapter: { id: 12, mangaId: 42, name: "Chapter 12", chapterNumber: 1, sourceOrder: 1, pageCount: 2, isRead: false, lastPageRead: 0, manga: { title } } })),
-      FetchChapterPages: vi.fn(async () => ({ fetchChapterPages: { pages: target.isDemo ? ["https://images.example/0", "https://images.example/1"] : [liveUrl(target), liveUrl(target, 1)] } })),
+      FetchChapterPages: vi.fn(async () => ({ fetchChapterPages: { pages: target.isDemo ? ["https://images.example/0", "https://images.example/1"] : livePages } })),
       EnqueueChapterDownload: vi.fn(async () => ({})),
     };
   });
@@ -73,18 +79,27 @@ describe("download backend ownership", () => {
     } finally { await restarted.dispose(); }
   });
   it("keeps a prior library's failed job while a replacement downloads the same chapter ID", async () => {
-    const oldMarker = "11111111-1111-4111-8111-111111111111", newMarker = "22222222-2222-4222-8222-222222222222";
-    rememberLibrary(first.serverBaseUrl, { marker: oldMarker }); const earlier = progressBackend(first.serverBaseUrl);
-    mocks.invoke.mockRejectedValue(new Error("Fixture page failure"));
+    const newMarker = "22222222-2222-4222-8222-222222222222";
+    const earlier = identifyLibrary();
+    mocks.invoke.mockImplementation(async (_command, args) => {
+      if (args.url.endsWith("/1")) throw new Error("Fixture page failure");
+      return png("Earlier saved page");
+    });
     await store.getState().downloadChapter(12, "Earlier title", earlier);
-    await vi.waitFor(() => expect(store.getState().activeDownloads[12]?.status).toBe("error"));
-    rememberLibrary(first.serverBaseUrl, { marker: newMarker }); const current = progressBackend(first.serverBaseUrl);
+    await vi.waitFor(async () => expect((await cache.getDownloadJobs(first.serverBaseUrl, false, marker))[0]?.status).toBe("failed"));
+    const earlierPage = (await cache.getDownloadJobs(first.serverBaseUrl, false, marker))[0].checkpoint!.pages[0].url;
+    const current = identifyLibrary(first.serverBaseUrl, newMarker);
     mocks.invoke.mockImplementation(async () => png("Replacement page"));
     await store.getState().downloadChapter(12, "Replacement title", current);
     await vi.waitFor(async () => expect((await cache.getCachedChapter(first.serverBaseUrl, 12, false, newMarker))?.libraryId).toBe(newMarker));
-    expect(await cache.getDownloadJobs(first.serverBaseUrl, false, oldMarker)).toHaveLength(1);
+    const replacement = (await saved(current))!;
+    expect(await objects.get(replacement.cachedUrls[0])!.text()).toBe("Replacement page");
+    expect(await cache.getDownloadJobs(first.serverBaseUrl, false, marker)).toHaveLength(1);
     expect(await cache.getDownloadJobs(first.serverBaseUrl, false, newMarker)).toEqual([]);
     expect(store.getState().activeDownloads[12]?.status).not.toBe("error");
+    await store.getState().clearAll(current);
+    expect(await objects.get(earlierPage)!.text()).toBe("Earlier saved page");
+    expect(objects.size).toBe(1);
   });
   it("keeps originals and optional tiles in one owning chapter and deletes both together", async () => {
     mocks.tiles.mockResolvedValue({ width: 400, height: 8000, tiles: [{ blob: new Blob(["first tile"], { type: "image/png" }), height: 4000 }, { blob: new Blob(["second tile"], { type: "image/png" }), height: 4000 }] });
@@ -221,9 +236,165 @@ describe("download persistence and cancellation", () => {
     release([{ jobKey: "legacy", serverBaseUrl: first.serverBaseUrl, chapterId: 12, status: "queued", progress: 0, total: 0, attempts: 1, updatedAt: 1 }]); await restoring;
     expect(mocks.client).not.toHaveBeenCalled(); expect(store.getState().activeDownloads).toEqual({});
   });
+  it("starts a new queue restore if the shell remounts before the earlier restore returns", async () => {
+    await cache.saveDownloadJob({ serverBaseUrl: first.serverBaseUrl, chapterId: 12, status: "queued", progress: 0, total: 0, attempts: 1, updatedAt: 1 });
+    let release!: () => void;
+    const pendingRead = new Promise<cache.DownloadJob[]>((resolve) => { release = () => resolve([]); });
+    vi.spyOn(cache, "getDownloadJobs").mockReturnValueOnce(pendingRead);
+    const interrupted = store.getState().restoreDownloadJobs();
+    store.getState().pauseForShutdown();
+    try {
+      await store.getState().restoreDownloadJobs();
+      await vi.waitFor(async () => expect(await saved(first)).not.toBeNull());
+      expect(mocks.client).toHaveBeenCalledTimes(1);
+    } finally { release(); await interrupted; }
+  });
   it("continues delegating live website downloads to the captured Suwayomi endpoint", async () => {
     mocks.native = false; switchTo(second); await store.getState().downloadChapter(12, "First title", first);
     expect(mocks.client).toHaveBeenCalledWith(`${first.serverBaseUrl}/api/graphql`, { libraryId: null }, "live"); expect(mocks.invoke).not.toHaveBeenCalled();
     expect(await cache.getDownloadJobs(first.serverBaseUrl)).toEqual([]);
+  });
+});
+
+describe("verified download checkpoints", () => {
+  const jobs = (target: ReturnType<typeof progressBackend>) => cache.getDownloadJobs(target.serverBaseUrl, target.isDemo, target.libraryId);
+  const waitForFailure = async (target: ReturnType<typeof progressBackend>) => {
+    await vi.waitFor(async () => expect((await jobs(target))[0]?.status).toBe("failed"));
+    return (await jobs(target))[0];
+  };
+
+  it("reuses a verified page after restart and removes stranded attempt bytes", async () => {
+    const target = identifyLibrary();
+    let entered!: () => void, release!: () => void;
+    const nextPage = new Promise<void>((resolve) => { entered = resolve; });
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    releases.push(release);
+    mocks.invoke.mockImplementation(async (_command, args) => {
+      if (args.url.endsWith("/1")) { entered(); await held; }
+      return png("Original page");
+    });
+    await store.getState().downloadChapter(12, undefined, target);
+    await nextPage;
+    const pageUrl = (await jobs(target))[0].checkpoint!.pages[0].url;
+    const orphan = new URL(pageUrl);
+    orphan.searchParams.set("__yomi_tile", "0");
+    objects.set(orphan.toString(), new Response("Unpublished tile"));
+    store.getState().pauseForShutdown();
+    release();
+    await store.dispose();
+    expect((await jobs(target))[0]).toMatchObject({ status: "queued", progress: 1 });
+    expect(await saved(target)).toBeNull();
+
+    mocks.invoke.mockClear();
+    const restarted = createDownloadStore();
+    try {
+      await restarted.getState().restoreDownloadJobs();
+      await vi.waitFor(async () => expect(await saved(target)).not.toBeNull());
+      expect((await saved(target))!.cachedUrls[0]).toBe(pageUrl);
+      expect(mocks.invoke.mock.calls.map(([, args]) => args.url)).toEqual([liveUrl(target, 1)]);
+      expect(await jobs(target)).toEqual([]);
+      expect(objects.has(orphan.toString())).toBe(false);
+    } finally { await restarted.dispose(); }
+  });
+
+  it("retries after quota pressure and fetches only missing or damaged pages and unfinished work", async () => {
+    const target = identifyLibrary();
+    livePages = [0, 1, 2, 3].map((index) => new URL(liveUrl(target, index)).pathname);
+    beforeCacheWrite = (key) => { if (new URL(key).pathname.endsWith("/3")) throw new DOMException("Fixture quota", "QuotaExceededError"); };
+    await store.getState().downloadChapter(12, undefined, target);
+    const failed = await waitForFailure(target);
+    expect(failed).toMatchObject({ progress: 3, error: "Device storage is full. Free up space, then retry this chapter." });
+    expect(await saved(target)).toBeNull();
+    const receipts = failed.checkpoint!.pages;
+    expect(Object.keys(receipts)).toEqual(["0", "1", "2"]);
+    objects.delete(receipts[1].url);
+    objects.set(receipts[2].url, new Response("x".repeat(receipts[2].size)));
+
+    beforeCacheWrite = () => {};
+    mocks.invoke.mockClear();
+    await store.getState().retryDownload(12, undefined, target);
+    await vi.waitFor(async () => expect(await saved(target)).not.toBeNull());
+    expect(mocks.invoke.mock.calls.map(([, args]) => args.url)).toEqual([1, 2, 3].map((index) => liveUrl(target, index)));
+    expect((await saved(target))!.cachedUrls[0]).toBe(receipts[0].url);
+    expect(objects.has(receipts[2].url)).toBe(false);
+    expect(objects.size).toBe(4);
+    expect(await jobs(target)).toEqual([]);
+  });
+
+  it("starts fresh when the ordered page manifest changes", async () => {
+    const target = identifyLibrary();
+    mocks.invoke.mockImplementation(async (_command, args) => {
+      if (args.url.endsWith("/1")) throw new Error("Fixture page failure");
+      return png("Previous page");
+    });
+    await store.getState().downloadChapter(12, undefined, target);
+    const receipt = (await waitForFailure(target)).checkpoint!.pages[0];
+    livePages = [...livePages].reverse();
+    mocks.invoke.mockClear();
+    mocks.invoke.mockResolvedValue(png("Current page"));
+    await store.getState().retryDownload(12, undefined, target);
+    await vi.waitFor(async () => expect(await saved(target)).not.toBeNull());
+    expect(mocks.invoke.mock.calls.map(([, args]) => args.url)).toEqual([liveUrl(target, 0), liveUrl(target, 1)]);
+    expect(objects.has(receipt.url)).toBe(false);
+    expect((await saved(target))!.pages).toEqual(livePages);
+  });
+
+  it("resumes for the same managed library after its address moves", async () => {
+    const earlier = identifyLibrary();
+    mocks.invoke.mockImplementation(async (_command, args) => {
+      if (args.url.endsWith("/1")) throw new Error("Fixture page failure");
+      return png("Verified before the move");
+    });
+    await store.getState().downloadChapter(12, undefined, earlier);
+    const receipt = (await waitForFailure(earlier)).checkpoint!.pages[0];
+    const moved = identifyLibrary(`${first.serverBaseUrl}:4568`);
+    await cache.moveManagedOfflineRecords(earlier.serverBaseUrl, moved.serverBaseUrl, marker);
+    switchTo(moved);
+    await store.getState().restoreDownloadJobs();
+    expect(store.getState().activeDownloads[12]).toMatchObject({ status: "error", progress: 1 });
+    mocks.invoke.mockClear();
+    mocks.invoke.mockResolvedValue(png("Downloaded after the move"));
+    await store.getState().retryDownload(12, undefined, moved);
+    await vi.waitFor(async () => expect(await saved(moved)).not.toBeNull());
+    expect(mocks.invoke.mock.calls.map(([, args]) => args.url)).toEqual([liveUrl(moved, 1)]);
+    expect((await saved(moved))!.cachedUrls[0]).toBe(receipt.url);
+    expect(await (await cache.getOwnedCachedPage(liveUrl(moved), moved.serverBaseUrl))!.text()).toBe("Verified before the move");
+    expect(await jobs(earlier)).toEqual([]);
+  });
+
+  it("leaves out a page when the live library changes during its fetch", async () => {
+    const target = identifyLibrary();
+    mocks.invoke.mockImplementation(async (_command, args) => {
+      if (args.url.endsWith("/1")) vi.mocked(assertLibrarySession).mockRejectedValueOnce(new Error("Library marker changed"));
+      return png(args.url);
+    });
+    await store.getState().downloadChapter(12, undefined, target);
+    const failed = await waitForFailure(target);
+    expect(failed.error).toBe("Library marker changed");
+    expect(Object.keys(failed.checkpoint!.pages)).toEqual(["0"]);
+    expect(objects.size).toBe(1);
+    expect(await saved(target)).toBeNull();
+    store.getState().cancelDownload(12, target);
+    await vi.waitFor(async () => { expect(await jobs(target)).toEqual([]); expect(objects.size).toBe(0); });
+  });
+
+  it("fences a superseded writer out of another renderer's completed copy", async () => {
+    const target = identifyLibrary();
+    const earlier = holdNative(target);
+    await store.getState().downloadChapter(12, undefined, target);
+    await earlier.entered;
+    mocks.invoke.mockResolvedValue(png("New renderer page"));
+    const other = createDownloadStore();
+    try {
+      await other.getState().downloadChapter(12, undefined, target);
+      await vi.waitFor(async () => expect(await saved(target)).not.toBeNull());
+      const completed = (await saved(target))!;
+      earlier.release();
+      await vi.waitFor(() => expect(store.getState().activeDownloads[12]).toBeUndefined());
+      expect((await saved(target))!.cachedUrls).toEqual(completed.cachedUrls);
+      expect(await objects.get(completed.cachedUrls[0])!.text()).toBe("New renderer page");
+      expect(await jobs(target)).toEqual([]);
+      await vi.waitFor(() => expect(objects.size).toBe(2));
+    } finally { await other.dispose(); }
   });
 });

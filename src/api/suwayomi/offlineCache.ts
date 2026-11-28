@@ -51,6 +51,9 @@ export interface ReadingHistoryEvent {
 
 export type DownloadJobStatus = "queued" | "downloading" | "failed";
 
+export type VerifiedDownloadPage = { url: string; size: number; checksum: string };
+type DownloadCheckpoint = { manifest: string; pages: Record<number, VerifiedDownloadPage> };
+
 export interface DownloadJob {
   libraryId?: string;
   jobKey: string;
@@ -65,6 +68,13 @@ export interface DownloadJob {
   error?: string;
   updatedAt: number;
   isDemo?: boolean;
+  attempt?: string;
+  checkpoint?: DownloadCheckpoint;
+  abandonedAttempts?: string[];
+}
+
+export class DownloadJobChangedError extends Error {
+  constructor() { super("This download has changed. Reopen Downloads to see its current status."); }
 }
 
 const DB_NAME = "yomikura-offline";
@@ -142,26 +152,98 @@ function invalidatePageIndexes(serverBaseUrl?: string) {
 export function reserveCachedPage(url: string, owner: string) { const owners = pageClaims.get(url) ?? new Set<string>(); owners.add(owner); pageClaims.set(url, owners); }
 export function releaseCachedPageClaims(owner: string, urls?: string[]) { for (const [url, owners] of pageClaims) { if (urls && !urls.includes(url)) continue; owners.delete(owner); if (!owners.size) pageClaims.delete(url); } }
 export async function cleanupUnreferencedCachedPages(urls: string[]) {
-  const chapters = await offlineTransaction([STORE_NAME], "readonly", (tx) => offlineRead<CachedChapter[]>(tx.objectStore(STORE_NAME).getAll()));
+  if (!urls.length) return;
+  const [chapters, jobs] = await offlineTransaction([STORE_NAME, DOWNLOAD_JOB_STORE_NAME], "readonly", (tx) => Promise.all([
+    offlineRead<CachedChapter[]>(tx.objectStore(STORE_NAME).getAll()),
+    offlineRead<DownloadJob[]>(tx.objectStore(DOWNLOAD_JOB_STORE_NAME).getAll()),
+  ]));
   const retained = new Set(chapters.flatMap(cachedPageUrls));
+  for (const job of jobs) for (const page of Object.values(job.checkpoint?.pages ?? {})) retained.add(page.url);
   const cache = await caches.open("yomikura-page-cache");
   for (const url of new Set(urls)) if (!retained.has(url) && !pageClaims.has(url)) await cache.delete(url);
 }
 
-export async function saveDownloadJob(job: Omit<DownloadJob, "jobKey" | "serverBaseUrl"> & { serverBaseUrl: string }): Promise<void> {
+async function requireDownloadAttempt(store: IDBObjectStore, key: string, token: string) {
+  const job = await offlineRead<DownloadJob | undefined>(store.get(key));
+  if (job?.attempt !== token) throw new DownloadJobChangedError();
+  if (!isDemoCacheRecord(job)) assertManagedDeviceDataAddress(job.serverBaseUrl, job.libraryId);
+  return job;
+}
+
+async function cleanupDownloadAttempts(attempts: string[], urls: string[] = []) {
+  if (attempts.length) {
+    const tokens = new Set(attempts);
+    const cache = await caches.open("yomikura-page-cache");
+    for (const request of await cache.keys()) {
+      if (tokens.has(new URL(request.url).searchParams.get("__yomi_cache_attempt") ?? "")) urls.push(request.url);
+    }
+  }
+  await cleanupUnreferencedCachedPages(urls);
+}
+
+type DownloadJobState = Omit<DownloadJob, "jobKey" | "attempt" | "checkpoint" | "abandonedAttempts">;
+type JobWrite = { token: string; claim?: boolean; resumeFrom?: string };
+export async function saveDownloadJob(job: DownloadJobState, write?: JobWrite): Promise<void> {
   const serverBaseUrl = normalizeCacheServerUrl(job.serverBaseUrl); const isDemo = isDemoCacheRecord(job);
   const libraryId = recordLibrary(job, serverBaseUrl, isDemo);
   const record: DownloadJob = { ...job, serverBaseUrl, isDemo, libraryId, jobKey: storedKey(serverBaseUrl, job.chapterId, isDemo, libraryId) };
-  await offlineTransaction([DOWNLOAD_JOB_STORE_NAME], "readwrite", async (tx) => {
+  const abandoned = await offlineTransaction([DOWNLOAD_JOB_STORE_NAME], "readwrite", async (tx) => {
     if (!isDemo) assertManagedDeviceDataAddress(serverBaseUrl, libraryId);
     const store = tx.objectStore(DOWNLOAD_JOB_STORE_NAME);
     const previous = await offlineRead<DownloadJob | undefined>(store.get(record.jobKey));
+    let owned = previous && isDemoCacheRecord(previous) === isDemo ? previous : undefined;
+    if (write?.resumeFrom && !owned) {
+      const legacy = await offlineRead<DownloadJob | undefined>(store.get(write.resumeFrom));
+      if (legacy && storedKey(legacy.serverBaseUrl, legacy.chapterId, isDemoCacheRecord(legacy), legacy.libraryId) === record.jobKey) owned = legacy;
+    }
+    if (write?.resumeFrom && (!owned || owned.status === "failed")) throw new DownloadJobChangedError();
+    if (write && !write.claim && owned?.attempt !== write.token) throw new DownloadJobChangedError();
     if (previous && isDemoCacheRecord(previous) !== isDemo) {
       const preserved = getDownloadJobKey(previous.serverBaseUrl, previous.chapterId, isDemoCacheRecord(previous));
       if (!await offlineRead(store.get(preserved))) store.put({ ...previous, jobKey: preserved, isDemo: isDemoCacheRecord(previous) });
     }
-    store.put(record);
+    if (owned && owned.jobKey !== record.jobKey) store.delete(owned.jobKey);
+    const abandonedAttempts = owned?.abandonedAttempts ?? [];
+    if (write?.claim && owned?.attempt && owned.attempt !== write.token) abandonedAttempts.push(owned.attempt);
+    store.put({ ...record, attempt: write?.token ?? owned?.attempt, checkpoint: owned?.checkpoint, abandonedAttempts });
+    return abandonedAttempts;
   });
+  if (!write?.claim || !abandoned.length) return;
+  // A renderer can exit after writing Cache Storage but before recording the page.
+  await cleanupDownloadAttempts(abandoned).then(() => offlineTransaction([DOWNLOAD_JOB_STORE_NAME], "readwrite", async (tx) => {
+    const store = tx.objectStore(DOWNLOAD_JOB_STORE_NAME);
+    const current = await requireDownloadAttempt(store, record.jobKey, write.token);
+    delete current.abandonedAttempts;
+    store.put(current);
+  })).catch(() => undefined);
+}
+
+export async function prepareDownloadCheckpoint(key: string, token: string, manifest: string) {
+  const { checkpoint, retired } = await offlineTransaction([DOWNLOAD_JOB_STORE_NAME], "readwrite", async (tx) => {
+    const store = tx.objectStore(DOWNLOAD_JOB_STORE_NAME);
+    const job = await requireDownloadAttempt(store, key, token);
+    if (job.checkpoint?.manifest === manifest) return { checkpoint: job.checkpoint, retired: [] };
+    const checkpoint: DownloadCheckpoint = { manifest, pages: {} };
+    store.put({ ...job, checkpoint });
+    return { checkpoint, retired: Object.values(job.checkpoint?.pages ?? {}).map((page) => page.url) };
+  });
+  await cleanupUnreferencedCachedPages(retired).catch(() => undefined);
+  return checkpoint.pages;
+}
+
+export async function recordDownloadPage(key: string, token: string, index: number, page?: VerifiedDownloadPage) {
+  const removed = await offlineTransaction([DOWNLOAD_JOB_STORE_NAME], "readwrite", async (tx) => {
+    const store = tx.objectStore(DOWNLOAD_JOB_STORE_NAME);
+    const job = await requireDownloadAttempt(store, key, token);
+    if (!job.checkpoint) throw new DownloadJobChangedError();
+    const pages = job.checkpoint.pages;
+    const previous = pages[index];
+    if (page) pages[index] = page;
+    else delete pages[index];
+    store.put(job);
+    return previous?.url;
+  });
+  if (removed && removed !== page?.url) await cleanupUnreferencedCachedPages([removed]).catch(() => undefined);
 }
 
 export async function getDownloadJobs(serverBaseUrl?: string, isDemo = false, libraryId = isDemo || !serverBaseUrl ? undefined : rememberedLibrary(serverBaseUrl)?.marker): Promise<DownloadJob[]> {
@@ -176,12 +258,25 @@ export async function getDownloadJobs(serverBaseUrl?: string, isDemo = false, li
   return [...byIdentity.values()].sort((a, b) => a.updatedAt - b.updatedAt);
 }
 
+async function removeDownloadJobs(store: IDBObjectStore, server: string, chapterId: number, isDemo: boolean, libraryId?: string) {
+  const urls: string[] = [], attempts: string[] = [];
+  for (const job of await offlineRead<DownloadJob[]>(store.getAll())) {
+    if (job.chapterId !== chapterId || normalizeCacheServerUrl(job.serverBaseUrl) !== server || isDemoCacheRecord(job) !== isDemo || (job.libraryId ?? "") !== (libraryId ?? "")) continue;
+    urls.push(...Object.values(job.checkpoint?.pages ?? {}).map((page) => page.url));
+    if (job.attempt) attempts.push(job.attempt);
+    attempts.push(...job.abandonedAttempts ?? []);
+    store.delete(job.jobKey);
+  }
+  return { urls, attempts };
+}
+
 export async function deleteDownloadJob(serverBaseUrl: string, chapterId: number, isDemo = false, libraryId = isDemo ? undefined : rememberedLibrary(serverBaseUrl)?.marker): Promise<void> {
-  await offlineTransaction([DOWNLOAD_JOB_STORE_NAME], "readwrite", async (tx) => {
-    if (!isDemo) assertManagedDeviceDataAddress(normalizeCacheServerUrl(serverBaseUrl), libraryId);
-    const store = tx.objectStore(DOWNLOAD_JOB_STORE_NAME);
-    for (const job of await offlineRead<DownloadJob[]>(store.getAll())) if (job.chapterId === chapterId && normalizeCacheServerUrl(job.serverBaseUrl) === normalizeCacheServerUrl(serverBaseUrl) && isDemoCacheRecord(job) === isDemo && (job.libraryId ?? "") === (libraryId ?? "")) store.delete(job.jobKey);
+  const server = normalizeCacheServerUrl(serverBaseUrl);
+  const removed = await offlineTransaction([DOWNLOAD_JOB_STORE_NAME], "readwrite", async (tx) => {
+    if (!isDemo) assertManagedDeviceDataAddress(server, libraryId);
+    return removeDownloadJobs(tx.objectStore(DOWNLOAD_JOB_STORE_NAME), server, chapterId, isDemo, libraryId);
   });
+  await cleanupDownloadAttempts(removed.attempts, removed.urls).catch(() => cleanupUnreferencedCachedPages(removed.urls).catch(() => undefined));
 }
 
 
@@ -292,12 +387,15 @@ export async function getCachedChaptersForManga(serverBaseUrl: string, mangaId: 
   return (await getCachedChapters(serverBaseUrl, isDemo, libraryId ?? "")).filter((chapter) => chapter.mangaId === mangaId);
 }
 
-export async function saveCachedChapter(chapter: CachedChapter, signal?: AbortSignal): Promise<void> {
+export async function saveCachedChapter(chapter: CachedChapter, signal?: AbortSignal, downloadToken?: string): Promise<void> {
   const serverBaseUrl = normalizeCacheServerUrl(chapter.serverBaseUrl); const isDemo = isDemoCacheRecord(chapter);
   const libraryId = recordLibrary(chapter, serverBaseUrl, isDemo);
   const record = { ...chapter, serverBaseUrl, isDemo, libraryId, cacheKey: storedKey(serverBaseUrl, chapter.id, isDemo, libraryId) };
-  const changed = await offlineTransaction([STORE_NAME], "readwrite", async (tx) => {
+  const stores = downloadToken ? [STORE_NAME, DOWNLOAD_JOB_STORE_NAME] : [STORE_NAME];
+  const { changed, retired } = await offlineTransaction(stores, "readwrite", async (tx) => {
     if (!isDemo) assertManagedDeviceDataAddress(serverBaseUrl, libraryId);
+    const jobs = downloadToken ? tx.objectStore(DOWNLOAD_JOB_STORE_NAME) : undefined;
+    if (jobs && downloadToken) await requireDownloadAttempt(jobs, record.cacheKey, downloadToken);
     const store = tx.objectStore(STORE_NAME);
     const previous = await offlineRead<CachedChapter | undefined>(store.get(record.cacheKey));
     if (previous && isDemoCacheRecord(previous) !== isDemo) {
@@ -305,9 +403,15 @@ export async function saveCachedChapter(chapter: CachedChapter, signal?: AbortSi
       if (!await offlineRead(store.get(preserved))) store.put({ ...previous, cacheKey: preserved, isDemo: isDemoCacheRecord(previous) });
     }
     store.put(record);
-    return (!!previous && isDemoCacheRecord(previous) !== isDemo) || JSON.stringify([previous?.pages, previous?.cachedUrls, previous?.networkUrls, previous?.pageTiles]) !== JSON.stringify([record.pages, record.cachedUrls, record.networkUrls, record.pageTiles]);
+    const retired = jobs && (await removeDownloadJobs(jobs, serverBaseUrl, record.id, isDemo, libraryId)).urls;
+    const changed = (!!previous && isDemoCacheRecord(previous) !== isDemo) || JSON.stringify([previous?.pages, previous?.cachedUrls, previous?.networkUrls, previous?.pageTiles]) !== JSON.stringify([record.pages, record.cachedUrls, record.networkUrls, record.pageTiles]);
+    return { changed, retired };
   }, signal);
   if (changed) invalidatePageIndexes(serverBaseUrl);
+  if (retired?.length) {
+    const current = new Set(cachedPageUrls(record));
+    await cleanupUnreferencedCachedPages(retired.filter((url) => !current.has(url))).catch(() => undefined);
+  }
 }
 
 /** Recovery must never overwrite a newer download, including one from another tab. */
@@ -395,7 +499,11 @@ export async function clearBackendCache(serverBaseUrl: string, isDemo = false, l
   for (const job of await getDownloadJobs(serverBaseUrl, isDemo, libraryId ?? "")) await deleteDownloadJob(serverBaseUrl, job.chapterId, isDemo, libraryId ?? "");
   const owner = JSON.stringify([isDemo ? "demo" : "live", normalizeCacheServerUrl(serverBaseUrl)]);
   const cache = await caches.open("yomikura-page-cache");
-  const orphaned = (await cache.keys()).filter((request) => new URL(request.url).searchParams.get("__yomi_cache_owner") === owner).map((request) => request.url);
+  const orphaned = (await cache.keys()).filter((request) => {
+    const params = new URL(request.url).searchParams;
+    const originLibrary = params.get("__yomi_cache_library");
+    return params.get("__yomi_cache_owner") === owner && (originLibrary === null || originLibrary === libraryId);
+  }).map((request) => request.url);
   await cleanupUnreferencedCachedPages(orphaned);
 }
 

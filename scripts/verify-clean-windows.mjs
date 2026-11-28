@@ -88,6 +88,73 @@ async function savedPageHashes() {
   });
 }
 
+async function downloadRecords() {
+  return page.evaluate(async () => {
+    const read = (request) => new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const db = await read(indexedDB.open('yomikura-offline'));
+    try {
+      const tx = db.transaction(['download-jobs', 'chapters'], 'readonly');
+      const [jobs, chapters] = await Promise.all([
+        read(tx.objectStore('download-jobs').getAll()),
+        read(tx.objectStore('chapters').getAll()),
+      ]);
+      return { jobs, chapters };
+    } finally { db.close(); }
+  });
+}
+
+async function verifyProgressiveSearch(desktopOrigin, server) {
+  const endpoint = `${server}/api/graphql`;
+  const sources = [
+    { id: '1', name: 'Fast fixture source', lang: 'en' },
+    { id: '2', name: 'Slow fixture source', lang: 'fr' },
+  ].map((source) => ({ ...source, supportsLatest: true, isNsfw: false, extension: { isInstalled: true } }));
+  let release, slowStarted = false;
+  const slow = new Promise((resolve) => { release = resolve; });
+  const routeSearch = async (route) => {
+    const request = route.request();
+    if (request.method() !== 'POST') return route.continue();
+    const body = request.postDataJSON();
+    const headers = { 'access-control-allow-origin': desktopOrigin };
+    if (body?.operationName === 'GetSources') {
+      return route.fulfill({ headers, json: { data: { sources: { totalCount: sources.length, nodes: sources, pageInfo: { hasNextPage: false } } } } });
+    }
+    if (body?.operationName !== 'FetchSourceManga') return route.continue();
+    const { query, source } = body.variables.input;
+    if (query === 'first' && source === '2') { slowStarted = true; await slow; }
+    const title = `${query} fixture result ${source}`;
+    return route.fulfill({ headers, json: { data: { fetchSourceManga: { hasNextPage: false, mangas: [{ id: Number(source) + 100, title }] } } } })
+      .catch((error) => { if (query !== 'first' || source !== '2') throw error; });
+  };
+  await page.route(endpoint, routeSearch);
+  try {
+    await page.goto(`${desktopOrigin}/browse/search?q=first`);
+    await waitFor('slow search in flight', () => slowStarted, 10000);
+    await expect(page.getByRole('link', { name: /first fixture result 1/ })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('status').filter({ hasText: '1 of 2 sources finished' })).toBeVisible();
+    const aborted = page.waitForEvent('requestfailed', {
+      predicate: (request) => request.url() === endpoint && request.postDataJSON()?.variables?.input?.query === 'first'
+        && request.postDataJSON()?.variables?.input?.source === '2',
+      timeout: 10000,
+    });
+    await Promise.all([aborted, (async () => {
+      await page.getByRole('textbox', { name: 'Search manga title globally' }).fill('second');
+      await page.getByRole('button', { name: 'Search', exact: true }).click();
+    })()]);
+    release();
+    await expect(page.getByRole('link', { name: /second fixture result 1/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /second fixture result 2/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /first fixture result/ })).toHaveCount(0);
+    report.checks.push('The installed app showed a fast source while another was pending, cancelled the obsolete request, and displayed only the new search results.');
+  } finally {
+    release();
+    await page.unroute(endpoint, routeSearch);
+  }
+}
+
 async function closeWindow(pid = app.pid) {
   await browser.close().catch(() => {});
   await ps(String.raw`$p=Get-Process -Id $env:YOMIKURA_PID; if (!$p.CloseMainWindow()) { throw 'The app window could not be closed' }; if (!$p.WaitForExit(15000)) { throw 'The app did not exit' }`, { YOMIKURA_PID: String(pid) });
@@ -146,8 +213,48 @@ try {
   await page.getByText('My notes', { exact: false }).click();
   await page.getByRole('textbox', { name: 'A note for First Reading', exact: true }).fill(note);
   await expect(page.getByRole('status').filter({ hasText: 'Saved on this device' })).toBeVisible();
+  if (!bootstrap) await page.evaluate(() => {
+    const put = Cache.prototype.put;
+    Cache.prototype.put = function (key, value) {
+      const address = new URL(key instanceof Request ? key.url : key);
+      if (address.searchParams.has('__yomi_cache_attempt') && address.searchParams.get('__yomi_cache_page') === '1') {
+        window.fixturePageWritePending = true;
+        return new Promise(() => {});
+      }
+      return put.call(this, key, value);
+    };
+  });
   await page.getByRole('button', { name: /^Save .* for offline reading$/ }).click();
+  let verifiedPage;
+  if (!bootstrap) {
+    await waitFor('second page write to pause', () => page.evaluate(() => window.fixturePageWritePending));
+    const { jobs, chapters } = await downloadRecords();
+    assert.equal(jobs.length, 1);
+    assert.equal(jobs[0].status, 'downloading');
+    assert.ok(jobs[0].libraryId, 'The device download should belong to the verified library');
+    assert.deepEqual(Object.keys(jobs[0].checkpoint.pages), ['0']);
+    assert.equal(chapters.length, 0, 'A partial chapter must not be available offline');
+    verifiedPage = { ...jobs[0].checkpoint.pages[0], chapterId: jobs[0].chapterId };
+    await closeWindow();
+    await launch();
+    await expect(page.getByRole('link', { name: 'First Reading', exact: true }).first()).toBeVisible({ timeout: 60000 });
+    await page.getByRole('link', { name: 'First Reading', exact: true }).first().click();
+  }
   await expect(page.getByRole('button', { name: /^Remove offline download of / })).toBeVisible({ timeout: 60000 });
+  if (verifiedPage) {
+    const { jobs, chapters } = await downloadRecords();
+    assert.equal(jobs.length, 0);
+    const saved = chapters.find((item) => item.id === verifiedPage.chapterId);
+    assert.equal(saved?.cachedUrls.length, 4);
+    assert.equal(saved.cachedUrls[0], verifiedPage.url, 'Restart should keep the original verified page');
+    const bytes = await page.evaluate(async (url) => {
+      const response = await (await caches.open('yomikura-page-cache')).match(url);
+      const digest = await crypto.subtle.digest('SHA-256', await response.arrayBuffer());
+      return btoa(String.fromCharCode(...new Uint8Array(digest)));
+    }, verifiedPage.url);
+    assert.equal(bytes, verifiedPage.checksum);
+    report.checks.push('The installed app closed during a device download, reused the first verified page byte-for-byte, and published the complete four-page chapter on relaunch.');
+  }
   const originalHashes = await savedPageHashes();
   assert.ok(originalHashes.length >= 4, 'The release should retain all four fixture pages before restart');
   await page.getByRole('link', { name: 'Resume', exact: true }).first().click();
@@ -213,6 +320,7 @@ try {
   assert.equal((await graphql(await currentServer(), 'query($id:Int!){chapter(id:$id){lastPageRead}}', { id: chapterId })).chapter.lastPageRead, 2);
   report.checks.push('The installed app added the original-art book, read page 3, and resumed there after the app and managed server restarted.');
   await page.screenshot({ path: path.join(root, 'resume.png') });
+  if (!bootstrap) await verifyProgressiveSearch(desktopOrigin, await currentServer());
   await closeWindow(updatedAppPid);
   report.result = 'PASS';
 } catch (error) {

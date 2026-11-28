@@ -1,4 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { chromium, expect, test } from "@playwright/test";
+import { mkdir, mkdtemp } from "node:fs/promises";
+import { join } from "node:path";
 test.use({ serviceWorkers: "block" });
 
 test("an HTTP-success error page is never retained as a complete offline chapter", async ({ page }) => {
@@ -21,6 +23,61 @@ test("an HTTP-success error page is never retained as a complete offline chapter
   broken = false; await page.getByRole("button", { name: "Retry download of Chapter 1: The Journey Begins", exact: true }).click();
   await expect(page.getByRole("button", { name: "Remove offline download of Chapter 1: The Journey Begins", exact: true })).toBeVisible();
   expect(await stored()).toBe(1);
+});
+
+test("relaunching the browser resumes an interrupted device chapter past the verified page", async ({ baseURL }, testInfo) => {
+  test.setTimeout(60_000);
+  const profileRoot = join(process.cwd(), ".cache");
+  await mkdir(profileRoot, { recursive: true });
+  const profile = await mkdtemp(join(profileRoot, "pw-dl-"));
+  const options = { ...testInfo.project.use.launchOptions, baseURL, headless: true, serviceWorkers: "block" as const };
+  const chapter = "Chapter 1: The Journey Begins";
+  const unfinished = "**/demo/paper-garden-page.webp";
+  let context = await chromium.launchPersistentContext(profile, options);
+  let release!: () => void;
+  const heldRequest = new Promise<void>((resolve) => { release = resolve; });
+  try {
+    await context.addInitScript(() => localStorage.setItem("yomikura-settings", JSON.stringify({ version: 0, state: { serverBaseUrl: "http://127.0.0.1:4567", mockMode: true, connectionStatus: "connected", autoDeleteReadChapters: false, autoDownloadCount: 0 } })));
+    await context.route(unfinished, async (route) => {
+      if (route.request().resourceType() !== "fetch") return route.continue();
+      await heldRequest;
+      await route.abort().catch(() => undefined);
+    });
+    const page = context.pages()[0];
+    await page.goto("/manga/10001");
+    const secondPage = page.waitForRequest((request) => request.resourceType() === "fetch" && request.url().endsWith("/demo/paper-garden-page.webp"));
+    await page.getByRole("button", { name: `Save ${chapter} for offline reading`, exact: true }).click();
+    await secondPage;
+    const verified = await page.evaluate(async () => {
+      const request = indexedDB.open("yomikura-offline", 4);
+      const db = await new Promise<IDBDatabase>((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+      try {
+        const read = db.transaction("download-jobs").objectStore("download-jobs").getAll();
+        const jobs = await new Promise<typeof read.result>((resolve, reject) => { read.onsuccess = () => resolve(read.result); read.onerror = () => reject(read.error); });
+        const job = jobs.find((row) => row.chapterId === 20001);
+        return { status: job?.status, url: job?.checkpoint?.pages[0]?.url as string | undefined };
+      } finally { db.close(); }
+    });
+    expect(verified.status).toBe("downloading");
+    expect(verified.url).toBeTruthy();
+    await context.close();
+    release();
+
+    context = await chromium.launchPersistentContext(profile, options);
+    const requests: string[] = [];
+    await context.route(/\/demo\/paper-garden(?:-page)?\.webp$/, (route) => {
+      if (route.request().resourceType() === "fetch") requests.push(new URL(route.request().url()).pathname);
+      return route.continue();
+    });
+    const restarted = context.pages()[0];
+    await restarted.goto("/manga/10001");
+    await expect(restarted.getByRole("button", { name: `Remove offline download of ${chapter}`, exact: true })).toBeVisible();
+    expect(requests).toEqual(["/demo/paper-garden-page.webp"]);
+    expect(await restarted.evaluate(async (url) => !!await (await caches.open("yomikura-page-cache")).match(url), verified.url!)).toBe(true);
+  } finally {
+    release();
+    await context.close();
+  }
 });
 
 test("cleanup protection choices persist without inventing unavailable storage capacity", async ({ page }) => {
