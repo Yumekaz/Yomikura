@@ -4,6 +4,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore";
 import { compareSuwayomiVersions } from "../../api/suwayomi/version";
 import { APP_VERSION } from "../../utils/appVersion";
 import { updateFailure, type UpdatePhase } from "../../utils/updateFailure";
+import { libraryFetch } from "../../api/suwayomi/desktopAuth";
 
 export function TauriUpdaterRow() {
   const [checking, setChecking] = useState(false);
@@ -104,7 +105,7 @@ export function SuwayomiServerUpdaterRow() {
     setError(null);
     try {
       const cleanUrl = serverBaseUrl.replace(/\/$/, "");
-      const infoResponse = await fetch(`${cleanUrl}/api/graphql`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query: "query { aboutServer { version } }" }) });
+      const infoResponse = await libraryFetch(`${cleanUrl}/api/graphql`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query: "query { aboutServer { version } }" }) });
       if (infoResponse.ok) {
         const infoData = await infoResponse.json();
         setRunningVersion(infoData.data?.aboutServer?.version || "Unknown");

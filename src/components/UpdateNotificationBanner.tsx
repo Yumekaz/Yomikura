@@ -5,6 +5,7 @@ import { isTauri } from "../stores/useSettingsStore";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import { APP_VERSION } from "../utils/appVersion";
 import { updateFailure, type UpdatePhase } from "../utils/updateFailure";
+import { libraryFetch } from "../api/suwayomi/desktopAuth";
 
 type AppUpdate = { version: string; download: (phase: (value: UpdatePhase) => void) => Promise<void> };
 
@@ -67,7 +68,7 @@ export function UpdateNotificationBanner() {
       try {
         const cleanUrl = serverBaseUrl.replace(/\/$/, "");
         const [infoRes, latestRes] = await Promise.all([
-          fetch(`${cleanUrl}/api/v1/info`),
+          libraryFetch(`${cleanUrl}/api/v1/info`),
           fetch("https://api.github.com/repos/Suwayomi/Suwayomi-Server/releases/latest"),
         ]);
         if (!infoRes.ok || !latestRes.ok || cancelled) return;

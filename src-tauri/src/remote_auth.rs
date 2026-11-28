@@ -25,7 +25,31 @@ struct Session {
 
 #[derive(Default)]
 pub(crate) struct RemoteLibraryAuth {
-    sessions: Mutex<HashMap<String, Arc<Session>>>,
+    webview: Mutex<WebviewSessions>,
+}
+
+#[derive(Default)]
+struct WebviewSessions {
+    generation: u64,
+    sessions: HashMap<String, Arc<Session>>,
+}
+
+impl WebviewSessions {
+    fn check_generation(&self, expected: u64) -> Result<(), String> {
+        if self.generation != expected {
+            return Err(SIGN_IN_NEEDED.into());
+        }
+        Ok(())
+    }
+}
+
+impl RemoteLibraryAuth {
+    pub(crate) fn clear_webview_sessions(&self) {
+        if let Ok(mut webview) = self.webview.lock() {
+            webview.generation = webview.generation.wrapping_add(1);
+            webview.sessions.clear();
+        }
+    }
 }
 
 #[derive(serde::Serialize)]
@@ -151,6 +175,7 @@ pub(crate) async fn sign_in_suwayomi(
     username: String,
     password: String,
 ) -> Result<SignedIn, String> {
+    let generation = state.webview.lock().map_err(|_| NOT_AVAILABLE)?.generation;
     let base = base_url(&server_base_url)?;
     if username.trim().is_empty()
         || password.is_empty()
@@ -178,6 +203,11 @@ pub(crate) async fn sign_in_suwayomi(
         return Err("This Suwayomi address did not request Basic Auth. Check the server’s sign-in mode and final HTTPS address.".into());
     }
 
+    state
+        .webview
+        .lock()
+        .map_err(|_| NOT_AVAILABLE)?
+        .check_generation(generation)?;
     let request = graphql_request(&client, url, LIBRARY_PROBE.into())
         .basic_auth(username, Some(password))
         .build()
@@ -206,12 +236,20 @@ pub(crate) async fn sign_in_suwayomi(
 
     // Only a verified login may install a session. A later frontend operation
     // must present the same opaque handle and server base for every request.
-    let mut sessions = state.sessions.lock().map_err(|_| NOT_AVAILABLE)?;
-    if sessions.len() >= MAX_SESSIONS {
+    let mut webview = state.webview.lock().map_err(|_| NOT_AVAILABLE)?;
+    webview.check_generation(generation)?;
+    if webview.sessions.len() >= MAX_SESSIONS {
         return Err("Close unused library connections before signing in again.".into());
     }
     let session_id = uuid::Uuid::new_v4().to_string();
-    sessions.insert(session_id.clone(), Arc::new(Session { base, client, authorization }));
+    webview.sessions.insert(
+        session_id.clone(),
+        Arc::new(Session {
+            base,
+            client,
+            authorization,
+        }),
+    );
     Ok(SignedIn { session_id })
 }
 
@@ -220,7 +258,12 @@ pub(crate) fn clear_suwayomi_session(
     state: State<'_, RemoteLibraryAuth>,
     session_id: String,
 ) -> Result<(), String> {
-    state.sessions.lock().map_err(|_| NOT_AVAILABLE)?.remove(&session_id);
+    state
+        .webview
+        .lock()
+        .map_err(|_| NOT_AVAILABLE)?
+        .sessions
+        .remove(&session_id);
     Ok(())
 }
 
@@ -233,9 +276,10 @@ pub(crate) async fn request_suwayomi(
     body: Option<String>,
 ) -> Result<LibraryResponse, String> {
     let session = state
-        .sessions
+        .webview
         .lock()
         .map_err(|_| NOT_AVAILABLE)?
+        .sessions
         .get(&session_id)
         .cloned()
         .ok_or_else(|| SIGN_IN_NEEDED.to_string())?;
@@ -265,7 +309,13 @@ pub(crate) async fn request_suwayomi(
     } else {
         Vec::new()
     };
-    if !state.sessions.lock().map_err(|_| NOT_AVAILABLE)?.contains_key(&session_id) {
+    if !state
+        .webview
+        .lock()
+        .map_err(|_| NOT_AVAILABLE)?
+        .sessions
+        .contains_key(&session_id)
+    {
         return Err(SIGN_IN_NEEDED.into());
     }
     Ok(LibraryResponse { status: status.as_u16(), content_type, bytes })
@@ -274,6 +324,29 @@ pub(crate) async fn request_suwayomi(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn full_page_load_clears_sessions_and_invalidates_inflight_sign_in() {
+        let state = RemoteLibraryAuth::default();
+        let mut webview = state.webview.lock().unwrap();
+        let original_generation = webview.generation;
+        webview.sessions.insert(
+            "previous-document".into(),
+            Arc::new(Session {
+                base: base_url("https://library.example").unwrap(),
+                client: Client::new(),
+                authorization: HeaderValue::from_static("fixture"),
+            }),
+        );
+        drop(webview);
+
+        state.clear_webview_sessions();
+
+        let webview = state.webview.lock().unwrap();
+        assert!(webview.sessions.is_empty());
+        assert!(webview.check_generation(original_generation).is_err());
+        assert!(webview.check_generation(webview.generation).is_ok());
+    }
 
     #[test]
     fn restricts_credentials_to_the_exact_https_library_api() {

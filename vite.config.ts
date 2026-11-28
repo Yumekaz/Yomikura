@@ -58,6 +58,15 @@ export default defineConfig({
   },
   optimizeDeps: { entries: ["index.html"] },
   build: {
+    rollupOptions: {
+      output: {
+        // Lazy imports and offline precaching repeat these names in the packaged JS.
+        entryFileNames: "assets/[hash].js",
+        chunkFileNames: ({ name }) => name === "ReaderPage" || name === "DeviceRecoveryPanel"
+          ? "assets/[name]-[hash].js"
+          : "assets/[hash].js",
+      },
+    },
     minify: "terser",
     terserOptions: {
       compress: { passes: 2 },

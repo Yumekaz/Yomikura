@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 use tauri::menu::{MenuBuilder, MenuItem};
 use tauri::path::BaseDirectory;
 use tauri::tray::TrayIconBuilder;
+use tauri::webview::PageLoadEvent;
 use tauri::Emitter;
 use tauri::WindowEvent;
 use tauri::{Manager, State};
@@ -1078,6 +1079,13 @@ pub fn run() {
         })
         .manage(desktop_preferences::DesktopState::default())
         .manage(remote_auth::RemoteLibraryAuth::default())
+        .on_page_load(|webview, payload| {
+            if webview.label() == "main" && payload.event() == PageLoadEvent::Started {
+                webview
+                    .state::<remote_auth::RemoteLibraryAuth>()
+                    .clear_webview_sessions();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             desktop_preferences::get_desktop_preferences,
             desktop_preferences::set_desktop_preferences,

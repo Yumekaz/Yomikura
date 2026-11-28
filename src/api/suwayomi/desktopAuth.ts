@@ -1,8 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { validateServerBaseUrl } from "../../config/server";
 
-type Target = { profileId: string; serverBaseUrl: string };
-type Session = Target & { sessionId: string };
+type Session = { serverBaseUrl: string; sessionId: string };
 type Reply = { status: number; contentType: string; bytes: number[] };
 let session: Session | undefined;
 let generation = 0;
@@ -31,12 +30,12 @@ export function clearDesktopAuth() {
 let observing = false;
 export async function signInToDesktop(profileId: string, address: string, username: string, password: string) {
   const { isTauri, useSettingsStore } = await import("../../stores/useSettingsStore");
-  const target = { profileId, serverBaseUrl: normalize(address) };
+  const base = normalize(address);
   const selected = () => {
-    const { activeProfileId, serverBaseUrl, mockMode } = useSettingsStore.getState();
-    return !mockMode && target.profileId === activeProfileId && target.serverBaseUrl === normalize(serverBaseUrl);
+    const current = useSettingsStore.getState();
+    return !current.mockMode && profileId === current.activeProfileId && base === normalize(current.serverBaseUrl);
   };
-  if (!isTauri() || !target.serverBaseUrl.startsWith("https://") || !selected()) throw new Error("Choose the active Suwayomi profile with an HTTPS address.");
+  if (!isTauri() || !base.startsWith("https://") || !selected()) throw new Error("Select an HTTPS library profile first.");
   if (!observing) {
     observing = true;
     useSettingsStore.subscribe((next, previous) => {
@@ -49,7 +48,7 @@ export async function signInToDesktop(profileId: string, address: string, userna
   let sessionId: string;
   try {
     const { invoke } = await import("@tauri-apps/api/core");
-    ({ sessionId } = await invoke<{ sessionId: string }>("sign_in_suwayomi", { serverBaseUrl: target.serverBaseUrl, username, password }));
+    ({ sessionId } = await invoke<{ sessionId: string }>("sign_in_suwayomi", { serverBaseUrl: base, username, password }));
   } catch (error) {
     if (attempt !== generation || !selected()) return false;
     const message = typeof error === "string" ? error : "Suwayomi sign-in couldn’t be completed.";
@@ -60,7 +59,7 @@ export async function signInToDesktop(profileId: string, address: string, userna
     await revoke(sessionId);
     return false;
   }
-  const next = { ...target, sessionId };
+  const next = { serverBaseUrl: base, sessionId };
   session = next;
   const connected = await useSettingsStore.getState().testConnection();
   if (session !== next) return false;
@@ -88,7 +87,7 @@ export function isProtectedLibraryImage(url: string, serverBaseUrl: string) {
   return !!forRequest(url) && hasDesktopAuth(serverBaseUrl);
 }
 
-export async function protectedResponse(url: string, serverBaseUrl: string, signal?: AbortSignal) {
+export function protectedResponse(url: string, serverBaseUrl: string, signal?: AbortSignal) {
   return isProtectedLibraryImage(url, serverBaseUrl) ? libraryFetch(url, { signal }) : undefined;
 }
 

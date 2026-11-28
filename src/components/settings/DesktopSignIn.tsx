@@ -27,13 +27,12 @@ export default function DesktopSignIn({ profileId, address }: { profileId: strin
   return <details className="yomi-setup-options mt-4">
     <summary>Sign in with Basic Auth</summary>
     {signedIn ? <div>
-      <p>Signed in for this profile until you switch libraries or close the app.</p>
+      <p>Signed in until you switch libraries, reload, or close the app.</p>
       <button type="button" className="yomi-button yomi-button-secondary" onClick={() => {
         clearDesktopAuth();
         void useSettingsStore.getState().testConnection();
       }}>Sign out of Suwayomi</button>
     </div> : <form onSubmit={signIn} className="space-y-3">
-      <p>Use the username and password for this Suwayomi server.</p>
       <label className="block">Server username<input className="yomi-field mt-1 w-full" name="username" autoComplete="username" required maxLength={256} /></label>
       <label className="block">Server password<input className="yomi-field mt-1 w-full" name="password" type="password" autoComplete="current-password" required maxLength={1024} /></label>
       <button type="submit" className="yomi-button yomi-button-secondary" disabled={working}>{working ? "Signing in…" : "Sign in to Suwayomi"}</button>
