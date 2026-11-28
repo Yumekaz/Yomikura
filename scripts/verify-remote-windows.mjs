@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
-import { randomUUID, X509Certificate } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -19,7 +19,23 @@ const library = path.join(output, 'library');
 const username = 'fixture-reader', password = randomUUID();
 const upstream = new URL('http://127.0.0.1:4599');
 const report = { commit: process.env.YOMIKURA_TESTED_COMMIT, verificationCommit: process.env.GITHUB_SHA, cases: {} };
-let backend, proxy, edge, webview, app, page, thumbprint;
+let backend, proxy, edge, webview, app, page, trustedCa;
+
+async function updateFixtureTrust(ca, operation) {
+  const command = String.raw`
+    $ErrorActionPreference = 'Stop'
+    $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($env:YOMIKURA_FIXTURE_CA)
+    $store = [System.Security.Cryptography.X509Certificates.X509Store]::new('Root', 'LocalMachine')
+    $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+    try {
+      if ($env:YOMIKURA_FIXTURE_TRUST -eq 'add') { $store.Add($certificate) }
+      else { $store.Remove($certificate) }
+    } finally { $store.Dispose(); $certificate.Dispose() }`;
+  await exec('pwsh', ['-NoProfile', '-NonInteractive', '-Command', command], {
+    env: { ...process.env, YOMIKURA_FIXTURE_CA: ca, YOMIKURA_FIXTURE_TRUST: operation },
+    windowsHide: true, timeout: 15000,
+  });
+}
 
 async function installCandidate() {
   const directory = path.join(process.env.RUNNER_TEMP, 'yomikura-clean-installer');
@@ -76,9 +92,8 @@ try {
   await boot('NONE');
   console.log('The HTTPS control server is ready.');
   const cert = await makeFixtureCertificate(output, 'localhost');
-  const fingerprint = new X509Certificate(await readFile(cert.ca)).fingerprint.replaceAll(':', '');
-  await exec('certutil.exe', ['-user', '-f', '-addstore', 'Root', cert.ca], { windowsHide: true, timeout: 15000 });
-  thumbprint = fingerprint;
+  await updateFixtureTrust(cert.ca, 'add');
+  trustedCa = cert.ca;
   console.log('Windows trusts the disposable HTTPS certificate.');
   proxy = await startFixtureProxy(cert, upstream);
   const origin = `https://localhost:${proxy.address().port}`;
@@ -142,5 +157,5 @@ try {
   await edge?.close();
   await stopFixtureServer(proxy);
   await stopSuwayomi(backend);
-  if (thumbprint) await exec('certutil.exe', ['-user', '-delstore', 'Root', thumbprint], { windowsHide: true, timeout: 15000 });
+  if (trustedCa) await updateFixtureTrust(trustedCa, 'remove');
 }
