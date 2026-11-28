@@ -23,6 +23,15 @@ const DownloadsPage = lazy(() => import("../features/downloads/DownloadsPage"));
 const InsightsPage = lazy(() => import("../features/insights/InsightsPage"));
 const BrowserSetupPage = lazy(() => import("../features/setup/BrowserSetupPage"));
 
+const screens = {
+  library: LibraryPage, updates: UpdatesPage, history: HistoryPage, downloads: DownloadsPage,
+  browse: SourcesPage, "browse/sources": SourcesPage, "browse/search": GlobalSearchPage,
+  extensions: ExtensionsPage, "browse/extensions": ExtensionsPage,
+  "extensions/repos": ReposPage, "browse/extension-repos": ReposPage,
+  settings: SettingsPage, "settings/:section": SettingsPage, setup: BrowserSetupPage,
+  statistics: InsightsPage, upcoming: InsightsPage,
+};
+
 // Device caches and a loopback/LAN engine can remain usable when the browser
 // reports offline. Let the actual request and each feature's fallback decide.
 const queryClient = new QueryClient({ defaultOptions: { queries: { networkMode: "always" }, mutations: { networkMode: "always" } } });
@@ -48,25 +57,10 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/library" replace />} />
         <Route element={<AppShell />}>
-          <Route path="/setup" element={<BrowserSetupPage />} />
-          <Route path="/upcoming" element={<InsightsPage />} />
-          <Route path="/statistics" element={<InsightsPage />} />
-          <Route path="/library" element={<LibraryPage />} />
-          <Route path="/updates" element={<UpdatesPage />} />
-          <Route path="/history" element={<HistoryPage />} />
-          <Route path="/downloads" element={<DownloadsPage />} />
-          <Route path="/browse" element={<SourcesPage />} />
-          <Route path="/browse/sources" element={<SourcesPage />} />
-          <Route path="/browse/search" element={<GlobalSearchPage />} />
-          <Route path="/extensions" element={<ExtensionsPage />} />
-          <Route path="/browse/extensions" element={<ExtensionsPage />} />
-          <Route path="/browse/extension-repos" element={<ReposPage />} />
+          {Object.entries(screens).map(([path, Screen]) => <Route key={path} path={path} element={<Screen />} />)}
           <Route path="/manga/:mangaId" element={<ReadingRoute parameter="mangaId"><MangaDetailPage /></ReadingRoute>} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/settings/:section" element={<SettingsPage />} />
           <Route path="/browse/:sourceId" element={<SourceBrowsePage />} />
           <Route path="/browse/source/:sourceId/settings" element={<SourcePrefsPage />} />
-          <Route path="/extensions/repos" element={<ReposPage />} />
           <Route path="/reader/:chapterId" element={<ReadingRoute parameter="chapterId"><ReaderPage /></ReadingRoute>} />
         </Route>
         <Route path="*" element={<main><MissingPage /></main>} />

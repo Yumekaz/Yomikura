@@ -32,8 +32,17 @@ export default defineConfig({
       hash.update(readFileSync(new URL("./public/manifest.webmanifest", import.meta.url)));
       for (const asset of artwork) hash.update(readFileSync(new URL(`./public${asset}`, import.meta.url)));
       const version = hash.digest("hex").slice(0, 20);
-      const worker = template.replace('"__YOMIKURA_BUILD_ID__"', JSON.stringify(version)).replace("/*__YOMIKURA_PRECACHE__*/[]", JSON.stringify(assets));
-      const { code } = await minify(worker, { compress: false, mangle: false, format: { comments: false } });
+      const directories: Record<string, string[]> = {};
+      for (const asset of assets) {
+        const filenameStart = asset.lastIndexOf("/") + 1;
+        (directories[asset.slice(1, filenameStart)] ??= []).push(asset.slice(filenameStart));
+      }
+      const worker = template.replace('"__YOMIKURA_BUILD_ID__"', JSON.stringify(version)).replace("/*__YOMIKURA_PRECACHE__*/{}", JSON.stringify(directories));
+      const { code } = await minify(worker, {
+        compress: { passes: 2 },
+        mangle: { toplevel: true, reserved: ["BUILD_ID"] },
+        format: { comments: false },
+      });
       if (!code) throw new Error("The offline shell worker could not be generated");
       this.emitFile({ type: "asset", fileName: "sw.js", source: code });
     },

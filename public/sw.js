@@ -3,7 +3,9 @@ const BUILD_ID = "__YOMIKURA_BUILD_ID__";
 const SCOPE = new URL(self.registration.scope).pathname;
 const CACHE_PREFIX = SCOPE === "/" ? "yomikura-shell-" : `yomikura-subpath-${encodeURIComponent(SCOPE)}-`;
 const CACHE_NAME = CACHE_PREFIX + BUILD_ID;
-const PRECACHE_ASSETS = /*__YOMIKURA_PRECACHE__*/[].map((asset) => SCOPE + asset.slice(1));
+const PRECACHE_ASSETS = Object.entries(/*__YOMIKURA_PRECACHE__*/{}).flatMap(
+  ([directory, files]) => files.map((file) => SCOPE + directory + file),
+);
 const INDEX_URL = SCOPE + "index.html";
 
 self.addEventListener("install", (event) => {
